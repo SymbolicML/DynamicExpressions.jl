@@ -7,12 +7,12 @@ binary_operators = (+, -, /, *)
 
 index_of_mult = [i for (i, op) in enumerate(binary_operators) if op == *][1]
 
-options = Options(; binary_operators=binary_operators)
+operators = OperatorEnum(; binary_operators=binary_operators)
 
 tree = Node("x1") + Node("x1")
 
 # Should simplify to 2*x1:
-eqn = convert(Symbolic, tree, options)
+eqn = convert(Symbolic, tree, operators)
 eqn2 = simplify(eqn)
 # Should correctly simplify to 2 x1:
 # (although it might use 2(x1^1))
@@ -20,7 +20,7 @@ eqn2 = simplify(eqn)
 
 # Let's convert back the simplified version.
 # This should remove the ^ operator:
-tree = convert(Node, eqn2, options)
+tree = convert(Node, eqn2, operators)
 # Make sure one of the nodes is now 2.0:
 @test (tree.l.constant ? tree.l : tree.r).val == 2
 # Make sure the other node is x1:
@@ -29,10 +29,10 @@ tree = convert(Node, eqn2, options)
 # Finally, let's try converting a product, and ensure
 # that SymbolicUtils does not convert it to a power:
 tree = Node("x1") * Node("x1")
-eqn = convert(Symbolic, tree, options)
+eqn = convert(Symbolic, tree, operators)
 @test repr(eqn) == "x1*x1"
 # Test converting back:
-tree_copy = convert(Node, eqn, options)
+tree_copy = convert(Node, eqn, operators)
 @test repr(tree_copy) == "(x1 * x1)"
 
 # Let's test a much more complex function,
@@ -41,7 +41,7 @@ x1, x2, x3 = Node("x1"), Node("x2"), Node("x3")
 pow_abs2(x, y) = abs(x)^y
 custom_cos(x) = cos(x)^2
 
-# Define for Node (usually these are done internally to Options)
+# Define for Node (usually these are done internally to OperatorEnum)
 pow_abs2(l::Node, r::Node)::Node =
     (l.constant && r.constant) ? Node(pow_abs2(l.val, r.val)::Real) : Node(5, l, r)
 pow_abs2(l::Node, r::Real)::Node =
@@ -50,7 +50,7 @@ pow_abs2(l::Real, r::Node)::Node =
     r.constant ? Node(pow_abs2(l, r.val)::Real) : Node(5, l, r)
 custom_cos(x::Node)::Node = x.constant ? Node(custom_cos(x.val)::Real) : Node(1, x)
 
-options = Options(;
+operators = OperatorEnum(;
     binary_operators=(+, *, -, /, pow_abs2), unary_operators=(custom_cos, exp, sin)
 )
 tree = (
@@ -64,16 +64,16 @@ tree = (
     )
 )
 # We use `index_functions` to avoid converting the custom operators into the primitives.
-eqn = convert(Symbolic, tree, options; index_functions=true)
+eqn = convert(Symbolic, tree, operators; index_functions=true)
 
-tree_copy = convert(Node, eqn, options)
-tree_copy2 = convert(Node, simplify(eqn), options)
+tree_copy = convert(Node, eqn, operators)
+tree_copy2 = convert(Node, simplify(eqn), operators)
 # Too difficult to check the representation, so we check by evaluation:
 N = 100
 X = rand(MersenneTwister(0), 3, N) .+ 0.1
-output1, flag1 = eval_tree_array(tree, X, options)
-output2, flag2 = eval_tree_array(tree_copy, X, options)
-output3, flag3 = eval_tree_array(tree_copy2, X, options)
+output1, flag1 = eval_tree_array(tree, X, operators)
+output2, flag2 = eval_tree_array(tree_copy, X, operators)
+output3, flag3 = eval_tree_array(tree_copy2, X, operators)
 
 @test isapprox(output1, output2, atol=1e-4 * sqrt(N))
 # Simplified equation may give a different answer due to rounding errors,
@@ -81,15 +81,15 @@ output3, flag3 = eval_tree_array(tree_copy2, X, options)
 @test isapprox(output1, output3, atol=1e-2 * sqrt(N))
 
 # Test that simplification (within the library) preserves shared nodes:
-options = Options(; binary_operators=(+, -, *, /))
+operators = OperatorEnum(; binary_operators=(+, -, *, /))
 base_tree = Node(1, Node(; val=0.3), Node(; val=0.2))
 tree = x1 * base_tree + base_tree
-SymbolicRegression.SimplifyEquationModule.simplify_tree(tree, options)
+SymbolicRegression.SimplifyEquationModule.simplify_tree(tree, operators)
 @test tree.l.r === tree.r
 
 base_tree = (x1 + Node(; val=0.3)) + Node(; val=0.2)
 true_simplification_value = 0.5
 tree = x2 * base_tree + base_tree
-SymbolicRegression.SimplifyEquationModule.combine_operators(tree, options)
+SymbolicRegression.SimplifyEquationModule.combine_operators(tree, operators)
 # Should not combine twice!
 @test tree.l.r.r.val == true_simplification_value

@@ -10,8 +10,8 @@ x1 = 2.0
 # Initialize functions in Base....
 for unaop in [cos, exp, safe_log, safe_log2, safe_log10, safe_sqrt, relu, gamma, safe_acosh]
     for binop in [sub]
-        function make_options(; kw...)
-            return Options(;
+        function make_operators(; kw...)
+            return OperatorEnum(;
                 default_params...,
                 binary_operators=(+, *, ^, /, binop),
                 unary_operators=(unaop, abs),
@@ -20,7 +20,7 @@ for unaop in [cos, exp, safe_log, safe_log2, safe_log10, safe_sqrt, relu, gamma,
                 kw...,
             )
         end
-        make_options()
+        make_operators()
 
         # for unaop in 
         f_true = (x,) -> binop(abs(3.0 * unaop(x))^2.0, -1.2)
@@ -36,7 +36,7 @@ for unaop in [cos, exp, safe_log, safe_log2, safe_log10, safe_sqrt, relu, gamma,
 
         true_result = f_true(x1)
 
-        result = eval(Meta.parse(string_tree(const_tree, make_options())))
+        result = eval(Meta.parse(string_tree(const_tree, make_operators())))
 
         # Test Basics
         @test n == 9
@@ -72,8 +72,8 @@ for unaop in [cos, exp, safe_log, safe_log2, safe_log10, safe_sqrt, relu, gamma,
 
             y = T.(f_true.(X[1, :]))
             dataset = Dataset(X, y)
-            test_y, complete = eval_tree_array(tree, X, make_options())
-            test_y2, complete2 = differentiable_eval_tree_array(tree, X, make_options())
+            test_y, complete = eval_tree_array(tree, X, make_operators())
+            test_y2, complete2 = differentiable_eval_tree_array(tree, X, make_operators())
 
             # Test Evaluation
             @test complete == true
@@ -82,27 +82,27 @@ for unaop in [cos, exp, safe_log, safe_log2, safe_log10, safe_sqrt, relu, gamma,
             @test all(abs.(test_y2 .- y) / N .< zero_tolerance)
 
             # Test loss:
-            @test abs(eval_loss(tree, dataset, make_options())) < zero_tolerance
-            @test eval_loss(tree, dataset, make_options()) ==
-                score_func(dataset, tree, make_options())[2]
+            @test abs(eval_loss(tree, dataset, make_operators())) < zero_tolerance
+            @test eval_loss(tree, dataset, make_operators()) ==
+                score_func(dataset, tree, make_operators())[2]
 
             #Test Scoring
-            @test abs(score_func(dataset, tree, make_options(; parsimony=0.0))[1]) <
+            @test abs(score_func(dataset, tree, make_operators(; parsimony=0.0))[1]) <
                 zero_tolerance
-            @test score_func(dataset, tree, make_options(; parsimony=1.0))[1] > 1.0
-            @test score_func(dataset, tree, make_options())[1] <
-                score_func(dataset, tree_bad, make_options())[1]
+            @test score_func(dataset, tree, make_operators(; parsimony=1.0))[1] > 1.0
+            @test score_func(dataset, tree, make_operators())[1] <
+                score_func(dataset, tree_bad, make_operators())[1]
 
             dataset_with_larger_baseline = deepcopy(dataset)
             dataset_with_larger_baseline.baseline_loss = one(T) * 10
-            @test score_func(dataset_with_larger_baseline, tree_bad, make_options())[1] <
-                score_func(dataset, tree_bad, make_options())[1]
+            @test score_func(dataset_with_larger_baseline, tree_bad, make_operators())[1] <
+                score_func(dataset, tree_bad, make_operators())[1]
 
             # Test gradients:
             df_true = x -> ForwardDiff.derivative(f_true, x)
             dy = T.(df_true.(X[1, :]))
             test_dy = ForwardDiff.gradient(
-                _x -> sum(differentiable_eval_tree_array(tree, _x, make_options())[1]), X
+                _x -> sum(differentiable_eval_tree_array(tree, _x, make_operators())[1]), X
             )
             test_dy = test_dy[1, 1:end]
             @test all(abs.(test_dy .- dy) / N .< zero_tolerance)
