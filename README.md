@@ -1,6 +1,10 @@
+<div align="center">
+
 # DynamicExpressions.jl
 
 Blazingly-fast dynamic expressions.
+
+</div>
 
 DynamicExpressions.jl is the backbone of 
 [SymbolicRegression.jl](https://github.com/MilesCranmer/SymbolicRegression.jl) and
