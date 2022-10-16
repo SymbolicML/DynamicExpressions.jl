@@ -1,8 +1,8 @@
 using DynamicExpressions
 using Random
-using DynamicExpressions: eval_loss, score_func, Dataset
 using ForwardDiff
 using Test
+using SpecialFunctions
 include("test_params.jl")
 
 x1 = 2.0
@@ -15,8 +15,6 @@ for unaop in [cos, exp, safe_log, safe_log2, safe_log10, safe_sqrt, relu, gamma,
                 default_params...,
                 binary_operators=(+, *, ^, /, binop),
                 unary_operators=(unaop, abs),
-                npopulations=4,
-                verbosity=(unaop == gamma) ? 0 : Int(1e9),
                 kw...,
             )
         end
@@ -71,7 +69,6 @@ for unaop in [cos, exp, safe_log, safe_log2, safe_log10, safe_sqrt, relu, gamma,
             end
 
             y = T.(f_true.(X[1, :]))
-            dataset = Dataset(X, y)
             test_y, complete = eval_tree_array(tree, X, make_operators())
             test_y2, complete2 = differentiable_eval_tree_array(tree, X, make_operators())
 
@@ -80,23 +77,6 @@ for unaop in [cos, exp, safe_log, safe_log2, safe_log10, safe_sqrt, relu, gamma,
             @test all(abs.(test_y .- y) / N .< zero_tolerance)
             @test complete2 == true
             @test all(abs.(test_y2 .- y) / N .< zero_tolerance)
-
-            # Test loss:
-            @test abs(eval_loss(tree, dataset, make_operators())) < zero_tolerance
-            @test eval_loss(tree, dataset, make_operators()) ==
-                score_func(dataset, tree, make_operators())[2]
-
-            #Test Scoring
-            @test abs(score_func(dataset, tree, make_operators(; parsimony=0.0))[1]) <
-                zero_tolerance
-            @test score_func(dataset, tree, make_operators(; parsimony=1.0))[1] > 1.0
-            @test score_func(dataset, tree, make_operators())[1] <
-                score_func(dataset, tree_bad, make_operators())[1]
-
-            dataset_with_larger_baseline = deepcopy(dataset)
-            dataset_with_larger_baseline.baseline_loss = one(T) * 10
-            @test score_func(dataset_with_larger_baseline, tree_bad, make_operators())[1] <
-                score_func(dataset, tree_bad, make_operators())[1]
 
             # Test gradients:
             df_true = x -> ForwardDiff.derivative(f_true, x)
