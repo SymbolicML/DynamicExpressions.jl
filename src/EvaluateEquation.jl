@@ -1,6 +1,6 @@
 module EvaluateEquationModule
 
-import ..CoreModule: Node, Options
+import ..CoreModule: Node, OperatorEnum
 import ..UtilsModule: @return_on_false, is_bad_array, debug
 import ..EquationUtilsModule: is_constant
 
@@ -26,10 +26,10 @@ macro return_on_nonfinite_array(array, T, n)
 end
 
 """
-    eval_tree_array(tree::Node, cX::AbstractMatrix{T}, options::Options)
+    eval_tree_array(tree::Node, cX::AbstractMatrix{T}, operators::OperatorEnum)
 
 Evaluate a binary tree (equation) over a given input data matrix. The
-options contain all of the operators used. This function fuses doublets
+operators contain all of the operators used. This function fuses doublets
 and triplets of operations for lower memory usage.
 
 This function can be represented by the following pseudocode:
@@ -55,81 +55,81 @@ which speed up evaluation significantly.
     to the equation.
 """
 function eval_tree_array(
-    tree::Node{T}, cX::AbstractMatrix{T}, options::Options
+    tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum
 )::Tuple{AbstractVector{T},Bool} where {T<:Real}
     n = size(cX, 2)
-    result, finished = _eval_tree_array(tree, cX, options)
+    result, finished = _eval_tree_array(tree, cX, operators)
     @return_on_false finished result
     @return_on_nonfinite_array result T n
     return result, finished
 end
 function eval_tree_array(
-    tree::Node{T1}, cX::AbstractMatrix{T2}, options::Options
+    tree::Node{T1}, cX::AbstractMatrix{T2}, operators::OperatorEnum
 ) where {T1<:Real,T2<:Real}
     T = promote_type(T1, T2)
     debug(
-        options.verbosity > 0,
+        operators.verbosity > 0,
         "Warning: eval_tree_array received mixed types: tree=$(T1) and data=$(T2).",
     )
     tree = convert(Node{T}, tree)
     cX = convert(AbstractMatrix{T}, cX)
-    return eval_tree_array(tree, cX, options)
+    return eval_tree_array(tree, cX, operators)
 end
 
 function _eval_tree_array(
-    tree::Node{T}, cX::AbstractMatrix{T}, options::Options
+    tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum
 )::Tuple{AbstractVector{T},Bool} where {T<:Real}
-    max_possible_op = max(length(options.binops), length(options.unaops))
+    max_possible_op = max(length(operators.binops), length(operators.unaops))
     vals = ntuple(i -> Val(i), max_possible_op)
     # First, we see if there are only constants in the tree - meaning
     # we can just return the constant result.
     if tree.degree == 0
-        return deg0_eval(tree, cX, options)
+        return deg0_eval(tree, cX, operators)
     elseif is_constant(tree)
         # Speed hack for constant trees.
-        result, flag = _eval_constant_tree(tree, options)
+        result, flag = _eval_constant_tree(tree, operators)
         !flag && return Array{T,1}(undef, size(cX, 2)), false
         return fill(result, size(cX, 2)), true
     elseif tree.degree == 1
         if tree.l.degree == 2 && tree.l.l.degree == 0 && tree.l.r.degree == 0
             # op(op2(x, y)), where x, y, z are constants or variables.
-            return deg1_l2_ll0_lr0_eval(tree, cX, vals[tree.op], vals[tree.l.op], options)
+            return deg1_l2_ll0_lr0_eval(tree, cX, vals[tree.op], vals[tree.l.op], operators)
         elseif tree.l.degree == 1 && tree.l.l.degree == 0
             # op(op2(x)), where x is a constant or variable.
-            return deg1_l1_ll0_eval(tree, cX, vals[tree.op], vals[tree.l.op], options)
+            return deg1_l1_ll0_eval(tree, cX, vals[tree.op], vals[tree.l.op], operators)
         else
             # op(x), for any x.
-            return deg1_eval(tree, cX, vals[tree.op], options)
+            return deg1_eval(tree, cX, vals[tree.op], operators)
         end
     elseif tree.degree == 2
         # TODO - add op(op2(x, y), z) and op(x, op2(y, z))
         if tree.l.degree == 0 && tree.r.degree == 0
             # op(x, y), where x, y are constants or variables.
-            return deg2_l0_r0_eval(tree, cX, vals[tree.op], options)
+            return deg2_l0_r0_eval(tree, cX, vals[tree.op], operators)
         elseif tree.l.degree == 0
             # op(x, y), where x is a constant or variable but y is not.
-            return deg2_l0_eval(tree, cX, vals[tree.op], options)
+            return deg2_l0_eval(tree, cX, vals[tree.op], operators)
         elseif tree.r.degree == 0
             # op(x, y), where y is a constant or variable but x is not.
-            return deg2_r0_eval(tree, cX, vals[tree.op], options)
+            return deg2_r0_eval(tree, cX, vals[tree.op], operators)
         else
             # op(x, y), for any x or y
-            return deg2_eval(tree, cX, vals[tree.op], options)
+            return deg2_eval(tree, cX, vals[tree.op], operators)
         end
     end
 end
 
 function deg2_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, options::Options
+    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, operators::OperatorEnum
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx}
     n = size(cX, 2)
-    (cumulator, complete) = _eval_tree_array(tree.l, cX, options)
+    (cumulator, complete) = _eval_tree_array(tree.l, cX, operators)
     @return_on_false complete cumulator
     @return_on_nonfinite_array cumulator T n
-    (array2, complete2) = _eval_tree_array(tree.r, cX, options)
+    (array2, complete2) = _eval_tree_array(tree.r, cX, operators)
     @return_on_false complete2 cumulator
     @return_on_nonfinite_array array2 T n
-    op = options.binops[op_idx]
+    op = operators.binops[op_idx]
 
     # We check inputs (and intermediates), not outputs.
     @inbounds @simd for j in 1:n
@@ -141,13 +141,13 @@ function deg2_eval(
 end
 
 function deg1_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, options::Options
+    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, operators::OperatorEnum
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx}
     n = size(cX, 2)
-    (cumulator, complete) = _eval_tree_array(tree.l, cX, options)
+    (cumulator, complete) = _eval_tree_array(tree.l, cX, operators)
     @return_on_false complete cumulator
     @return_on_nonfinite_array cumulator T n
-    op = options.unaops[op_idx]
+    op = operators.unaops[op_idx]
     @inbounds @simd for j in 1:n
         x = op(cumulator[j])::T
         cumulator[j] = x
@@ -156,7 +156,7 @@ function deg1_eval(
 end
 
 function deg0_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, options::Options
+    tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum
 )::Tuple{AbstractVector{T},Bool} where {T<:Real}
     n = size(cX, 2)
     if tree.constant
@@ -167,11 +167,11 @@ function deg0_eval(
 end
 
 function deg1_l2_ll0_lr0_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, ::Val{op_l_idx}, options::Options
+    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, ::Val{op_l_idx}, operators::OperatorEnum
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx,op_l_idx}
     n = size(cX, 2)
-    op = options.unaops[op_idx]
-    op_l = options.binops[op_l_idx]
+    op = operators.unaops[op_idx]
+    op_l = operators.binops[op_l_idx]
     if tree.l.l.constant && tree.l.r.constant
         val_ll = tree.l.l.val
         val_lr = tree.l.r.val
@@ -219,11 +219,11 @@ end
 
 # op(op2(x)) for x variable or constant
 function deg1_l1_ll0_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, ::Val{op_l_idx}, options::Options
+    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, ::Val{op_l_idx}, operators::OperatorEnum
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx,op_l_idx}
     n = size(cX, 2)
-    op = options.unaops[op_idx]
-    op_l = options.unaops[op_l_idx]
+    op = operators.unaops[op_idx]
+    op_l = operators.unaops[op_l_idx]
     if tree.l.l.constant
         val_ll = tree.l.l.val
         @return_on_check val_ll T n
@@ -245,10 +245,10 @@ function deg1_l1_ll0_eval(
 end
 
 function deg2_l0_r0_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, options::Options
+    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, operators::OperatorEnum
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx}
     n = size(cX, 2)
-    op = options.binops[op_idx]
+    op = operators.binops[op_idx]
     if tree.l.constant && tree.r.constant
         val_l = tree.l.val
         @return_on_check val_l T n
@@ -288,13 +288,13 @@ function deg2_l0_r0_eval(
 end
 
 function deg2_l0_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, options::Options
+    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, operators::OperatorEnum
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx}
     n = size(cX, 2)
-    (cumulator, complete) = _eval_tree_array(tree.r, cX, options)
+    (cumulator, complete) = _eval_tree_array(tree.r, cX, operators)
     @return_on_false complete cumulator
     @return_on_nonfinite_array cumulator T n
-    op = options.binops[op_idx]
+    op = operators.binops[op_idx]
     if tree.l.constant
         val = tree.l.val
         @return_on_check val T n
@@ -313,13 +313,13 @@ function deg2_l0_eval(
 end
 
 function deg2_r0_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, options::Options
+    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, operators::OperatorEnum
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx}
     n = size(cX, 2)
-    (cumulator, complete) = _eval_tree_array(tree.l, cX, options)
+    (cumulator, complete) = _eval_tree_array(tree.l, cX, operators)
     @return_on_false complete cumulator
     @return_on_nonfinite_array cumulator T n
-    op = options.binops[op_idx]
+    op = operators.binops[op_idx]
     if tree.r.constant
         val = tree.r.val
         @return_on_check val T n
@@ -338,22 +338,22 @@ function deg2_r0_eval(
 end
 
 """
-    _eval_constant_tree(tree::Node{T}, options::Options)::Tuple{T,Bool} where {T<:Real}
+    _eval_constant_tree(tree::Node{T}, operators::OperatorEnum)::Tuple{T,Bool} where {T<:Real}
 
 Evaluate a tree which is assumed to not contain any variable nodes. This
 gives better performance, as we do not need to perform computation
 over an entire array when the values are all the same.
 """
-function _eval_constant_tree(tree::Node{T}, options::Options)::Tuple{T,Bool} where {T<:Real}
-    max_possible_op = max(length(options.binops), length(options.unaops))
+function _eval_constant_tree(tree::Node{T}, operators::OperatorEnum)::Tuple{T,Bool} where {T<:Real}
+    max_possible_op = max(length(operators.binops), length(operators.unaops))
     vals = ntuple(i -> Val(i), max_possible_op)
 
     if tree.degree == 0
         return deg0_eval_constant(tree)
     elseif tree.degree == 1
-        return deg1_eval_constant(tree, vals[tree.op], options)
+        return deg1_eval_constant(tree, vals[tree.op], operators)
     else
-        return deg2_eval_constant(tree, vals[tree.op], options)
+        return deg2_eval_constant(tree, vals[tree.op], operators)
     end
 end
 
@@ -362,22 +362,22 @@ end
 end
 
 function deg1_eval_constant(
-    tree::Node{T}, ::Val{op_idx}, options::Options
+    tree::Node{T}, ::Val{op_idx}, operators::OperatorEnum
 )::Tuple{T,Bool} where {T<:Real,op_idx}
-    op = options.unaops[op_idx]
-    (cumulator, complete) = _eval_constant_tree(tree.l, options)
+    op = operators.unaops[op_idx]
+    (cumulator, complete) = _eval_constant_tree(tree.l, operators)
     !complete && return zero(T), false
     output = op(cumulator)::T
     return output, isfinite(output)
 end
 
 function deg2_eval_constant(
-    tree::Node{T}, ::Val{op_idx}, options::Options
+    tree::Node{T}, ::Val{op_idx}, operators::OperatorEnum
 )::Tuple{T,Bool} where {T<:Real,op_idx}
-    op = options.binops[op_idx]
-    (cumulator, complete) = _eval_constant_tree(tree.l, options)
+    op = operators.binops[op_idx]
+    (cumulator, complete) = _eval_constant_tree(tree.l, operators)
     !complete && return zero(T), false
-    (cumulator2, complete2) = _eval_constant_tree(tree.r, options)
+    (cumulator2, complete2) = _eval_constant_tree(tree.r, operators)
     !complete2 && return zero(T), false
     output = op(cumulator, cumulator2)::T
     return output, isfinite(output)
@@ -386,7 +386,7 @@ end
 # Evaluate an equation over an array of datapoints
 # This one is just for reference. The fused one should be faster.
 function differentiable_eval_tree_array(
-    tree::Node{T1}, cX::AbstractMatrix{T}, options::Options
+    tree::Node{T1}, cX::AbstractMatrix{T}, operators::OperatorEnum
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,T1}
     n = size(cX, 2)
     if tree.degree == 0
@@ -396,31 +396,31 @@ function differentiable_eval_tree_array(
             return (cX[tree.feature, :], true)
         end
     elseif tree.degree == 1
-        return deg1_diff_eval(tree, cX, Val(tree.op), options)
+        return deg1_diff_eval(tree, cX, Val(tree.op), operators)
     else
-        return deg2_diff_eval(tree, cX, Val(tree.op), options)
+        return deg2_diff_eval(tree, cX, Val(tree.op), operators)
     end
 end
 
 function deg1_diff_eval(
-    tree::Node{T1}, cX::AbstractMatrix{T}, ::Val{op_idx}, options::Options
+    tree::Node{T1}, cX::AbstractMatrix{T}, ::Val{op_idx}, operators::OperatorEnum
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx,T1}
-    (left, complete) = differentiable_eval_tree_array(tree.l, cX, options)
+    (left, complete) = differentiable_eval_tree_array(tree.l, cX, operators)
     @return_on_false complete left
-    op = options.unaops[op_idx]
+    op = operators.unaops[op_idx]
     out = op.(left)
     no_nans = !any(x -> (!isfinite(x)), out)
     return (out, no_nans)
 end
 
 function deg2_diff_eval(
-    tree::Node{T1}, cX::AbstractMatrix{T}, ::Val{op_idx}, options::Options
+    tree::Node{T1}, cX::AbstractMatrix{T}, ::Val{op_idx}, operators::OperatorEnum
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx,T1}
-    (left, complete) = differentiable_eval_tree_array(tree.l, cX, options)
+    (left, complete) = differentiable_eval_tree_array(tree.l, cX, operators)
     @return_on_false complete left
-    (right, complete2) = differentiable_eval_tree_array(tree.r, cX, options)
+    (right, complete2) = differentiable_eval_tree_array(tree.r, cX, operators)
     @return_on_false complete2 left
-    op = options.binops[op_idx]
+    op = operators.binops[op_idx]
     out = op.(left, right)
     no_nans = !any(x -> (!isfinite(x)), out)
     return (out, no_nans)

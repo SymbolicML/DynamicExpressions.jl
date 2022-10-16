@@ -1,7 +1,7 @@
 module EquationModule
 
 import ..ProgramConstantsModule: CONST_TYPE
-import ..OptionsStructModule: Options
+import ..OperatorEnumModule: OperatorEnum
 
 """
     Node{T<:Real}
@@ -23,9 +23,9 @@ nodes, you can evaluate or print a given expression.
     case of a feature node. Only used if `degree==0` and `constant==false`. 
     Only defined if `degree == 0 && constant == false`.
 - `op::Int`: If `degree==1`, this is the index of the operator
-    in `options.unaops`. If `degree==2`, this is the index of the
-    operator in `options.binops`. In other words, this is an enum
-    of the operators, and is dependent on the specific `Options`
+    in `operators.unaops`. If `degree==2`, this is the index of the
+    operator in `operators.binops`. In other words, this is an enum
+    of the operators, and is dependent on the specific `OperatorEnum`
     object. Only defined if `degree >= 1`
 - `l::Node{T}`: Left child of the node. Only defined if `degree >= 1`.
     Same type as the parent node.
@@ -39,7 +39,7 @@ mutable struct Node{T<:Real}
     val::T  # If is a constant, this stores the actual value
     # ------------------- (possibly undefined below)
     feature::Int  # If is a variable (e.g., x in cos(x)), this stores the feature index.
-    op::Int  # If operator, this is the index of the operator in options.binary_operators, or options.unary_operators
+    op::Int  # If operator, this is the index of the operator in operators.binary_operators, or operators.unary_operators
     l::Node{T}  # Left child node. Only defined for degree=1 or degree=2.
     r::Node{T}  # Right child node. Only defined for degree=2. 
 
@@ -276,28 +276,28 @@ end
 function string_op(
     op::F,
     tree::Node,
-    options::Options;
+    operators::OperatorEnum;
     bracketed::Bool=false,
     varMap::Union{Array{String,1},Nothing}=nothing,
 )::String where {F}
     op_name = get_op_name(string(op))
     if op_name in ["+", "-", "*", "/", "^"]
-        l = string_tree(tree.l, options; bracketed=false, varMap=varMap)
-        r = string_tree(tree.r, options; bracketed=false, varMap=varMap)
+        l = string_tree(tree.l, operators; bracketed=false, varMap=varMap)
+        r = string_tree(tree.r, operators; bracketed=false, varMap=varMap)
         if bracketed
             return "$l $op_name $r"
         else
             return "($l $op_name $r)"
         end
     else
-        l = string_tree(tree.l, options; bracketed=true, varMap=varMap)
-        r = string_tree(tree.r, options; bracketed=true, varMap=varMap)
+        l = string_tree(tree.l, operators; bracketed=true, varMap=varMap)
+        r = string_tree(tree.r, operators; bracketed=true, varMap=varMap)
         return "$op_name($l, $r)"
     end
 end
 
 """
-    string_tree(tree::Node, options::Options; kws...)
+    string_tree(tree::Node, operators::OperatorEnum; kws...)
 
 Convert an equation to a string.
 
@@ -308,7 +308,7 @@ Convert an equation to a string.
 """
 function string_tree(
     tree::Node,
-    options::Options;
+    operators::OperatorEnum;
     bracketed::Bool=false,
     varMap::Union{Array{String,1},Nothing}=nothing,
 )::String
@@ -323,26 +323,26 @@ function string_tree(
             end
         end
     elseif tree.degree == 1
-        op_name = get_op_name(string(options.unaops[tree.op]))
-        return "$(op_name)($(string_tree(tree.l, options, bracketed=true, varMap=varMap)))"
+        op_name = get_op_name(string(operators.unaops[tree.op]))
+        return "$(op_name)($(string_tree(tree.l, operators, bracketed=true, varMap=varMap)))"
     else
         return string_op(
-            options.binops[tree.op], tree, options; bracketed=bracketed, varMap=varMap
+            operators.binops[tree.op], tree, operators; bracketed=bracketed, varMap=varMap
         )
     end
 end
 
 # Print an equation
 function print_tree(
-    io::IO, tree::Node, options::Options; varMap::Union{Array{String,1},Nothing}=nothing
+    io::IO, tree::Node, operators::OperatorEnum; varMap::Union{Array{String,1},Nothing}=nothing
 )
-    return println(io, string_tree(tree, options; varMap=varMap))
+    return println(io, string_tree(tree, operators; varMap=varMap))
 end
 
 function print_tree(
-    tree::Node, options::Options; varMap::Union{Array{String,1},Nothing}=nothing
+    tree::Node, operators::OperatorEnum; varMap::Union{Array{String,1},Nothing}=nothing
 )
-    return println(string_tree(tree, options; varMap=varMap))
+    return println(string_tree(tree, operators; varMap=varMap))
 end
 
 function Base.hash(tree::Node)::UInt

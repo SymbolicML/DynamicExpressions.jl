@@ -1,13 +1,13 @@
 module SimplifyEquationModule
 
-import ..CoreModule: Node, copy_node, Options
+import ..CoreModule: Node, copy_node, OperatorEnum
 import ..CheckConstraintsModule: check_constraints
 import ..UtilsModule: isbad, isgood
 
 # Simplify tree
 function combine_operators(
     tree::Node{T},
-    options::Options,
+    operators::OperatorEnum,
     id_map::IdDict{Node{T},Node{T}}=IdDict{Node{T},Node{T}}(),
 )::Node{T} where {T}
     # NOTE: (const (+*-) const) already accounted for. Call simplify_tree before.
@@ -20,15 +20,15 @@ function combine_operators(
         if tree.degree == 0
             return tree
         elseif tree.degree == 1
-            tree.l = combine_operators(tree.l, options, id_map)
+            tree.l = combine_operators(tree.l, operators, id_map)
         elseif tree.degree == 2
-            tree.l = combine_operators(tree.l, options, id_map)
-            tree.r = combine_operators(tree.r, options, id_map)
+            tree.l = combine_operators(tree.l, operators, id_map)
+            tree.r = combine_operators(tree.r, operators, id_map)
         end
 
         top_level_constant = tree.degree == 2 && (tree.l.constant || tree.r.constant)
         if tree.degree == 2 &&
-            (options.binops[tree.op] == (*) || options.binops[tree.op] == (+)) &&
+            (operators.binops[tree.op] == (*) || operators.binops[tree.op] == (+)) &&
             top_level_constant
             op = tree.op
             # Put the constant in r. Need to assume var in left for simplification assumption.
@@ -43,19 +43,19 @@ function combine_operators(
             if below.degree == 2 && below.op == op
                 if below.l.constant
                     tree = below
-                    tree.l.val = options.binops[op](tree.l.val, topconstant)
+                    tree.l.val = operators.binops[op](tree.l.val, topconstant)
                 elseif below.r.constant
                     tree = below
-                    tree.r.val = options.binops[op](tree.r.val, topconstant)
+                    tree.r.val = operators.binops[op](tree.r.val, topconstant)
                 end
             end
         end
 
-        if tree.degree == 2 && options.binops[tree.op] == (-) && top_level_constant
+        if tree.degree == 2 && operators.binops[tree.op] == (-) && top_level_constant
             # Currently just simplifies subtraction. (can't assume both plus and sub are operators)
             # Not commutative, so use different op.
             if tree.l.constant
-                if tree.r.degree == 2 && options.binops[tree.r.op] == (-)
+                if tree.r.degree == 2 && operators.binops[tree.r.op] == (-)
                     if tree.r.l.constant
                         #(const - (const - var)) => (var - const)
                         l = tree.l
@@ -74,7 +74,7 @@ function combine_operators(
                     end
                 end
             else #tree.r.constant is true
-                if tree.l.degree == 2 && options.binops[tree.l.op] == (-)
+                if tree.l.degree == 2 && operators.binops[tree.l.op] == (-)
                     if tree.l.l.constant
                         #((const - var) - const) => (const - var)
                         l = tree.l
@@ -101,23 +101,23 @@ end
 # Simplify tree
 function simplify_tree(
     tree::Node{T},
-    options::Options,
+    operators::OperatorEnum,
     id_map::IdDict{Node{T},Node{T}}=IdDict{Node{T},Node{T}}(),
 )::Node{T} where {T<:Real}
     get!(id_map, tree) do
         if tree.degree == 1
-            tree.l = simplify_tree(tree.l, options, id_map)
+            tree.l = simplify_tree(tree.l, operators, id_map)
             l = tree.l.val
             if tree.l.degree == 0 && tree.l.constant && isgood(l)
-                out = options.unaops[tree.op](l)
+                out = operators.unaops[tree.op](l)
                 if isbad(out)
                     return tree
                 end
                 return Node(; val=convert(T, out))
             end
         elseif tree.degree == 2
-            tree.l = simplify_tree(tree.l, options, id_map)
-            tree.r = simplify_tree(tree.r, options, id_map)
+            tree.l = simplify_tree(tree.l, operators, id_map)
+            tree.r = simplify_tree(tree.r, operators, id_map)
             constantsBelow = (
                 tree.l.degree == 0 &&
                 tree.l.constant &&
@@ -133,7 +133,7 @@ function simplify_tree(
                 end
 
                 # Actually compute:
-                out = options.binops[tree.op](l, r)
+                out = operators.binops[tree.op](l, r)
                 if isbad(out)
                     return tree
                 end

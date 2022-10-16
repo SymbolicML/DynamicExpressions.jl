@@ -1,6 +1,6 @@
 module EquationUtilsModule
 
-import ..CoreModule: Node, copy_node, Options
+import ..CoreModule: Node, copy_node, OperatorEnum
 
 # Count the operators, constants, variables in an equation
 function count_nodes(tree::Node)::Int

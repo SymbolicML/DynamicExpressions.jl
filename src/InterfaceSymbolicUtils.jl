@@ -1,7 +1,7 @@
 module InterfaceSymbolicUtilsModule
 
 using SymbolicUtils
-import ..CoreModule: CONST_TYPE, Node, Options
+import ..CoreModule: CONST_TYPE, Node, OperatorEnum
 import ..UtilsModule: isgood, isbad, @return_on_false
 
 const SYMBOLIC_UTILS_TYPES = Union{<:Number,SymbolicUtils.Symbolic{<:Number}}
@@ -17,7 +17,7 @@ function isgood(x::SymbolicUtils.Symbolic)
 end
 subs_bad(x) = isgood(x) ? x : Inf
 
-function parse_tree_to_eqs(tree::Node, options::Options, index_functions::Bool=false)
+function parse_tree_to_eqs(tree::Node, operators::OperatorEnum, index_functions::Bool=false)
     if tree.degree == 0
         # Return constant if needed
         tree.constant && return subs_bad(tree.val)
@@ -26,7 +26,7 @@ function parse_tree_to_eqs(tree::Node, options::Options, index_functions::Bool=f
     # Collect the next children
     children = tree.degree >= 2 ? (tree.l, tree.r) : (tree.l,)
     # Get the operation
-    op = tree.degree > 1 ? options.binops[tree.op] : options.unaops[tree.op]
+    op = tree.degree > 1 ? operators.binops[tree.op] : operators.unaops[tree.op]
     # Create an N tuple of Numbers for each argument
     dtypes = map(x -> Number, 1:(tree.degree))
     #
@@ -35,46 +35,46 @@ function parse_tree_to_eqs(tree::Node, options::Options, index_functions::Bool=f
     end
 
     return subs_bad(
-        op(map(x -> parse_tree_to_eqs(x, options, index_functions), children)...)
+        op(map(x -> parse_tree_to_eqs(x, operators, index_functions), children)...)
     )
 end
 
 # For operators which are indexed, we need to convert them back
 # using the string:
 function convert_to_function(
-    x::SymbolicUtils.Sym{SymbolicUtils.FnType{T,Number}}, options::Options
+    x::SymbolicUtils.Sym{SymbolicUtils.FnType{T,Number}}, operators::OperatorEnum
 ) where {T<:Tuple}
     degree = length(T.types)
     if degree == 1
-        ind = findoperation(x.name, options.unaops)
-        return options.unaops[ind]
+        ind = findoperation(x.name, operators.unaops)
+        return operators.unaops[ind]
     elseif degree == 2
-        ind = findoperation(x.name, options.binops)
-        return options.binops[ind]
+        ind = findoperation(x.name, operators.binops)
+        return operators.binops[ind]
     else
         throw(AssertionError("Function $(String(x.name)) has degree > 2 !"))
     end
 end
 
 # For normal operators, simply return the function itself:
-convert_to_function(x, options::Options) = x
+convert_to_function(x, operators::OperatorEnum) = x
 
 # Split equation
 function split_eq(
-    op, args, options::Options; varMap::Union{Array{String,1},Nothing}=nothing
+    op, args, operators::OperatorEnum; varMap::Union{Array{String,1},Nothing}=nothing
 )
     !(op ∈ (sum, prod, +, *)) && throw(error("Unsupported operation $op in expression!"))
     if Symbol(op) == Symbol(sum)
-        ind = findoperation(+, options.binops)
+        ind = findoperation(+, operators.binops)
     elseif Symbol(op) == Symbol(prod)
-        ind = findoperation(*, options.binops)
+        ind = findoperation(*, operators.binops)
     else
-        ind = findoperation(op, options.binops)
+        ind = findoperation(op, operators.binops)
     end
     return Node(
         ind,
-        convert(Node, args[1], options; varMap=varMap),
-        convert(Node, op(args[2:end]...), options; varMap=varMap),
+        convert(Node, args[1], operators; varMap=varMap),
+        convert(Node, op(args[2:end]...), operators; varMap=varMap),
     )
 end
 
@@ -88,17 +88,17 @@ end
 function Base.convert(
     ::typeof(SymbolicUtils.Symbolic),
     tree::Node,
-    options::Options;
+    operators::OperatorEnum;
     varMap::Union{Array{String,1},Nothing}=nothing,
     index_functions::Bool=false,
 )
-    return node_to_symbolic(tree, options; varMap=varMap, index_functions=index_functions)
+    return node_to_symbolic(tree, operators; varMap=varMap, index_functions=index_functions)
 end
 
 function Base.convert(
     ::typeof(Node),
     x::Number,
-    options::Options;
+    operators::OperatorEnum;
     varMap::Union{Array{String,1},Nothing}=nothing,
 )
     return Node(; val=CONST_TYPE(x))
@@ -107,7 +107,7 @@ end
 function Base.convert(
     ::typeof(Node),
     expr::SymbolicUtils.Symbolic,
-    options::Options;
+    operators::OperatorEnum;
     varMap::Union{Array{String,1},Nothing}=nothing,
 )
     if !SymbolicUtils.istree(expr)
@@ -121,21 +121,21 @@ function Base.convert(
         expr = y
     end
 
-    op = convert_to_function(SymbolicUtils.operation(expr), options)
+    op = convert_to_function(SymbolicUtils.operation(expr), operators)
     args = SymbolicUtils.arguments(expr)
 
-    length(args) > 2 && return split_eq(op, args, options; varMap=varMap)
+    length(args) > 2 && return split_eq(op, args, operators; varMap=varMap)
     ind = if length(args) == 2
-        findoperation(op, options.binops)
+        findoperation(op, operators.binops)
     else
-        findoperation(op, options.unaops)
+        findoperation(op, operators.unaops)
     end
 
-    return Node(ind, map(x -> convert(Node, x, options; varMap=varMap), args)...)
+    return Node(ind, map(x -> convert(Node, x, operators; varMap=varMap), args)...)
 end
 
 """
-    node_to_symbolic(tree::Node, options::Options;
+    node_to_symbolic(tree::Node, operators::OperatorEnum;
                 varMap::Union{Array{String, 1}, Nothing}=nothing,
                 index_functions::Bool=false)
 
@@ -145,7 +145,7 @@ will generate a symbolic equation in SymbolicUtils.jl format.
 ## Arguments
 
 - `tree::Node`: The equation to convert.
-- `options::Options`: Options, which contains the operators used in the equation.
+- `operators::OperatorEnum`: OperatorEnum, which contains the operators used in the equation.
 - `varMap::Union{Array{String, 1}, Nothing}=nothing`: What variable names to use for
     each feature. Default is [x1, x2, x3, ...].
 - `index_functions::Bool=false`: Whether to generate special names for the
@@ -155,11 +155,11 @@ will generate a symbolic equation in SymbolicUtils.jl format.
 """
 function node_to_symbolic(
     tree::Node,
-    options::Options;
+    operators::OperatorEnum;
     varMap::Union{Array{String,1},Nothing}=nothing,
     index_functions::Bool=false,
 )
-    expr = subs_bad(parse_tree_to_eqs(tree, options, index_functions))
+    expr = subs_bad(parse_tree_to_eqs(tree, operators, index_functions))
     # Check for NaN and Inf
     @assert isgood(expr) "The recovered equation contains NaN or Inf."
     # Return if no varMap is given
@@ -175,13 +175,13 @@ function node_to_symbolic(
 end
 
 function symbolic_to_node(
-    eqn::T, options::Options; varMap::Union{Array{String,1},Nothing}=nothing
+    eqn::T, operators::OperatorEnum; varMap::Union{Array{String,1},Nothing}=nothing
 )::Node where {T<:SymbolicUtils.Symbolic}
-    return convert(Node, eqn, options; varMap=varMap)
+    return convert(Node, eqn, operators; varMap=varMap)
 end
 
-# function Base.convert(::typeof(Node), x::Number, options::Options; varMap::Union{Array{String, 1}, Nothing}=nothing)
-# function Base.convert(::typeof(Node), expr::SymbolicUtils.Symbolic, options::Options; varMap::Union{Array{String, 1}, Nothing}=nothing)
+# function Base.convert(::typeof(Node), x::Number, operators::OperatorEnum; varMap::Union{Array{String, 1}, Nothing}=nothing)
+# function Base.convert(::typeof(Node), expr::SymbolicUtils.Symbolic, operators::OperatorEnum; varMap::Union{Array{String, 1}, Nothing}=nothing)
 
 function multiply_powers(eqn::Number)::Tuple{SYMBOLIC_UTILS_TYPES,Bool}
     return eqn, true
