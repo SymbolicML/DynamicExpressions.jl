@@ -1,5 +1,5 @@
-using SymbolicRegression
-using SymbolicRegression: loss
+using DynamicExpressions
+using DynamicExpressions: loss
 using Random
 using Test
 include("test_params.jl")

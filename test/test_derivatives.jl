@@ -1,6 +1,6 @@
 using Test
-using SymbolicRegression
-using SymbolicRegression: eval_diff_tree_array, eval_grad_tree_array
+using DynamicExpressions
+using DynamicExpressions: eval_diff_tree_array, eval_grad_tree_array
 using Random
 using Zygote
 using LinearAlgebra
@@ -131,7 +131,7 @@ end
 
 println("Testing NodeIndex.")
 
-import SymbolicRegression: get_constants, NodeIndex, index_constants
+import DynamicExpressions: get_constants, NodeIndex, index_constants
 
 operators = OperatorEnum(;
     binary_operators=(+, *, -, /, pow_abs2),

@@ -1,4 +1,4 @@
-using SymbolicRegression
+using DynamicExpressions
 using Test
 
 operators = OperatorEnum(; binary_operators=(+, *, ^, /, greater), unary_operators=(cos,))

@@ -1,6 +1,6 @@
-using SymbolicRegression
+using DynamicExpressions
 using Random
-using SymbolicRegression: eval_loss, score_func, Dataset
+using DynamicExpressions: eval_loss, score_func, Dataset
 using ForwardDiff
 using Test
 include("test_params.jl")

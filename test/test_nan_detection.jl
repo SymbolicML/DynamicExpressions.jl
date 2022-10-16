@@ -1,5 +1,5 @@
 println("Testing NaN detection.")
-using SymbolicRegression
+using DynamicExpressions
 using Test
 
 operators = OperatorEnum(; binary_operators=(+, *, /, -), unary_operators=(cos, sin, exp))

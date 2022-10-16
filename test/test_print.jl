@@ -1,5 +1,5 @@
 using Test
-using SymbolicRegression
+using DynamicExpressions
 
 include("test_params.jl")
 

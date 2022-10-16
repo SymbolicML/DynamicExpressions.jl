@@ -1,4 +1,4 @@
-using SymbolicRegression
+using DynamicExpressions
 using Random
 using Test
 include("test_params.jl")
