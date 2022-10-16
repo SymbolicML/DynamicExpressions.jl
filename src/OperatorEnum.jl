@@ -1,6 +1,6 @@
 module OperatorEnumModule
 
-struct OperatorEnum{A,B,dA,dB}
+struct OperatorEnum{A<:Tuple,B<:Tuple,dA<:Union{Tuple,Nothing},dB<:Union{Tuple,Nothing}}
     binops::A
     unaops::B
     diff_binops::dA
