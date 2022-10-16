@@ -9,4 +9,4 @@ makedocs(;
     format=Documenter.HTML(),
 )
 
-deploydocs(; repo="github.com/DynamicExpressions/DynamicExpressions.jl.git")
+deploydocs(; repo="github.com/SymbolicML/DynamicExpressions.jl.git")
