@@ -74,10 +74,16 @@ function diff_deg0_eval(
 end
 
 function diff_deg1_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, operators::OperatorEnum, direction::Int
+    tree::Node{T},
+    cX::AbstractMatrix{T},
+    ::Val{op_idx},
+    operators::OperatorEnum,
+    direction::Int,
 )::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Real,op_idx}
     n = size(cX, 2)
-    (cumulator, dcumulator, complete) = eval_diff_tree_array(tree.l, cX, operators, direction)
+    (cumulator, dcumulator, complete) = eval_diff_tree_array(
+        tree.l, cX, operators, direction
+    )
     @return_on_false2 complete cumulator dcumulator
 
     op = operators.unaops[op_idx]
@@ -95,12 +101,20 @@ function diff_deg1_eval(
 end
 
 function diff_deg2_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, operators::OperatorEnum, direction::Int
+    tree::Node{T},
+    cX::AbstractMatrix{T},
+    ::Val{op_idx},
+    operators::OperatorEnum,
+    direction::Int,
 )::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Real,op_idx}
     n = size(cX, 2)
-    (cumulator, dcumulator, complete) = eval_diff_tree_array(tree.l, cX, operators, direction)
+    (cumulator, dcumulator, complete) = eval_diff_tree_array(
+        tree.l, cX, operators, direction
+    )
     @return_on_false2 complete cumulator dcumulator
-    (array2, dcumulator2, complete2) = eval_diff_tree_array(tree.r, cX, operators, direction)
+    (array2, dcumulator2, complete2) = eval_diff_tree_array(
+        tree.r, cX, operators, direction
+    )
     @return_on_false2 complete2 array2 dcumulator2
 
     op = operators.binops[op_idx]

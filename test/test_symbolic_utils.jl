@@ -3,8 +3,8 @@ using Test
 include("test_params.jl")
 
 _inv(x) = 1 / x
-safe_pow(x::T, y::T) where T = (x < 0 && y != round(y)) ? T(NaN) : x ^ y
-greater(x::T, y::T) where T = (x > y) ? one(T) : zero(T)
+safe_pow(x::T, y::T) where {T} = (x < 0 && y != round(y)) ? T(NaN) : x^y
+greater(x::T, y::T) where {T} = (x > y) ? one(T) : zero(T)
 operators = OperatorEnum(;
     default_params...,
     binary_operators=(+, *, safe_pow, /, greater),

@@ -1,8 +1,8 @@
 using DynamicExpressions
 using Test
 
-function greater(x::T, y::T) where T
-    (x > y) ? one(T) : zero(T)
+function greater(x::T, y::T) where {T}
+    return (x > y) ? one(T) : zero(T)
 end
 
 operators = OperatorEnum(; binary_operators=(+, *, ^, /, greater), unary_operators=(cos,))

@@ -165,7 +165,11 @@ function deg0_eval(
 end
 
 function deg1_l2_ll0_lr0_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, ::Val{op_l_idx}, operators::OperatorEnum
+    tree::Node{T},
+    cX::AbstractMatrix{T},
+    ::Val{op_idx},
+    ::Val{op_l_idx},
+    operators::OperatorEnum,
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx,op_l_idx}
     n = size(cX, 2)
     op = operators.unaops[op_idx]
@@ -217,7 +221,11 @@ end
 
 # op(op2(x)) for x variable or constant
 function deg1_l1_ll0_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, ::Val{op_idx}, ::Val{op_l_idx}, operators::OperatorEnum
+    tree::Node{T},
+    cX::AbstractMatrix{T},
+    ::Val{op_idx},
+    ::Val{op_l_idx},
+    operators::OperatorEnum,
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx,op_l_idx}
     n = size(cX, 2)
     op = operators.unaops[op_idx]
@@ -342,7 +350,9 @@ Evaluate a tree which is assumed to not contain any variable nodes. This
 gives better performance, as we do not need to perform computation
 over an entire array when the values are all the same.
 """
-function _eval_constant_tree(tree::Node{T}, operators::OperatorEnum)::Tuple{T,Bool} where {T<:Real}
+function _eval_constant_tree(
+    tree::Node{T}, operators::OperatorEnum
+)::Tuple{T,Bool} where {T<:Real}
     max_possible_op = max(length(operators.binops), length(operators.unaops))
     vals = ntuple(i -> Val(i), max_possible_op)
 

@@ -335,7 +335,10 @@ end
 
 # Print an equation
 function print_tree(
-    io::IO, tree::Node, operators::OperatorEnum; varMap::Union{Array{String,1},Nothing}=nothing
+    io::IO,
+    tree::Node,
+    operators::OperatorEnum;
+    varMap::Union{Array{String,1},Nothing}=nothing,
 )
     return println(io, string_tree(tree, operators; varMap=varMap))
 end
