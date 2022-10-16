@@ -5,8 +5,9 @@ import ..OperatorEnumModule: OperatorEnum
 import ..EquationModule: string_tree, Node
 
 function OperatorEnum(;
-    binary_operators=[+, -, /, *], unary_operators=[], enable_autodiff::Bool=false
+    binary_operators=[], unary_operators=[], enable_autodiff::Bool=false
 )
+    @assert length(binary_operators) > 0 || length(unary_operators) > 0
     binary_operators = Tuple(binary_operators)
     unary_operators = Tuple(unary_operators)
 
