@@ -1,7 +1,8 @@
 module InterfaceSymbolicUtilsModule
 
 using SymbolicUtils
-import ..CoreModule: CONST_TYPE, Node, OperatorEnum
+import ..EquationModule: Node
+import ..OperatorEnumModule: OperatorEnum
 import ..UtilsModule: isgood, isbad, @return_on_false
 
 const SYMBOLIC_UTILS_TYPES = Union{<:Number,SymbolicUtils.Symbolic{<:Number}}

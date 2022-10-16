@@ -1,7 +1,8 @@
 module EvaluateEquationDerivativeModule
 
 using LinearAlgebra
-import ..CoreModule: Node, OperatorEnum
+import ..EquationModule: Node
+import ..OperatorEnumModule: OperatorEnum
 import ..UtilsModule: @return_on_false2, is_bad_array, debug
 import ..EquationUtilsModule: count_constants, index_constants, NodeIndex
 import ..EvaluateEquationModule: deg0_eval

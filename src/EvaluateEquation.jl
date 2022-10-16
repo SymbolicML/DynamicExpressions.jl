@@ -1,6 +1,7 @@
 module EvaluateEquationModule
 
-import ..CoreModule: Node, OperatorEnum
+import ..EquationModule: Node
+import ..OperatorEnumModule: OperatorEnum
 import ..UtilsModule: @return_on_false, is_bad_array, debug
 import ..EquationUtilsModule: is_constant
 

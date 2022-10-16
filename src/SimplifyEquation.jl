@@ -1,7 +1,7 @@
 module SimplifyEquationModule
 
-import ..CoreModule: Node, copy_node, OperatorEnum
-import ..CheckConstraintsModule: check_constraints
+import ..EquationModule: Node, copy_node
+import ..OperatorEnumModule: OperatorEnum
 import ..UtilsModule: isbad, isgood
 
 # Simplify tree
