@@ -8,6 +8,8 @@ safe_sqrt(x::T) where T = (x < 0) ? T(NaN) : sqrt(x)
 relu(x::T) where T = (x < 0) ? zero(T) : x
 safe_acosh(x::T) where T = (x < 1) ? T(NaN) : acosh(x)
 sub(x::T, y::T) where T = x - y
+square(x::T) where T = x^2
+cube(x::T) where T = x^3
 
 safe_log(x) = log(x)
 safe_log2(x) = log2(x)
@@ -16,6 +18,8 @@ safe_sqrt(x) = sqrt(x)
 relu(x) = max(x, 0)
 safe_acosh(x) = acosh(x)
 sub(x, y) = x - y
+square(x) = x^2
+cube(x) = x^3
 
 custom_cos(x) = cos(x)
 
