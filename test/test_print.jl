@@ -19,16 +19,7 @@ true_s = "((sin(cos(sin(cos(x1) * x3) * 3.0) * -0.5) + 2.0) * 5.0)"
 
 # TODO: Next, we test that custom varMaps work:
 
-EquationSearch(
-    randn(Float32, 3, 10),
-    randn(Float32, 10);
-    operators=operators,
-    varMap=["v1", "v2", "v3"],
-    niterations=0,
-    multithreading=true,
-)
-
-s = repr(tree)
+s = string_tree(tree, operators; varMap=["v1", "v2", "v3"])
 true_s = "((sin(cos(sin(cos(v1) * v3) * 3.0) * -0.5) + 2.0) * 5.0)"
 @test s == true_s
 

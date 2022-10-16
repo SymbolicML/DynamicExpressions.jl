@@ -1,5 +1,6 @@
 using DynamicExpressions
 using Test
+include("test_params.jl")
 
 operators = OperatorEnum(;
     binary_operators=(+, -, *, ^, /, greater), unary_operators=(cos, exp, sin)
