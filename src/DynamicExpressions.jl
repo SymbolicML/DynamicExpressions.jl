@@ -11,7 +11,7 @@ include("SimplifyEquation.jl")
 include("OperatorEnumConstruction.jl")
 
 using Reexport
-@reexport import .EquationModule: Node, string_tree, copy_node
+@reexport import .EquationModule: Node, string_tree, copy_node, set_node!
 @reexport import .EquationUtilsModule:
     count_nodes, NodeIndex, index_constants, get_constants, set_constants
 @reexport import .OperatorEnumConstructionModule: OperatorEnum
