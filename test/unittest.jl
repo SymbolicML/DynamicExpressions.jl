@@ -8,10 +8,6 @@ end
     include("test_symbolic_utils.jl")
 end
 
-@safetestset "Test custom losses" begin
-    include("test_losses.jl")
-end
-
 @safetestset "Test derivatives" begin
     include("test_derivatives.jl")
 end
