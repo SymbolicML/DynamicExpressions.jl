@@ -1,19 +1,60 @@
-module OperatorEnumModule
+module OperatorEnumConstructionModule
 
 import Zygote: gradient
-
-struct OperatorEnum{A,B,dA,dB}
-    binops::A
-    unaops::B
-    diff_binops::dA
-    diff_unaops::dB
-end
+import ..OperatorEnumModule: OperatorEnum
+import ..EquationModule: string_tree, Node
 
 function OperatorEnum(;
     binary_operators=[+, -, /, *], unary_operators=[], enable_autodiff::Bool=false
 )
     binary_operators = Tuple(binary_operators)
     unary_operators = Tuple(unary_operators)
+
+    for (op, f) in enumerate(map(Symbol, binary_operators))
+        _f = if f in [:pow, :safe_pow]
+            Symbol(^)
+        else
+            f
+        end
+        if !isdefined(Base, _f)
+            continue
+        end
+        @eval begin
+            function Base.$_f(l::Node{T1}, r::Node{T2}) where {T1<:Real,T2<:Real}
+                T = promote_type(T1, T2)
+                l = convert(Node{T}, l)
+                r = convert(Node{T}, r)
+                if (l.constant && r.constant)
+                    return Node(; val=$f(l.val, r.val))
+                else
+                    return Node($op, l, r)
+                end
+            end
+            function Base.$_f(l::Node{T1}, r::T2) where {T1<:Real,T2<:Real}
+                T = promote_type(T1, T2)
+                l = convert(Node{T}, l)
+                r = convert(T, r)
+                return l.constant ? Node(; val=$f(l.val, r)) : Node($op, l, Node(; val=r))
+            end
+            function Base.$_f(l::T1, r::Node{T2}) where {T1<:Real,T2<:Real}
+                T = promote_type(T1, T2)
+                l = convert(T, l)
+                r = convert(Node{T}, r)
+                return r.constant ? Node(; val=$f(l, r.val)) : Node($op, Node(; val=l), r)
+            end
+        end
+    end
+    # Redefine Base operations:
+    for (op, f) in enumerate(map(Symbol, unary_operators))
+        if !isdefined(Base, f)
+            continue
+        end
+        @eval begin
+            function Base.$f(l::Node{T})::Node{T} where {T<:Real}
+                return l.constant ? Node(; val=$f(l.val)) : Node($op, l)
+            end
+        end
+    end
 
     if enable_autodiff
         diff_binary_operators = Any[]
@@ -63,9 +104,16 @@ function OperatorEnum(;
         diff_unary_operators = nothing
     end
 
-    return OperatorEnum(
+    operators = OperatorEnum(
         binary_operators, unary_operators, diff_binary_operators, diff_unary_operators
     )
+
+    @eval begin
+        Base.print(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
+        Base.show(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
+    end
+
+    return operators
 end
 
 end
