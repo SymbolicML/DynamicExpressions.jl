@@ -1,7 +1,8 @@
 module EquationModule
 
-import ..ProgramConstantsModule: CONST_TYPE
 import ..OperatorEnumModule: OperatorEnum
+
+const DEFAULT_NODE_TYPE = Float32
 
 """
     Node{T<:Real}
@@ -116,7 +117,7 @@ function Node(;
     elseif T2 <: Nothing
         return Node(0, true, val)
     else
-        return Node(0, false, convert(CONST_TYPE, 0), feature)
+        return Node(0, false, convert(DEFAULT_NODE_TYPE, 0), feature)
     end
 end
 function Node(

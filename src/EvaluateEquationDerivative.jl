@@ -3,7 +3,7 @@ module EvaluateEquationDerivativeModule
 using LinearAlgebra
 import ..EquationModule: Node
 import ..OperatorEnumModule: OperatorEnum
-import ..UtilsModule: @return_on_false2, is_bad_array, debug
+import ..UtilsModule: @return_on_false2, is_bad_array
 import ..EquationUtilsModule: count_constants, index_constants, NodeIndex
 import ..EvaluateEquationModule: deg0_eval
 
@@ -42,10 +42,7 @@ function eval_diff_tree_array(
     tree::Node{T1}, cX::AbstractMatrix{T2}, operators::OperatorEnum, direction::Int
 ) where {T1<:Real,T2<:Real}
     T = promote_type(T1, T2)
-    debug(
-        operators.verbosity > 0,
-        "Warning: eval_diff_tree_array received mixed types: tree=$(T1) and data=$(T2).",
-    )
+    @warn "Warning: eval_diff_tree_array received mixed types: tree=$(T1) and data=$(T2)."
     tree = convert(Node{T}, tree)
     cX = convert(AbstractMatrix{T}, cX)
     return eval_diff_tree_array(tree, cX, operators, direction)

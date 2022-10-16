@@ -21,5 +21,8 @@ end
 # Fastest way to check for NaN in an array.
 # (due to optimizations in sum())
 is_bad_array(array) = !isfinite(sum(array))
+isgood(x::T) where {T<:Number} = !(isnan(x) || !isfinite(x))
+isgood(x) = true
+isbad(x) = !isgood(x)
 
 end
