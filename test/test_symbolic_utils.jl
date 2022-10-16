@@ -3,12 +3,12 @@ using Test
 include("test_params.jl")
 
 _inv(x) = 1 / x
+safe_pow(x::T, y::T) where T = (x < 0 && y != round(y)) ? T(NaN) : x ^ y
+greater(x::T, y::T) where T = (x > y) ? one(T) : zero(T)
 operators = OperatorEnum(;
     default_params...,
-    binary_operators=(+, *, ^, /, greater),
+    binary_operators=(+, *, safe_pow, /, greater),
     unary_operators=(_inv,),
-    constraints=(_inv => 4,),
-    npopulations=4,
 )
 tree = Node(5, (Node(; val=3.0) * Node(1, Node("x1")))^2.0, Node(; val=-1.2))
 

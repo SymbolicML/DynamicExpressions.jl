@@ -1,7 +1,7 @@
 module InterfaceSymbolicUtilsModule
 
 using SymbolicUtils
-import ..EquationModule: Node
+import ..EquationModule: Node, DEFAULT_NODE_TYPE
 import ..OperatorEnumModule: OperatorEnum
 import ..UtilsModule: isgood, isbad, @return_on_false
 
@@ -102,7 +102,7 @@ function Base.convert(
     operators::OperatorEnum;
     varMap::Union{Array{String,1},Nothing}=nothing,
 )
-    return Node(; val=CONST_TYPE(x))
+    return Node(; val=DEFAULT_NODE_TYPE(x))
 end
 
 function Base.convert(
