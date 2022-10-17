@@ -11,6 +11,7 @@ DynamicExpressions.jl is the backbone of
 [PySR](https://github.com/MilesCranmer/PySR).
 
 Example:
+
 ```julia
 using DynamicExpressions
 
@@ -27,7 +28,6 @@ expression(X) # 1000-element Vector{Float64}
 
 This evaluation is extremely fast, without us having to compile it.
 
-
 For comparison:
 
 ```julia
@@ -36,6 +36,7 @@ For comparison:
 ```
 
 Now let's see the performance if we had hard-coded it:
+
 ```julia
 f(X) = X[1, :] .* cos.(X[2, :] .- 3.2)
 @btime f(X)
@@ -48,3 +49,16 @@ Not bad at all.
 We can change `expression` throughout runtime, and expect the same performance:
 this makes this data structure ideal for symbolic regression and other evaluation-based searches
 over expression trees.
+
+
+For the record, let's see what this would look like
+if we had evaluated the dynamic expression naively,
+with Julia symbols and `eval`:
+
+```julia
+@btime eval(:(X[1, :] .* cos.(X[2, :] .- 3.2)))
+# 151.333 us
+```
+
+so this custom data structure is quite important for
+fast evaluation!
