@@ -41,16 +41,37 @@ expression(X) # 100-element Vector{Float64}
 
 ### Speed
 
-This evaluation is extremely fast, without us having to compile it.
+First, what happens if we naively use Julia symbols to define
+and then evaluate this expression?
 
-For comparison:
+```julia
+@btime eval(:(X[1, :] .* cos.(X[2, :] .- 3.2)))
+# 151.333 us
+```
+
+This is quite slow, meaning it will be hard to
+quickly search over the space of expressions.
+Let's see how DynamicExpressions.jl compares:
 
 ```julia
 @btime expression(X)
 # 688 ns
 ```
 
-Now let's see the performance if we had hard-coded it:
+Much faster!
+And we didn't even need to compile it.
+If we change `expression` dynamically with a random number generator,
+it will have the same performance:
+
+```julia
+@btime begin
+    expression.op = rand(1:3)  # random operator in [+, -, *]
+    expression(X)
+end
+# 825 ns
+```
+
+Now, let's see the performance if we had hard-coded these expressions:
 
 ```julia
 f(X) = X[1, :] .* cos.(X[2, :] .- 3.2)
@@ -75,7 +96,7 @@ end
 ```
 
 The `DynamicExpressions.jl` version is only 25% slower than one which
-has been optimized by hand into a single kernel! Not bad at all.
+has been optimized by hand into a single SIMD kernel! Not bad at all.
 
 More importantly: we can change `expression` throughout runtime,
 and expect the same performance.
@@ -83,17 +104,6 @@ This makes this data structure ideal for symbolic
 regression and other evaluation-based searches
 over expression trees.
 
-For the record, let's see what this would look like
-if we had evaluated the dynamic expression naively,
-with Julia symbols and `eval`:
-
-```julia
-@btime eval(:(X[1, :] .* cos.(X[2, :] .- 3.2)))
-# 151.333 us
-```
-
-so this custom data structure is quite important for
-fast evaluation!
 
 ## Derivatives
 
