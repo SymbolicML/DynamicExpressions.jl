@@ -9,7 +9,9 @@ import ..EvaluateEquationModule: deg0_eval
 
 function assert_autodiff_enabled(operators::OperatorEnum)
     if operators.diff_binops === nothing && operators.diff_unaops === nothing
-        error("Found no differential operators. Did you forget to set `enable_autodiff=true` when creating the `OperatorEnum`?")
+        error(
+            "Found no differential operators. Did you forget to set `enable_autodiff=true` when creating the `OperatorEnum`?",
+        )
     end
 end
 

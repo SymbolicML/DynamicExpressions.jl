@@ -148,10 +148,12 @@ function OperatorEnum(;
         end
 
         # Gradients:
-        Base.adjoint(tree::Node{T}) where T = X -> begin
-            _, grad, did_complete = eval_grad_tree_array(tree, X, $operators; variable=true)
-            !did_complete && (grad .= T(NaN))
-            grad
+        function Base.adjoint(tree::Node{T}) where {T}
+            return X -> begin
+                _, grad, did_complete = eval_grad_tree_array(tree, X, $operators; variable=true)
+                !did_complete && (grad .= T(NaN))
+                grad
+            end
         end
     end
 
