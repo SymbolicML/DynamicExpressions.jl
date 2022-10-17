@@ -22,7 +22,7 @@ x2 = Node(; feature=2)
 
 expression = x1 * cos(x2 - 3.2)
 
-X = randn(Float64, 2, 1000);
+X = randn(Float64, 2, 100);
 expression(X) # 1000-element Vector{Float64}
 ```
 
