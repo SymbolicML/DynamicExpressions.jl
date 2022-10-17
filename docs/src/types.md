@@ -7,13 +7,13 @@ specifies its operator with an integer - which indexes an `enum` of operators.
 This `enum` is defined as follows:
 
 ```@docs
-OperatorEnum{A,B,dA,dB}
+OperatorEnum
 ```
 
 Construct this operator specification as follows:
 
 ```@docs
-OperatorEnum(;)
+OperatorEnum(; binary_operators, unary_operators)
 ```
 
 ## Equations

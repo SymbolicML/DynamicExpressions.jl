@@ -13,9 +13,9 @@ redefine operators for `Node` types, as well as `show`, `print`, and `(::Node)(X
 It will automatically compute derivatives with `Zygote.jl`.
 
 # Arguments
-- `binary_operators::Vector{Function}`: A vector of symbols, each of which is a binary
+- `binary_operators::Vector{Function}`: A vector of functions, each of which is a binary
   operator.
-- `unary_operators::Vector{Function}`: A vector of symbols, each of which is a unary
+- `unary_operators::Vector{Function}`: A vector of functions, each of which is a unary
   operator.
 - `enable_autodiff::Bool=false`: Whether to enable automatic differentiation.
 """
