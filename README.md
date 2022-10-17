@@ -2,13 +2,26 @@
 
 # DynamicExpressions.jl
 
-Ridiculously fast dynamic expressions.
+*Ridiculously fast dynamic expressions.*
 
 </div>
 
 DynamicExpressions.jl is the backbone of 
 [SymbolicRegression.jl](https://github.com/MilesCranmer/SymbolicRegression.jl) and
 [PySR](https://github.com/MilesCranmer/PySR).
+
+## Summary
+
+A dynamic expression is a snippet of code that can change throughout
+runtime - compilation is not possible!
+
+DynamicExpressions.jl:
+1. Defines an enum over user-specified operators.
+2. Using this enum, it defines a very lightweight
+and type-stable data structure for arbitrary expressions.
+3. It then generates specialized evaluation kernels for
+the space of potential operators.
+4. It also generates kernels for the first-order derivatives.
 
 ## Example
 
