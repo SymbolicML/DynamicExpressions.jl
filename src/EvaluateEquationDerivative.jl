@@ -7,6 +7,12 @@ import ..UtilsModule: @return_on_false2, is_bad_array, vals
 import ..EquationUtilsModule: count_constants, index_constants, NodeIndex
 import ..EvaluateEquationModule: deg0_eval
 
+function assert_autodiff_enabled(operators::OperatorEnum)
+    if operators.diff_binops === nothing && operators.diff_unaops === nothing
+        error("Found no differential operators. Did you forget to set `enable_autodiff=true` when creating the `OperatorEnum`?")
+    end
+end
+
 """
     eval_diff_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Int)
 
@@ -31,7 +37,7 @@ respect to `x1`.
 function eval_diff_tree_array(
     tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Int
 )::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Real}
-    @assert operators.diff_binops !== nothing || operators.diff_unaops !== nothing
+    assert_autodiff_enabled(operators)
     # TODO: Implement quick check for whether the variable is actually used
     # in this tree. Otherwise, return zero.
     evaluation, derivative, complete = _eval_diff_tree_array(tree, cX, operators, direction)
@@ -153,7 +159,7 @@ to every constant in the expression.
 function eval_grad_tree_array(
     tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum; variable::Bool=false
 )::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Real}
-    @assert operators.diff_binops !== nothing || operators.diff_unaops !== nothing
+    assert_autodiff_enabled(operators)
     n = size(cX, 2)
     if variable
         n_gradients = size(cX, 1)
