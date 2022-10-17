@@ -120,27 +120,30 @@ x2 = Node(; feature=2)
 expression = x1 * cos(x2 - 3.2)
 ```
 
-We can run `eval_grad_tree_array(expression, X, tree; variable=true)`
-to evaluate this.
+We can take the gradient with respect to inputs
+with simply the `'` character:
 
 ```julia
-result, grad, did_finish = eval_grad_tree_array(expression, X, operators; variable=true)
+grad = expression'(X)
 ```
 
 This is quite fast:
 
 ```julia
-@btime eval_grad_tree_array(expression, X, operators; variable=true);
-# 2.486 us
+@btime expression'(X)
+# 1.346 us
 ```
 
+Internally, this is calling the `eval_grad_tree_array` function,
+which performs forward-mode automatic differentiation
+on the expression tree with Zygote-compiled kernels.
 We can also compute the derivative with respect to constants:
 
 ```julia
 result, grad, did_finish = eval_grad_tree_array(expression, X, operators; variable=false)
 ```
 
-or only in a single direction:
+or with respect to variables, and only in a single direction:
 
 ```julia
 feature = 2
