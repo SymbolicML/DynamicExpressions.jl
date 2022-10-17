@@ -5,6 +5,7 @@ import ..UtilsModule: max_ops
 import ..OperatorEnumModule: OperatorEnum
 import ..EquationModule: string_tree, Node
 import ..EvaluateEquationModule: eval_tree_array
+import ..EvaluateEquationDerivativeModule: eval_grad_tree_array
 
 """
     OperatorEnum(; binary_operators=[], unary_operators=[], enable_autodiff::Bool=false)
@@ -144,6 +145,13 @@ function OperatorEnum(;
                 X = T.(X)
             end
             return tree(X)
+        end
+
+        # Gradients:
+        Base.adjoint(tree::Node{T}) where T = X -> begin
+            _, grad, did_complete = eval_grad_tree_array(tree, X, $operators; variable=true)
+            !did_complete && (grad .= T(NaN))
+            grad
         end
     end
 

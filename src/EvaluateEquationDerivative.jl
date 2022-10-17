@@ -182,6 +182,15 @@ function eval_grad_tree_array(
     return evaluation, gradient, !(is_bad_array(evaluation) || is_bad_array(gradient))
 end
 
+function eval_grad_tree_array(
+    tree::Node{T1}, cX::AbstractMatrix{T2}, operators::OperatorEnum; variable::Bool=false
+) where {T1<:Real,T2<:Real}
+    T = promote_type(T1, T2)
+    return eval_grad_tree_array(
+        convert(Node{T}, tree), convert(AbstractMatrix{T}, cX), operators; variable=variable
+    )
+end
+
 function _eval_grad_tree_array(
     tree::Node{T},
     n::Int,
