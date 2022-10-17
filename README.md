@@ -21,7 +21,7 @@ DynamicExpressions.jl:
 and type-stable data structure for arbitrary expressions.
 3. It then generates specialized evaluation kernels for
 the space of potential operators.
-4. It also generates kernels for the first-order derivatives.
+4. It also generates kernels for the first-order derivatives, using [Zygote.jl](https://github.com/FluxML/Zygote.jl).
 
 ## Example
 
