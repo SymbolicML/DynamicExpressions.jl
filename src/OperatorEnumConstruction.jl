@@ -1,6 +1,7 @@
 module OperatorEnumConstructionModule
 
 import Zygote: gradient
+import ..UtilsModule: max_ops
 import ..OperatorEnumModule: OperatorEnum
 import ..EquationModule: string_tree, Node
 import ..EvaluateEquationModule: eval_tree_array
@@ -23,6 +24,7 @@ function OperatorEnum(;
     binary_operators=[], unary_operators=[], enable_autodiff::Bool=false
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
+    @assert length(binary_operators) <= max_ops && length(unary_operators) <= max_ops
     binary_operators = Tuple(binary_operators)
     unary_operators = Tuple(unary_operators)
 

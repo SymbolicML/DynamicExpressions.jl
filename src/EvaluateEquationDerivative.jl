@@ -3,7 +3,7 @@ module EvaluateEquationDerivativeModule
 using LinearAlgebra
 import ..EquationModule: Node
 import ..OperatorEnumModule: OperatorEnum
-import ..UtilsModule: @return_on_false2, is_bad_array
+import ..UtilsModule: @return_on_false2, is_bad_array, vals
 import ..EquationUtilsModule: count_constants, index_constants, NodeIndex
 import ..EvaluateEquationModule: deg0_eval
 
@@ -54,9 +54,9 @@ function _eval_diff_tree_array(
     if tree.degree == 0
         diff_deg0_eval(tree, cX, operators, direction)
     elseif tree.degree == 1
-        diff_deg1_eval(tree, cX, Val(tree.op), operators, direction)
+        diff_deg1_eval(tree, cX, vals[tree.op], operators, direction)
     else
-        diff_deg2_eval(tree, cX, Val(tree.op), operators, direction)
+        diff_deg2_eval(tree, cX, vals[tree.op], operators, direction)
     end
 end
 
@@ -162,7 +162,7 @@ function eval_grad_tree_array(
     end
     index_tree = index_constants(tree, 0)
     return eval_grad_tree_array(
-        tree, n, n_gradients, index_tree, cX, operators, Val(variable)
+        tree, n, n_gradients, index_tree, cX, operators, vals[variable]
     )
 end
 
@@ -176,7 +176,7 @@ function eval_grad_tree_array(
     ::Val{variable},
 )::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Real,variable}
     evaluation, gradient, complete = _eval_grad_tree_array(
-        tree, n, n_gradients, index_tree, cX, operators, Val(variable)
+        tree, n, n_gradients, index_tree, cX, operators, vals[variable]
     )
     @return_on_false2 complete evaluation gradient
     return evaluation, gradient, !(is_bad_array(evaluation) || is_bad_array(gradient))
@@ -192,14 +192,14 @@ function _eval_grad_tree_array(
     ::Val{variable},
 )::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Real,variable}
     if tree.degree == 0
-        grad_deg0_eval(tree, n, n_gradients, index_tree, cX, operators, Val(variable))
+        grad_deg0_eval(tree, n, n_gradients, index_tree, cX, operators, vals[variable])
     elseif tree.degree == 1
         grad_deg1_eval(
-            tree, n, n_gradients, index_tree, cX, Val(tree.op), operators, Val(variable)
+            tree, n, n_gradients, index_tree, cX, vals[tree.op], operators, vals[variable]
         )
     else
         grad_deg2_eval(
-            tree, n, n_gradients, index_tree, cX, Val(tree.op), operators, Val(variable)
+            tree, n, n_gradients, index_tree, cX, vals[tree.op], operators, vals[variable]
         )
     end
 end
@@ -236,7 +236,7 @@ function grad_deg1_eval(
     ::Val{variable},
 )::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Real,op_idx,variable}
     (cumulator, dcumulator, complete) = eval_grad_tree_array(
-        tree.l, n, n_gradients, index_tree.l, cX, operators, Val(variable)
+        tree.l, n, n_gradients, index_tree.l, cX, operators, vals[variable]
     )
     @return_on_false2 complete cumulator dcumulator
 
@@ -267,11 +267,11 @@ function grad_deg2_eval(
 )::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Real,op_idx,variable}
     derivative_part = Array{T,2}(undef, n_gradients, n)
     (cumulator1, dcumulator1, complete) = eval_grad_tree_array(
-        tree.l, n, n_gradients, index_tree.l, cX, operators, Val(variable)
+        tree.l, n, n_gradients, index_tree.l, cX, operators, vals[variable]
     )
     @return_on_false2 complete cumulator1 dcumulator1
     (cumulator2, dcumulator2, complete2) = eval_grad_tree_array(
-        tree.r, n, n_gradients, index_tree.r, cX, operators, Val(variable)
+        tree.r, n, n_gradients, index_tree.r, cX, operators, vals[variable]
     )
     @return_on_false2 complete2 cumulator1 dcumulator1
 

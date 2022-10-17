@@ -25,4 +25,7 @@ isgood(x::T) where {T<:Number} = !(isnan(x) || !isfinite(x))
 isgood(x) = true
 isbad(x) = !isgood(x)
 
+const max_ops = 1024
+const vals = ntuple(i -> Val(i), max_ops)
+
 end

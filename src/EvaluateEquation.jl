@@ -2,7 +2,7 @@ module EvaluateEquationModule
 
 import ..EquationModule: Node
 import ..OperatorEnumModule: OperatorEnum
-import ..UtilsModule: @return_on_false, is_bad_array
+import ..UtilsModule: @return_on_false, is_bad_array, vals
 import ..EquationUtilsModule: is_constant
 
 macro return_on_check(val, T, n)
@@ -89,28 +89,28 @@ function _eval_tree_array(
     elseif tree.degree == 1
         if tree.l.degree == 2 && tree.l.l.degree == 0 && tree.l.r.degree == 0
             # op(op2(x, y)), where x, y, z are constants or variables.
-            return deg1_l2_ll0_lr0_eval(tree, cX, Val(tree.op), Val(tree.l.op), operators)
+            return deg1_l2_ll0_lr0_eval(tree, cX, vals[tree.op], vals[tree.l.op], operators)
         elseif tree.l.degree == 1 && tree.l.l.degree == 0
             # op(op2(x)), where x is a constant or variable.
-            return deg1_l1_ll0_eval(tree, cX, Val(tree.op), Val(tree.l.op), operators)
+            return deg1_l1_ll0_eval(tree, cX, vals[tree.op], vals[tree.l.op], operators)
         else
             # op(x), for any x.
-            return deg1_eval(tree, cX, Val(tree.op), operators)
+            return deg1_eval(tree, cX, vals[tree.op], operators)
         end
     elseif tree.degree == 2
         # TODO - add op(op2(x, y), z) and op(x, op2(y, z))
         if tree.l.degree == 0 && tree.r.degree == 0
             # op(x, y), where x, y are constants or variables.
-            return deg2_l0_r0_eval(tree, cX, Val(tree.op), operators)
+            return deg2_l0_r0_eval(tree, cX, vals[tree.op], operators)
         elseif tree.l.degree == 0
             # op(x, y), where x is a constant or variable but y is not.
-            return deg2_l0_eval(tree, cX, Val(tree.op), operators)
+            return deg2_l0_eval(tree, cX, vals[tree.op], operators)
         elseif tree.r.degree == 0
             # op(x, y), where y is a constant or variable but x is not.
-            return deg2_r0_eval(tree, cX, Val(tree.op), operators)
+            return deg2_r0_eval(tree, cX, vals[tree.op], operators)
         else
             # op(x, y), for any x or y
-            return deg2_eval(tree, cX, Val(tree.op), operators)
+            return deg2_eval(tree, cX, vals[tree.op], operators)
         end
     end
 end
@@ -354,9 +354,9 @@ function _eval_constant_tree(
     if tree.degree == 0
         return deg0_eval_constant(tree)
     elseif tree.degree == 1
-        return deg1_eval_constant(tree, Val(tree.op), operators)
+        return deg1_eval_constant(tree, vals[tree.op], operators)
     else
-        return deg2_eval_constant(tree, Val(tree.op), operators)
+        return deg2_eval_constant(tree, vals[tree.op], operators)
     end
 end
 
@@ -399,9 +399,9 @@ function differentiable_eval_tree_array(
             return (cX[tree.feature, :], true)
         end
     elseif tree.degree == 1
-        return deg1_diff_eval(tree, cX, Val(tree.op), operators)
+        return deg1_diff_eval(tree, cX, vals[tree.op], operators)
     else
-        return deg2_diff_eval(tree, cX, Val(tree.op), operators)
+        return deg2_diff_eval(tree, cX, vals[tree.op], operators)
     end
 end
 
