@@ -10,6 +10,8 @@ DynamicExpressions.jl is the backbone of
 [SymbolicRegression.jl](https://github.com/MilesCranmer/SymbolicRegression.jl) and
 [PySR](https://github.com/MilesCranmer/PySR).
 
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://symbolicml.org/DynamicExpressions.jl/dev) [![CI](https://github.com/SymbolicML/DynamicExpressions.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/SymbolicML/DynamicExpressions.jl/actions/workflows/CI.yml) [![Coverage Status](https://coveralls.io/repos/github/SymbolicML/DynamicExpressions.jl/badge.svg?branch=master)](https://coveralls.io/github/SymbolicML/DynamicExpressions.jl?branch=master)
+
 ## Summary
 
 A dynamic expression is a snippet of code that can change throughout
