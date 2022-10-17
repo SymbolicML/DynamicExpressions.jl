@@ -5,6 +5,20 @@ import ..OperatorEnumModule: OperatorEnum
 import ..EquationModule: string_tree, Node
 import ..EvaluateEquationModule: eval_tree_array
 
+"""
+    OperatorEnum(; binary_operators=[], unary_operators=[], enable_autodiff::Bool=false)
+
+Construct an `OperatorEnum` object, defining the possible expressions. This will also
+redefine operators for `Node` types, as well as `show`, `print`, and `(::Node)(X)`.
+It will automatically compute derivatives with `Zygote.jl`.
+
+# Arguments
+- `binary_operators::Vector{Function}`: A vector of symbols, each of which is a binary
+  operator.
+- `unary_operators::Vector{Function}`: A vector of symbols, each of which is a unary
+  operator.
+- `enable_autodiff::Bool=false`: Whether to enable automatic differentiation.
+"""
 function OperatorEnum(;
     binary_operators=[], unary_operators=[], enable_autodiff::Bool=false
 )
