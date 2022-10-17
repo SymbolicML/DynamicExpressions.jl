@@ -46,7 +46,7 @@ and then evaluate this expression?
 
 ```julia
 @btime eval(:(X[1, :] .* cos.(X[2, :] .- 3.2)))
-# 151.333 us
+# 117 us
 ```
 
 This is quite slow, meaning it will be hard to
@@ -55,7 +55,7 @@ Let's see how DynamicExpressions.jl compares:
 
 ```julia
 @btime expression(X)
-# 688 ns
+# 693 ns
 ```
 
 Much faster!
@@ -68,7 +68,7 @@ it will have the same performance:
     expression.op = rand(1:3)  # random operator in [+, -, *]
     expression(X)
 end
-# 825 ns
+# 842 ns
 ```
 
 Now, let's see the performance if we had hard-coded these expressions:
@@ -76,7 +76,7 @@ Now, let's see the performance if we had hard-coded these expressions:
 ```julia
 f(X) = X[1, :] .* cos.(X[2, :] .- 3.2)
 @btime f(X)
-# 690 ns
+# 708 ns
 ```
 
 So, our dynamic expression evaluation is about the same (or even a bit faster)
@@ -92,7 +92,7 @@ f_optimized(X) = begin
     y
 end
 @btime f_optimized(X)
-# 522 ns
+# 526 ns
 ```
 
 The `DynamicExpressions.jl` version is only 25% slower than one which
@@ -131,7 +131,7 @@ This is quite fast:
 
 ```julia
 @btime expression'(X)
-# 1.346 us
+# 2.894 us
 ```
 
 Internally, this is calling the `eval_grad_tree_array` function,
