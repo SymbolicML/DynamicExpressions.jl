@@ -10,7 +10,7 @@ DynamicExpressions.jl is the backbone of
 [SymbolicRegression.jl](https://github.com/MilesCranmer/SymbolicRegression.jl) and
 [PySR](https://github.com/MilesCranmer/PySR).
 
-Example:
+## Example
 
 ```julia
 using DynamicExpressions
@@ -25,6 +25,8 @@ expression = x1 * cos(x2 - 3.2)
 X = randn(Float64, 2, 100);
 expression(X) # 100-element Vector{Float64}
 ```
+
+### Speed
 
 This evaluation is extremely fast, without us having to compile it.
 
@@ -62,3 +64,45 @@ with Julia symbols and `eval`:
 
 so this custom data structure is quite important for
 fast evaluation!
+
+## Derivatives
+
+We can also compute gradients with the same speed:
+
+```julia
+operators = OperatorEnum(;
+    binary_operators=[+, -, *],
+    unary_operators=[cos],
+    enable_autodiff=true,
+)
+x1 = Node(; feature=1)
+x2 = Node(; feature=2)
+expression = x1 * cos(x2 - 3.2)
+```
+
+We can run `eval_grad_tree_array(expression, X, tree; variable=true)`
+to evaluate this.
+
+```julia
+result, grad, did_finish = eval_grad_tree_array(expression, X, operators; variable=true)
+```
+
+This is quite fast:
+
+```julia
+@btime eval_grad_tree_array(expression, X, operators; variable=true);
+# 2.486 us
+```
+
+We can also compute the derivative with respect to constants:
+
+```julia
+result, grad, did_finish = eval_grad_tree_array(expression, X, operators; variable=false)
+```
+
+or only in a single direction:
+
+```julia
+feature = 2
+result, grad, did_finish = eval_diff_tree_array(expression, X, operators, feature)
+```
