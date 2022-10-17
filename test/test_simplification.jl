@@ -3,6 +3,9 @@ using DynamicExpressions, Test
 import SymbolicUtils: simplify, Symbolic
 import Random: MersenneTwister
 
+simplify_tree = DynamicExpressions.SimplifyEquationModule.simplify_tree
+combine_operators = DynamicExpressions.SimplifyEquationModule.combine_operators
+
 binary_operators = (+, -, /, *)
 
 index_of_mult = [i for (i, op) in enumerate(binary_operators) if op == *][1]
@@ -84,12 +87,59 @@ output3, flag3 = eval_tree_array(tree_copy2, X, operators)
 operators = OperatorEnum(; binary_operators=(+, -, *, /))
 base_tree = Node(1, Node(; val=0.3), Node(; val=0.2))
 tree = x1 * base_tree + base_tree
-DynamicExpressions.SimplifyEquationModule.simplify_tree(tree, operators)
+simplify_tree(tree, operators)
 @test tree.l.r === tree.r
 
 base_tree = (x1 + Node(; val=0.3)) + Node(; val=0.2)
 true_simplification_value = 0.5
 tree = x2 * base_tree + base_tree
-DynamicExpressions.SimplifyEquationModule.combine_operators(tree, operators)
+combine_operators(tree, operators)
 # Should not combine twice!
 @test tree.l.r.r.val == true_simplification_value
+
+###############################################################################
+## Hit other parts of `simplify_tree` and `combine_operators` to increase
+## code coverage:
+operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(cos, sin))
+x1, x2, x3 = [Node(;feature=i) for i=1:3]
+
+# unary operator applied to constant => constant:
+tree = Node(1, Node(; val=0.0))
+@test repr(tree) == "cos(0.0)"
+@test repr(simplify_tree(tree, operators)) == "1.0"
+
+# except when the result is a NaN, then we don't change it:
+tree = Node(1, Node(; val=NaN))
+@test repr(tree) == "cos(NaN)"
+@test repr(simplify_tree(tree, operators)) == "cos(NaN)"
+
+# the same as above, but inside a binary tree.
+tree = Node(1, Node(1, Node(; val=0.1), Node(; val=0.2)) + Node(; val=0.2)) + Node(; val=2.0)
+@test repr(tree) == "(cos((0.1 + 0.2) + 0.2) + 2.0)"
+@test repr(combine_operators(tree, operators)) == "(cos(0.4 + 0.1) + 2.0)"
+
+# left is constant:
+tree = Node(;val=0.5) + (Node(;val=0.2) + x1)
+@test repr(tree) == "(0.5 + (0.2 + x1))"
+@test repr(combine_operators(tree, operators)) == "(x1 + 0.7)"
+
+# (const - (const - var)) => (var - const)
+tree = Node(2, Node(;val=0.5), Node(;val=0.2) - x1)
+@test repr(tree) == "(0.5 - (0.2 - x1))"
+@test repr(combine_operators(tree, operators)) == "(x1 - -0.3)"
+
+# ((const - var) - const) => (const - var)
+tree = Node(2, Node(;val=0.5) - x1, Node(;val=0.2))
+@test repr(tree) == "((0.5 - x1) - 0.2)"
+@test repr(combine_operators(tree, operators)) == "(0.3 - x1)"
+
+# (const - (var - const)) => (const - var)
+tree = Node(2, Node(;val=0.5), x1 - Node(;val=0.2))
+@test repr(tree) == "(0.5 - (x1 - 0.2))"
+@test repr(combine_operators(tree, operators)) == "(0.7 - x1)"
+
+# ((var - const) - const) => (var - const)
+tree = ((x1 - 0.2) - 0.6)
+@test repr(tree) == "((x1 - 0.2) - 0.6)"
+@test repr(combine_operators(tree, operators)) == "(x1 - 0.8)"
+###############################################################################
