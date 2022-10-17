@@ -32,12 +32,19 @@ For comparison:
 
 ```julia
 @btime expression(X)
-# 7.667 us
-@btime X[1, :] .* cos.(X[2, :] .- 3.2)
-# 2.389 us
+# 1.488 us
 ```
 
-Not bad at all! Only a 3x difference, even though we were not able to compile our expression.
+Now let's see the performance if we had hard-coded it:
+```julia
+f(X) = X[1, :] .* cos.(X[2, :] .- 3.2)
+@btime f(X)
+# 0.952 us
+```
 
-Thus, this data structure makes it viable to dynamically construct expressions and then evaluate them.
-This is therefore very useful for optimizing symbolic functional forms.
+So, our dynamic expression evaluation is only 1.5x the time it took to evaluate a hard-coded expression!
+Not bad at all.
+
+We can change `expression` throughout runtime, and expect the same performance:
+this makes this data structure ideal for symbolic regression and other evaluation-based searches
+over expression trees.
