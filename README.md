@@ -47,7 +47,7 @@ For comparison:
 
 ```julia
 @btime expression(X)
-# 1.488 us
+# 688 ns
 ```
 
 Now let's see the performance if we had hard-coded it:
@@ -55,16 +55,33 @@ Now let's see the performance if we had hard-coded it:
 ```julia
 f(X) = X[1, :] .* cos.(X[2, :] .- 3.2)
 @btime f(X)
-# 0.952 us
+# 690 ns
 ```
 
-So, our dynamic expression evaluation is only 1.5x the time it took to evaluate a hard-coded expression!
-Not bad at all.
+So, our dynamic expression evaluation is about the same (or even a bit faster)
+as evaluating a basic hard-coded expression!
+Let's see if we can optimize the hard-coded version:
 
-We can change `expression` throughout runtime, and expect the same performance:
-this makes this data structure ideal for symbolic regression and other evaluation-based searches
+```julia
+f_optimized(X) = begin
+    y = Vector{Float64}(undef, 100)
+    @inbounds @simd for i=1:100;
+        y[i] = X[1, i] * cos(X[2, i] - 3.2)
+    end
+    y
+end
+@btime f_optimized(X)
+# 522 ns
+```
+
+The `DynamicExpressions.jl` version is only 25% slower than one which
+has been optimized by hand into a single kernel! Not bad at all.
+
+More importantly: we can change `expression` throughout runtime,
+and expect the same performance.
+This makes this data structure ideal for symbolic
+regression and other evaluation-based searches
 over expression trees.
-
 
 For the record, let's see what this would look like
 if we had evaluated the dynamic expression naively,
