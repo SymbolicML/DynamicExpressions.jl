@@ -2,7 +2,7 @@
 
 # DynamicExpressions.jl
 
-Blazingly-fast dynamic expressions.
+Ridiculously fast dynamic expressions.
 
 </div>
 
