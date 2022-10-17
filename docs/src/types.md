@@ -36,7 +36,7 @@ Node(var_string::String)
 
 When you create an `Options` object, the operators
 passed are also re-defined for `Node` types.
-This allows you use, e.g., `t=Node("x1") * 3f0` to create a tree, so long as
+This allows you use, e.g., `t=Node(; feature=1) * 3f0` to create a tree, so long as
 `*` was specified as a binary operator.
 
 When using these node constructors, types will automatically be promoted.

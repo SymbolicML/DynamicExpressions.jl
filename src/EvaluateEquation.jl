@@ -386,8 +386,11 @@ function deg2_eval_constant(
     return output, isfinite(output)
 end
 
-# Evaluate an equation over an array of datapoints
-# This one is just for reference. The fused one should be faster.
+"""
+    differentiable_eval_tree_array(tree::Node, cX::AbstractMatrix, operators::OperatorEnum)
+
+Evaluate an expression tree in a way that can be auto-differentiated.
+"""
 function differentiable_eval_tree_array(
     tree::Node{T1}, cX::AbstractMatrix{T}, operators::OperatorEnum
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,T1}

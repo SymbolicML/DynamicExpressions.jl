@@ -1,11 +1,31 @@
 # Evaluation
 
-Given an expression tree specified with the `Node` type, you may evaluate the expression
-over an array of data with the following operation:
+Given an expression tree specified with a `Node` type, you may evaluate the expression
+over an array of data with the following command:
 
 ```@docs
 eval_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum) where {T<:Real}
 ```
+
+Assuming you are only using a single `OperatorEnum`, you can also use
+the following short-hand by using the expression as a function:
+
+```julia
+operators = OperatorEnum(; binary_operators=[+, -, *], unary_operators=[cos])
+tree = Node(; feature=1) * cos(Node(; feature=2) - 3.2)
+
+tree(X)
+```
+
+This is possible because when you call `OperatorEnum`, it automatically re-defines
+`(::Node)(X)` to call the evaluation operation with the given `operators loaded.
+It also re-defines `print`, `show`, and the various operators, to work with the `Node` type.
+
+!!! warning
+
+    The `Node` type does not know about which `OperatorEnum` you used to create it.
+    Thus, if you define an expression with one `OperatorEnum`, and then try to
+    evaluate it or print it with a different `OperatorEnum`, you will get undefined behavior!
 
 ## Derivatives
 
