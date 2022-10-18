@@ -19,6 +19,12 @@ x1, x2, x3 = Node("x1"), Node("x2"), Node("x3")
 @test has_constants(cos(x1)) == false
 @test has_constants(cos(Node(; val=0.0))) == true
 
+# Has operators
+@test has_operators(x1) == false
+@test has_operators(x1 + 1) == true
+@test has_operators(cos(x1)) == true
+@test has_operators(Node(; val=0.0)) == false
+
 # Set constants:
 tree = Node(; val=0.0)
 set_constants(tree, [1.0])
