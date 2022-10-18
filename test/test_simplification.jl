@@ -101,7 +101,7 @@ combine_operators(tree, operators)
 ## Hit other parts of `simplify_tree` and `combine_operators` to increase
 ## code coverage:
 operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(cos, sin))
-x1, x2, x3 = [Node(;feature=i) for i=1:3]
+x1, x2, x3 = [Node(; feature=i) for i in 1:3]
 
 # unary operator applied to constant => constant:
 tree = Node(1, Node(; val=0.0))
@@ -114,27 +114,28 @@ tree = Node(1, Node(; val=NaN))
 @test repr(simplify_tree(tree, operators)) == "cos(NaN)"
 
 # the same as above, but inside a binary tree.
-tree = Node(1, Node(1, Node(; val=0.1), Node(; val=0.2)) + Node(; val=0.2)) + Node(; val=2.0)
+tree =
+    Node(1, Node(1, Node(; val=0.1), Node(; val=0.2)) + Node(; val=0.2)) + Node(; val=2.0)
 @test repr(tree) == "(cos((0.1 + 0.2) + 0.2) + 2.0)"
 @test repr(combine_operators(tree, operators)) == "(cos(0.4 + 0.1) + 2.0)"
 
 # left is constant:
-tree = Node(;val=0.5) + (Node(;val=0.2) + x1)
+tree = Node(; val=0.5) + (Node(; val=0.2) + x1)
 @test repr(tree) == "(0.5 + (0.2 + x1))"
 @test repr(combine_operators(tree, operators)) == "(x1 + 0.7)"
 
 # (const - (const - var)) => (var - const)
-tree = Node(2, Node(;val=0.5), Node(;val=0.2) - x1)
+tree = Node(2, Node(; val=0.5), Node(; val=0.2) - x1)
 @test repr(tree) == "(0.5 - (0.2 - x1))"
 @test repr(combine_operators(tree, operators)) == "(x1 - -0.3)"
 
 # ((const - var) - const) => (const - var)
-tree = Node(2, Node(;val=0.5) - x1, Node(;val=0.2))
+tree = Node(2, Node(; val=0.5) - x1, Node(; val=0.2))
 @test repr(tree) == "((0.5 - x1) - 0.2)"
 @test repr(combine_operators(tree, operators)) == "(0.3 - x1)"
 
 # (const - (var - const)) => (const - var)
-tree = Node(2, Node(;val=0.5), x1 - Node(;val=0.2))
+tree = Node(2, Node(; val=0.5), x1 - Node(; val=0.2))
 @test repr(tree) == "(0.5 - (x1 - 0.2))"
 @test repr(combine_operators(tree, operators)) == "(0.7 - x1)"
 

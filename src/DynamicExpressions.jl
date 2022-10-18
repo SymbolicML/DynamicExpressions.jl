@@ -13,7 +13,13 @@ include("OperatorEnumConstruction.jl")
 using Reexport
 @reexport import .EquationModule: Node, string_tree, copy_node, set_node!
 @reexport import .EquationUtilsModule:
-    count_nodes, NodeIndex, index_constants, get_constants, set_constants
+    count_nodes,
+    count_depth,
+    NodeIndex,
+    index_constants,
+    has_constants,
+    get_constants,
+    set_constants
 @reexport import .OperatorEnumConstructionModule: OperatorEnum
 @reexport import .EvaluateEquationModule: eval_tree_array, differentiable_eval_tree_array
 @reexport import .EvaluateEquationDerivativeModule:

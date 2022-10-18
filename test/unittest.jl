@@ -39,3 +39,7 @@ end
 @safetestset "Test topology-preserving copy" begin
     include("test_preserve_multiple_parents.jl")
 end
+
+@safetestset "Test equation utils" begin
+    include("test_utils.jl")
+end
