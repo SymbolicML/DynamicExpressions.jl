@@ -89,3 +89,18 @@ for unaop in [cos, exp, safe_log, safe_log2, safe_log10, safe_sqrt, relu, gamma,
         end
     end
 end
+
+# We also test whether we can set a node equal to another node:
+operators = OperatorEnum(; default_params...)
+tree = Node(Float64; feature=1)
+tree2 = exp(Node(; feature=2) / 3.2) + Node(; feature=1) * 2.0
+
+# Test printing works:
+io = IOBuffer()
+print(io, tree2)
+s = String(take!(io))
+@test s == "(exp(x2 / 3.2) + (x1 * 2.0))"
+
+set_node!(tree, tree2)
+@test tree !== tree2
+@test repr(tree) == repr(tree2)
