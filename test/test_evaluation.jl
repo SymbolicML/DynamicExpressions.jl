@@ -85,7 +85,7 @@ truth = cos(cos(3.0f0))
 
 # op(<constant>, <constant>)
 tree = Node(1, Node(; val=3.0f0), Node(; val=4.0f0))
-@test repr(tree) == "3.0 + 4.0"
+@test repr(tree) == "(3.0 + 4.0)"
 truth = 3.0f0 + 4.0f0
 @test DynamicExpressions.EvaluateEquationModule.deg2_l0_r0_eval(
     tree, [0.0f0]', Val(1), operators
