@@ -2,7 +2,7 @@ module InterfaceSymbolicUtilsModule
 
 using SymbolicUtils
 import ..EquationModule: Node, DEFAULT_NODE_TYPE
-import ..OperatorEnumModule: OperatorEnum
+import ..OperatorEnumModule: AbstractOperatorEnum
 import ..UtilsModule: isgood, isbad, @return_on_false
 
 const SYMBOLIC_UTILS_TYPES = Union{<:Number,SymbolicUtils.Symbolic{<:Number}}
@@ -18,7 +18,7 @@ function isgood(x::SymbolicUtils.Symbolic)
 end
 subs_bad(x) = isgood(x) ? x : Inf
 
-function parse_tree_to_eqs(tree::Node, operators::OperatorEnum, index_functions::Bool=false)
+function parse_tree_to_eqs(tree::Node, operators::AbstractOperatorEnum, index_functions::Bool=false)
     if tree.degree == 0
         # Return constant if needed
         tree.constant && return subs_bad(tree.val)
@@ -43,7 +43,7 @@ end
 # For operators which are indexed, we need to convert them back
 # using the string:
 function convert_to_function(
-    x::SymbolicUtils.Sym{SymbolicUtils.FnType{T,Number}}, operators::OperatorEnum
+    x::SymbolicUtils.Sym{SymbolicUtils.FnType{T,Number}}, operators::AbstractOperatorEnum
 ) where {T<:Tuple}
     degree = length(T.types)
     if degree == 1
@@ -58,11 +58,11 @@ function convert_to_function(
 end
 
 # For normal operators, simply return the function itself:
-convert_to_function(x, operators::OperatorEnum) = x
+convert_to_function(x, operators::AbstractOperatorEnum) = x
 
 # Split equation
 function split_eq(
-    op, args, operators::OperatorEnum; varMap::Union{Array{String,1},Nothing}=nothing
+    op, args, operators::AbstractOperatorEnum; varMap::Union{Array{String,1},Nothing}=nothing
 )
     !(op ∈ (sum, prod, +, *)) && throw(error("Unsupported operation $op in expression!"))
     if Symbol(op) == Symbol(sum)
@@ -89,7 +89,7 @@ end
 function Base.convert(
     ::typeof(SymbolicUtils.Symbolic),
     tree::Node,
-    operators::OperatorEnum;
+    operators::AbstractOperatorEnum;
     varMap::Union{Array{String,1},Nothing}=nothing,
     index_functions::Bool=false,
 )
@@ -99,7 +99,7 @@ end
 function Base.convert(
     ::typeof(Node),
     x::Number,
-    operators::OperatorEnum;
+    operators::AbstractOperatorEnum;
     varMap::Union{Array{String,1},Nothing}=nothing,
 )
     return Node(; val=DEFAULT_NODE_TYPE(x))
@@ -108,7 +108,7 @@ end
 function Base.convert(
     ::typeof(Node),
     expr::SymbolicUtils.Symbolic,
-    operators::OperatorEnum;
+    operators::AbstractOperatorEnum;
     varMap::Union{Array{String,1},Nothing}=nothing,
 )
     if !SymbolicUtils.istree(expr)
@@ -136,7 +136,7 @@ function Base.convert(
 end
 
 """
-    node_to_symbolic(tree::Node, operators::OperatorEnum;
+    node_to_symbolic(tree::Node, operators::AbstractOperatorEnum;
                 varMap::Union{Array{String, 1}, Nothing}=nothing,
                 index_functions::Bool=false)
 
@@ -146,7 +146,7 @@ will generate a symbolic equation in SymbolicUtils.jl format.
 ## Arguments
 
 - `tree::Node`: The equation to convert.
-- `operators::OperatorEnum`: OperatorEnum, which contains the operators used in the equation.
+- `operators::AbstractOperatorEnum`: OperatorEnum, which contains the operators used in the equation.
 - `varMap::Union{Array{String, 1}, Nothing}=nothing`: What variable names to use for
     each feature. Default is [x1, x2, x3, ...].
 - `index_functions::Bool=false`: Whether to generate special names for the
@@ -156,7 +156,7 @@ will generate a symbolic equation in SymbolicUtils.jl format.
 """
 function node_to_symbolic(
     tree::Node,
-    operators::OperatorEnum;
+    operators::AbstractOperatorEnum;
     varMap::Union{Array{String,1},Nothing}=nothing,
     index_functions::Bool=false,
 )
@@ -176,13 +176,10 @@ function node_to_symbolic(
 end
 
 function symbolic_to_node(
-    eqn::T, operators::OperatorEnum; varMap::Union{Array{String,1},Nothing}=nothing
+    eqn::T, operators::AbstractOperatorEnum; varMap::Union{Array{String,1},Nothing}=nothing
 )::Node where {T<:SymbolicUtils.Symbolic}
     return convert(Node, eqn, operators; varMap=varMap)
 end
-
-# function Base.convert(::typeof(Node), x::Number, operators::OperatorEnum; varMap::Union{Array{String, 1}, Nothing}=nothing)
-# function Base.convert(::typeof(Node), expr::SymbolicUtils.Symbolic, operators::OperatorEnum; varMap::Union{Array{String, 1}, Nothing}=nothing)
 
 function multiply_powers(eqn::Number)::Tuple{SYMBOLIC_UTILS_TYPES,Bool}
     return eqn, true

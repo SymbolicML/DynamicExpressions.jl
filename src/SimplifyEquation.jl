@@ -1,13 +1,13 @@
 module SimplifyEquationModule
 
 import ..EquationModule: Node, copy_node
-import ..OperatorEnumModule: OperatorEnum
+import ..OperatorEnumModule: AbstractOperatorEnum
 import ..UtilsModule: isbad, isgood
 
 # Simplify tree
 function combine_operators(
     tree::Node{T},
-    operators::OperatorEnum,
+    operators::AbstractOperatorEnum,
     id_map::IdDict{Node{T},Node{T}}=IdDict{Node{T},Node{T}}(),
 )::Node{T} where {T}
     # NOTE: (const (+*-) const) already accounted for. Call simplify_tree before.
@@ -101,7 +101,7 @@ end
 # Simplify tree
 function simplify_tree(
     tree::Node{T},
-    operators::OperatorEnum,
+    operators::AbstractOperatorEnum,
     id_map::IdDict{Node{T},Node{T}}=IdDict{Node{T},Node{T}}(),
 )::Node{T} where {T<:Real}
     get!(id_map, tree) do

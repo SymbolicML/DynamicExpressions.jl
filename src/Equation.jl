@@ -298,7 +298,7 @@ function string_op(
 end
 
 """
-    string_tree(tree::Node, operators::OperatorEnum; kws...)
+    string_tree(tree::Node, operators::AbstractOperatorEnum; kws...)
 
 Convert an equation to a string.
 
