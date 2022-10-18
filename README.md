@@ -18,7 +18,7 @@ A dynamic expression is a snippet of code that can change throughout
 runtime - compilation is not possible!
 
 DynamicExpressions.jl:
-1. Defines an enum over user-specified operators.
+1. Defines an enum over user-specified scalar operators.
 2. Using this enum, it defines a very lightweight
 and type-stable data structure for arbitrary expressions.
 3. It then generates specialized evaluation kernels for
