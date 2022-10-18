@@ -1,6 +1,6 @@
 <div align="center">
 
-# DynamicExpressions.jl
+<img src="https://user-images.githubusercontent.com/7593028/196523542-305f3fc2-18d2-41e5-9252-1f96c3d0b7e7.png" height="50%" width="50%"></img>
 
 *Ridiculously fast dynamic expressions.*
 
