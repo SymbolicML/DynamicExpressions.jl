@@ -17,6 +17,7 @@ using Reexport
     count_depth,
     NodeIndex,
     index_constants,
+    has_operators,
     has_constants,
     get_constants,
     set_constants
