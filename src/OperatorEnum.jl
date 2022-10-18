@@ -17,4 +17,9 @@ struct OperatorEnum{A<:Tuple,B<:Tuple,dA<:Union{Tuple,Nothing},dB<:Union{Tuple,N
     diff_unaops::dB
 end
 
+struct GenericOperatorEnum{A<:Tuple,B<:Tuple}
+    binops::A
+    unaops::B
+end
+
 end

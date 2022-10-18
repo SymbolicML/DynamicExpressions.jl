@@ -1,7 +1,7 @@
 module EvaluateEquationModule
 
 import ..EquationModule: Node
-import ..OperatorEnumModule: OperatorEnum
+import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: @return_on_false, is_bad_array, vals
 import ..EquationUtilsModule: is_constant
 
@@ -430,6 +430,33 @@ function deg2_diff_eval(
     out = op.(left, right)
     no_nans = !any(x -> (!isfinite(x)), out)
     return (out, no_nans)
+end
+
+function eval_tree_array(tree, cX, operators::GenericOperatorEnum)
+    if tree.degree == 0
+        if tree.constant
+            return tree.val, true
+        else
+            return cX[tree.feature], true
+        end
+    elseif tree.degree == 1
+        return deg1_eval(tree, cX, vals[tree.op], operators)
+    else
+        return deg2_eval(tree, cX, vals[tree.op], operators)
+    end
+end
+
+function deg1_eval(tree, cX, ::Val{op_idx}, operators::GenericOperatorEnum) where {op_idx}
+    left, _ = eval_tree_array(tree.l, cX, operators)
+    op = operators.unaops[op_idx]
+    return op(left), true
+end
+
+function deg2_eval(tree, cX, ::Val{op_idx}, operators::GenericOperatorEnum) where {op_idx}
+    left, _ = eval_tree_array(tree.l, cX, operators)
+    right, _ = eval_tree_array(tree.r, cX, operators)
+    op = operators.binops[op_idx]
+    return op(left, right), true
 end
 
 end
