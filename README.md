@@ -48,7 +48,7 @@ and then evaluate this expression?
 
 ```julia
 @btime eval(:(X[1, :] .* cos.(X[2, :] .- 3.2)))
-# 117 us
+# 117,000 ns
 ```
 
 This is quite slow, meaning it will be hard to
