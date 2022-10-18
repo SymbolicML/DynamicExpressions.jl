@@ -1,6 +1,6 @@
 module EquationModule
 
-import ..OperatorEnumModule: OperatorEnum
+import ..OperatorEnumModule: AbstractOperatorEnum
 
 const DEFAULT_NODE_TYPE = Float32
 
@@ -277,7 +277,7 @@ end
 function string_op(
     op::F,
     tree::Node,
-    operators::OperatorEnum;
+    operators::AbstractOperatorEnum;
     bracketed::Bool=false,
     varMap::Union{Array{String,1},Nothing}=nothing,
 )::String where {F}
@@ -309,7 +309,7 @@ Convert an equation to a string.
 """
 function string_tree(
     tree::Node,
-    operators::OperatorEnum;
+    operators::AbstractOperatorEnum;
     bracketed::Bool=false,
     varMap::Union{Array{String,1},Nothing}=nothing,
 )::String
@@ -337,14 +337,14 @@ end
 function print_tree(
     io::IO,
     tree::Node,
-    operators::OperatorEnum;
+    operators::AbstractOperatorEnum;
     varMap::Union{Array{String,1},Nothing}=nothing,
 )
     return println(io, string_tree(tree, operators; varMap=varMap))
 end
 
 function print_tree(
-    tree::Node, operators::OperatorEnum; varMap::Union{Array{String,1},Nothing}=nothing
+    tree::Node, operators::AbstractOperatorEnum; varMap::Union{Array{String,1},Nothing}=nothing
 )
     return println(string_tree(tree, operators; varMap=varMap))
 end

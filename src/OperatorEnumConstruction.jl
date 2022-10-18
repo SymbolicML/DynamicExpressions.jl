@@ -2,7 +2,7 @@ module OperatorEnumConstructionModule
 
 import Zygote: gradient
 import ..UtilsModule: max_ops
-import ..OperatorEnumModule: OperatorEnum
+import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..EquationModule: string_tree, Node
 import ..EvaluateEquationModule: eval_tree_array
 import ..EvaluateEquationDerivativeModule: eval_grad_tree_array
@@ -154,6 +154,77 @@ function OperatorEnum(;
                 !did_complete && (grad .= T(NaN))
                 grad
             end
+        end
+    end
+
+    return operators
+end
+
+function GenericOperatorEnum(; binary_operators=[], unary_operators=[])
+    binary_operators = Tuple(binary_operators)
+    unary_operators = Tuple(unary_operators)
+
+    @assert length(binary_operators) > 0 || length(unary_operators) > 0
+    @assert length(binary_operators) <= max_ops && length(unary_operators) <= max_ops
+
+    for (op, f) in enumerate(map(Symbol, binary_operators))
+        _f = if f in [:pow, :safe_pow]
+            Symbol(^)
+        else
+            f
+        end
+        if !isdefined(Base, _f)
+            continue
+        end
+        @eval begin
+            function Base.$_f(l::Node{T1}, r::Node{T2}) where {T1<:Real,T2<:Real}
+                T = promote_type(T1, T2)
+                l = convert(Node{T}, l)
+                r = convert(Node{T}, r)
+                if (l.constant && r.constant)
+                    return Node(; val=$f(l.val, r.val))
+                else
+                    return Node($op, l, r)
+                end
+            end
+            function Base.$_f(l::Node{T1}, r::T2) where {T1<:Real,T2<:Real}
+                T = promote_type(T1, T2)
+                l = convert(Node{T}, l)
+                r = convert(T, r)
+                return l.constant ? Node(; val=$f(l.val, r)) : Node($op, l, Node(; val=r))
+            end
+            function Base.$_f(l::T1, r::Node{T2}) where {T1<:Real,T2<:Real}
+                T = promote_type(T1, T2)
+                l = convert(T, l)
+                r = convert(Node{T}, r)
+                return r.constant ? Node(; val=$f(l, r.val)) : Node($op, Node(; val=l), r)
+            end
+        end
+    end
+    # Redefine Base operations:
+    for (op, f) in enumerate(map(Symbol, unary_operators))
+        if !isdefined(Base, f)
+            continue
+        end
+        @eval begin
+            function Base.$f(l::Node{T})::Node{T} where {T<:Real}
+                return l.constant ? Node(; val=$f(l.val)) : Node($op, l)
+            end
+        end
+    end
+
+    operators = GenericOperatorEnum(binary_operators, unary_operators)
+
+    @eval begin
+        Base.print(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
+        Base.show(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
+
+        function (tree::Node)(X)
+            out, did_finish = eval_tree_array(tree, X, $operators)
+            if !did_finish
+                return nothing
+            end
+            return out
         end
     end
 

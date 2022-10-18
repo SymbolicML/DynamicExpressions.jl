@@ -447,15 +447,20 @@ function eval_tree_array(tree, cX, operators::GenericOperatorEnum)
 end
 
 function deg1_eval(tree, cX, ::Val{op_idx}, operators::GenericOperatorEnum) where {op_idx}
-    left, _ = eval_tree_array(tree.l, cX, operators)
+    left, complete = eval_tree_array(tree.l, cX, operators)
+    !complete && return nothing, false
     op = operators.unaops[op_idx]
+    !hasmethod(op, Tuple{typeof(left)}) && return nothing, false
     return op(left), true
 end
 
 function deg2_eval(tree, cX, ::Val{op_idx}, operators::GenericOperatorEnum) where {op_idx}
-    left, _ = eval_tree_array(tree.l, cX, operators)
-    right, _ = eval_tree_array(tree.r, cX, operators)
+    left, complete = eval_tree_array(tree.l, cX, operators)
+    !complete && return nothing, false
+    right, complete = eval_tree_array(tree.r, cX, operators)
+    !complete && return nothing, false
     op = operators.binops[op_idx]
+    !hasmethod(op, Tuple{typeof(left), typeof(right)}) && return nothing, false
     return op(left, right), true
 end
 
