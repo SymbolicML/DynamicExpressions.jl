@@ -41,7 +41,7 @@ for fnc in [
     (x1, x2, x3) -> cos(3.0f0 * x2),
     (
         ((x1, x2, x3) -> cos(3.0f0 * -0.5f0)),
-        ((x1, x2, x3) -> cos(Node(2, Node(; val=3.0f0), Node(;val=-0.5f0)))),
+        ((x1, x2, x3) -> cos(Node(2, Node(; val=3.0f0), Node(; val=-0.5f0)))),
     ),
 
     # deg1_l1_ll0_eval
