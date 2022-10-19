@@ -103,7 +103,7 @@ function simplify_tree(
     tree::Node{T},
     operators::AbstractOperatorEnum,
     id_map::IdDict{Node{T},Node{T}}=IdDict{Node{T},Node{T}}(),
-)::Node{T} where {T<:Real}
+)::Node{T} where {T}
     get!(id_map, tree) do
         if tree.degree == 1
             tree.l = simplify_tree(tree.l, operators, id_map)

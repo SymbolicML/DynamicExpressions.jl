@@ -70,7 +70,7 @@ function is_constant(tree::Node)::Bool
 end
 
 # Get all the constants from a tree
-function get_constants(tree::Node{T})::AbstractVector{T} where {T<:Real}
+function get_constants(tree::Node{T})::AbstractVector{T} where {T}
     if tree.degree == 0
         if tree.constant
             return [tree.val]
@@ -86,7 +86,7 @@ function get_constants(tree::Node{T})::AbstractVector{T} where {T<:Real}
 end
 
 # Set all the constants inside a tree
-function set_constants(tree::Node{T}, constants::AbstractVector{T}) where {T<:Real}
+function set_constants(tree::Node{T}, constants::AbstractVector{T}) where {T}
     if tree.degree == 0
         if tree.constant
             tree.val = constants[1]
