@@ -6,20 +6,19 @@
 
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://symbolicml.org/DynamicExpressions.jl/dev) [![CI](https://github.com/SymbolicML/DynamicExpressions.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/SymbolicML/DynamicExpressions.jl/actions/workflows/CI.yml) [![Coverage Status](https://coveralls.io/repos/github/SymbolicML/DynamicExpressions.jl/badge.svg?branch=master)](https://coveralls.io/github/SymbolicML/DynamicExpressions.jl?branch=master)
 
-DynamicExpressions.jl is the backbone of 
-[SymbolicRegression.jl](https://github.com/MilesCranmer/SymbolicRegression.jl) and
+DynamicExpressions.jl is the backbone of [SymbolicRegression.jl](https://github.com/MilesCranmer/SymbolicRegression.jl) and
 [PySR](https://github.com/MilesCranmer/PySR).
 
 </div>
 
 ## Summary
 
-A dynamic expression is a snippet of code that can change throughout runtime - compilation is not possible! DynamicExpressions.jl does the following:
+A dynamic expression is a snippet of code that can change throughout runtime - compilation is not possible! **DynamicExpressions.jl does the following:**
 1. Defines an enum over user-specified operators.
 2. Using this enum, it defines a [very lightweight and type-stable data structure](https://symbolicml.org/DynamicExpressions.jl/dev/types/#DynamicExpressions.EquationModule.Node) for arbitrary expressions.
 3. It then generates specialized [evaluation kernels](https://github.com/SymbolicML/DynamicExpressions.jl/blob/fe8e6dfa160d12485fb77c226d22776dd6ed697a/src/EvaluateEquation.jl#L29-L66) for the space of potential operators.
 4. It also generates kernels for the [first-order derivatives](https://github.com/SymbolicML/DynamicExpressions.jl/blob/fe8e6dfa160d12485fb77c226d22776dd6ed697a/src/EvaluateEquationDerivative.jl#L139-L175), using [Zygote.jl](https://github.com/FluxML/Zygote.jl).
-5. It can also operate on arbitrary other types (vectors, tensors, symbols, strings, etc.) - see last part below.
+5. DynamicExpressions.jl can also operate on arbitrary other types (vectors, tensors, symbols, strings, or even unions) - see last part below.
 
 It also has import and export functionality with [SymbolicUtils.jl](https://github.com/JuliaSymbolics/SymbolicUtils.jl), so you can move your runtime expression into a CAS!
 
@@ -151,12 +150,14 @@ result, grad, did_finish = eval_diff_tree_array(expression, X, operators, featur
 
 > Does this work for only scalar operators on real numbers, or will it work for `MyCrazyType`?
 
-I'm so glad you asked. `DynamicExpressions.jl` actually will work for **arbitrary types**! However, to work on operators other than real scalars, you need to use the `GenericOperatorEnum` instead of the normal `OperatorEnum`. Let's try it with strings!
+I'm so glad you asked. `DynamicExpressions.jl` actually will work for **arbitrary types**! However, to work on operators other than real scalars, you need to use the `GenericOperatorEnum <: AbstractOperatorEnum` instead of the normal `OperatorEnum`. Let's try it with strings!
 
 ```julia
 x1 = Node(String; feature=1) 
 ```
-This node, will be used to index input data (whatever it may be) with `selectdim(data, 1, feature)`. Let's now define some operators to use:
+
+This node, will be used to index input data (whatever it may be) with either `data[feature]` (1D abstract arrays) or `selectdim(data, 1, feature)` (ND abstract arrays). Let's now define some operators to use:
+
 ```julia
 my_string_func(x::String) = "Hello $x"
 
@@ -165,14 +166,60 @@ operators = GenericOperatorEnum(;
     unary_operators=[my_string_func],
     extend_user_operators=true)
 ```
+
 Now, let's create an expression:
+
 ```julia
 tree = x1 * " World!"
 tree(["Hello", "Me?"])
 # Hello World!
 ```
+
 So indeed it works for arbitrary types. It is a bit slower due to the potential for type instability, but it's not too bad:
+
 ```julia
-@btime tree(["Hello", "Me?"]
+@btime tree(["Hello", "Me?"])
 # 1738 ns
 ``` 
+
+## Tensors
+
+> Does this work for tensors, or even unions of scalars and tensors?
+
+Also yes! Let's see:
+
+```julia
+using DynamicExpressions
+
+T = Union{Float64,Vector{Float64}}
+
+c1 = Node(T; val=0.0)  # Scalar constant
+c2 = Node(T; val=[1.0, 2.0, 3.0])  # Vector constant
+x1 = Node(T; feature=1)
+
+# Some operators on tensors (multiple dispatch can be used for different behavior!)
+vec_add(x, y) = x .+ y
+vec_square(x) = x .* x
+
+# Set up an operator enum:
+operators = GenericOperatorEnum(;binary_operators=[vec_add], unary_operators=[vec_square], extend_user_operators=true)
+
+# Construct the expression:
+tree = vec_add(vec_add(vec_square(x1), c2), c1)
+
+X = [[-1.0, 5.2, 0.1], [0.0, 0.0, 0.0]]
+
+# Evaluate!
+tree(X)  # [2.0, 29.04, 3.01]
+```
+
+Note that if an operator is not defined for the particular input, `nothing` will be returned instead.
+
+This is all still pretty fast, too:
+
+```julia
+@btime tree(X)
+# 2,949 ns
+@btime eval(:(vec_add(vec_add(vec_square(X[1]), [1.0, 2.0, 3.0]), 0.0)))
+# 115,000 ns
+```
