@@ -48,17 +48,6 @@ mutable struct Node{T}
     ## Constructors:
     #################
     Node(d::Int, c::Bool, v::_T) where {_T} = new{_T}(d, c, v)
-    Node(d::Int, c::Bool, v::_T, f::Int) where {_T} = new{_T}(d, c, v, f)
-    function Node(d::Int, c::Bool, v::_T, f::Int, o::Int, l::Node{_T}) where {_T}
-        return new{_T}(d, c, v, f, o, l)
-    end
-    function Node(
-        d::Int, c::Bool, v::_T, f::Int, o::Int, l::Node{_T}, r::Node{_T}
-    ) where {_T}
-        return new{_T}(d, c, v, f, o, l, r)
-    end
-    
-    # With no initial value:
     Node(::Type{_T}, d::Int, c::Bool, v::Nothing, f::Int) where {_T} = new{_T}(d, c, v, f)
     function Node(d::Int, c::Bool, v::Nothing, f::Int, o::Int, l::Node{_T}) where {_T}
         return new{_T}(d, c, v, f, o, l)
@@ -146,7 +135,7 @@ end
 
 Apply unary operator `op` (enumerating over the order given) to `Node` `l`
 """
-Node(op::Int, l::Node{T}) where {T} = Node(1, false, convert(T, 0), 0, op, l)
+Node(op::Int, l::Node{T}) where {T} = Node(1, false, nothing, 0, op, l)
 
 """
     Node(op::Int, l::Node, r::Node)
@@ -158,7 +147,7 @@ function Node(op::Int, l::Node{T1}, r::Node{T2}) where {T1,T2}
     T = promote_type(T1, T2)
     l = convert(Node{T}, l)
     r = convert(Node{T}, r)
-    return Node(2, false, convert(T, 0), 0, op, l, r)
+    return Node(2, false, nothing, 0, op, l, r)
 end
 
 """
