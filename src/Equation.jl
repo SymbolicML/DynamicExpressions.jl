@@ -147,9 +147,11 @@ Apply binary operator `op` (enumerating over the order given) to `Node`s `l` and
 """
 function Node(op::Int, l::Node{T1}, r::Node{T2}) where {T1,T2}
     # Get highest type:
-    T = promote_type(T1, T2)
-    l = convert(Node{T}, l)
-    r = convert(Node{T}, r)
+    if T1 != T2
+        T = promote_type(T1, T2)
+        l = convert(Node{T}, l)
+        r = convert(Node{T}, r)
+    end
     return Node(2, false, nothing, 0, op, l, r)
 end
 
