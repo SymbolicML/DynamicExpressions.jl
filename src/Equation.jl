@@ -98,13 +98,16 @@ function Base.convert(
 end
 
 """
-    Node(; val::Real=nothing, feature::Integer=nothing)
+    Node([::Type{T}]; val=nothing, feature::Int=nothing) where {T}
 
 Create a leaf node: either a constant, or a variable.
 
 # Arguments:
 
-- `val::Real`, if you are specifying a constant, pass
+- `::Type{T}`, optionally specify the type of the
+    node, if not already given by the type of
+    `val`.
+- `val`, if you are specifying a constant, pass
     the value of the constant here.
 - `feature::Integer`, if you are specifying a variable,
     pass the index of the variable here.

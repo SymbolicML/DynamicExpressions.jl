@@ -35,7 +35,6 @@ Node{T}
 There are a variety of constructors for `Node` objects, including:
 
 ```@docs
-Node(; val=nothing, feature::Integer=nothing)
 Node(::Type{T}; val=nothing, feature::Integer=nothing) where {T}
 Node(op::Int, l::Node)
 Node(op::Int, l::Node, r::Node)
