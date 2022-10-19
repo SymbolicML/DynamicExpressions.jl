@@ -12,7 +12,8 @@ Defines an enum over operators, along with their derivatives.
 - `diff_binops`: A tuple of Zygote-computed derivatives of the binary operators.
 - `diff_unaops`: A tuple of Zygote-computed derivatives of the unary operators.
 """
-struct OperatorEnum{A<:Tuple,B<:Tuple,dA<:Union{Tuple,Nothing},dB<:Union{Tuple,Nothing}} <: AbstractOperatorEnum
+struct OperatorEnum{A<:Tuple,B<:Tuple,dA<:Union{Tuple,Nothing},dB<:Union{Tuple,Nothing}} <:
+       AbstractOperatorEnum
     binops::A
     unaops::B
     diff_binops::dA

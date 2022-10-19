@@ -18,7 +18,9 @@ function isgood(x::SymbolicUtils.Symbolic)
 end
 subs_bad(x) = isgood(x) ? x : Inf
 
-function parse_tree_to_eqs(tree::Node, operators::AbstractOperatorEnum, index_functions::Bool=false)
+function parse_tree_to_eqs(
+    tree::Node, operators::AbstractOperatorEnum, index_functions::Bool=false
+)
     if tree.degree == 0
         # Return constant if needed
         tree.constant && return subs_bad(tree.val)
@@ -62,7 +64,10 @@ convert_to_function(x, operators::AbstractOperatorEnum) = x
 
 # Split equation
 function split_eq(
-    op, args, operators::AbstractOperatorEnum; varMap::Union{Array{String,1},Nothing}=nothing
+    op,
+    args,
+    operators::AbstractOperatorEnum;
+    varMap::Union{Array{String,1},Nothing}=nothing,
 )
     !(op ∈ (sum, prod, +, *)) && throw(error("Unsupported operation $op in expression!"))
     if Symbol(op) == Symbol(sum)

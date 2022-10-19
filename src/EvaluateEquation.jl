@@ -460,7 +460,7 @@ function deg2_eval(tree, cX, ::Val{op_idx}, operators::GenericOperatorEnum) wher
     right, complete = eval_tree_array(tree.r, cX, operators)
     !complete && return nothing, false
     op = operators.binops[op_idx]
-    !hasmethod(op, Tuple{typeof(left), typeof(right)}) && return nothing, false
+    !hasmethod(op, Tuple{typeof(left),typeof(right)}) && return nothing, false
     return op(left, right), true
 end
 

@@ -8,7 +8,7 @@ import ..EvaluateEquationModule: eval_tree_array
 import ..EvaluateEquationDerivativeModule: eval_grad_tree_array
 
 """
-    OperatorEnum(; binary_operators=[], unary_operators=[], enable_autodiff::Bool=false)
+    OperatorEnum(; binary_operators=[], unary_operators=[], enable_autodiff::Bool=false, extend_user_operators::Bool=false)
 
 Construct an `OperatorEnum` object, defining the possible expressions. This will also
 redefine operators for `Node` types, as well as `show`, `print`, and `(::Node)(X)`.
@@ -20,9 +20,14 @@ It will automatically compute derivatives with `Zygote.jl`.
 - `unary_operators::Vector{Function}`: A vector of functions, each of which is a unary
   operator.
 - `enable_autodiff::Bool=false`: Whether to enable automatic differentiation.
+- `extend_user_operators::Bool=false`: Whether to extend the user's operators to
+  `Node` types. All operators defined in `Base` will already be extended automatically.
 """
 function OperatorEnum(;
-    binary_operators=[], unary_operators=[], enable_autodiff::Bool=false
+    binary_operators=[],
+    unary_operators=[],
+    enable_autodiff::Bool=false,
+    extend_user_operators::Bool=false,
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
     @assert length(binary_operators) <= max_ops && length(unary_operators) <= max_ops
@@ -37,44 +42,62 @@ function OperatorEnum(;
         end
         if isdefined(Base, f)
             f = :(Base.$(f))
+        elseif !extend_user_operators
+            # Skip non-Base operators!
+            continue
         end
-        Base.MainInclude.eval(quote
-            import DynamicExpressions: Node
-            function $f(l::Node{T1}, r::Node{T2}) where {T1<:Real,T2<:Real}
-                T = promote_type(T1, T2)
-                l = convert(Node{T}, l)
-                r = convert(Node{T}, r)
-                if (l.constant && r.constant)
-                    return Node(; val=$f(l.val, r.val))
-                else
-                    return Node($op, l, r)
+        Base.MainInclude.eval(
+            quote
+                import DynamicExpressions: Node
+                function $f(l::Node{T1}, r::Node{T2}) where {T1<:Real,T2<:Real}
+                    T = promote_type(T1, T2)
+                    l = convert(Node{T}, l)
+                    r = convert(Node{T}, r)
+                    if (l.constant && r.constant)
+                        return Node(; val=$f(l.val, r.val))
+                    else
+                        return Node($op, l, r)
+                    end
                 end
-            end
-            function $f(l::Node{T1}, r::T2) where {T1<:Real,T2<:Real}
-                T = promote_type(T1, T2)
-                l = convert(Node{T}, l)
-                r = convert(T, r)
-                return l.constant ? Node(; val=$f(l.val, r)) : Node($op, l, Node(; val=r))
-            end
-            function $f(l::T1, r::Node{T2}) where {T1<:Real,T2<:Real}
-                T = promote_type(T1, T2)
-                l = convert(T, l)
-                r = convert(Node{T}, r)
-                return r.constant ? Node(; val=$f(l, r.val)) : Node($op, Node(; val=l), r)
-            end
-        end)
+                function $f(l::Node{T1}, r::T2) where {T1<:Real,T2<:Real}
+                    T = promote_type(T1, T2)
+                    l = convert(Node{T}, l)
+                    r = convert(T, r)
+                    return if l.constant
+                        Node(; val=$f(l.val, r))
+                    else
+                        Node($op, l, Node(; val=r))
+                    end
+                end
+                function $f(l::T1, r::Node{T2}) where {T1<:Real,T2<:Real}
+                    T = promote_type(T1, T2)
+                    l = convert(T, l)
+                    r = convert(Node{T}, r)
+                    return if r.constant
+                        Node(; val=$f(l, r.val))
+                    else
+                        Node($op, Node(; val=l), r)
+                    end
+                end
+            end,
+        )
     end
     # Redefine Base operations:
     for (op, f) in enumerate(map(Symbol, unary_operators))
         if isdefined(Base, f)
             f = :(Base.$(f))
+        elseif !extend_user_operators
+            # Skip non-Base operators!
+            continue
         end
-        Base.MainInclude.eval(quote
-            import DynamicExpressions: Node
-            function $f(l::Node{T})::Node{T} where {T<:Real}
-                return l.constant ? Node(; val=$f(l.val)) : Node($op, l)
-            end
-        end)
+        Base.MainInclude.eval(
+            quote
+                import DynamicExpressions: Node
+                function $f(l::Node{T})::Node{T} where {T<:Real}
+                    return l.constant ? Node(; val=$f(l.val)) : Node($op, l)
+                end
+            end,
+        )
     end
 
     if enable_autodiff
@@ -163,7 +186,25 @@ function OperatorEnum(;
     return operators
 end
 
-function GenericOperatorEnum(; binary_operators=[], unary_operators=[])
+"""
+    GenericOperatorEnum(; binary_operators=[], unary_operators=[], extend_user_operators::Bool=false)
+
+Construct a `GenericOperatorEnum` object, defining possible expressions.
+Unlike `OperatorEnum`, this enum one will work arbitrary operators and data types.
+This will also redefine operators for `Node` types, as well as `show`, `print`,
+and `(::Node)(X)`.
+
+# Arguments
+- `binary_operators::Vector{Function}`: A vector of functions, each of which is a binary
+  operator.
+- `unary_operators::Vector{Function}`: A vector of functions, each of which is a unary
+  operator.
+- `extend_user_operators::Bool=false`: Whether to extend the user's operators to
+  `Node` types. All operators defined in `Base` will already be extended automatically.
+"""
+function GenericOperatorEnum(;
+    binary_operators=[], unary_operators=[], extend_user_operators::Bool=false
+)
     binary_operators = Tuple(binary_operators)
     unary_operators = Tuple(unary_operators)
 
@@ -178,44 +219,62 @@ function GenericOperatorEnum(; binary_operators=[], unary_operators=[])
         end
         if isdefined(Base, f)
             f = :(Base.$f)
+        elseif !extend_user_operators
+            # Skip non-Base operators!
+            continue
         end
-        Base.MainInclude.eval(quote
-            import DynamicExpressions: Node
-            function $f(l::Node{T1}, r::Node{T2}) where {T1,T2}
-                T = promote_type(T1, T2)
-                l = convert(Node{T}, l)
-                r = convert(Node{T}, r)
-                if (l.constant && r.constant)
-                    return Node(; val=$f(l.val, r.val))
-                else
-                    return Node($op, l, r)
+        Base.MainInclude.eval(
+            quote
+                import DynamicExpressions: Node
+                function $f(l::Node{T1}, r::Node{T2}) where {T1,T2}
+                    T = promote_type(T1, T2)
+                    l = convert(Node{T}, l)
+                    r = convert(Node{T}, r)
+                    if (l.constant && r.constant)
+                        return Node(; val=$f(l.val, r.val))
+                    else
+                        return Node($op, l, r)
+                    end
                 end
-            end
-            function $f(l::Node{T1}, r::T2) where {T1,T2}
-                T = promote_type(T1, T2)
-                l = convert(Node{T}, l)
-                r = convert(T, r)
-                return l.constant ? Node(; val=$f(l.val, r)) : Node($op, l, Node(; val=r))
-            end
-            function $f(l::T1, r::Node{T2}) where {T1,T2}
-                T = promote_type(T1, T2)
-                l = convert(T, l)
-                r = convert(Node{T}, r)
-                return r.constant ? Node(; val=$f(l, r.val)) : Node($op, Node(; val=l), r)
-            end
-        end)
+                function $f(l::Node{T1}, r::T2) where {T1,T2}
+                    T = promote_type(T1, T2)
+                    l = convert(Node{T}, l)
+                    r = convert(T, r)
+                    return if l.constant
+                        Node(; val=$f(l.val, r))
+                    else
+                        Node($op, l, Node(; val=r))
+                    end
+                end
+                function $f(l::T1, r::Node{T2}) where {T1,T2}
+                    T = promote_type(T1, T2)
+                    l = convert(T, l)
+                    r = convert(Node{T}, r)
+                    return if r.constant
+                        Node(; val=$f(l, r.val))
+                    else
+                        Node($op, Node(; val=l), r)
+                    end
+                end
+            end,
+        )
     end
     # Redefine Base operations:
     for (op, f) in enumerate(map(Symbol, unary_operators))
         if isdefined(Base, f)
             f = :(Base.$f)
+        elseif !extend_user_operators
+            # Skip non-Base operators!
+            continue
         end
-        Base.MainInclude.eval(quote
-            import DynamicExpressions: Node
-            function $f(l::Node{T})::Node{T} where {T}
-                return l.constant ? Node(; val=$f(l.val)) : Node($op, l)
-            end
-        end)
+        Base.MainInclude.eval(
+            quote
+                import DynamicExpressions: Node
+                function $f(l::Node{T})::Node{T} where {T}
+                    return l.constant ? Node(; val=$f(l.val)) : Node($op, l)
+                end
+            end,
+        )
     end
 
     operators = GenericOperatorEnum(binary_operators, unary_operators)

@@ -348,7 +348,9 @@ function print_tree(
 end
 
 function print_tree(
-    tree::Node, operators::AbstractOperatorEnum; varMap::Union{Array{String,1},Nothing}=nothing
+    tree::Node,
+    operators::AbstractOperatorEnum;
+    varMap::Union{Array{String,1},Nothing}=nothing,
 )
     return println(string_tree(tree, operators; varMap=varMap))
 end
