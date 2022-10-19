@@ -47,3 +47,7 @@ end
 @safetestset "Test generic operators" begin
     include("test_generic_operators.jl")
 end
+
+@safetestset "Test tensor operators" begin
+    include("test_tensor_operators.jl")
+end

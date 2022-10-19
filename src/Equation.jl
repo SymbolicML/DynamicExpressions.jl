@@ -83,7 +83,12 @@ function Base.convert(
     get!(id_map, tree) do
         if tree.degree == 0
             if tree.constant
-                Node(0, tree.constant, convert(T1, (tree.val::T2)))
+                val = tree.val::T2
+                if !(T2 <: T1)
+                    # e.g., we don't want to convert Float32 to Union{Float32,Vector{Float32}}!
+                    val = convert(T1, val)
+                end
+                Node(T1, 0, tree.constant, val)
             else
                 Node(T1, 0, tree.constant, nothing, tree.feature)
             end
@@ -138,6 +143,10 @@ function Node(
             "You must specify either `val` or `feature` when creating a leaf node, not both.",
         )
     elseif T2 <: Nothing
+        if !(T1 <: T)
+            # Only convert if not already in the type union.
+            val = convert(T, val)
+        end
         return Node(T, 0, true, val)
     else
         return Node(T, 0, false, nothing, feature)
