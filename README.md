@@ -14,16 +14,15 @@ DynamicExpressions.jl is the backbone of
 
 ## Summary
 
-A dynamic expression is a snippet of code that can change throughout
-runtime - compilation is not possible!
+A dynamic expression is a snippet of code that can change throughout runtime - compilation is not possible! DynamicExpressions.jl does the following:
+1. Defines an enum over user-specified operators.
+2. Using this enum, it defines a [very lightweight and type-stable data structure](https://symbolicml.org/DynamicExpressions.jl/dev/types/#DynamicExpressions.EquationModule.Node) for arbitrary expressions.
+3. It then generates specialized [evaluation kernels](https://github.com/SymbolicML/DynamicExpressions.jl/blob/fe8e6dfa160d12485fb77c226d22776dd6ed697a/src/EvaluateEquation.jl#L29-L66) for the space of potential operators.
+4. It also generates kernels for the [first-order derivatives](https://github.com/SymbolicML/DynamicExpressions.jl/blob/fe8e6dfa160d12485fb77c226d22776dd6ed697a/src/EvaluateEquationDerivative.jl#L139-L175), using [Zygote.jl](https://github.com/FluxML/Zygote.jl).
+5. It can also operate on arbitrary other types (vectors, tensors, symbols, strings, etc.) - see last part below.
 
-DynamicExpressions.jl:
-1. Defines an enum over user-specified scalar operators.
-2. Using this enum, it defines a very lightweight
-and type-stable data structure for arbitrary expressions.
-3. It then generates specialized evaluation kernels for
-the space of potential operators.
-4. It also generates kernels for the first-order derivatives, using [Zygote.jl](https://github.com/FluxML/Zygote.jl).
+It also has import and export functionality with [SymbolicUtils.jl](https://github.com/JuliaSymbolics/SymbolicUtils.jl), so you can move your runtime expression into a CAS!
+
 
 ## Example
 
@@ -41,29 +40,27 @@ X = randn(Float64, 2, 100);
 expression(X) # 100-element Vector{Float64}
 ```
 
-### Speed
+(We can construct this expression with normal operators, since calling `OperatorEnum()` will `@eval` new functions on `Node` that use the specified enum.)
 
-First, what happens if we naively use Julia symbols to define
-and then evaluate this expression?
+## Speed
+
+First, what happens if we naively use Julia symbols to define and then evaluate this expression?
 
 ```julia
 @btime eval(:(X[1, :] .* cos.(X[2, :] .- 3.2)))
 # 117,000 ns
 ```
 
-This is quite slow, meaning it will be hard to
-quickly search over the space of expressions.
-Let's see how DynamicExpressions.jl compares:
+This is quite slow, meaning it will be hard to quickly search over the space of expressions. Let's see how DynamicExpressions.jl compares:
 
 ```julia
 @btime expression(X)
 # 693 ns
 ```
 
-Much faster!
-And we didn't even need to compile it.
-If we change `expression` dynamically with a random number generator,
-it will have the same performance:
+Much faster! And we didn't even need to compile it. (Internally, this is calling `eval_tree_array(expression, X, operators)` - where `operators` has been pre-defined when we called `OperatorEnum()`). 
+
+If we change `expression` dynamically with a random number generator, it will have the same performance:
 
 ```julia
 @btime begin
@@ -72,7 +69,6 @@ it will have the same performance:
 end
 # 842 ns
 ```
-
 Now, let's see the performance if we had hard-coded these expressions:
 
 ```julia
@@ -81,14 +77,12 @@ f(X) = X[1, :] .* cos.(X[2, :] .- 3.2)
 # 708 ns
 ```
 
-So, our dynamic expression evaluation is about the same (or even a bit faster)
-as evaluating a basic hard-coded expression!
-Let's see if we can optimize the hard-coded version:
+So, our dynamic expression evaluation is about the same (or even a bit faster) as evaluating a basic hard-coded expression! Let's see if we can optimize the speed of the hard-coded version:
 
 ```julia
 f_optimized(X) = begin
     y = Vector{Float64}(undef, 100)
-    @inbounds @simd for i=1:100;
+    @inbounds @simd for i=1:100
         y[i] = X[1, i] * cos(X[2, i] - 3.2)
     end
     y
@@ -97,14 +91,9 @@ end
 # 526 ns
 ```
 
-The `DynamicExpressions.jl` version is only 25% slower than one which
-has been optimized by hand into a single SIMD kernel! Not bad at all.
+The `DynamicExpressions.jl` version is only 25% slower than one which has been optimized by hand into a single SIMD kernel! Not bad at all.
 
-More importantly: we can change `expression` throughout runtime,
-and expect the same performance.
-This makes this data structure ideal for symbolic
-regression and other evaluation-based searches
-over expression trees.
+More importantly: we can change `expression` throughout runtime, and expect the same performance. This makes this data structure ideal for symbolic regression and other evaluation-based searches over expression trees.
 
 
 ## Derivatives
@@ -122,8 +111,7 @@ x2 = Node(; feature=2)
 expression = x1 * cos(x2 - 3.2)
 ```
 
-We can take the gradient with respect to inputs
-with simply the `'` character:
+We can take the gradient with respect to inputs with simply the `'` character:
 
 ```julia
 grad = expression'(X)
@@ -133,13 +121,20 @@ This is quite fast:
 
 ```julia
 @btime expression'(X)
-# 2.894 us
+# 2894 ns
 ```
 
-Internally, this is calling the `eval_grad_tree_array` function,
-which performs forward-mode automatic differentiation
-on the expression tree with Zygote-compiled kernels.
-We can also compute the derivative with respect to constants:
+and again, we can change this expression at runtime, without loss in performance!
+
+```julia
+@btime begin
+    expression.op = rand(1:3)
+    expression'(X)
+end
+# 3198 ns
+```
+
+Internally, this is calling the `eval_grad_tree_array` function, which performs forward-mode automatic differentiation on the expression tree with Zygote-compiled kernels. We can also compute the derivative with respect to constants:
 
 ```julia
 result, grad, did_finish = eval_grad_tree_array(expression, X, operators; variable=false)
@@ -151,3 +146,33 @@ or with respect to variables, and only in a single direction:
 feature = 2
 result, grad, did_finish = eval_diff_tree_array(expression, X, operators, feature)
 ```
+
+## Generic types
+
+> Does this work for only scalar operators on real numbers, or will it work for `MyCrazyType`?
+
+I'm so glad you asked. `DynamicExpressions.jl` actually will work for **arbitrary types**! However, to work on operators other than real scalars, you need to use the `GenericOperatorEnum` instead of the normal `OperatorEnum`. Let's try it with strings!
+
+```julia
+x1 = Node(String; feature=1) 
+```
+This node, will be used to index input data (whatever it may be) with `selectdim(data, 1, feature)`. Let's now define some operators to use:
+```julia
+my_string_func(x::String) = "Hello $x"
+
+operators = GenericOperatorEnum(;
+    binary_operators=[*],
+    unary_operators=[my_string_func],
+    extend_user_operators=true)
+```
+Now, let's create an expression:
+```julia
+tree = x1 * " World!"
+tree(["Hello", "Me?"])
+# Hello World!
+```
+So indeed it works for arbitrary types. It is a bit slower due to the potential for type instability, but it's not too bad:
+```julia
+@btime tree(["Hello", "Me?"]
+# 1738 ns
+``` 

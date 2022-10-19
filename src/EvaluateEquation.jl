@@ -1,7 +1,7 @@
 module EvaluateEquationModule
 
 import ..EquationModule: Node
-import ..OperatorEnumModule: OperatorEnum
+import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: @return_on_false, is_bad_array, vals
 import ..EquationUtilsModule: is_constant
 
@@ -430,6 +430,44 @@ function deg2_diff_eval(
     out = op.(left, right)
     no_nans = !any(x -> (!isfinite(x)), out)
     return (out, no_nans)
+end
+
+function eval_tree_array(
+    tree, cX::AbstractArray{T,N}, operators::GenericOperatorEnum
+) where {T,N}
+    if tree.degree == 0
+        if tree.constant
+            return tree.val, true
+        else
+            if N == 1
+                return cX[tree.feature], true
+            else
+                return selectdim(cX, 1, tree.feature), true
+            end
+        end
+    elseif tree.degree == 1
+        return deg1_eval(tree, cX, vals[tree.op], operators)
+    else
+        return deg2_eval(tree, cX, vals[tree.op], operators)
+    end
+end
+
+function deg1_eval(tree, cX, ::Val{op_idx}, operators::GenericOperatorEnum) where {op_idx}
+    left, complete = eval_tree_array(tree.l, cX, operators)
+    !complete && return nothing, false
+    op = operators.unaops[op_idx]
+    !hasmethod(op, Tuple{typeof(left)}) && return nothing, false
+    return op(left), true
+end
+
+function deg2_eval(tree, cX, ::Val{op_idx}, operators::GenericOperatorEnum) where {op_idx}
+    left, complete = eval_tree_array(tree.l, cX, operators)
+    !complete && return nothing, false
+    right, complete = eval_tree_array(tree.r, cX, operators)
+    !complete && return nothing, false
+    op = operators.binops[op_idx]
+    !hasmethod(op, Tuple{typeof(left),typeof(right)}) && return nothing, false
+    return op(left, right), true
 end
 
 end

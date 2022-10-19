@@ -1,11 +1,11 @@
 module EquationModule
 
-import ..OperatorEnumModule: OperatorEnum
+import ..OperatorEnumModule: AbstractOperatorEnum
 
 const DEFAULT_NODE_TYPE = Float32
 
 """
-    Node{T<:Real}
+    Node{T}
 
 Node defines a symbolic expression stored in a binary tree.
 A single `Node` instance is one "node" of this tree, and
@@ -34,10 +34,10 @@ nodes, you can evaluate or print a given expression.
     Same type as the parent node. This is to be passed as the right
     argument to the binary operator.
 """
-mutable struct Node{T<:Real}
+mutable struct Node{T}
     degree::Int  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     constant::Bool  # false if variable
-    val::T  # If is a constant, this stores the actual value
+    val::Union{T,Nothing}  # If is a constant, this stores the actual value
     # ------------------- (possibly undefined below)
     feature::Int  # If is a variable (e.g., x in cos(x)), this stores the feature index.
     op::Int  # If operator, this is the index of the operator in operators.binary_operators, or operators.unary_operators
@@ -47,14 +47,14 @@ mutable struct Node{T<:Real}
     #################
     ## Constructors:
     #################
-    Node(d::Int, c::Bool, v::_T) where {_T<:Real} = new{_T}(d, c, v)
-    Node(d::Int, c::Bool, v::_T, f::Int) where {_T<:Real} = new{_T}(d, c, v, f)
-    function Node(d::Int, c::Bool, v::_T, f::Int, o::Int, l::Node{_T}) where {_T<:Real}
+    Node(d::Int, c::Bool, v::_T) where {_T} = new{_T}(d, c, v)
+    Node(::Type{_T}, d::Int, c::Bool, v::Nothing, f::Int) where {_T} = new{_T}(d, c, v, f)
+    function Node(d::Int, c::Bool, v::Nothing, f::Int, o::Int, l::Node{_T}) where {_T}
         return new{_T}(d, c, v, f, o, l)
     end
     function Node(
-        d::Int, c::Bool, v::_T, f::Int, o::Int, l::Node{_T}, r::Node{_T}
-    ) where {_T<:Real}
+        d::Int, c::Bool, v::Nothing, f::Int, o::Int, l::Node{_T}, r::Node{_T}
+    ) where {_T}
         return new{_T}(d, c, v, f, o, l, r)
     end
 end
@@ -66,6 +66,10 @@ end
 Convert a `Node{T2}` to a `Node{T1}`.
 This will recursively convert all children nodes to `Node{T1}`,
 using `convert(T1, tree.val)` at constant nodes.
+
+# Arguments
+- `::Type{Node{T1}}`: Type to convert to.
+- `tree::Node{T2}`: Node to convert.
 """
 function Base.convert(
     ::Type{Node{T1}},
@@ -80,15 +84,15 @@ function Base.convert(
             if tree.constant
                 Node(0, tree.constant, convert(T1, tree.val))
             else
-                Node(0, tree.constant, convert(T1, tree.val), tree.feature)
+                Node(T1, 0, tree.constant, nothing, tree.feature)
             end
         elseif tree.degree == 1
             l = convert(Node{T1}, tree.l, id_map)
-            Node(1, tree.constant, convert(T1, tree.val), tree.feature, tree.op, l)
+            Node(1, tree.constant, nothing, tree.feature, tree.op, l)
         else
             l = convert(Node{T1}, tree.l, id_map)
             r = convert(Node{T1}, tree.r, id_map)
-            Node(2, tree.constant, convert(T1, tree.val), tree.feature, tree.op, l, r)
+            Node(2, tree.constant, nothing, tree.feature, tree.op, l, r)
         end
     end
 end
@@ -107,7 +111,7 @@ Create a leaf node: either a constant, or a variable.
 """
 function Node(;
     val::T1=nothing, feature::T2=nothing
-)::Node where {T1<:Union{Real,Nothing},T2<:Union{Integer,Nothing}}
+)::Node where {T1,T2<:Union{Integer,Nothing}}
     if T1 <: Nothing && T2 <: Nothing
         error("You must specify either `val` or `feature` when creating a leaf node.")
     elseif !(T1 <: Nothing || T2 <: Nothing)
@@ -117,12 +121,12 @@ function Node(;
     elseif T2 <: Nothing
         return Node(0, true, val)
     else
-        return Node(0, false, convert(DEFAULT_NODE_TYPE, 0), feature)
+        return Node(DEFAULT_NODE_TYPE, 0, false, nothing, feature)
     end
 end
 function Node(
     ::Type{T}; val::T1=nothing, feature::T2=nothing
-)::Node{T} where {T<:Real,T1<:Union{Real,Nothing},T2<:Union{Integer,Nothing}}
+)::Node{T} where {T,T1,T2<:Union{Integer,Nothing}}
     return convert(Node{T}, Node(; val=val, feature=feature))
 end
 
@@ -131,19 +135,19 @@ end
 
 Apply unary operator `op` (enumerating over the order given) to `Node` `l`
 """
-Node(op::Int, l::Node{T}) where {T} = Node(1, false, convert(T, 0), 0, op, l)
+Node(op::Int, l::Node{T}) where {T} = Node(1, false, nothing, 0, op, l)
 
 """
     Node(op::Int, l::Node, r::Node)
 
 Apply binary operator `op` (enumerating over the order given) to `Node`s `l` and `r`
 """
-function Node(op::Int, l::Node{T1}, r::Node{T2}) where {T1<:Real,T2<:Real}
+function Node(op::Int, l::Node{T1}, r::Node{T2}) where {T1,T2}
     # Get highest type:
     T = promote_type(T1, T2)
     l = convert(Node{T}, l)
     r = convert(Node{T}, r)
-    return Node(2, false, convert(T, 0), 0, op, l, r)
+    return Node(2, false, nothing, 0, op, l, r)
 end
 
 """
@@ -277,7 +281,7 @@ end
 function string_op(
     op::F,
     tree::Node,
-    operators::OperatorEnum;
+    operators::AbstractOperatorEnum;
     bracketed::Bool=false,
     varMap::Union{Array{String,1},Nothing}=nothing,
 )::String where {F}
@@ -298,7 +302,7 @@ function string_op(
 end
 
 """
-    string_tree(tree::Node, operators::OperatorEnum; kws...)
+    string_tree(tree::Node, operators::AbstractOperatorEnum; kws...)
 
 Convert an equation to a string.
 
@@ -309,7 +313,7 @@ Convert an equation to a string.
 """
 function string_tree(
     tree::Node,
-    operators::OperatorEnum;
+    operators::AbstractOperatorEnum;
     bracketed::Bool=false,
     varMap::Union{Array{String,1},Nothing}=nothing,
 )::String
@@ -337,14 +341,16 @@ end
 function print_tree(
     io::IO,
     tree::Node,
-    operators::OperatorEnum;
+    operators::AbstractOperatorEnum;
     varMap::Union{Array{String,1},Nothing}=nothing,
 )
     return println(io, string_tree(tree, operators; varMap=varMap))
 end
 
 function print_tree(
-    tree::Node, operators::OperatorEnum; varMap::Union{Array{String,1},Nothing}=nothing
+    tree::Node,
+    operators::AbstractOperatorEnum;
+    varMap::Union{Array{String,1},Nothing}=nothing,
 )
     return println(string_tree(tree, operators; varMap=varMap))
 end
