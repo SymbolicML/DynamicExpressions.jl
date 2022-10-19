@@ -48,6 +48,7 @@ mutable struct Node{T}
     ## Constructors:
     #################
     Node(d::Int, c::Bool, v::_T) where {_T} = new{_T}(d, c, v)
+    Node(::Type{_T}, d::Int, c::Bool, v::_T) where {_T} = new{_T}(d, c, v)
     Node(::Type{_T}, d::Int, c::Bool, v::Nothing, f::Int) where {_T} = new{_T}(d, c, v, f)
     function Node(d::Int, c::Bool, v::Nothing, f::Int, o::Int, l::Node{_T}) where {_T}
         return new{_T}(d, c, v, f, o, l)
@@ -130,7 +131,17 @@ end
 function Node(
     ::Type{T}; val::T1=nothing, feature::T2=nothing
 )::Node{T} where {T,T1,T2<:Union{Integer,Nothing}}
-    return convert(Node{T}, Node(; val=val, feature=feature))
+    if T1 <: Nothing && T2 <: Nothing
+        error("You must specify either `val` or `feature` when creating a leaf node.")
+    elseif !(T1 <: Nothing || T2 <: Nothing)
+        error(
+            "You must specify either `val` or `feature` when creating a leaf node, not both.",
+        )
+    elseif T2 <: Nothing
+        return Node(T, 0, true, val)
+    else
+        return Node(T, 0, false, nothing, feature)
+    end
 end
 
 """
