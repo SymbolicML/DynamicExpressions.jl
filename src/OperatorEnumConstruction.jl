@@ -196,9 +196,9 @@ and `(::Node)(X)`.
 
 # Arguments
 - `binary_operators::Vector{Function}`: A vector of functions, each of which is a binary
-  operator.
+  operator on real scalars.
 - `unary_operators::Vector{Function}`: A vector of functions, each of which is a unary
-  operator.
+  operator on real scalars.
 - `extend_user_operators::Bool=false`: Whether to extend the user's operators to
   `Node` types. All operators defined in `Base` will already be extended automatically.
 """

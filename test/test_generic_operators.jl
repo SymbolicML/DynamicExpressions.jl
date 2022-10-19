@@ -12,7 +12,7 @@ string_remove_tail(x::String) = x[1:(end - 1)]
 operators = GenericOperatorEnum(;
     binary_operators=(*, string_concat, string_arg),
     unary_operators=(string_remove_head, string_remove_tail),
-    extend_local_operators=true,
+    extend_user_operators=true,
 )
 
 x1, x2, x3 = [Node(String; feature=i) for i in 1:3]
