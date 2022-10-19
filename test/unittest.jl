@@ -43,3 +43,7 @@ end
 @safetestset "Test equation utils" begin
     include("test_utils.jl")
 end
+
+@safetestset "Test generic operators" begin
+    include("test_generic_operators.jl")
+end
