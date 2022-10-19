@@ -82,7 +82,7 @@ function Base.convert(
     get!(id_map, tree) do
         if tree.degree == 0
             if tree.constant
-                Node(0, tree.constant, convert(T1, tree.val))
+                Node(0, tree.constant, convert(T1, (tree.val::T2)))
             else
                 Node(T1, 0, tree.constant, nothing, tree.feature)
             end
@@ -180,7 +180,7 @@ function set_node!(tree::Node{T}, new_tree::Node{T}) where {T}
     if new_tree.degree == 0
         tree.constant = new_tree.constant
         if new_tree.constant
-            tree.val = new_tree.val
+            tree.val = new_tree.val::T
         else
             tree.feature = new_tree.feature
         end
@@ -215,7 +215,7 @@ end
 function copy_node_break_topology(tree::Node{T})::Node{T} where {T}
     if tree.degree == 0
         if tree.constant
-            Node(; val=copy(tree.val))
+            Node(; val=copy(tree.val::T))
         else
             Node(T; feature=copy(tree.feature))
         end
@@ -248,7 +248,7 @@ function copy_node_with_topology(
     get!(id_map, tree) do
         if tree.degree == 0
             if tree.constant
-                Node(; val=copy(tree.val))
+                Node(; val=copy(tree.val::T))
             else
                 Node(T; feature=copy(tree.feature))
             end
@@ -355,11 +355,11 @@ function print_tree(
     return println(string_tree(tree, operators; varMap=varMap))
 end
 
-function Base.hash(tree::Node)::UInt
+function Base.hash(tree::Node{T})::UInt where {T}
     if tree.degree == 0
         if tree.constant
             # tree.val used.
-            return hash((0, tree.val))
+            return hash((0, tree.val::T))
         else
             # tree.feature used.
             return hash((1, tree.feature))
