@@ -38,7 +38,7 @@ tree = Node(1, Node(1, c1), x1)
 # Also test mixed scalar and floats:
 c2 = Node(T; val=2.0)
 @test repr(c2) == "2.0"
-tree = vec_add(vec_add(c1, x1), c2)
+tree = Node(1, Node(1, c1, x1), c2)
 @test repr(tree) == "vec_add(vec_add([1.0, 2.0, 3.0], x1), 2.0)"
 tree(X)
 @test tree(X) == [5.0, 6.0, 7.0]
