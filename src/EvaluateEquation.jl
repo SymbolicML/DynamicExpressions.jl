@@ -397,7 +397,7 @@ function differentiable_eval_tree_array(
     n = size(cX, 2)
     if tree.degree == 0
         if tree.constant
-            return (ones(T, n) .* (tree.val::T), true)
+            return (ones(T, n) .* convert(T, tree.val), true)
         else
             return (cX[tree.feature, :], true)
         end
