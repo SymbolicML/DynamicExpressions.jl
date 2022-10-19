@@ -432,12 +432,18 @@ function deg2_diff_eval(
     return (out, no_nans)
 end
 
-function eval_tree_array(tree, cX::AbstractArray{T,N}, operators::GenericOperatorEnum) where {T,N}
+function eval_tree_array(
+    tree, cX::AbstractArray{T,N}, operators::GenericOperatorEnum
+) where {T,N}
     if tree.degree == 0
         if tree.constant
             return tree.val, true
         else
-            return selectdim(cX, 1, tree.feature), true
+            if N == 1
+                return cX[tree.feature], true
+            else
+                return selectdim(cX, 1, tree.feature), true
+            end
         end
     elseif tree.degree == 1
         return deg1_eval(tree, cX, vals[tree.op], operators)
