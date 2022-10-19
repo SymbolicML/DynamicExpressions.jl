@@ -27,6 +27,13 @@ It also re-defines `print`, `show`, and the various operators, to work with the 
     Thus, if you define an expression with one `OperatorEnum`, and then try to
     evaluate it or print it with a different `OperatorEnum`, you will get undefined behavior!
 
+You can also work with arbitrary types, by defining a `GenericOperatorEnum` instead.
+The notation is the same for `eval_tree_array`, though it will return `nothing`
+when it can't find a method, and not do any NaN checks:
+```@docs
+    eval_tree_array(tree, cX::AbstractArray{T,N}, operators::GenericOperatorEnum) where {T,N}
+```
+
 ## Derivatives
 
 `DynamicExpressions.jl` can efficiently compute first-order derivatives
@@ -53,7 +60,7 @@ differentiable_eval_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::
 You can also print a tree as follows:
 
 ```@docs
-string_tree(tree::Node, operators::OperatorEnum)
+string_tree(tree::Node, operators::AbstractOperatorEnum)
 ```
 
 When you define an `OperatorEnum`, the standard `show` and `print` methods

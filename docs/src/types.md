@@ -13,7 +13,14 @@ OperatorEnum
 Construct this operator specification as follows:
 
 ```@docs
-OperatorEnum(; binary_operators, unary_operators)
+OperatorEnum(; binary_operators, unary_operators, enable_autodiff)
+```
+
+This is just for scalar real operators. However, you can use
+the following for more general operators:
+
+```@docs
+GenericOperatorEnum(; binary_operators=[], unary_operators=[], extend_user_operators::Bool=false)
 ```
 
 ## Equations
@@ -22,13 +29,14 @@ Equations are specified as binary trees with the `Node` type, defined
 as follows:
 
 ```@docs
-Node{T<:Real}
+Node{T}
 ```
 
 There are a variety of constructors for `Node` objects, including:
 
 ```@docs
-Node(; val::Real=nothing, feature::Integer=nothing)
+Node(; val=nothing, feature::Integer=nothing)
+Node(::Type{T}; val=nothing, feature::Integer=nothing) where {T}
 Node(op::Int, l::Node)
 Node(op::Int, l::Node, r::Node)
 Node(var_string::String)
