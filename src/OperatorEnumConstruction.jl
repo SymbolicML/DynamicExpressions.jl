@@ -30,16 +30,17 @@ function OperatorEnum(;
     unary_operators = Tuple(unary_operators)
 
     for (op, f) in enumerate(map(Symbol, binary_operators))
-        _f = if f in [:pow, :safe_pow]
+        f = if f in [:pow, :safe_pow]
             Symbol(^)
         else
             f
         end
-        if !isdefined(Base, _f)
-            continue
+        if isdefined(Base, f)
+            f = :(Base.$(f))
         end
-        @eval begin
-            function Base.$_f(l::Node{T1}, r::Node{T2}) where {T1<:Real,T2<:Real}
+        Base.MainInclude.eval(quote
+            import DynamicExpressions: Node
+            function $f(l::Node{T1}, r::Node{T2}) where {T1<:Real,T2<:Real}
                 T = promote_type(T1, T2)
                 l = convert(Node{T}, l)
                 r = convert(Node{T}, r)
@@ -49,30 +50,31 @@ function OperatorEnum(;
                     return Node($op, l, r)
                 end
             end
-            function Base.$_f(l::Node{T1}, r::T2) where {T1<:Real,T2<:Real}
+            function $f(l::Node{T1}, r::T2) where {T1<:Real,T2<:Real}
                 T = promote_type(T1, T2)
                 l = convert(Node{T}, l)
                 r = convert(T, r)
                 return l.constant ? Node(; val=$f(l.val, r)) : Node($op, l, Node(; val=r))
             end
-            function Base.$_f(l::T1, r::Node{T2}) where {T1<:Real,T2<:Real}
+            function $f(l::T1, r::Node{T2}) where {T1<:Real,T2<:Real}
                 T = promote_type(T1, T2)
                 l = convert(T, l)
                 r = convert(Node{T}, r)
                 return r.constant ? Node(; val=$f(l, r.val)) : Node($op, Node(; val=l), r)
             end
-        end
+        end)
     end
     # Redefine Base operations:
     for (op, f) in enumerate(map(Symbol, unary_operators))
-        if !isdefined(Base, f)
-            continue
+        if isdefined(Base, f)
+            f = :(Base.$(f))
         end
-        @eval begin
-            function Base.$f(l::Node{T})::Node{T} where {T<:Real}
+        Base.MainInclude.eval(quote
+            import DynamicExpressions: Node
+            function $f(l::Node{T})::Node{T} where {T<:Real}
                 return l.constant ? Node(; val=$f(l.val)) : Node($op, l)
             end
-        end
+        end)
     end
 
     if enable_autodiff
@@ -130,6 +132,7 @@ function OperatorEnum(;
     @eval begin
         Base.print(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
         Base.show(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
+        import DynamicExpressions: Node
 
         function (tree::Node{T})(X::AbstractArray{T,2})::AbstractArray{T,1} where {T<:Real}
             out, did_finish = eval_tree_array(tree, X, $operators)
@@ -168,16 +171,17 @@ function GenericOperatorEnum(; binary_operators=[], unary_operators=[])
     @assert length(binary_operators) <= max_ops && length(unary_operators) <= max_ops
 
     for (op, f) in enumerate(map(Symbol, binary_operators))
-        _f = if f in [:pow, :safe_pow]
+        f = if f in [:pow, :safe_pow]
             Symbol(^)
         else
             f
         end
-        if !isdefined(Base, _f)
-            continue
+        if isdefined(Base, f)
+            f = :(Base.$f)
         end
-        @eval begin
-            function Base.$_f(l::Node{T1}, r::Node{T2}) where {T1<:Real,T2<:Real}
+        Base.MainInclude.eval(quote
+            import DynamicExpressions: Node
+            function $f(l::Node{T1}, r::Node{T2}) where {T1,T2}
                 T = promote_type(T1, T2)
                 l = convert(Node{T}, l)
                 r = convert(Node{T}, r)
@@ -187,30 +191,31 @@ function GenericOperatorEnum(; binary_operators=[], unary_operators=[])
                     return Node($op, l, r)
                 end
             end
-            function Base.$_f(l::Node{T1}, r::T2) where {T1<:Real,T2<:Real}
+            function $f(l::Node{T1}, r::T2) where {T1,T2}
                 T = promote_type(T1, T2)
                 l = convert(Node{T}, l)
                 r = convert(T, r)
                 return l.constant ? Node(; val=$f(l.val, r)) : Node($op, l, Node(; val=r))
             end
-            function Base.$_f(l::T1, r::Node{T2}) where {T1<:Real,T2<:Real}
+            function $f(l::T1, r::Node{T2}) where {T1,T2}
                 T = promote_type(T1, T2)
                 l = convert(T, l)
                 r = convert(Node{T}, r)
                 return r.constant ? Node(; val=$f(l, r.val)) : Node($op, Node(; val=l), r)
             end
-        end
+        end)
     end
     # Redefine Base operations:
     for (op, f) in enumerate(map(Symbol, unary_operators))
-        if !isdefined(Base, f)
-            continue
+        if isdefined(Base, f)
+            f = :(Base.$f)
         end
-        @eval begin
-            function Base.$f(l::Node{T})::Node{T} where {T<:Real}
+        Base.MainInclude.eval(quote
+            import DynamicExpressions: Node
+            function $f(l::Node{T})::Node{T} where {T}
                 return l.constant ? Node(; val=$f(l.val)) : Node($op, l)
             end
-        end
+        end)
     end
 
     operators = GenericOperatorEnum(binary_operators, unary_operators)
