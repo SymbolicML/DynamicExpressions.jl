@@ -472,11 +472,11 @@ function eval(current_node)
     that it was not defined for.
 """
 function eval_tree_array(
-    tree, cX::AbstractArray{T,N}, operators::GenericOperatorEnum
-) where {T,N}
+    tree::Node{T1}, cX::AbstractArray{T2,N}, operators::GenericOperatorEnum
+) where {T1,T2,N}
     if tree.degree == 0
         if tree.constant
-            return (tree.val::T), true
+            return (tree.val::T1), true
         else
             if N == 1
                 return cX[tree.feature], true
