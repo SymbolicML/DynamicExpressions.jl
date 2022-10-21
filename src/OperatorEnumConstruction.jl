@@ -283,8 +283,10 @@ function GenericOperatorEnum(;
         Base.print(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
         Base.show(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
 
-        function (tree::Node)(X)
-            out, did_finish = eval_tree_array(tree, X, $operators)
+        function (tree::Node)(X; throw_errors::Bool=true)
+            out, did_finish = eval_tree_array(
+                tree, X, $operators; throw_errors=throw_errors
+            )
             if !did_finish
                 return nothing
             end

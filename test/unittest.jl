@@ -51,3 +51,7 @@ end
 @safetestset "Test tensor operators" begin
     include("test_tensor_operators.jl")
 end
+
+@safetestset "Test error handling" begin
+    include("test_error_handling.jl")
+end
