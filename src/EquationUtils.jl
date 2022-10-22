@@ -2,8 +2,15 @@ module EquationUtilsModule
 
 import ..EquationModule: Node, copy_node
 
-# Count the operators, constants, variables in an equation
-function count_nodes(tree::Node)::Int
+"""
+    count_nodes(tree::Node{T})::Int where {T}
+
+Count the number of nodes in the tree.
+
+# Arguments
+- `tree::Node{T}`: The tree to count the nodes of.
+"""
+function count_nodes(tree::Node{T})::Int where {T}
     if tree.degree == 0
         return 1
     elseif tree.degree == 1
