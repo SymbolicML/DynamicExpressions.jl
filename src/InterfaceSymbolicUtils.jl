@@ -19,11 +19,11 @@ end
 subs_bad(x) = isgood(x) ? x : Inf
 
 function parse_tree_to_eqs(
-    tree::Node, operators::AbstractOperatorEnum, index_functions::Bool=false
-)
+    tree::Node{T}, operators::AbstractOperatorEnum, index_functions::Bool=false
+) where {T}
     if tree.degree == 0
         # Return constant if needed
-        tree.constant && return subs_bad(tree.val)
+        tree.constant && return subs_bad(tree.val::T)
         return SymbolicUtils.Sym{LiteralReal}(Symbol("x$(tree.feature)"))
     end
     # Collect the next children

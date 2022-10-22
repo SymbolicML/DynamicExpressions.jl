@@ -37,16 +37,16 @@ function combine_operators(
                 tree.r = tree.l
                 tree.l = tmp
             end
-            topconstant = tree.r.val
+            topconstant = tree.r.val::T
             # Simplify down first
             below = tree.l
             if below.degree == 2 && below.op == op
                 if below.l.constant
                     tree = below
-                    tree.l.val = operators.binops[op](tree.l.val, topconstant)
+                    tree.l.val = operators.binops[op](tree.l.val::T, topconstant)
                 elseif below.r.constant
                     tree = below
-                    tree.r.val = operators.binops[op](tree.r.val, topconstant)
+                    tree.r.val = operators.binops[op](tree.r.val::T, topconstant)
                 end
             end
         end
@@ -60,7 +60,7 @@ function combine_operators(
                         #(const - (const - var)) => (var - const)
                         l = tree.l
                         r = tree.r
-                        simplified_const = -(l.val - r.l.val) #neg(sub(l.val, r.l.val))
+                        simplified_const = -(l.val::T - r.l.val::T) #neg(sub(l.val, r.l.val))
                         tree.l = tree.r.r
                         tree.r = l
                         tree.r.val = simplified_const
@@ -68,7 +68,7 @@ function combine_operators(
                         #(const - (var - const)) => (const - var)
                         l = tree.l
                         r = tree.r
-                        simplified_const = l.val + r.r.val #plus(l.val, r.r.val)
+                        simplified_const = l.val::T + r.r.val::T #plus(l.val, r.r.val)
                         tree.r = tree.r.l
                         tree.l.val = simplified_const
                     end
@@ -79,7 +79,7 @@ function combine_operators(
                         #((const - var) - const) => (const - var)
                         l = tree.l
                         r = tree.r
-                        simplified_const = l.l.val - r.val#sub(l.l.val, r.val)
+                        simplified_const = l.l.val::T - r.val::T#sub(l.l.val, r.val)
                         tree.r = tree.l.r
                         tree.l = r
                         tree.l.val = simplified_const
@@ -87,7 +87,7 @@ function combine_operators(
                         #((var - const) - const) => (var - const)
                         l = tree.l
                         r = tree.r
-                        simplified_const = r.val + l.r.val #plus(r.val, l.r.val)
+                        simplified_const = r.val::T + l.r.val::T #plus(r.val, l.r.val)
                         tree.l = tree.l.l
                         tree.r.val = simplified_const
                     end
@@ -107,13 +107,15 @@ function simplify_tree(
     get!(id_map, tree) do
         if tree.degree == 1
             tree.l = simplify_tree(tree.l, operators, id_map)
-            l = tree.l.val
-            if tree.l.degree == 0 && tree.l.constant && isgood(l)
-                out = operators.unaops[tree.op](l)
-                if isbad(out)
-                    return tree
+            if tree.l.degree == 0 && tree.l.constant
+                l = tree.l.val::T
+                if isgood(l)
+                    out = operators.unaops[tree.op](l)
+                    if isbad(out)
+                        return tree
+                    end
+                    return Node(T; val=convert(T, out))
                 end
-                return Node(; val=convert(T, out))
             end
         elseif tree.degree == 2
             tree.l = simplify_tree(tree.l, operators, id_map)
@@ -126,8 +128,8 @@ function simplify_tree(
             )
             if constantsBelow
                 # NaN checks:
-                l = tree.l.val
-                r = tree.r.val
+                l = tree.l.val::T
+                r = tree.r.val::T
                 if isbad(l) || isbad(r)
                     return tree
                 end
@@ -137,7 +139,7 @@ function simplify_tree(
                 if isbad(out)
                     return tree
                 end
-                return Node(; val=convert(T, out))
+                return Node(T; val=convert(T, out))
             end
         end
         return tree

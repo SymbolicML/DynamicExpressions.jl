@@ -73,7 +73,7 @@ end
 function get_constants(tree::Node{T})::AbstractVector{T} where {T}
     if tree.degree == 0
         if tree.constant
-            return [tree.val]
+            return [tree.val::T]
         else
             return T[]
         end

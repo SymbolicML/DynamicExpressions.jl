@@ -77,17 +77,37 @@ function create_construction_helpers!(
         Base.MainInclude.eval(
             quote
                 import DynamicExpressions: Node
+
+                function $f(l::Node{T}, r::Node{T}) where {T<:$type_requirements}
+                    if (l.degree == 0 && l.constant && r.degree == 0 && r.constant)
+                        Node(T; val=$f(l.val::T, r.val::T))
+                    else
+                        Node($op, l, r)
+                    end
+                end
+                function $f(l::Node{T}, r::T) where {T<:$type_requirements}
+                    if l.degree == 0 && l.constant
+                        Node(T; val=$f(l.val::T, r))
+                    else
+                        Node($op, l, Node(T; val=r))
+                    end
+                end
+                function $f(l::T, r::Node{T}) where {T<:$type_requirements}
+                    if r.degree == 0 && r.constant
+                        Node(T; val=$f(l, r.val::T))
+                    else
+                        Node($op, Node(T; val=l), r)
+                    end
+                end
+
+                # Converters:
                 function $f(
                     l::Node{T1}, r::Node{T2}
                 ) where {T1<:$type_requirements,T2<:$type_requirements}
                     T = promote_type(T1, T2)
                     l = convert(Node{T}, l)
                     r = convert(Node{T}, r)
-                    if (l.constant && r.constant)
-                        return Node(; val=$f(l.val, r.val))
-                    else
-                        return Node($op, l, r)
-                    end
+                    return $f(l, r)
                 end
                 function $f(
                     l::Node{T1}, r::T2
@@ -95,11 +115,7 @@ function create_construction_helpers!(
                     T = promote_type(T1, T2)
                     l = convert(Node{T}, l)
                     r = convert(T, r)
-                    return if l.constant
-                        Node(; val=$f(l.val, r))
-                    else
-                        Node($op, l, Node(; val=r))
-                    end
+                    return $f(l, r)
                 end
                 function $f(
                     l::T1, r::Node{T2}
@@ -107,11 +123,7 @@ function create_construction_helpers!(
                     T = promote_type(T1, T2)
                     l = convert(T, l)
                     r = convert(Node{T}, r)
-                    return if r.constant
-                        Node(; val=$f(l, r.val))
-                    else
-                        Node($op, Node(; val=l), r)
-                    end
+                    return $f(l, r)
                 end
             end,
         )
@@ -128,7 +140,11 @@ function create_construction_helpers!(
             quote
                 import DynamicExpressions: Node
                 function $f(l::Node{T})::Node{T} where {T<:$type_requirements}
-                    return l.constant ? Node(; val=$f(l.val)) : Node($op, l)
+                    return if (l.degree == 0 && l.constant)
+                        Node(T; val=$f(l.val::T))
+                    else
+                        Node($op, l)
+                    end
                 end
             end,
         )
@@ -151,7 +167,8 @@ It will automatically compute derivatives with `Zygote.jl`.
 - `extend_user_operators::Bool=false`: Whether to extend the user's operators to
   `Node` types. All operators defined in `Base` will already be extended automatically.
 - `define_helper_functions::Bool=true`: Whether to define helper functions for creating
-   and evaluating node types. Turn this off when doing precompilation.
+   and evaluating node types. Turn this off when doing precompilation. Note that these
+   are *not* needed for the package to work; they are purely for convenience.
 """
 function OperatorEnum(;
     binary_operators=[],
@@ -241,7 +258,8 @@ and `(::Node)(X)`.
 - `extend_user_operators::Bool=false`: Whether to extend the user's operators to
   `Node` types. All operators defined in `Base` will already be extended automatically.
 - `define_helper_functions::Bool=true`: Whether to define helper functions for creating
-   and evaluating node types. Turn this off when doing precompilation.
+   and evaluating node types. Turn this off when doing precompilation. Note that these
+   are *not* needed for the package to work; they are purely for convenience.
 """
 function GenericOperatorEnum(;
     binary_operators=[],

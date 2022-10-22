@@ -337,14 +337,14 @@ Convert an equation to a string.
     to print for each feature.
 """
 function string_tree(
-    tree::Node,
+    tree::Node{T},
     operators::AbstractOperatorEnum;
     bracketed::Bool=false,
     varMap::Union{Array{String,1},Nothing}=nothing,
-)::String
+)::String where {T}
     if tree.degree == 0
         if tree.constant
-            return string(tree.val)
+            return string(tree.val::T)
         else
             if varMap === nothing
                 return "x$(tree.feature)"
