@@ -38,6 +38,7 @@ for unaop in [cos, exp, safe_log, safe_log2, safe_log10, safe_sqrt, relu, gamma,
 
         # Test Basics
         @test n == 9
+        @test n == count_nodes_with_stack(const_tree, Vector{typeof(const_tree)}(undef, 100))
         @test result == true_result
 
         types_to_test = [Float32, Float64, BigFloat]

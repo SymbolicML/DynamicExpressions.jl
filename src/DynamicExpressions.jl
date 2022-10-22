@@ -14,6 +14,7 @@ using Reexport
 @reexport import .EquationModule: Node, string_tree, print_tree, copy_node, set_node!
 @reexport import .EquationUtilsModule:
     count_nodes,
+    count_nodes_with_stack,
     count_constants,
     count_depth,
     NodeIndex,
