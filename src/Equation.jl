@@ -396,4 +396,34 @@ function Base.hash(tree::Node{T})::UInt where {T}
     end
 end
 
+function is_equal(a::Node{T}, b::Node{T})::Bool where {T}
+    if a.degree == 0
+        b.degree != 0 && return false
+        if a.constant
+            !(b.constant) && return false
+            return a.val::T == b.val::T
+        else
+            b.constant && return false
+            return a.feature == b.feature
+        end
+    elseif a.degree == 1
+        b.degree != 1 && return false
+        a.op != b.op && return false
+        return is_equal(a.l, b.l)
+    else
+        b.degree != 2 && return false
+        a.op != b.op && return false
+        return is_equal(a.l, b.l) && is_equal(a.r, b.r)
+    end
+end
+
+function Base.:(==)(a::Node{T}, b::Node{T})::Bool where {T}
+    return is_equal(a, b)
+end
+
+function Base.:(==)(a::Node{T1}, b::Node{T2})::Bool where {T1,T2}
+    T = promote_type(T1, T2)
+    return is_equal(convert(Node{T}, a), convert(Node{T}, b))
+end
+
 end
