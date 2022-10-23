@@ -31,4 +31,11 @@ using Reexport
 @reexport import .InterfaceSymbolicUtilsModule: node_to_symbolic, symbolic_to_node
 @reexport import .SimplifyEquationModule: combine_operators, simplify_tree
 
+import TOML: parsefile
+
+const PACKAGE_VERSION = let
+    project = parsefile(joinpath(pkgdir(@__MODULE__), "Project.toml"))
+    VersionNumber(project["version"])
+end
+
 end
