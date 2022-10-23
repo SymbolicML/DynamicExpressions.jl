@@ -55,3 +55,7 @@ end
 @safetestset "Test error handling" begin
     include("test_error_handling.jl")
 end
+
+@safetestset "Test equality operator" begin
+    include("test_equality.jl")
+end
