@@ -11,20 +11,13 @@ function create_evaluation_helpers!(operators::OperatorEnum)
     @eval begin
         Base.print(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
         Base.show(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
-        function (tree::Node{T})(X::AbstractArray{T,2})::AbstractArray{T,1} where {T<:Real}
+        function (tree::Node)(X; kws...)
+            length(keys(kws)) > 1 && error("Unknown keyword argument: $(key)")
             out, did_finish = eval_tree_array(tree, X, $operators)
             if !did_finish
                 out .= T(NaN)
             end
             return out
-        end
-        function (tree::Node{T1})(X::AbstractArray{T2,2}) where {T1<:Real,T2<:Real}
-            if T1 != T2
-                T = promote_type(T1, T2)
-                tree = convert(Node{T}, tree)
-                X = T.(X)
-            end
-            return tree(X)
         end
         # Gradients:
         function Base.adjoint(tree::Node{T}) where {T}
@@ -42,7 +35,15 @@ function create_evaluation_helpers!(operators::GenericOperatorEnum)
         Base.print(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
         Base.show(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
 
-        function (tree::Node)(X; throw_errors::Bool=true)
+        function (tree::Node)(X; kws...)
+            throw_errors = true
+            for key in keys(kws)
+                if key == :throw_errors
+                    throw_errors = kws[key]
+                else
+                    error("Unknown keyword argument: $(key)")
+                end
+            end
             out, did_finish = eval_tree_array(
                 tree, X, $operators; throw_errors=throw_errors
             )
@@ -50,6 +51,11 @@ function create_evaluation_helpers!(operators::GenericOperatorEnum)
                 return nothing
             end
             return out
+        end
+        function Base.adjoint(::Node{T}) where {T}
+            return _ -> begin
+                error("Gradients are not implemented for `GenericOperatorEnum`.")
+            end
         end
     end
 end
