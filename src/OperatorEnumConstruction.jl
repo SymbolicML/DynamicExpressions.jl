@@ -198,7 +198,7 @@ macro extend_operators_base(operators)
 end
 
 """
-    OperatorEnum(; binary_operators=[], unary_operators=[], enable_autodiff::Bool=false, extend_user_operators::Bool=false)
+    OperatorEnum(; binary_operators=[], unary_operators=[], enable_autodiff::Bool=false, define_helper_functions::Bool=true)
 
 Construct an `OperatorEnum` object, defining the possible expressions. This will also
 redefine operators for `Node` types, as well as `show`, `print`, and `(::Node)(X)`.
@@ -210,8 +210,6 @@ It will automatically compute derivatives with `Zygote.jl`.
 - `unary_operators::Vector{Function}`: A vector of functions, each of which is a unary
   operator.
 - `enable_autodiff::Bool=false`: Whether to enable automatic differentiation.
-- `extend_user_operators::Bool=false`: Whether to extend the user's operators to
-  `Node` types. All operators defined in `Base` will already be extended automatically.
 - `define_helper_functions::Bool=true`: Whether to define helper functions for creating
    and evaluating node types. Turn this off when doing precompilation. Note that these
    are *not* needed for the package to work; they are purely for convenience.
@@ -220,7 +218,6 @@ function OperatorEnum(;
     binary_operators=[],
     unary_operators=[],
     enable_autodiff::Bool=false,
-    extend_user_operators::Bool=false,
     define_helper_functions::Bool=true,
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
@@ -281,7 +278,7 @@ function OperatorEnum(;
     )
 
     if define_helper_functions
-        create_construction_helpers!(operators; extend_user_operators=extend_user_operators)
+        @extend_operators_base operators
         create_evaluation_helpers!(operators)
     end
 
@@ -289,7 +286,7 @@ function OperatorEnum(;
 end
 
 """
-    GenericOperatorEnum(; binary_operators=[], unary_operators=[], extend_user_operators::Bool=false)
+    GenericOperatorEnum(; binary_operators=[], unary_operators=[], define_helper_functions::Bool=true)
 
 Construct a `GenericOperatorEnum` object, defining possible expressions.
 Unlike `OperatorEnum`, this enum one will work arbitrary operators and data types.
@@ -301,17 +298,12 @@ and `(::Node)(X)`.
   operator on real scalars.
 - `unary_operators::Vector{Function}`: A vector of functions, each of which is a unary
   operator on real scalars.
-- `extend_user_operators::Bool=false`: Whether to extend the user's operators to
-  `Node` types. All operators defined in `Base` will already be extended automatically.
 - `define_helper_functions::Bool=true`: Whether to define helper functions for creating
    and evaluating node types. Turn this off when doing precompilation. Note that these
    are *not* needed for the package to work; they are purely for convenience.
 """
 function GenericOperatorEnum(;
-    binary_operators=[],
-    unary_operators=[],
-    extend_user_operators::Bool=false,
-    define_helper_functions::Bool=true,
+    binary_operators=[], unary_operators=[], define_helper_functions::Bool=true
 )
     binary_operators = Tuple(binary_operators)
     unary_operators = Tuple(unary_operators)
@@ -322,7 +314,7 @@ function GenericOperatorEnum(;
     operators = GenericOperatorEnum(binary_operators, unary_operators)
 
     if define_helper_functions
-        create_construction_helpers!(operators; extend_user_operators=extend_user_operators)
+        @extend_operators_base operators
         create_evaluation_helpers!(operators)
     end
 
