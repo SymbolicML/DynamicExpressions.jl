@@ -54,100 +54,146 @@ function create_evaluation_helpers!(operators::GenericOperatorEnum)
     end
 end
 
-function create_construction_helpers!(
-    operators::AbstractOperatorEnum; extend_user_operators::Bool=false
-)
-    is_scalar_operator_enum = typeof(operators) <: OperatorEnum
-    type_requirements = is_scalar_operator_enum ? Real : Any
-
-    for (op, f) in enumerate(map(Symbol, operators.binops))
-        if is_scalar_operator_enum
-            f = if f in [:pow, :safe_pow]
-                Symbol(^)
-            else
-                f
+function _extend_unary_operator(f::Symbol, op, type_requirements)
+    quote
+        quote
+            function $($f)(l::Node{T})::Node{T} where {T<:$($type_requirements)}
+                return if (l.degree == 0 && l.constant)
+                    Node(T; val=$($f)(l.val::T))
+                else
+                    Node($($op), l)
+                end
             end
         end
-        if isdefined(Base, f)
-            f = :(Base.$(f))
-        elseif !extend_user_operators
-            # Skip non-Base operators!
-            continue
-        end
-        Base.MainInclude.eval(
-            quote
-                import DynamicExpressions: Node
+    end
+end
 
-                function $f(l::Node{T}, r::Node{T}) where {T<:$type_requirements}
-                    if (l.degree == 0 && l.constant && r.degree == 0 && r.constant)
-                        Node(T; val=$f(l.val::T, r.val::T))
-                    else
-                        Node($op, l, r)
-                    end
+function _extend_binary_operator(f::Symbol, op, type_requirements, build_converters)
+    quote
+        quote
+            function $($f)(l::Node{T}, r::Node{T}) where {T<:$($type_requirements)}
+                if (l.degree == 0 && l.constant && r.degree == 0 && r.constant)
+                    Node(T; val=$($f)(l.val::T, r.val::T))
+                else
+                    Node($($op), l, r)
                 end
-                function $f(l::Node{T}, r::T) where {T<:$type_requirements}
-                    if l.degree == 0 && l.constant
-                        Node(T; val=$f(l.val::T, r))
-                    else
-                        Node($op, l, Node(T; val=r))
-                    end
+            end
+            function $($f)(l::Node{T}, r::T) where {T<:$($type_requirements)}
+                if l.degree == 0 && l.constant
+                    Node(T; val=$($f)(l.val::T, r))
+                else
+                    Node($($op), l, Node(T; val=r))
                 end
-                function $f(l::T, r::Node{T}) where {T<:$type_requirements}
-                    if r.degree == 0 && r.constant
-                        Node(T; val=$f(l, r.val::T))
-                    else
-                        Node($op, Node(T; val=l), r)
-                    end
+            end
+            function $($f)(l::T, r::Node{T}) where {T<:$($type_requirements)}
+                if r.degree == 0 && r.constant
+                    Node(T; val=$($f)(l, r.val::T))
+                else
+                    Node($($op), Node(T; val=l), r)
                 end
-
+            end
+            if $($build_converters)
                 # Converters:
-                function $f(
+                function $($f)(
                     l::Node{T1}, r::Node{T2}
-                ) where {T1<:$type_requirements,T2<:$type_requirements}
+                ) where {T1<:$($type_requirements),T2<:$($type_requirements)}
                     T = promote_type(T1, T2)
                     l = convert(Node{T}, l)
                     r = convert(Node{T}, r)
-                    return $f(l, r)
+                    return $($f)(l, r)
                 end
-                function $f(
+                function $($f)(
                     l::Node{T1}, r::T2
-                ) where {T1<:$type_requirements,T2<:$type_requirements}
+                ) where {T1<:$($type_requirements),T2<:$($type_requirements)}
                     T = promote_type(T1, T2)
                     l = convert(Node{T}, l)
                     r = convert(T, r)
-                    return $f(l, r)
+                    return $($f)(l, r)
                 end
-                function $f(
+                function $($f)(
                     l::T1, r::Node{T2}
-                ) where {T1<:$type_requirements,T2<:$type_requirements}
+                ) where {T1<:$($type_requirements),T2<:$($type_requirements)}
                     T = promote_type(T1, T2)
                     l = convert(T, l)
                     r = convert(Node{T}, r)
-                    return $f(l, r)
+                    return $($f)(l, r)
                 end
-            end,
-        )
-    end
-    # Redefine Base operations:
-    for (op, f) in enumerate(map(Symbol, operators.unaops))
-        if isdefined(Base, f)
-            f = :(Base.$(f))
-        elseif !extend_user_operators
-            # Skip non-Base operators!
-            continue
+            end
         end
-        Base.MainInclude.eval(
-            quote
-                import DynamicExpressions: Node
-                function $f(l::Node{T})::Node{T} where {T<:$type_requirements}
-                    return if (l.degree == 0 && l.constant)
-                        Node(T; val=$f(l.val::T))
-                    else
-                        Node($op, l)
-                    end
-                end
-            end,
-        )
+    end
+end
+
+function _extend_operators(operators, skip_user_operators, __module__::Module)
+    binary_ex = _extend_binary_operator(:f, :op, :type_requirements, :build_converters)
+    unary_ex = _extend_unary_operator(:f, :op, :type_requirements)
+    return quote
+        local type_requirements
+        local build_converters
+        if isa($operators, OperatorEnum)
+            type_requirements = Real
+            build_converters = true
+        else
+            type_requirements = Any
+            build_converters = false
+        end
+        for (op, f) in enumerate(map(Symbol, $(operators).binops))
+            if isdefined(Base, f)
+                f = :(Base.$(f))
+            elseif $(skip_user_operators)
+                continue
+            else
+                f = :($($__module__).$(f))
+            end
+            eval($binary_ex)
+        end
+        for (op, f) in enumerate(map(Symbol, $(operators).unaops))
+            if isdefined(Base, f)
+                f = :(Base.$(f))
+            elseif $(skip_user_operators)
+                continue
+            else
+                f = :($($__module__).$(f))
+            end
+            eval($unary_ex)
+        end
+    end
+end
+
+"""
+    @extend_operators(operators)
+
+Extends all operators defined in this operator enum to work on the
+`Node` type. While by default this is already done for operators defined
+in `Base` when you create an enum and pass `define_helper_functions=true`,
+this does not apply to the user-defined operators. Thus, to do so, you must
+apply this macro to the operator enum in the same module you have the operators
+defined.
+"""
+macro extend_operators(operators)
+    ex = _extend_operators(esc(operators), false, __module__)
+    expected_type = AbstractOperatorEnum
+    quote
+        if !isa($(esc(operators)), $expected_type)
+            error("You must pass an operator enum to `@extend_operators`.")
+        end
+        $ex
+    end
+end
+
+"""
+    @extend_operators_base(operators)
+
+Similar to `@extend_operators`, but only extends operators already
+defined in `Base`.
+"""
+macro extend_operators_base(operators)
+    ex = _extend_operators(esc(operators), true, __module__)
+    expected_type = AbstractOperatorEnum
+    quote
+        if !isa($(esc(operators)), $expected_type)
+            error("You must pass an operator enum to `@extend_operators_base`.")
+        end
+        $ex
     end
 end
 
