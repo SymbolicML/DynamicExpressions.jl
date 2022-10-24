@@ -13,15 +13,34 @@ OperatorEnum
 Construct this operator specification as follows:
 
 ```@docs
-OperatorEnum(; binary_operators, unary_operators, enable_autodiff)
+OperatorEnum(; binary_operators=[], unary_operators=[], enable_autodiff::Bool=false, define_helper_functions::Bool=true)
 ```
 
 This is just for scalar real operators. However, you can use
 the following for more general operators:
 
 ```@docs
-GenericOperatorEnum(; binary_operators=[], unary_operators=[], extend_user_operators::Bool=false)
+GenericOperatorEnum(; binary_operators=[], unary_operators=[], define_helper_functions::Bool=true)
 ```
+
+By default, these operators will define helper functions for constructing trees,
+so that you can write `Node(;feature=1) + Node(;feature=2)` instead of
+`Node(1, Node(;feature=1), Node(;feature=2))` (assuming `+` is the first operator).
+You can turn this off with `define_helper_functions=false`.
+
+For other operators *not* found in `Base`, including user-defined functions, you may
+use the `@extend_operators` macro:
+
+```@docs
+@extend_operators operators
+```
+
+This will extend the operators you have passed to work with `Node` types, so that
+it is easier to construct expression trees.
+
+Note that you are free to use the `Node` constructors directly.
+This is a more robust approach, and should be used when creating libraries
+which use `DynamicExpressions.jl`.
 
 ## Equations
 

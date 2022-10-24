@@ -166,7 +166,7 @@ function _extend_operators(operators, skip_user_operators, __module__::Module)
 end
 
 """
-    @extend_operators(operators)
+    @extend_operators operators
 
 Extends all operators defined in this operator enum to work on the
 `Node` type. While by default this is already done for operators defined
@@ -187,7 +187,7 @@ macro extend_operators(operators)
 end
 
 """
-    @extend_operators_base(operators)
+    @extend_operators_base operators
 
 Similar to `@extend_operators`, but only extends operators already
 defined in `Base`.

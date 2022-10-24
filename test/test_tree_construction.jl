@@ -112,12 +112,14 @@ function op1(x, y)
     return x + y
 end
 function op2(x, y)
-    return x ^ 2 + 1/((y)^2 + 0.1)
+    return x^2 + 1 / ((y)^2 + 0.1)
 end
 function op3(x)
     return sin(x) + cos(x)
 end
-operators = OperatorEnum(; default_params..., binary_operators=(op1, op2), unary_operators=(op3,))
+operators = OperatorEnum(;
+    default_params..., binary_operators=(op1, op2), unary_operators=(op3,)
+)
 @extend_operators operators
 x1 = Node(; feature=1)
 x2 = Node(; feature=2)
