@@ -5,25 +5,12 @@ import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: @return_on_false, is_bad_array, vals
 import ..EquationUtilsModule: is_constant
 
-macro return_on_check(val, T, n)
-    # This will generate the following code:
-    # if !isfinite(val)
-    #     return (Array{T, 1}(undef, n), false)
-    # end
-
-    :(
-        if !isfinite($(esc(val)))
-            return (Array{$(esc(T)),1}(undef, $(esc(n))), false)
-        end
-    )
+macro return_on_bad_val(val, T, n)
+    :(!isfinite($(esc(val))) && return (Array{$(esc(T)),1}(undef, $(esc(n))), false))
 end
 
-macro return_on_nonfinite_array(array, T, n)
-    :(
-        if is_bad_array($(esc(array)))
-            return (Array{$(esc(T)),1}(undef, $(esc(n))), false)
-        end
-    )
+macro return_on_bad_array(array, T, n)
+    :(is_bad_array($(esc(array))) && return (Array{$(esc(T)),1}(undef, $(esc(n))), false))
 end
 
 """
@@ -65,7 +52,7 @@ function eval_tree_array(
     n = size(cX, 2)
     result, finished = _eval_tree_array(tree, cX, operators)
     @return_on_false finished result
-    @return_on_nonfinite_array result T n
+    @return_on_bad_array result T n
     return result, finished
 end
 function eval_tree_array(
@@ -125,10 +112,10 @@ function deg2_eval(
     n = size(cX, 2)
     (cumulator, complete) = _eval_tree_array(tree.l, cX, operators)
     @return_on_false complete cumulator
-    @return_on_nonfinite_array cumulator T n
+    @return_on_bad_array cumulator T n
     (array2, complete2) = _eval_tree_array(tree.r, cX, operators)
     @return_on_false complete2 cumulator
-    @return_on_nonfinite_array array2 T n
+    @return_on_bad_array array2 T n
     op = operators.binops[op_idx]
 
     # We check inputs (and intermediates), not outputs.
@@ -146,7 +133,7 @@ function deg1_eval(
     n = size(cX, 2)
     (cumulator, complete) = _eval_tree_array(tree.l, cX, operators)
     @return_on_false complete cumulator
-    @return_on_nonfinite_array cumulator T n
+    @return_on_bad_array cumulator T n
     op = operators.unaops[op_idx]
     @inbounds @simd for j in 1:n
         x = op(cumulator[j])::T
@@ -179,16 +166,16 @@ function deg1_l2_ll0_lr0_eval(
     if tree.l.l.constant && tree.l.r.constant
         val_ll = tree.l.l.val::T
         val_lr = tree.l.r.val::T
-        @return_on_check val_ll T n
-        @return_on_check val_lr T n
+        @return_on_bad_val val_ll T n
+        @return_on_bad_val val_lr T n
         x_l = op_l(val_ll, val_lr)::T
-        @return_on_check x_l T n
+        @return_on_bad_val x_l T n
         x = op(x_l)::T
-        @return_on_check x T n
+        @return_on_bad_val x T n
         return (fill(x, n), true)
     elseif tree.l.l.constant
         val_ll = tree.l.l.val::T
-        @return_on_check val_ll T n
+        @return_on_bad_val val_ll T n
         feature_lr = tree.l.r.feature
         cumulator = Array{T,1}(undef, n)
         @inbounds @simd for j in 1:n
@@ -200,7 +187,7 @@ function deg1_l2_ll0_lr0_eval(
     elseif tree.l.r.constant
         feature_ll = tree.l.l.feature
         val_lr = tree.l.r.val::T
-        @return_on_check val_lr T n
+        @return_on_bad_val val_lr T n
         cumulator = Array{T,1}(undef, n)
         @inbounds @simd for j in 1:n
             x_l = op_l(cX[feature_ll, j], val_lr)::T
@@ -234,11 +221,11 @@ function deg1_l1_ll0_eval(
     op_l = operators.unaops[op_l_idx]
     if tree.l.l.constant
         val_ll = tree.l.l.val::T
-        @return_on_check val_ll T n
+        @return_on_bad_val val_ll T n
         x_l = op_l(val_ll)::T
-        @return_on_check x_l T n
+        @return_on_bad_val x_l T n
         x = op(x_l)::T
-        @return_on_check x T n
+        @return_on_bad_val x T n
         return (fill(x, n), true)
     else
         feature_ll = tree.l.l.feature
@@ -259,16 +246,16 @@ function deg2_l0_r0_eval(
     op = operators.binops[op_idx]
     if tree.l.constant && tree.r.constant
         val_l = tree.l.val::T
-        @return_on_check val_l T n
+        @return_on_bad_val val_l T n
         val_r = tree.r.val::T
-        @return_on_check val_r T n
+        @return_on_bad_val val_r T n
         x = op(val_l, val_r)::T
-        @return_on_check x T n
+        @return_on_bad_val x T n
         return (fill(x, n), true)
     elseif tree.l.constant
         cumulator = Array{T,1}(undef, n)
         val_l = tree.l.val::T
-        @return_on_check val_l T n
+        @return_on_bad_val val_l T n
         feature_r = tree.r.feature
         @inbounds @simd for j in 1:n
             x = op(val_l, cX[feature_r, j])::T
@@ -278,7 +265,7 @@ function deg2_l0_r0_eval(
         cumulator = Array{T,1}(undef, n)
         feature_l = tree.l.feature
         val_r = tree.r.val::T
-        @return_on_check val_r T n
+        @return_on_bad_val val_r T n
         @inbounds @simd for j in 1:n
             x = op(cX[feature_l, j], val_r)::T
             cumulator[j] = x
@@ -301,11 +288,11 @@ function deg2_l0_eval(
     n = size(cX, 2)
     (cumulator, complete) = _eval_tree_array(tree.r, cX, operators)
     @return_on_false complete cumulator
-    @return_on_nonfinite_array cumulator T n
+    @return_on_bad_array cumulator T n
     op = operators.binops[op_idx]
     if tree.l.constant
         val = tree.l.val::T
-        @return_on_check val T n
+        @return_on_bad_val val T n
         @inbounds @simd for j in 1:n
             x = op(val, cumulator[j])::T
             cumulator[j] = x
@@ -326,11 +313,11 @@ function deg2_r0_eval(
     n = size(cX, 2)
     (cumulator, complete) = _eval_tree_array(tree.l, cX, operators)
     @return_on_false complete cumulator
-    @return_on_nonfinite_array cumulator T n
+    @return_on_bad_array cumulator T n
     op = operators.binops[op_idx]
     if tree.r.constant
         val = tree.r.val::T
-        @return_on_check val T n
+        @return_on_bad_val val T n
         @inbounds @simd for j in 1:n
             x = op(cumulator[j], val)::T
             cumulator[j] = x

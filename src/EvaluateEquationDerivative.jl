@@ -3,9 +3,14 @@ module EvaluateEquationDerivativeModule
 using LinearAlgebra
 import ..EquationModule: Node
 import ..OperatorEnumModule: OperatorEnum
-import ..UtilsModule: @return_on_false2, is_bad_array, vals
+import ..UtilsModule: is_bad_array, vals
 import ..EquationUtilsModule: count_constants, index_constants, NodeIndex
 import ..EvaluateEquationModule: deg0_eval
+
+# Returns two arrays
+macro return_on_false2(flag, retval, retval2)
+    :(!$(esc(flag)) && return ($(esc(retval)), $(esc(retval2)), false))
+end
 
 function assert_autodiff_enabled(operators::OperatorEnum)
     if operators.diff_binops === nothing && operators.diff_unaops === nothing
