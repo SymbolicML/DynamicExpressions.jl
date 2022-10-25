@@ -15,7 +15,7 @@ function create_evaluation_helpers!(operators::OperatorEnum)
             length(keys(kws)) > 1 && error("Unknown keyword argument: $(key)")
             out, did_finish = eval_tree_array(tree, X, $operators)
             if !did_finish
-                out .= T(NaN)
+                out .= convert(eltype(out), NaN)
             end
             return out
         end

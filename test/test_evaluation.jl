@@ -98,3 +98,38 @@ truth = cos(3.0f0 + 4.0f0)
 @test DynamicExpressions.EvaluateEquationModule.deg1_l2_ll0_lr0_eval(
     tree, [0.0f0]', Val(1), Val(1), operators
 )[1][1] ≈ truth
+
+# Test for presence of NaNs:
+operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[cos, sin])
+x1 = Node(Float64; feature=1)
+tree = sin(x1 / 0.0)
+X = randn(Float32, 3, 10);
+@test isnan(tree(X)[1])
+
+# And, with generic operator enum, this should be an actual error:
+operators = GenericOperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[cos, sin])
+x1 = Node(Float64; feature=1)
+tree = sin(x1 / 0.0)
+X = randn(Float32, 10);
+@noinline stack = try
+    tree(X)[1]
+    @test false
+catch e
+    @test isa(e, ErrorException)
+    # Check that "Failed to evaluate" is in the message:
+    @test occursin("Failed to evaluate", e.msg)
+    current_exceptions()
+end;
+@test length(stack) == 2
+@test isa(stack[1].exception, DomainError)
+
+# If a method is not defined, we should get a nothing:
+X = randn(Float32, 1, 10);
+@test tree(X; throw_errors=false) === nothing
+# or a MethodError:
+try
+    tree(X; throw_errors=true)
+    @test false
+catch e
+    @test isa(current_exceptions()[1].exception, MethodError)
+end
