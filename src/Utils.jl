@@ -12,10 +12,22 @@ function _remove_type_assertions(ex::Expr)
         return Expr(ex.head, map(_remove_type_assertions, ex.args)...)
     end
 end
+_remove_type_assertions(ex) = ex
 
-function _remove_type_assertions(ex)
-    return ex
+"""Replace instances of (isfinite(x) ? op(x) : T(Inf)) with op(x)"""
+function _remove_isfinite(ex::Expr)
+    if (
+        ex.head == :if &&
+        length(ex.args) == 3 &&
+        ex.args[1].head == :call &&
+        ex.args[1].args[1] == :isfinite
+    )
+        return _remove_isfinite(ex.args[2])
+    else
+        return Expr(ex.head, map(_remove_isfinite, ex.args)...)
+    end
 end
+_remove_isfinite(ex) = ex
 
 """
     @maybe_turbo use_turbo expression
@@ -26,6 +38,7 @@ This will also remove all type assertions from the expression.
 macro maybe_turbo(turboflag, ex)
     # Thanks @jlapeyre https://discourse.julialang.org/t/optional-macro-invocation/18588
     clean_ex = _remove_type_assertions(ex)
+    clean_ex = _remove_isfinite(clean_ex)
     turbo_ex = Expr(:macrocall, Symbol("@turbo"), LineNumberNode(@__LINE__), clean_ex)
     simple_ex = Expr(
         :macrocall,
