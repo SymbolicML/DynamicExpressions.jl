@@ -48,6 +48,7 @@ for type in [Float16, Float32, Float64]
     nfeatures = 3
     N = 100
 
+    local X, operators
     X = rand(rng, type, nfeatures, N) * 5
 
     operators = OperatorEnum(;
@@ -63,6 +64,7 @@ for type in [Float16, Float32, Float64]
             continue
         end
 
+        local tree
         tree = convert(Node{type}, equation(nx1, nx2, nx3))
         predicted_output = eval_tree_array(tree, X, operators)[1]
         true_output = equation.([X[i, :] for i in 1:nfeatures]...)
@@ -96,6 +98,7 @@ for type in [Float16, Float32, Float64]
     # Test gradient with respect to constants:
     equation4(x1, x2, x3) = 3.2f0 * x1
     # The gradient should be: (C * x1) => x1 is gradient with respect to C.
+    local tree
     tree = equation4(nx1, nx2, nx3)
     tree = convert(Node{type}, tree)
     predicted_grad = eval_grad_tree_array(tree, X, operators; variable=false)[2]
