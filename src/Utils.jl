@@ -7,7 +7,7 @@ using LoopVectorization: @turbo
 function _remove_type_assertions(ex::Expr)
     if ex.head == :(::)
         @assert length(ex.args) == 2
-        return ex.args[1]
+        return _remove_type_assertions(ex.args[1])
     else
         return Expr(ex.head, map(_remove_type_assertions, ex.args)...)
     end
