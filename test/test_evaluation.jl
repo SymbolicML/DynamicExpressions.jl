@@ -55,7 +55,6 @@ for turbo in [false, true],
     operators = OperatorEnum(;
         default_params..., binary_operators=(+, *, /, -), unary_operators=(cos, sin)
     )
-    @extend_operators operators
     tree = nodefnc(Node("x1"), Node("x2"), Node("x3"))
     tree = convert(Node{T}, tree)
 
