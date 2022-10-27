@@ -68,7 +68,6 @@ for turbo in [false, true], T in [Float16, Float32, Float64], fnc in functions
     @test all(abs.(test_y .- true_y) / N .< zero_tolerance)
 end
 
-
 for turbo in [false, true], T in [Float16, Float32, Float64]
     turbo && T == Float16 && continue
     # Test specific branches of evaluation code:
@@ -99,15 +98,14 @@ for turbo in [false, true], T in [Float16, Float32, Float64]
     @test DynamicExpressions.EvaluateEquationModule.deg1_l2_ll0_lr0_eval(
         tree, [zero(T)]', Val(1), Val(1), operators, Val(turbo)
     )[1][1] ≈ truth
-    
+
     # Test for presence of NaNs:
     operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[cos, sin])
     x1 = Node(T; feature=1)
     tree = sin(x1 / 0.0)
-    X = randn(Float32, 3, 10);
+    X = randn(Float32, 3, 10)
     @test isnan(tree(X)[1])
 end
-
 
 # And, with generic operator enum, this should be an actual error:
 operators = GenericOperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[cos, sin])
