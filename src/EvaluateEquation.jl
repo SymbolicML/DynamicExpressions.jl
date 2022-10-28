@@ -213,7 +213,7 @@ function deg1_l2_ll0_lr0_eval(
         cumulator = Array{T,1}(undef, n)
         @maybe_turbo turbo for j in indices((cX, cumulator), (2, 1))
             x_l = op_l(val_ll, cX[feature_lr, j])::T
-            x = isfinite(x_l) ? op(x_l)::T : T(Inf) # These will get discovered by _eval_tree_array at end.
+            x = isfinite(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
         end
         return (cumulator, true)
@@ -273,6 +273,7 @@ function deg1_l1_ll0_eval(
     end
 end
 
+# op(x, y) for x and y variable/constant
 function deg2_l0_r0_eval(
     tree::Node{T},
     cX::AbstractMatrix{T},
@@ -320,6 +321,7 @@ function deg2_l0_r0_eval(
     return (cumulator, true)
 end
 
+# op(x, y) for x variable/constant, y arbitrary
 function deg2_l0_eval(
     tree::Node{T},
     cX::AbstractMatrix{T},
@@ -349,6 +351,7 @@ function deg2_l0_eval(
     return (cumulator, true)
 end
 
+# op(x, y) for x arbitrary, y variable/constant
 function deg2_r0_eval(
     tree::Node{T},
     cX::AbstractMatrix{T},
@@ -520,9 +523,9 @@ function eval(current_node)
 function eval_tree_array(
     tree::Node, cX::AbstractArray, operators::GenericOperatorEnum; throw_errors::Bool=true
 )
-    !throw_errors && return _eval_tree_array(tree, cX, operators, Val(false))
+    !throw_errors && return _eval_tree_array_generic(tree, cX, operators, Val(false))
     try
-        return _eval_tree_array(tree, cX, operators, Val(true))
+        return _eval_tree_array_generic(tree, cX, operators, Val(true))
     catch e
         tree_s = string_tree(tree, operators)
         error_msg = "Failed to evaluate tree $(tree_s)."
@@ -537,7 +540,7 @@ function eval_tree_array(
     end
 end
 
-function _eval_tree_array(
+function _eval_tree_array_generic(
     tree::Node{T1},
     cX::AbstractArray{T2,N},
     operators::GenericOperatorEnum,
@@ -554,13 +557,13 @@ function _eval_tree_array(
             end
         end
     elseif tree.degree == 1
-        return deg1_eval(tree, cX, vals[tree.op], operators, Val(throw_errors))
+        return deg1_eval_generic(tree, cX, vals[tree.op], operators, Val(throw_errors))
     else
-        return deg2_eval(tree, cX, vals[tree.op], operators, Val(throw_errors))
+        return deg2_eval_generic(tree, cX, vals[tree.op], operators, Val(throw_errors))
     end
 end
 
-function deg1_eval(
+function deg1_eval_generic(
     tree, cX, ::Val{op_idx}, operators::GenericOperatorEnum, ::Val{throw_errors}
 ) where {op_idx,throw_errors}
     left, complete = eval_tree_array(tree.l, cX, operators)
@@ -570,7 +573,7 @@ function deg1_eval(
     return op(left), true
 end
 
-function deg2_eval(
+function deg2_eval_generic(
     tree, cX, ::Val{op_idx}, operators::GenericOperatorEnum, ::Val{throw_errors}
 ) where {op_idx,throw_errors}
     left, complete = eval_tree_array(tree.l, cX, operators)

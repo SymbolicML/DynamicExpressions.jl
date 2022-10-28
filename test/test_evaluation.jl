@@ -4,10 +4,6 @@ using Test
 include("test_params.jl")
 
 # Test simple evaluations:
-operators = OperatorEnum(;
-    default_params..., binary_operators=(+, *, /, -), unary_operators=(cos, sin)
-)
-
 functions = [
     # deg2_l0_r0_eval
     (x1, x2, x3) -> x1 * x2,
@@ -39,7 +35,9 @@ functions = [
     (x1, x2, x3) -> (sin(cos(sin(cos(x1) * x3) * 3.0) * -0.5) + 2.0) * 5.0,
 ]
 
-for turbo in [false, true], T in [Float16, Float32, Float64], fnc in functions
+for turbo in [false, true],
+    T in [Float16, Float32, Float64],
+    (i_func, fnc) in enumerate(functions)
 
     # Float16 not implemented:
     turbo && T == Float16 && continue
@@ -53,7 +51,10 @@ for turbo in [false, true], T in [Float16, Float32, Float64], fnc in functions
         nodefnc = fnc
     end
 
-    local tree, X
+    local tree, operators, X
+    operators = OperatorEnum(;
+        default_params..., binary_operators=(+, *, /, -), unary_operators=(cos, sin)
+    )
     tree = nodefnc(Node("x1"), Node("x2"), Node("x3"))
     tree = convert(Node{T}, tree)
 
@@ -65,14 +66,25 @@ for turbo in [false, true], T in [Float16, Float32, Float64], fnc in functions
     true_y = realfnc.(X[1, :], X[2, :], X[3, :])
 
     zero_tolerance = (T == Float16 ? 1e-4 : 1e-6)
-    @test all(abs.(test_y .- true_y) / N .< zero_tolerance)
+    try
+        @test all(abs.(test_y .- true_y) / N .< zero_tolerance)
+    catch
+        println("Test for type $T and turbo=$turbo and function $i_func $tree failed.")
+        mse = sum((x,) -> x^2, test_y .- true_y) / N
+        mean = sum(test_y) / N
+        stdev = sqrt(sum((x,) -> x^2, true_y .- mean) / N)
+        println("Relative error: $(mse / stdev)")
+    end
 end
 
 for turbo in [false, true], T in [Float16, Float32, Float64]
     turbo && T == Float16 && continue
     # Test specific branches of evaluation code:
     # op(op(<constant>))
-    local tree
+    local tree, operators
+    operators = OperatorEnum(;
+        default_params..., binary_operators=(+, *, /, -), unary_operators=(cos, sin)
+    )
     tree = Node(1, Node(1, Node(; val=3.0f0)))
     @test repr(tree) == "cos(cos(3.0))"
     tree = convert(Node{T}, tree)
