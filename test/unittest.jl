@@ -59,3 +59,7 @@ end
 @safetestset "Test equality operator" begin
     include("test_equality.jl")
 end
+
+@safetestset "Test operators within module" begin
+    include("test_custom_operators.jl")
+end
