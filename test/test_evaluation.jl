@@ -66,15 +66,7 @@ for turbo in [false, true],
     true_y = realfnc.(X[1, :], X[2, :], X[3, :])
 
     zero_tolerance = (T == Float16 ? 1e-4 : 1e-6)
-    try
-        @test all(abs.(test_y .- true_y) / N .< zero_tolerance)
-    catch
-        println("Test for type $T and turbo=$turbo and function $i_func $tree failed.")
-        mse = sum((x,) -> x^2, test_y .- true_y) / N
-        mean = sum(test_y) / N
-        stdev = sqrt(sum((x,) -> x^2, true_y .- mean) / N)
-        println("Relative error: $(mse / stdev)")
-    end
+    @test all(abs.(test_y .- true_y) / N .< zero_tolerance)
 end
 
 for turbo in [false, true], T in [Float16, Float32, Float64]
@@ -116,7 +108,7 @@ for turbo in [false, true], T in [Float16, Float32, Float64]
     x1 = Node(T; feature=1)
     tree = sin(x1 / 0.0)
     X = randn(Float32, 3, 10)
-    @test isnan(tree(X)[1])
+    @test isnan(tree(X; turbo=turbo)[1])
 end
 
 # And, with generic operator enum, this should be an actual error:
