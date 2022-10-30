@@ -52,7 +52,26 @@ end
 
 end
 
-# Now, test that we can work with operators defined in other modules
 import .A: create_and_eval_tree
 prediction, truth = create_and_eval_tree()
 @test prediction ≈ truth
+
+# Now, test that we can work with operators defined in other modules
+module B
+
+my_func_c(x::T, y::T) where {T<:Real} = x * y + T(0.3)
+my_func_d(x::T) where {T<:Real} = x / (abs(x)^T(0.2) + 0.1)
+
+end
+
+import .B: my_func_c, my_func_d
+operators = OperatorEnum(; binary_operators=[my_func_c], unary_operators=[my_func_d])
+@extend_operators operators
+
+x1 = Node(Float64; feature=1)
+x2 = Node(Float64; feature=2)
+c1 = Node(Float64; val=0.2)
+tree = my_func_c(my_func_c(x2, 0.2), my_func_d(x1))
+func = (x1, x2) -> my_func_c(my_func_c(x2, 0.2), my_func_d(x1))
+X = randn(MersenneTwister(0), 2, 20)
+@test tree(X) ≈ func.(X[1, :], X[2, :])
