@@ -117,6 +117,7 @@ end
 function op3(x)
     return sin(x) + cos(x)
 end
+local operators, tree
 operators = OperatorEnum(;
     default_params..., binary_operators=(op1, op2), unary_operators=(op3,)
 )
@@ -125,3 +126,6 @@ x1 = Node(; feature=1)
 x2 = Node(; feature=2)
 tree = op1(op2(x1, x2), op3(x1))
 @test repr(tree) == "op1(op2(x1, x2), op3(x1))"
+# Test evaluation:
+X = randn(MersenneTwister(0), 2, 10);
+@test tree(X) ≈ ((x1, x2) -> op1(op2(x1, x2), op3(x1))).(X[1, :], X[2, :])
