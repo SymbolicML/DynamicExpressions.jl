@@ -32,7 +32,7 @@ The notation is the same for `eval_tree_array`, though it will return `nothing`
 when it can't find a method, and not do any NaN checks:
 
 ```@docs
-    eval_tree_array(tree, cX::AbstractArray, operators::GenericOperatorEnum)
+    eval_tree_array(tree, cX::AbstractArray, operators::GenericOperatorEnum; throw_errors::Bool=true)
 ```
 
 ## Derivatives
