@@ -6,15 +6,8 @@ using Zygote
 using LinearAlgebra
 
 seed = 0
-pow_abs2(x::T, y::T) where {T<:Real} = abs(x)^y
-custom_cos(x::T) where {T<:Real} = cos(x)^2
-
-# Define these custom functions for Node data types:
-pow_abs2(l::Node, r::Node)::Node =
-    (l.constant && r.constant) ? Node(pow_abs2(l.val, r.val)::Real) : Node(5, l, r)
-pow_abs2(l::Node, r::Real)::Node = l.constant ? Node(pow_abs2(l.val, r)) : Node(5, l, r)
-pow_abs2(l::Real, r::Node)::Node = r.constant ? Node(pow_abs2(l, r.val)) : Node(5, l, r)
-custom_cos(x::Node)::Node = x.constant ? Node(; val=custom_cos(x.val)) : Node(1, x)
+pow_abs2(x, y) = abs(x)^y
+custom_cos(x) = cos(x)^2
 
 equation1(x1, x2, x3) = x1 + x2 + x3 + 3.2
 equation2(x1, x2, x3) = pow_abs2(x1, x2) + x3 + custom_cos(1.0 + x3) + 3.0 / x1
@@ -56,6 +49,7 @@ for type in [Float16, Float32, Float64]
         unary_operators=(custom_cos, exp, sin),
         enable_autodiff=true,
     )
+    @extend_operators operators
 
     for j in 1:3
         equation = [equation1, equation2, equation3][j]
@@ -83,14 +77,17 @@ for type in [Float16, Float32, Float64]
             reduce(
                 hcat, [eval_diff_tree_array(tree, X, operators, i)[2] for i in 1:nfeatures]
             )'
+        predicted_grad3 = tree'(X)
 
         # Print largest difference between predicted_grad, true_grad:
         @test array_test(predicted_grad, true_grad)
         @test array_test(predicted_grad2, true_grad)
+        @test array_test(predicted_grad3, true_grad)
 
         # Make sure that the array_test actually works:
         @test !array_test(predicted_grad .* 0, true_grad)
         @test !array_test(predicted_grad2 .* 0, true_grad)
+        @test !array_test(predicted_grad3 .* 0, true_grad)
     end
     println("Done.")
     println("Testing derivatives with respect to constants, with type=$(type).")
@@ -141,6 +138,7 @@ operators = OperatorEnum(;
     unary_operators=(custom_cos, exp, sin),
     enable_autodiff=true,
 )
+@extend_operators operators
 tree = equation3(nx1, nx2, nx3)
 
 """Check whether the ordering of constant_list is the same as the ordering of node_index."""
