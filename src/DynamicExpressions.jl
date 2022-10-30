@@ -24,7 +24,8 @@ using Reexport
     get_constants,
     set_constants
 @reexport import .OperatorEnumModule: AbstractOperatorEnum
-@reexport import .OperatorEnumConstructionModule: OperatorEnum, GenericOperatorEnum
+@reexport import .OperatorEnumConstructionModule:
+    OperatorEnum, GenericOperatorEnum, @extend_operators
 @reexport import .EvaluateEquationModule: eval_tree_array, differentiable_eval_tree_array
 @reexport import .EvaluateEquationDerivativeModule:
     eval_diff_tree_array, eval_grad_tree_array

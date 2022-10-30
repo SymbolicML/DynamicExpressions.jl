@@ -159,19 +159,28 @@ x1 = Node(String; feature=1)
 This node, will be used to index input data (whatever it may be) with either `data[feature]` (1D abstract arrays) or `selectdim(data, 1, feature)` (ND abstract arrays). Let's now define some operators to use:
 
 ```julia
-my_string_func(x::String) = "Hello $x"
+my_string_func(x::String) = "ello $x"
 
 operators = GenericOperatorEnum(;
     binary_operators=[*],
-    unary_operators=[my_string_func],
-    extend_user_operators=true)
+    unary_operators=[my_string_func]
+)
+```
+
+Now, let's extend our operators to work with the
+expression types used by `DynamicExpressions.jl`:
+
+```julia
+@extend_operators operators
 ```
 
 Now, let's create an expression:
 
 ```julia
-tree = x1 * " World!"
-tree(["Hello", "Me?"])
+tree = "H" * my_string_func(x1)
+# ^ `(H * my_string_func(x1))`
+
+tree(["World!", "Me?"])
 # Hello World!
 ```
 
@@ -202,7 +211,8 @@ vec_add(x, y) = x .+ y
 vec_square(x) = x .* x
 
 # Set up an operator enum:
-operators = GenericOperatorEnum(;binary_operators=[vec_add], unary_operators=[vec_square], extend_user_operators=true)
+operators = GenericOperatorEnum(;binary_operators=[vec_add], unary_operators=[vec_square])
+@extend_operators operators
 
 # Construct the expression:
 tree = vec_add(vec_add(vec_square(x1), c2), c1)
