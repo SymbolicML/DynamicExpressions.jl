@@ -473,7 +473,7 @@ function deg2_diff_eval(
 end
 
 """
-    eval_tree_array(tree::Node, cX::AbstractMatrix{T,N}, operators::GenericOperatorEnum) where {T,N}
+    eval_tree_array(tree::Node, cX::AbstractMatrix, operators::GenericOperatorEnum)
 
 Evaluate a generic binary tree (equation) over a given input data,
 whatever that input data may be. The `operators` enum contains all
@@ -503,7 +503,7 @@ function eval(current_node)
 
 # Arguments
 - `tree::Node`: The root node of the tree to evaluate.
-- `cX::AbstractArray{T,N}`: The input data to evaluate the tree on.
+- `cX::AbstractArray`: The input data to evaluate the tree on.
 - `operators::GenericOperatorEnum`: The operators used in the tree.
 - `throw_errors::Bool=true`: Whether to throw errors
     if they occur during evaluation. Otherwise,

@@ -30,8 +30,9 @@ It also re-defines `print`, `show`, and the various operators, to work with the 
 You can also work with arbitrary types, by defining a `GenericOperatorEnum` instead.
 The notation is the same for `eval_tree_array`, though it will return `nothing`
 when it can't find a method, and not do any NaN checks:
+
 ```@docs
-    eval_tree_array(tree, cX::AbstractArray{T,N}, operators::GenericOperatorEnum) where {T,N}
+    eval_tree_array(tree, cX::AbstractArray, operators::GenericOperatorEnum)
 ```
 
 ## Derivatives
