@@ -7,9 +7,7 @@ macro ignore_domain_error(ex)
             try
                 $ex
             catch e
-                if e isa DomainError
-                    return nothing
-                else
+                if !(e isa DomainError)
                     rethrow(e)
                 end
             end
@@ -23,8 +21,8 @@ end
 Test all combinations of the given operators and types. Useful for precompilation.
 """
 function test_all_combinations(; binary_operators, unary_operators, turbo, types)
-    for binops in permutations(binary_operators),
-        unaops in permutations(unary_operators),
+    for binops in binary_operators,
+        unaops in unary_operators,
         use_turbo in turbo,
         T in types
 
@@ -80,8 +78,8 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
 end
 
 @precompile_setup begin
-    binary_operators = [+, -, *, /, ^]
-    unary_operators = [sin, cos, exp, log, sqrt, abs]
+    binary_operators = [[+, -, *, /, ^]]
+    unary_operators = [[sin, cos, exp, log, sqrt, abs]]
     turbo = [true, false]
     types = [Float16, Float32, Float64]
     @precompile_all_calls begin
