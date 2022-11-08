@@ -43,4 +43,6 @@ macro ignore(args...) end
 # To get LanguageServer to register library within tests
 @ignore include("../test/runtests.jl")
 
+include("precompile.jl")
+
 end
