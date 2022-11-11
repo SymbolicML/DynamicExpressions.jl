@@ -149,12 +149,10 @@ end
 function deg2_eval(
     cumulator_l::AbstractVector{T}, cumulator_r::AbstractVector{T}, op::F, ::Val{turbo}
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,F,turbo}
-    # We check inputs (and intermediates), not outputs.
     @maybe_turbo turbo for j in indices(cumulator_l)
         x = op(cumulator_l[j], cumulator_r[j])::T
         cumulator_l[j] = x
     end
-    # return (cumulator, finished_loop) #
     return (cumulator_l, true)
 end
 
@@ -171,8 +169,8 @@ end
 function deg0_eval(
     tree::Node{T}, cX::AbstractMatrix{T}
 )::Tuple{AbstractVector{T},Bool} where {T<:Real}
-    n = size(cX, 2)
     if tree.constant
+        n = size(cX, 2)
         return (fill(tree.val::T, n), true)
     else
         return (cX[tree.feature, :], true)
