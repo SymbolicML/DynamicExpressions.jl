@@ -39,4 +39,8 @@ const PACKAGE_VERSION = let
     VersionNumber(project["version"])
 end
 
+macro ignore(args...) end
+# To get LanguageServer to register library within tests
+@ignore include("../test/runtests.jl")
+
 end
