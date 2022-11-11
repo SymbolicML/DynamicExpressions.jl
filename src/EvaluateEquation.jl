@@ -176,11 +176,7 @@ function deg0_eval(
 end
 
 function deg1_l2_ll0_lr0_eval(
-    tree::Node{T},
-    cX::AbstractMatrix{T},
-    op::F,
-    op_l::F2,
-    ::Val{turbo},
+    tree::Node{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::Val{turbo}
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,F,F2,turbo}
     n = size(cX, 2)
     if tree.l.l.constant && tree.l.r.constant
@@ -230,11 +226,7 @@ end
 
 # op(op2(x)) for x variable or constant
 function deg1_l1_ll0_eval(
-    tree::Node{T},
-    cX::AbstractMatrix{T},
-    op::F,
-    op_l::F2,
-    ::Val{turbo},
+    tree::Node{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::Val{turbo}
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,F,F2,turbo}
     n = size(cX, 2)
     if tree.l.l.constant
@@ -522,9 +514,13 @@ function _eval_tree_array_generic(
             end
         end
     elseif tree.degree == 1
-        return deg1_eval_generic(tree, cX, operators.unaops[tree.op], operators, Val(throw_errors))
+        return deg1_eval_generic(
+            tree, cX, operators.unaops[tree.op], operators, Val(throw_errors)
+        )
     else
-        return deg2_eval_generic(tree, cX, operators.binops[tree.op], operators, Val(throw_errors))
+        return deg2_eval_generic(
+            tree, cX, operators.binops[tree.op], operators, Val(throw_errors)
+        )
     end
 end
 

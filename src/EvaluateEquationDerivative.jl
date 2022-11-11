@@ -60,9 +60,23 @@ function _eval_diff_tree_array(
     evaluation, derivative, complete = if tree.degree == 0
         diff_deg0_eval(tree, cX, direction)
     elseif tree.degree == 1
-        diff_deg1_eval(tree, cX, operators.unaops[tree.op], operators.diff_unaops[tree.op], operators, direction)
+        diff_deg1_eval(
+            tree,
+            cX,
+            operators.unaops[tree.op],
+            operators.diff_unaops[tree.op],
+            operators,
+            direction,
+        )
     else
-        diff_deg2_eval(tree, cX, operators.binops[tree.op], operators.diff_binops[tree.op], operators, direction)
+        diff_deg2_eval(
+            tree,
+            cX,
+            operators.binops[tree.op],
+            operators.diff_binops[tree.op],
+            operators,
+            direction,
+        )
     end
     @return_on_false2 complete evaluation derivative
     return evaluation, derivative, !(is_bad_array(evaluation) || is_bad_array(derivative))
