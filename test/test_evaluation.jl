@@ -82,7 +82,7 @@ for turbo in [false, true], T in [Float16, Float32, Float64]
     tree = convert(Node{T}, tree)
     truth = cos(cos(T(3.0f0)))
     @test DynamicExpressions.EvaluateEquationModule.deg1_l1_ll0_eval(
-        tree, [zero(T)]', cos, cos, operators, Val(turbo)
+        tree, [zero(T)]', cos, cos, Val(turbo)
     )[1][1] ≈ truth
 
     # op(<constant>, <constant>)
@@ -91,7 +91,7 @@ for turbo in [false, true], T in [Float16, Float32, Float64]
     tree = convert(Node{T}, tree)
     truth = T(3.0f0) + T(4.0f0)
     @test DynamicExpressions.EvaluateEquationModule.deg2_l0_r0_eval(
-        tree, [zero(T)]', (+), operators, Val(turbo)
+        tree, [zero(T)]', (+), Val(turbo)
     )[1][1] ≈ truth
 
     # op(op(<constant>, <constant>))
@@ -100,7 +100,7 @@ for turbo in [false, true], T in [Float16, Float32, Float64]
     tree = convert(Node{T}, tree)
     truth = cos(T(3.0f0) + T(4.0f0))
     @test DynamicExpressions.EvaluateEquationModule.deg1_l2_ll0_lr0_eval(
-        tree, [zero(T)]', cos, (+), operators, Val(turbo)
+        tree, [zero(T)]', cos, (+), Val(turbo)
     )[1][1] ≈ truth
 
     # Test for presence of NaNs:
