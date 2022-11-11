@@ -88,6 +88,7 @@ end
 function _eval_tree_array(
     tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, ::Val{turbo}
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,turbo}
+    n = size(cX, 2)
     # First, we see if there are only constants in the tree - meaning
     # we can just return the constant result.
     if tree.degree == 0
@@ -107,56 +108,59 @@ function _eval_tree_array(
             # op(op2(x)), where x is a constant or variable.
             op_l = operators.unaops[tree.l.op]
             return deg1_l1_ll0_eval(tree, cX, op, op_l, Val(turbo))
-        else
-            # op(x), for any x.
-            return deg1_eval(tree, cX, op, operators, Val(turbo))
         end
+
+        # op(x), for any x.
+        (cumulator, complete) = _eval_tree_array(tree.l, cX, operators, Val(turbo))
+        @return_on_false complete cumulator
+        @return_on_nonfinite_array cumulator T n
+        return deg1_eval(cumulator, op, Val(turbo))
+
     elseif tree.degree == 2
-        # TODO - add op(op2(x, y), z) and op(x, op2(y, z))
         op = operators.binops[tree.op]
+        # TODO - add op(op2(x, y), z) and op(x, op2(y, z))
+        # op(x, y), where x, y are constants or variables.
         if tree.l.degree == 0 && tree.r.degree == 0
-            # op(x, y), where x, y are constants or variables.
             return deg2_l0_r0_eval(tree, cX, op, Val(turbo))
-        elseif tree.l.degree == 0
-            # op(x, y), where x is a constant or variable but y is not.
-            return deg2_l0_eval(tree, cX, op, operators, Val(turbo))
         elseif tree.r.degree == 0
+            (cumulator_l, complete) = _eval_tree_array(tree.l, cX, operators, Val(turbo))
+            @return_on_false complete cumulator_l
+            @return_on_nonfinite_array cumulator_l T n
             # op(x, y), where y is a constant or variable but x is not.
-            return deg2_r0_eval(tree, cX, op, operators, Val(turbo))
-        else
-            # op(x, y), for any x or y
-            return deg2_eval(tree, cX, op, operators, Val(turbo))
+            return deg2_r0_eval(tree, cumulator_l, cX, op, Val(turbo))
+        elseif tree.l.degree == 0
+            (cumulator_r, complete) = _eval_tree_array(tree.r, cX, operators, Val(turbo))
+            @return_on_false complete cumulator_r
+            @return_on_nonfinite_array cumulator_r T n
+            # op(x, y), where x is a constant or variable but y is not.
+            return deg2_l0_eval(tree, cumulator_r, cX, op, Val(turbo))
         end
+        (cumulator_l, complete) = _eval_tree_array(tree.l, cX, operators, Val(turbo))
+        @return_on_false complete cumulator_l
+        @return_on_nonfinite_array cumulator_l T n
+        (cumulator_r, complete) = _eval_tree_array(tree.r, cX, operators, Val(turbo))
+        @return_on_false complete cumulator_r
+        @return_on_nonfinite_array cumulator_r T n
+        # op(x, y), for any x or y
+        return deg2_eval(cumulator_l, cumulator_r, op, Val(turbo))
     end
 end
 
 function deg2_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum, ::Val{turbo}
+    cumulator_l::AbstractVector{T}, cumulator_r::AbstractVector{T}, op::F, ::Val{turbo}
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,F,turbo}
-    n = size(cX, 2)
-    (cumulator, complete) = _eval_tree_array(tree.l, cX, operators, Val(turbo))
-    @return_on_false complete cumulator
-    @return_on_nonfinite_array cumulator T n
-    (array2, complete2) = _eval_tree_array(tree.r, cX, operators, Val(turbo))
-    @return_on_false complete2 cumulator
-    @return_on_nonfinite_array array2 T n
-
     # We check inputs (and intermediates), not outputs.
-    @maybe_turbo turbo for j in indices(cumulator)
-        x = op(cumulator[j], array2[j])::T
-        cumulator[j] = x
+    @maybe_turbo turbo for j in indices(cumulator_l)
+        x = op(cumulator_l[j], cumulator_r[j])::T
+        cumulator_l[j] = x
     end
     # return (cumulator, finished_loop) #
-    return (cumulator, true)
+    return (cumulator_l, true)
 end
 
 function deg1_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum, ::Val{turbo}
+    cumulator::AbstractVector{T}, op::F, ::Val{turbo}
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,F,turbo}
-    n = size(cX, 2)
-    (cumulator, complete) = _eval_tree_array(tree.l, cX, operators, Val(turbo))
-    @return_on_false complete cumulator
-    @return_on_nonfinite_array cumulator T n
     @maybe_turbo turbo for j in indices(cumulator)
         x = op(cumulator[j])::T
         cumulator[j] = x
@@ -294,12 +298,9 @@ end
 
 # op(x, y) for x variable/constant, y arbitrary
 function deg2_l0_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum, ::Val{turbo}
+    tree::Node{T}, cumulator::AbstractVector{T}, cX::AbstractArray{T}, op::F, ::Val{turbo}
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,F,turbo}
     n = size(cX, 2)
-    (cumulator, complete) = _eval_tree_array(tree.r, cX, operators, Val(turbo))
-    @return_on_false complete cumulator
-    @return_on_nonfinite_array cumulator T n
     if tree.l.constant
         val = tree.l.val::T
         @return_on_check val T n
@@ -319,12 +320,9 @@ end
 
 # op(x, y) for x arbitrary, y variable/constant
 function deg2_r0_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum, ::Val{turbo}
+    tree::Node{T}, cumulator::AbstractVector{T}, cX::AbstractArray{T}, op::F, ::Val{turbo}
 )::Tuple{AbstractVector{T},Bool} where {T<:Real,F,turbo}
     n = size(cX, 2)
-    (cumulator, complete) = _eval_tree_array(tree.l, cX, operators, Val(turbo))
-    @return_on_false complete cumulator
-    @return_on_nonfinite_array cumulator T n
     if tree.r.constant
         val = tree.r.val::T
         @return_on_check val T n
