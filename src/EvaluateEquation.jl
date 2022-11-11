@@ -3,7 +3,7 @@ module EvaluateEquationModule
 import LoopVectorization: @turbo, indices
 import ..EquationModule: Node, string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
-import ..UtilsModule: @return_on_false, @maybe_turbo, is_bad_array, vals
+import ..UtilsModule: @return_on_false, @maybe_turbo, is_bad_array
 import ..EquationUtilsModule: is_constant
 
 macro return_on_check(val, T, n)
@@ -98,45 +98,41 @@ function _eval_tree_array(
         !flag && return Array{T,1}(undef, size(cX, 2)), false
         return fill(result, size(cX, 2)), true
     elseif tree.degree == 1
+        op = operators.unaops[tree.op]
         if tree.l.degree == 2 && tree.l.l.degree == 0 && tree.l.r.degree == 0
             # op(op2(x, y)), where x, y, z are constants or variables.
-            return deg1_l2_ll0_lr0_eval(
-                tree, cX, vals[tree.op], vals[tree.l.op], operators, Val(turbo)
-            )
+            op_l = operators.binops[tree.l.op]
+            return deg1_l2_ll0_lr0_eval(tree, cX, op, op_l, Val(turbo))
         elseif tree.l.degree == 1 && tree.l.l.degree == 0
             # op(op2(x)), where x is a constant or variable.
-            return deg1_l1_ll0_eval(
-                tree, cX, vals[tree.op], vals[tree.l.op], operators, Val(turbo)
-            )
+            op_l = operators.unaops[tree.l.op]
+            return deg1_l1_ll0_eval(tree, cX, op, op_l, Val(turbo))
         else
             # op(x), for any x.
-            return deg1_eval(tree, cX, vals[tree.op], operators, Val(turbo))
+            return deg1_eval(tree, cX, op, operators, Val(turbo))
         end
     elseif tree.degree == 2
         # TODO - add op(op2(x, y), z) and op(x, op2(y, z))
+        op = operators.binops[tree.op]
         if tree.l.degree == 0 && tree.r.degree == 0
             # op(x, y), where x, y are constants or variables.
-            return deg2_l0_r0_eval(tree, cX, vals[tree.op], operators, Val(turbo))
+            return deg2_l0_r0_eval(tree, cX, op, Val(turbo))
         elseif tree.l.degree == 0
             # op(x, y), where x is a constant or variable but y is not.
-            return deg2_l0_eval(tree, cX, vals[tree.op], operators, Val(turbo))
+            return deg2_l0_eval(tree, cX, op, operators, Val(turbo))
         elseif tree.r.degree == 0
             # op(x, y), where y is a constant or variable but x is not.
-            return deg2_r0_eval(tree, cX, vals[tree.op], operators, Val(turbo))
+            return deg2_r0_eval(tree, cX, op, operators, Val(turbo))
         else
             # op(x, y), for any x or y
-            return deg2_eval(tree, cX, vals[tree.op], operators, Val(turbo))
+            return deg2_eval(tree, cX, op, operators, Val(turbo))
         end
     end
 end
 
 function deg2_eval(
-    tree::Node{T},
-    cX::AbstractMatrix{T},
-    ::Val{op_idx},
-    operators::OperatorEnum,
-    ::Val{turbo},
-)::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx,turbo}
+    tree::Node{T}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum, ::Val{turbo}
+)::Tuple{AbstractVector{T},Bool} where {T<:Real,F,turbo}
     n = size(cX, 2)
     (cumulator, complete) = _eval_tree_array(tree.l, cX, operators, Val(turbo))
     @return_on_false complete cumulator
@@ -144,7 +140,6 @@ function deg2_eval(
     (array2, complete2) = _eval_tree_array(tree.r, cX, operators, Val(turbo))
     @return_on_false complete2 cumulator
     @return_on_nonfinite_array array2 T n
-    op = operators.binops[op_idx]
 
     # We check inputs (and intermediates), not outputs.
     @maybe_turbo turbo for j in indices(cumulator)
@@ -156,22 +151,17 @@ function deg2_eval(
 end
 
 function deg1_eval(
-    tree::Node{T},
-    cX::AbstractMatrix{T},
-    ::Val{op_idx},
-    operators::OperatorEnum,
-    ::Val{turbo},
-)::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx,turbo}
+    tree::Node{T}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum, ::Val{turbo}
+)::Tuple{AbstractVector{T},Bool} where {T<:Real,F,turbo}
     n = size(cX, 2)
     (cumulator, complete) = _eval_tree_array(tree.l, cX, operators, Val(turbo))
     @return_on_false complete cumulator
     @return_on_nonfinite_array cumulator T n
-    op = operators.unaops[op_idx]
     @maybe_turbo turbo for j in indices(cumulator)
         x = op(cumulator[j])::T
         cumulator[j] = x
     end
-    return (cumulator, true) #
+    return (cumulator, true)
 end
 
 function deg0_eval(
@@ -188,14 +178,11 @@ end
 function deg1_l2_ll0_lr0_eval(
     tree::Node{T},
     cX::AbstractMatrix{T},
-    ::Val{op_idx},
-    ::Val{op_l_idx},
-    operators::OperatorEnum,
+    op::F,
+    op_l::F2,
     ::Val{turbo},
-)::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx,op_l_idx,turbo}
+)::Tuple{AbstractVector{T},Bool} where {T<:Real,F,F2,turbo}
     n = size(cX, 2)
-    op = operators.unaops[op_idx]
-    op_l = operators.binops[op_l_idx]
     if tree.l.l.constant && tree.l.r.constant
         val_ll = tree.l.l.val::T
         val_lr = tree.l.r.val::T
@@ -245,14 +232,11 @@ end
 function deg1_l1_ll0_eval(
     tree::Node{T},
     cX::AbstractMatrix{T},
-    ::Val{op_idx},
-    ::Val{op_l_idx},
-    operators::OperatorEnum,
+    op::F,
+    op_l::F2,
     ::Val{turbo},
-)::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx,op_l_idx,turbo}
+)::Tuple{AbstractVector{T},Bool} where {T<:Real,F,F2,turbo}
     n = size(cX, 2)
-    op = operators.unaops[op_idx]
-    op_l = operators.unaops[op_l_idx]
     if tree.l.l.constant
         val_ll = tree.l.l.val::T
         @return_on_check val_ll T n
@@ -275,14 +259,9 @@ end
 
 # op(x, y) for x and y variable/constant
 function deg2_l0_r0_eval(
-    tree::Node{T},
-    cX::AbstractMatrix{T},
-    ::Val{op_idx},
-    operators::OperatorEnum,
-    ::Val{turbo},
-)::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx,turbo}
+    tree::Node{T}, cX::AbstractMatrix{T}, op::F, ::Val{turbo}
+)::Tuple{AbstractVector{T},Bool} where {T<:Real,F,turbo}
     n = size(cX, 2)
-    op = operators.binops[op_idx]
     if tree.l.constant && tree.r.constant
         val_l = tree.l.val::T
         @return_on_check val_l T n
@@ -323,17 +302,12 @@ end
 
 # op(x, y) for x variable/constant, y arbitrary
 function deg2_l0_eval(
-    tree::Node{T},
-    cX::AbstractMatrix{T},
-    ::Val{op_idx},
-    operators::OperatorEnum,
-    ::Val{turbo},
-)::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx,turbo}
+    tree::Node{T}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum, ::Val{turbo}
+)::Tuple{AbstractVector{T},Bool} where {T<:Real,F,turbo}
     n = size(cX, 2)
     (cumulator, complete) = _eval_tree_array(tree.r, cX, operators, Val(turbo))
     @return_on_false complete cumulator
     @return_on_nonfinite_array cumulator T n
-    op = operators.binops[op_idx]
     if tree.l.constant
         val = tree.l.val::T
         @return_on_check val T n
@@ -353,17 +327,12 @@ end
 
 # op(x, y) for x arbitrary, y variable/constant
 function deg2_r0_eval(
-    tree::Node{T},
-    cX::AbstractMatrix{T},
-    ::Val{op_idx},
-    operators::OperatorEnum,
-    ::Val{turbo},
-)::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx,turbo}
+    tree::Node{T}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum, ::Val{turbo}
+)::Tuple{AbstractVector{T},Bool} where {T<:Real,F,turbo}
     n = size(cX, 2)
     (cumulator, complete) = _eval_tree_array(tree.l, cX, operators, Val(turbo))
     @return_on_false complete cumulator
     @return_on_nonfinite_array cumulator T n
-    op = operators.binops[op_idx]
     if tree.r.constant
         val = tree.r.val::T
         @return_on_check val T n
@@ -394,9 +363,9 @@ function _eval_constant_tree(
     if tree.degree == 0
         return deg0_eval_constant(tree)
     elseif tree.degree == 1
-        return deg1_eval_constant(tree, vals[tree.op], operators)
+        return deg1_eval_constant(tree, operators.unaops[tree.op], operators)
     else
-        return deg2_eval_constant(tree, vals[tree.op], operators)
+        return deg2_eval_constant(tree, operators.binops[tree.op], operators)
     end
 end
 
@@ -405,9 +374,8 @@ end
 end
 
 function deg1_eval_constant(
-    tree::Node{T}, ::Val{op_idx}, operators::OperatorEnum
-)::Tuple{T,Bool} where {T<:Real,op_idx}
-    op = operators.unaops[op_idx]
+    tree::Node{T}, op::F, operators::OperatorEnum
+)::Tuple{T,Bool} where {T<:Real,F}
     (cumulator, complete) = _eval_constant_tree(tree.l, operators)
     !complete && return zero(T), false
     output = op(cumulator)::T
@@ -415,9 +383,8 @@ function deg1_eval_constant(
 end
 
 function deg2_eval_constant(
-    tree::Node{T}, ::Val{op_idx}, operators::OperatorEnum
-)::Tuple{T,Bool} where {T<:Real,op_idx}
-    op = operators.binops[op_idx]
+    tree::Node{T}, op::F, operators::OperatorEnum
+)::Tuple{T,Bool} where {T<:Real,F}
     (cumulator, complete) = _eval_constant_tree(tree.l, operators)
     !complete && return zero(T), false
     (cumulator2, complete2) = _eval_constant_tree(tree.r, operators)
@@ -442,31 +409,29 @@ function differentiable_eval_tree_array(
             return (cX[tree.feature, :], true)
         end
     elseif tree.degree == 1
-        return deg1_diff_eval(tree, cX, vals[tree.op], operators)
+        return deg1_diff_eval(tree, cX, operators.unaops[tree.op], operators)
     else
-        return deg2_diff_eval(tree, cX, vals[tree.op], operators)
+        return deg2_diff_eval(tree, cX, operators.binops[tree.op], operators)
     end
 end
 
 function deg1_diff_eval(
-    tree::Node{T1}, cX::AbstractMatrix{T}, ::Val{op_idx}, operators::OperatorEnum
-)::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx,T1}
+    tree::Node{T1}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum
+)::Tuple{AbstractVector{T},Bool} where {T<:Real,F,T1}
     (left, complete) = differentiable_eval_tree_array(tree.l, cX, operators)
     @return_on_false complete left
-    op = operators.unaops[op_idx]
     out = op.(left)
     no_nans = !any(x -> (!isfinite(x)), out)
     return (out, no_nans)
 end
 
 function deg2_diff_eval(
-    tree::Node{T1}, cX::AbstractMatrix{T}, ::Val{op_idx}, operators::OperatorEnum
-)::Tuple{AbstractVector{T},Bool} where {T<:Real,op_idx,T1}
+    tree::Node{T1}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum
+)::Tuple{AbstractVector{T},Bool} where {T<:Real,F,T1}
     (left, complete) = differentiable_eval_tree_array(tree.l, cX, operators)
     @return_on_false complete left
     (right, complete2) = differentiable_eval_tree_array(tree.r, cX, operators)
     @return_on_false complete2 left
-    op = operators.binops[op_idx]
     out = op.(left, right)
     no_nans = !any(x -> (!isfinite(x)), out)
     return (out, no_nans)
@@ -557,30 +522,28 @@ function _eval_tree_array_generic(
             end
         end
     elseif tree.degree == 1
-        return deg1_eval_generic(tree, cX, vals[tree.op], operators, Val(throw_errors))
+        return deg1_eval_generic(tree, cX, operators.unaops[tree.op], operators, Val(throw_errors))
     else
-        return deg2_eval_generic(tree, cX, vals[tree.op], operators, Val(throw_errors))
+        return deg2_eval_generic(tree, cX, operators.binops[tree.op], operators, Val(throw_errors))
     end
 end
 
 function deg1_eval_generic(
-    tree, cX, ::Val{op_idx}, operators::GenericOperatorEnum, ::Val{throw_errors}
-) where {op_idx,throw_errors}
+    tree, cX, op::F, operators::GenericOperatorEnum, ::Val{throw_errors}
+) where {F,throw_errors}
     left, complete = eval_tree_array(tree.l, cX, operators)
     !throw_errors && !complete && return nothing, false
-    op = operators.unaops[op_idx]
     !throw_errors && !hasmethod(op, Tuple{typeof(left)}) && return nothing, false
     return op(left), true
 end
 
 function deg2_eval_generic(
-    tree, cX, ::Val{op_idx}, operators::GenericOperatorEnum, ::Val{throw_errors}
-) where {op_idx,throw_errors}
+    tree, cX, op::F, operators::GenericOperatorEnum, ::Val{throw_errors}
+) where {F,throw_errors}
     left, complete = eval_tree_array(tree.l, cX, operators)
     !throw_errors && !complete && return nothing, false
     right, complete = eval_tree_array(tree.r, cX, operators)
     !throw_errors && !complete && return nothing, false
-    op = operators.binops[op_idx]
     !throw_errors &&
         !hasmethod(op, Tuple{typeof(left),typeof(right)}) &&
         return nothing, false

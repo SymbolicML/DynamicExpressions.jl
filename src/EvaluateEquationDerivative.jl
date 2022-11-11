@@ -3,7 +3,7 @@ module EvaluateEquationDerivativeModule
 import LoopVectorization: indices
 import ..EquationModule: Node
 import ..OperatorEnumModule: OperatorEnum
-import ..UtilsModule: @return_on_false2, is_bad_array, vals
+import ..UtilsModule: @return_on_false2, is_bad_array
 import ..EquationUtilsModule: count_constants, index_constants, NodeIndex
 import ..EvaluateEquationModule: deg0_eval
 
@@ -60,9 +60,9 @@ function _eval_diff_tree_array(
     evaluation, derivative, complete = if tree.degree == 0
         diff_deg0_eval(tree, cX, direction)
     elseif tree.degree == 1
-        diff_deg1_eval(tree, cX, vals[tree.op], operators, direction)
+        diff_deg1_eval(tree, cX, operators.unaops[tree.op], operators.diff_unaops[tree.op], operators, direction)
     else
-        diff_deg2_eval(tree, cX, vals[tree.op], operators, direction)
+        diff_deg2_eval(tree, cX, operators.binops[tree.op], operators.diff_binops[tree.op], operators, direction)
     end
     @return_on_false2 complete evaluation derivative
     return evaluation, derivative, !(is_bad_array(evaluation) || is_bad_array(derivative))
@@ -81,18 +81,16 @@ end
 function diff_deg1_eval(
     tree::Node{T},
     cX::AbstractMatrix{T},
-    ::Val{op_idx},
+    op::F,
+    diff_op::dF,
     operators::OperatorEnum,
     direction::Int,
-)::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Real,op_idx}
+)::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Real,F,dF}
     n = size(cX, 2)
     (cumulator, dcumulator, complete) = _eval_diff_tree_array(
         tree.l, cX, operators, direction
     )
     @return_on_false2 complete cumulator dcumulator
-
-    op = operators.unaops[op_idx]
-    diff_op = operators.diff_unaops[op_idx]
 
     # TODO - add type assertions to get better speed:
     @inbounds @simd for j in indices((cumulator, dcumulator))
@@ -108,10 +106,11 @@ end
 function diff_deg2_eval(
     tree::Node{T},
     cX::AbstractMatrix{T},
-    ::Val{op_idx},
+    op::F,
+    diff_op::dF,
     operators::OperatorEnum,
     direction::Int,
-)::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Real,op_idx}
+)::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Real,F,dF}
     n = size(cX, 2)
     (cumulator, dcumulator, complete) = _eval_diff_tree_array(
         tree.l, cX, operators, direction
@@ -121,9 +120,6 @@ function diff_deg2_eval(
         tree.r, cX, operators, direction
     )
     @return_on_false2 complete2 array2 dcumulator2
-
-    op = operators.binops[op_idx]
-    diff_op = operators.diff_binops[op_idx]
 
     @inbounds @simd for j in indices((cumulator, dcumulator, array2, dcumulator2))
         x = op(cumulator[j], array2[j])
@@ -213,11 +209,27 @@ function _eval_grad_tree_array(
         grad_deg0_eval(tree, n, n_gradients, index_tree, cX, Val(variable))
     elseif tree.degree == 1
         grad_deg1_eval(
-            tree, n, n_gradients, index_tree, cX, vals[tree.op], operators, Val(variable)
+            tree,
+            n,
+            n_gradients,
+            index_tree,
+            cX,
+            operators.unaops[tree.op],
+            operators.diff_unaops[tree.op],
+            operators,
+            Val(variable),
         )
     else
         grad_deg2_eval(
-            tree, n, n_gradients, index_tree, cX, vals[tree.op], operators, Val(variable)
+            tree,
+            n,
+            n_gradients,
+            index_tree,
+            cX,
+            operators.binops[tree.op],
+            operators.diff_binops[tree.op],
+            operators,
+            Val(variable),
         )
     end
 end
@@ -248,21 +260,19 @@ function grad_deg1_eval(
     n_gradients::Int,
     index_tree::NodeIndex,
     cX::AbstractMatrix{T},
-    ::Val{op_idx},
+    op::F,
+    diff_op::dF,
     operators::OperatorEnum,
     ::Val{variable},
-)::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Real,op_idx,variable}
+)::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Real,F,dF,variable}
     (cumulator, dcumulator, complete) = eval_grad_tree_array(
         tree.l, n, n_gradients, index_tree.l, cX, operators, Val(variable)
     )
     @return_on_false2 complete cumulator dcumulator
 
-    op = operators.unaops[op_idx]
-    diff_op = operators.diff_unaops[op_idx]
-
     @inbounds @simd for j in indices((cumulator, dcumulator), (1, 2))
         x = op(cumulator[j])::T
-        dx = diff_op(cumulator[j])
+        dx = diff_op(cumulator[j])::T
 
         cumulator[j] = x
         for k in indices(dcumulator, 1)
@@ -278,10 +288,11 @@ function grad_deg2_eval(
     n_gradients::Int,
     index_tree::NodeIndex,
     cX::AbstractMatrix{T},
-    ::Val{op_idx},
+    op::F,
+    diff_op::dF,
     operators::OperatorEnum,
     ::Val{variable},
-)::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Real,op_idx,variable}
+)::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Real,F,dF,variable}
     (cumulator1, dcumulator1, complete) = eval_grad_tree_array(
         tree.l, n, n_gradients, index_tree.l, cX, operators, Val(variable)
     )
@@ -290,9 +301,6 @@ function grad_deg2_eval(
         tree.r, n, n_gradients, index_tree.r, cX, operators, Val(variable)
     )
     @return_on_false2 complete2 cumulator1 dcumulator1
-
-    op = operators.binops[op_idx]
-    diff_op = operators.diff_binops[op_idx]
 
     @inbounds @simd for j in indices(
         (cumulator1, cumulator2, dcumulator1, dcumulator2), (1, 1, 2, 2)

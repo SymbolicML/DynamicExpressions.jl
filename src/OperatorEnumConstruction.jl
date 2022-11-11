@@ -1,7 +1,6 @@
 module OperatorEnumConstructionModule
 
 import Zygote: gradient
-import ..UtilsModule: max_ops
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
 import ..EquationModule: string_tree, Node
 import ..EvaluateEquationModule: eval_tree_array
@@ -218,7 +217,6 @@ function OperatorEnum(;
     define_helper_functions::Bool=true,
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
-    @assert length(binary_operators) <= max_ops && length(unary_operators) <= max_ops
     binary_operators = Tuple(binary_operators)
     unary_operators = Tuple(unary_operators)
 
@@ -306,7 +304,6 @@ function GenericOperatorEnum(;
     unary_operators = Tuple(unary_operators)
 
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
-    @assert length(binary_operators) <= max_ops && length(unary_operators) <= max_ops
 
     operators = GenericOperatorEnum(binary_operators, unary_operators)
 
