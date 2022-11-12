@@ -227,9 +227,12 @@ function OperatorEnum(;
 
         test_inputs = Float32.(LinRange(-100, 100, 99))
         # Create grid over [-100, 100]^2:
-        test_inputs_xy = reduce(
-            hcat, reduce(hcat, ([[[x, y] for x in test_inputs] for y in test_inputs]))
-        )
+        test_inputs_xy = Array{Float32}(undef, 2, 99^2)
+        row = 1
+        for x in test_inputs, y in test_inputs
+            test_inputs_xy[:, row] .= [x, y]
+            row += 1
+        end
         for op in binary_operators
             diff_op(x, y) = gradient(op, x, y)
 
