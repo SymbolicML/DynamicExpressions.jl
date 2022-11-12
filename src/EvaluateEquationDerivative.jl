@@ -8,7 +8,7 @@ import ..EquationUtilsModule: count_constants, index_constants, NodeIndex
 import ..EvaluateEquationModule: deg0_eval
 
 function assert_autodiff_enabled(operators::OperatorEnum)
-    if operators.diff_binops === nothing && operators.diff_unaops === nothing
+    if length(operators.diff_binops) == 0 && length(operators.diff_unaops) == 0
         error(
             "Found no differential operators. Did you forget to set `enable_autodiff=true` when creating the `OperatorEnum`?",
         )

@@ -217,12 +217,13 @@ function OperatorEnum(;
     define_helper_functions::Bool=true,
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
-    binary_operators = Tuple(binary_operators)
-    unary_operators = Tuple(unary_operators)
+
+    binary_operators = convert(Vector{Function}, collect(binary_operators))
+    unary_operators = convert(Vector{Function}, collect(unary_operators))
 
     if enable_autodiff
-        diff_binary_operators = Any[]
-        diff_unary_operators = Any[]
+        diff_binary_operators = Function[]
+        diff_unary_operators = Function[]
 
         test_inputs = map(x -> convert(Float32, x), LinRange(-100, 100, 99))
         # Create grid over [-100, 100]^2:
@@ -259,13 +260,11 @@ function OperatorEnum(;
                 break
             end
         end
-        diff_binary_operators = Tuple(diff_binary_operators)
-        diff_unary_operators = Tuple(diff_unary_operators)
     end
 
     if !enable_autodiff
-        diff_binary_operators = nothing
-        diff_unary_operators = nothing
+        diff_binary_operators = Function[]
+        diff_unary_operators = Function[]
     end
 
     operators = OperatorEnum(
@@ -300,9 +299,6 @@ and `(::Node)(X)`.
 function GenericOperatorEnum(;
     binary_operators=[], unary_operators=[], define_helper_functions::Bool=true
 )
-    binary_operators = Tuple(binary_operators)
-    unary_operators = Tuple(unary_operators)
-
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
 
     operators = GenericOperatorEnum(binary_operators, unary_operators)
