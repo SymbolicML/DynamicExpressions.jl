@@ -225,7 +225,7 @@ function OperatorEnum(;
         diff_binary_operators = Function[]
         diff_unary_operators = Function[]
 
-        test_inputs = map(x -> convert(Float32, x), LinRange(-100, 100, 99))
+        test_inputs = Float32.(LinRange(-100, 100, 99))
         # Create grid over [-100, 100]^2:
         test_inputs_xy = reduce(
             hcat, reduce(hcat, ([[[x, y] for x in test_inputs] for y in test_inputs]))
