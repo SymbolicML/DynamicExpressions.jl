@@ -218,8 +218,8 @@ function OperatorEnum(;
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
 
-    binary_operators = convert(Vector{Function}, collect(binary_operators))
-    unary_operators = convert(Vector{Function}, collect(unary_operators))
+    binary_operators = Function[op for op in binary_operators]
+    unary_operators = Function[op for op in unary_operators]
 
     if enable_autodiff
         diff_binary_operators = Function[]
