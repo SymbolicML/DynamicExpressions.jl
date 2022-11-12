@@ -304,6 +304,9 @@ function GenericOperatorEnum(;
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
 
+    binary_operators = Function[op for op in binary_operators]
+    unary_operators = Function[op for op in unary_operators]
+
     operators = GenericOperatorEnum(binary_operators, unary_operators)
 
     if define_helper_functions
