@@ -9,6 +9,7 @@ include("EvaluateEquationDerivative.jl")
 include("InterfaceSymbolicUtils.jl")
 include("SimplifyEquation.jl")
 include("OperatorEnumConstruction.jl")
+include("ReverseMode.jl")
 
 using Reexport
 @reexport import .EquationModule: Node, string_tree, print_tree, copy_node, set_node!
@@ -31,6 +32,7 @@ using Reexport
     eval_diff_tree_array, eval_grad_tree_array
 @reexport import .InterfaceSymbolicUtilsModule: node_to_symbolic, symbolic_to_node
 @reexport import .SimplifyEquationModule: combine_operators, simplify_tree
+@reexport import .ReverseModeModule: reverse_grad
 
 import TOML: parsefile
 

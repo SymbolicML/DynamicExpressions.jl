@@ -1,16 +1,39 @@
-using DynamicExpressions
-import DynamicExpressions.EvaluateEquationModule: deg0_eval
+module ReverseModeModule
 
-const TapeType{T} = IdDict{Node{T},Vector{T}}
+import ..EquationModule: Node
+import ..OperatorEnumModule: OperatorEnum
+import ..EvaluateEquationModule: deg0_eval, deg1_eval, deg2_eval, @return_on_nonfinite_array
+import ..UtilsModule: @return_on_false, @maybe_turbo, is_bad_array
 
-function reverse_grad(tree::Node{T}, X::AbstractMatrix{T}, operators::OperatorEnum; variable=true) where {T}
-    tape = TapeType{T}()
-    load_tape!(tape, tree, X, operators)
-    init_grad = ones(T, 1, size(X, 2))
-    return reverse_grad_from_tape(init_grad, tape, tree, operators; variable=variable, ngrads=size(X, 1))
+const TapeType{T,A} = IdDict{Node{T},A}
+
+"""Instantly extract `Array` from `x::Array{T,3}`."""
+@generated function constructor_of(x)
+    constructor = getfield(x.name.module, Symbol(x.name.name))
+    return :($constructor)
 end
 
-function reverse_grad_from_tape(grad::AbstractMatrix{T}, tape::TapeType{T}, tree::Node{T}, operators::OperatorEnum; variable::Bool, ngrads::Int)::AbstractMatrix{T} where {T}
+function reverse_grad(
+    tree::Node{T}, X::AbstractMatrix{T}, operators::OperatorEnum; variable=true
+) where {T}
+    A = constructor_of(X)
+    tape = TapeType{T,A{T,1}}()
+    result, complete = load_tape!(tape, tree, X, operators)
+    # init_grad = ones(T, 1, size(X, 2))
+    # return reverse_grad_from_tape(
+    #     init_grad, tape, tree, operators; variable=variable, ngrads=size(X, 1)
+    # )
+    return tape
+end
+
+function reverse_grad_from_tape(
+    grad::AbstractMatrix{T},
+    tape::TapeType{T},
+    tree::Node{T},
+    operators::OperatorEnum;
+    variable::Bool,
+    ngrads::Int,
+)::AbstractMatrix{T} where {T}
     if tree.degree == 0
         if variable
             tree.constant && return grad .* 0
@@ -24,48 +47,50 @@ function reverse_grad_from_tape(grad::AbstractMatrix{T}, tape::TapeType{T}, tree
 end
 
 function load_tape!(
-    tape::TapeType{T}, tree::Node{T}, X::AbstractMatrix{T}, operators::OperatorEnum
-)::Vector{T} where {T}
-    get!(tape, tree) do
-        if tree.degree == 0
-            return deg0_eval(tree, X, operators)[1]
-        elseif tree.degree == 1
-            return deg1_eval_tape!(tape, tree, X, Val(tree.op), operators)
-        else
-            return deg2_eval_tape!(tape, tree, X, Val(tree.op), operators)
-        end
+    tape::TapeType{T,A}, tree::Node{T}, X::AbstractMatrix{T}, operators::OperatorEnum
+)::Tuple{Vector{T},Bool} where {T,A}
+    n = size(X, 2)
+    # haskey(tape, tree) && return tape[tree], true
+    result, complete = if tree.degree == 0
+        deg0_eval(tree, X)
+    elseif tree.degree == 1
+        deg1_eval_tape!(tape, tree, X, operators.unaops[tree.op], operators)
+    else
+        deg2_eval_tape!(tape, tree, X, operators.binops[tree.op], operators)
     end
+    @return_on_false complete result
+    @return_on_nonfinite_array result T n
+    tape[tree] = copy(result)
+    return result, true
 end
 
 function deg1_eval_tape!(
-    tape::TapeType{T},
+    tape::TapeType{T,A},
     tree::Node{T},
     cX::AbstractMatrix{T},
-    ::Val{op_idx},
+    op::F,
     operators::OperatorEnum,
-) where {T,op_idx}
-    left = load_tape!(tape, tree.l, cX, operators)
-    op = operators.unaops[op_idx]
-    return op.(left)
+) where {T,A,F}
+    left, complete = load_tape!(tape, tree.l, cX, operators)
+    @return_on_false complete left
+    @return_on_nonfinite_array left T n
+    return deg1_eval(left, op, Val(false))
 end
 
 function deg2_eval_tape!(
-    tape::TapeType{T},
+    tape::TapeType{T,A},
     tree::Node{T},
     cX::AbstractMatrix{T},
-    ::Val{op_idx},
+    op::F,
     operators::OperatorEnum,
-) where {T,op_idx}
-    left = load_tape!(tape, tree.l, cX, operators)
-    right = load_tape!(tape, tree.r, cX, operators)
-    op = operators.binops[op_idx]
-    return op.(left, right)
+) where {T,A,F}
+    left, complete = load_tape!(tape, tree.l, cX, operators)
+    @return_on_false complete left
+    @return_on_nonfinite_array left T n
+    right, complete = load_tape!(tape, tree.r, cX, operators)
+    @return_on_false complete right
+    @return_on_nonfinite_array right T n
+    return deg2_eval(left, right, op, Val(false))
 end
 
-operators = OperatorEnum(;
-    binary_operators=[+, -, *, /], unary_operators=[cos, exp, sin], enable_autodiff=true
-)
-x1, x2, x3 = Node(; feature=1), Node(; feature=2), Node(; feature=3)
-tree = cos(x1 - 3.2) * x2
-X = randn(3, 100)
-@btime tape = rev(tree, X, operators);
+end
