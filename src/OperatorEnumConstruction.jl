@@ -1,7 +1,6 @@
 module OperatorEnumConstructionModule
 
 import Zygote: gradient
-import ..UtilsModule: max_ops
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
 import ..EquationModule: string_tree, Node
 import ..EvaluateEquationModule: eval_tree_array
@@ -218,19 +217,22 @@ function OperatorEnum(;
     define_helper_functions::Bool=true,
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
-    @assert length(binary_operators) <= max_ops && length(unary_operators) <= max_ops
-    binary_operators = Tuple(binary_operators)
-    unary_operators = Tuple(unary_operators)
+
+    binary_operators = Function[op for op in binary_operators]
+    unary_operators = Function[op for op in unary_operators]
 
     if enable_autodiff
-        diff_binary_operators = Any[]
-        diff_unary_operators = Any[]
+        diff_binary_operators = Function[]
+        diff_unary_operators = Function[]
 
-        test_inputs = map(x -> convert(Float32, x), LinRange(-100, 100, 99))
+        test_inputs = Float32.(LinRange(-100, 100, 99))
         # Create grid over [-100, 100]^2:
-        test_inputs_xy = reduce(
-            hcat, reduce(hcat, ([[[x, y] for x in test_inputs] for y in test_inputs]))
-        )
+        test_inputs_xy = Array{Float32}(undef, 2, 99^2)
+        row = 1
+        for x in test_inputs, y in test_inputs
+            test_inputs_xy[:, row] .= [x, y]
+            row += 1
+        end
         for op in binary_operators
             diff_op(x, y) = gradient(op, x, y)
 
@@ -261,13 +263,11 @@ function OperatorEnum(;
                 break
             end
         end
-        diff_binary_operators = Tuple(diff_binary_operators)
-        diff_unary_operators = Tuple(diff_unary_operators)
     end
 
     if !enable_autodiff
-        diff_binary_operators = nothing
-        diff_unary_operators = nothing
+        diff_binary_operators = Function[]
+        diff_unary_operators = Function[]
     end
 
     operators = OperatorEnum(
@@ -302,11 +302,10 @@ and `(::Node)(X)`.
 function GenericOperatorEnum(;
     binary_operators=[], unary_operators=[], define_helper_functions::Bool=true
 )
-    binary_operators = Tuple(binary_operators)
-    unary_operators = Tuple(unary_operators)
-
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
-    @assert length(binary_operators) <= max_ops && length(unary_operators) <= max_ops
+
+    binary_operators = Function[op for op in binary_operators]
+    unary_operators = Function[op for op in unary_operators]
 
     operators = GenericOperatorEnum(binary_operators, unary_operators)
 

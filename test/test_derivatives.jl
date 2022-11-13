@@ -6,7 +6,8 @@ using Zygote
 using LinearAlgebra
 
 seed = 0
-pow_abs2(x, y) = abs(x)^y
+# SIMD doesn't like abs(x) ^ y for some reason.
+pow_abs2(x, y) = exp(y * log(abs(x)))
 custom_cos(x) = cos(x)^2
 
 equation1(x1, x2, x3) = x1 + x2 + x3 + 3.2
@@ -35,8 +36,12 @@ function array_test(ar1, ar2; rtol=0.1)
     return isapprox(ar1, ar2; rtol=rtol)
 end
 
-for type in [Float16, Float32, Float64]
-    println("Testing derivatives with respect to variables, with type=$(type).")
+for type in [Float16, Float32, Float64], turbo in [true, false]
+    type == Float16 && turbo && continue
+
+    println(
+        "Testing derivatives with respect to variables, with type=$(type) and turbo=$(turbo).",
+    )
     rng = MersenneTwister(seed)
     nfeatures = 3
     N = 100
@@ -72,10 +77,16 @@ for type in [Float16, Float32, Float64]
         )
         # Convert tuple of vectors to matrix:
         true_grad = reduce(hcat, true_grad)'
-        predicted_grad = eval_grad_tree_array(tree, X, operators; variable=true)[2]
+        predicted_grad = eval_grad_tree_array(
+            tree, X, operators; variable=true, turbo=turbo
+        )[2]
         predicted_grad2 =
             reduce(
-                hcat, [eval_diff_tree_array(tree, X, operators, i)[2] for i in 1:nfeatures]
+                hcat,
+                [
+                    eval_diff_tree_array(tree, X, operators, i; turbo=turbo)[2] for
+                    i in 1:nfeatures
+                ],
             )'
         predicted_grad3 = tree'(X)
 
@@ -98,7 +109,7 @@ for type in [Float16, Float32, Float64]
     local tree
     tree = equation4(nx1, nx2, nx3)
     tree = convert(Node{type}, tree)
-    predicted_grad = eval_grad_tree_array(tree, X, operators; variable=false)[2]
+    predicted_grad = eval_grad_tree_array(tree, X, operators; variable=false, turbo=turbo)[2]
     @test array_test(predicted_grad[1, :], X[1, :])
 
     # More complex expression:
@@ -123,7 +134,7 @@ for type in [Float16, Float32, Float64]
         [X[i, :] for i in 1:nfeatures]...,
     )[1:2]
     true_grad = reduce(hcat, true_grad)'
-    predicted_grad = eval_grad_tree_array(tree, X, operators; variable=false)[2]
+    predicted_grad = eval_grad_tree_array(tree, X, operators; variable=false, turbo=turbo)[2]
 
     @test array_test(predicted_grad, true_grad)
     println("Done.")
