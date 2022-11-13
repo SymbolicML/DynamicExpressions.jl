@@ -7,11 +7,12 @@ T = Union{baseT,Vector{baseT},Matrix{baseT}}
 
 scalar_add(x::T, y::T) where {T<:Real} = x + y
 
-operators = GenericOperatorEnum(; binary_operators=[scalar_add], extend_user_operators=true)
+operators = GenericOperatorEnum(; binary_operators=[scalar_add])
 
 x1, x2, x3 = [Node(T; feature=i) for i in 1:3]
 
-tree = Node(1, x1, x2)
+@extend_operators operators
+tree = scalar_add(x1, x2)
 
 # With error handling:
 try

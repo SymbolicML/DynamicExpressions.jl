@@ -6,15 +6,9 @@ using Zygote
 using LinearAlgebra
 
 seed = 0
-pow_abs2(x::T, y::T) where {T<:Real} = abs(x)^y
-custom_cos(x::T) where {T<:Real} = cos(x)^2
-
-# Define these custom functions for Node data types:
-pow_abs2(l::Node, r::Node)::Node =
-    (l.constant && r.constant) ? Node(pow_abs2(l.val, r.val)::Real) : Node(5, l, r)
-pow_abs2(l::Node, r::Real)::Node = l.constant ? Node(pow_abs2(l.val, r)) : Node(5, l, r)
-pow_abs2(l::Real, r::Node)::Node = r.constant ? Node(pow_abs2(l, r.val)) : Node(5, l, r)
-custom_cos(x::Node)::Node = x.constant ? Node(; val=custom_cos(x.val)) : Node(1, x)
+# SIMD doesn't like abs(x) ^ y for some reason.
+pow_abs2(x, y) = exp(y * log(abs(x)))
+custom_cos(x) = cos(x)^2
 
 equation1(x1, x2, x3) = x1 + x2 + x3 + 3.2
 equation2(x1, x2, x3) = pow_abs2(x1, x2) + x3 + custom_cos(1.0 + x3) + 3.0 / x1
@@ -42,12 +36,17 @@ function array_test(ar1, ar2; rtol=0.1)
     return isapprox(ar1, ar2; rtol=rtol)
 end
 
-for type in [Float16, Float32, Float64]
-    println("Testing derivatives with respect to variables, with type=$(type).")
+for type in [Float16, Float32, Float64], turbo in [true, false]
+    type == Float16 && turbo && continue
+
+    println(
+        "Testing derivatives with respect to variables, with type=$(type) and turbo=$(turbo).",
+    )
     rng = MersenneTwister(seed)
     nfeatures = 3
     N = 100
 
+    local X, operators
     X = rand(rng, type, nfeatures, N) * 5
 
     operators = OperatorEnum(;
@@ -55,6 +54,7 @@ for type in [Float16, Float32, Float64]
         unary_operators=(custom_cos, exp, sin),
         enable_autodiff=true,
     )
+    @extend_operators operators
 
     for j in 1:3
         equation = [equation1, equation2, equation3][j]
@@ -63,6 +63,7 @@ for type in [Float16, Float32, Float64]
             continue
         end
 
+        local tree
         tree = convert(Node{type}, equation(nx1, nx2, nx3))
         predicted_output = eval_tree_array(tree, X, operators)[1]
         true_output = equation.([X[i, :] for i in 1:nfeatures]...)
@@ -76,19 +77,28 @@ for type in [Float16, Float32, Float64]
         )
         # Convert tuple of vectors to matrix:
         true_grad = reduce(hcat, true_grad)'
-        predicted_grad = eval_grad_tree_array(tree, X, operators; variable=true)[2]
+        predicted_grad = eval_grad_tree_array(
+            tree, X, operators; variable=true, turbo=turbo
+        )[2]
         predicted_grad2 =
             reduce(
-                hcat, [eval_diff_tree_array(tree, X, operators, i)[2] for i in 1:nfeatures]
+                hcat,
+                [
+                    eval_diff_tree_array(tree, X, operators, i; turbo=turbo)[2] for
+                    i in 1:nfeatures
+                ],
             )'
+        predicted_grad3 = tree'(X)
 
         # Print largest difference between predicted_grad, true_grad:
         @test array_test(predicted_grad, true_grad)
         @test array_test(predicted_grad2, true_grad)
+        @test array_test(predicted_grad3, true_grad)
 
         # Make sure that the array_test actually works:
         @test !array_test(predicted_grad .* 0, true_grad)
         @test !array_test(predicted_grad2 .* 0, true_grad)
+        @test !array_test(predicted_grad3 .* 0, true_grad)
     end
     println("Done.")
     println("Testing derivatives with respect to constants, with type=$(type).")
@@ -96,9 +106,10 @@ for type in [Float16, Float32, Float64]
     # Test gradient with respect to constants:
     equation4(x1, x2, x3) = 3.2f0 * x1
     # The gradient should be: (C * x1) => x1 is gradient with respect to C.
+    local tree
     tree = equation4(nx1, nx2, nx3)
     tree = convert(Node{type}, tree)
-    predicted_grad = eval_grad_tree_array(tree, X, operators; variable=false)[2]
+    predicted_grad = eval_grad_tree_array(tree, X, operators; variable=false, turbo=turbo)[2]
     @test array_test(predicted_grad[1, :], X[1, :])
 
     # More complex expression:
@@ -123,7 +134,7 @@ for type in [Float16, Float32, Float64]
         [X[i, :] for i in 1:nfeatures]...,
     )[1:2]
     true_grad = reduce(hcat, true_grad)'
-    predicted_grad = eval_grad_tree_array(tree, X, operators; variable=false)[2]
+    predicted_grad = eval_grad_tree_array(tree, X, operators; variable=false, turbo=turbo)[2]
 
     @test array_test(predicted_grad, true_grad)
     println("Done.")
@@ -138,6 +149,7 @@ operators = OperatorEnum(;
     unary_operators=(custom_cos, exp, sin),
     enable_autodiff=true,
 )
+@extend_operators operators
 tree = equation3(nx1, nx2, nx3)
 
 """Check whether the ordering of constant_list is the same as the ordering of node_index."""
