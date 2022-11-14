@@ -241,9 +241,7 @@ function OperatorEnum(;
             if gradient_exists
                 push!(diff_binary_operators, diff_op)
             else
-                if verbosity > 0
-                    @warn "Automatic differentiation has been turned off, since operator $(op) does not have well-defined gradients."
-                end
+                @warn "Automatic differentiation has been turned off, since operator $(op) does not have well-defined gradients."
                 enable_autodiff = false
                 break
             end
@@ -256,9 +254,7 @@ function OperatorEnum(;
             if gradient_exists
                 push!(diff_unary_operators, diff_op)
             else
-                if verbosity > 0
-                    @warn "Automatic differentiation has been turned off, since operator $(op) does not have well-defined gradients."
-                end
+                @warn "Automatic differentiation has been turned off, since operator $(op) does not have well-defined gradients."
                 enable_autodiff = false
                 break
             end
