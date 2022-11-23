@@ -122,4 +122,38 @@ end
             types=types,
         )
     end
+    operators = OperatorEnum(;
+        binary_operators=binary_operators[1],
+        unary_operators=unary_operators[1],
+        define_helper_functions=false,
+    )
+    # Want to precompile all above calls.
+    types = [Float16, Float32, Float64]
+    for T in types
+        @precompile_all_calls begin
+            x = Node(; feature=1)
+            c = Node(; val=1.0)
+            tree = Node(
+                2,
+                Node(1, Node(1, Node(2, x, c), Node(3, c, Node(1, x)))),
+                Node(3, Node(1, Node(4, x, x))),
+            )
+            tree = convert(Node{T}, tree)
+            for preserve_topology in [true, false]
+                tree = copy_node(tree; preserve_topology)
+                set_node!(tree, copy_node(tree; preserve_topology))
+            end
+            string_tree(tree, operators)
+            count_nodes(tree)
+            count_constants(tree)
+            count_depth(tree)
+            index_constants(tree)
+            has_operators(tree)
+            has_constants(tree)
+            get_constants(tree)
+            set_constants(tree, get_constants(tree))
+            combine_operators(tree, operators)
+            simplify_tree(tree, operators)
+        end
+    end
 end
