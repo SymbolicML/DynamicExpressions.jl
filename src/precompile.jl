@@ -1,4 +1,3 @@
-import Combinatorics: permutations
 import SnoopPrecompile: @precompile_all_calls, @precompile_setup
 
 macro ignore_domain_error(ex)
@@ -31,7 +30,10 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
 
         X = rand(T, 3, 10)
         operators = OperatorEnum(;
-            binary_operators=binops, unary_operators=unaops, define_helper_functions=false
+            binary_operators=binops,
+            unary_operators=unaops,
+            define_helper_functions=false,
+            enable_autodiff=true,
         )
         x = Node(T; feature=1)
         c = Node(T; val=one(T))
@@ -39,6 +41,11 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
         # Trivial:
         for l in (x, c)
             @ignore_domain_error eval_tree_array(l, X, operators; turbo=use_turbo)
+            for variable in (true, false)
+                @ignore_domain_error eval_grad_tree_array(
+                    l, X, operators; turbo=use_turbo, variable
+                )
+            end
         end
 
         # Binary operators
@@ -46,6 +53,11 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
             tree = Node(i, l, r)
             tree = convert(Node{T}, tree)
             @ignore_domain_error eval_tree_array(tree, X, operators; turbo=use_turbo)
+            for variable in (true, false)
+                @ignore_domain_error eval_grad_tree_array(
+                    l, X, operators; turbo=use_turbo, variable
+                )
+            end
         end
 
         # Unary operators
@@ -53,10 +65,20 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
             tree = Node(j, l)
             tree = convert(Node{T}, tree)
             @ignore_domain_error eval_tree_array(tree, X, operators; turbo=use_turbo)
+            for variable in (true, false)
+                @ignore_domain_error eval_grad_tree_array(
+                    l, X, operators; turbo=use_turbo, variable
+                )
+            end
 
             tree = Node(j, Node(k, l))
             tree = convert(Node{T}, tree)
             @ignore_domain_error eval_tree_array(tree, X, operators; turbo=use_turbo)
+            for variable in (true, false)
+                @ignore_domain_error eval_grad_tree_array(
+                    l, X, operators; turbo=use_turbo, variable
+                )
+            end
         end
 
         # Both operators
@@ -69,10 +91,20 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
             tree = Node(i, Node(j1, l), Node(j2, r))
             tree = convert(Node{T}, tree)
             @ignore_domain_error eval_tree_array(tree, X, operators; turbo=use_turbo)
+            for variable in (true, false)
+                @ignore_domain_error eval_grad_tree_array(
+                    l, X, operators; turbo=use_turbo, variable
+                )
+            end
 
             tree = Node(j1, Node(i, l, r))
             tree = convert(Node{T}, tree)
             @ignore_domain_error eval_tree_array(tree, X, operators; turbo=use_turbo)
+            for variable in (true, false)
+                @ignore_domain_error eval_grad_tree_array(
+                    l, X, operators; turbo=use_turbo, variable
+                )
+            end
         end
     end
 end
