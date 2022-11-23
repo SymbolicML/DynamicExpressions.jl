@@ -111,7 +111,7 @@ end
 
 @precompile_setup begin
     binary_operators = [[+, -, *, /, ^]]
-    unary_operators = [[sin, cos, exp, log, sqrt, abs]]
+    unary_operators = [[sin, cos, exp, log, sqrt, abs, tanh, cosh, sinh]]
     turbo = [true, false]
     types = [Float16, Float32, Float64]
     @precompile_all_calls begin
