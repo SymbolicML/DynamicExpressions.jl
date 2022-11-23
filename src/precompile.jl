@@ -131,8 +131,11 @@ end
     types = [Float16, Float32, Float64]
     for T in types
         @precompile_all_calls begin
-            x = Node(; feature=1)
-            c = Node(; val=1.0)
+            local x, c
+            for T1 in [Float16, Float32, Float64]
+                x = Node(T1; feature=1)
+                c = Node(T1; val=T1(1.0))
+            end
             tree = Node(
                 2,
                 Node(1, Node(1, Node(2, x, c), Node(3, c, Node(1, x)))),
