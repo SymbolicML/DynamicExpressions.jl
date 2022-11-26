@@ -44,5 +44,6 @@ macro ignore(args...) end
 @ignore include("../test/runtests.jl")
 
 include("precompile.jl")
+do_precompilation(; force_run=false)
 
 end

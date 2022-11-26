@@ -63,3 +63,7 @@ end
 @safetestset "Test operators within module" begin
     include("test_custom_operators.jl")
 end
+
+@safetestset "Test precompilation" begin
+    include("test_precompilation.jl")
+end

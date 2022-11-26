@@ -107,56 +107,93 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
             end
         end
     end
+    return nothing
 end
 
-@precompile_setup begin
-    binary_operators = [[+, -, *, /, ^]]
-    unary_operators = [[sin, cos, exp, log, sqrt, abs, tanh, cosh, sinh]]
-    turbo = [true, false]
-    types = [Float16, Float32, Float64]
-    @precompile_all_calls begin
-        test_all_combinations(;
-            binary_operators=binary_operators,
-            unary_operators=unary_operators,
-            turbo=turbo,
-            types=types,
+function test_functions_on_trees(::Type{T}, operators) where {T}
+    local x, c, tree
+    for T1 in [Float16, Float32, Float64]
+        x = Node(T1; feature=1)
+        c = Node(T1; val=T1(1.0))
+        tree = Node(
+            2,
+            Node(1, Node(1, Node(2, x, c), Node(3, c, Node(1, x)))),
+            Node(3, Node(1, Node(4, x, x))),
         )
     end
-    operators = OperatorEnum(;
-        binary_operators=binary_operators[1],
-        unary_operators=unary_operators[1],
-        define_helper_functions=false,
+    tree = convert(Node{T}, tree)
+    for preserve_topology in [true, false]
+        tree = copy_node(tree; preserve_topology)
+        set_node!(tree, copy_node(tree; preserve_topology))
+    end
+
+    string_tree(tree, operators)
+    count_nodes(tree)
+    count_constants(tree)
+    count_depth(tree)
+    index_constants(tree)
+    has_operators(tree)
+    has_constants(tree)
+    get_constants(tree)
+    set_constants(tree, get_constants(tree))
+    combine_operators(tree, operators)
+    simplify_tree(tree, operators)
+    return nothing
+end
+
+"""Run force_run=true; @precompile_setup otherwise."""
+macro maybe_precompile_setup(force_run, ex)
+    precompile_ex = Expr(
+        :macrocall, Symbol("@precompile_setup"), LineNumberNode(@__LINE__), ex
     )
-    # Want to precompile all above calls.
-    types = [Float16, Float32, Float64]
-    for T in types
-        @precompile_all_calls begin
-            local x, c
-            for T1 in [Float16, Float32, Float64]
-                x = Node(T1; feature=1)
-                c = Node(T1; val=T1(1.0))
-            end
-            tree = Node(
-                2,
-                Node(1, Node(1, Node(2, x, c), Node(3, c, Node(1, x)))),
-                Node(3, Node(1, Node(4, x, x))),
+    return quote
+        if $(esc(force_run))
+            $(esc(ex))
+        else
+            $(esc(precompile_ex))
+        end
+    end
+end
+
+"""Run force_run=true; @precompile_all_calls otherwise."""
+macro maybe_precompile_all_calls(force_run, ex)
+    precompile_ex = Expr(
+        :macrocall, Symbol("@precompile_all_calls"), LineNumberNode(@__LINE__), ex
+    )
+    return quote
+        if $(esc(force_run))
+            $(esc(ex))
+        else
+            $(esc(precompile_ex))
+        end
+    end
+end
+
+function do_precompilation(; force_run=false)
+    @maybe_precompile_setup force_run begin
+        binary_operators = [[+, -, *, /, ^]]
+        unary_operators = [[sin, cos, exp, log, sqrt, abs, tanh, cosh, sinh]]
+        turbo = [true, false]
+        types = [Float16, Float32, Float64]
+        @maybe_precompile_all_calls force_run begin
+            test_all_combinations(;
+                binary_operators=binary_operators,
+                unary_operators=unary_operators,
+                turbo=turbo,
+                types=types,
             )
-            tree = convert(Node{T}, tree)
-            for preserve_topology in [true, false]
-                tree = copy_node(tree; preserve_topology)
-                set_node!(tree, copy_node(tree; preserve_topology))
+        end
+        operators = OperatorEnum(;
+            binary_operators=binary_operators[1],
+            unary_operators=unary_operators[1],
+            define_helper_functions=false,
+        )
+        # Want to precompile all above calls.
+        types = [Float16, Float32, Float64]
+        for T in types
+            @maybe_precompile_all_calls force_run begin
+                test_functions_on_trees(T, operators)
             end
-            string_tree(tree, operators)
-            count_nodes(tree)
-            count_constants(tree)
-            count_depth(tree)
-            index_constants(tree)
-            has_operators(tree)
-            has_constants(tree)
-            get_constants(tree)
-            set_constants(tree, get_constants(tree))
-            combine_operators(tree, operators)
-            simplify_tree(tree, operators)
         end
     end
 end
