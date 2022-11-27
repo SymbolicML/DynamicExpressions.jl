@@ -111,30 +111,40 @@ for turbo in [false, true], T in [Float16, Float32, Float64]
     @test isnan(tree(X; turbo=turbo)[1])
 end
 
-# And, with generic operator enum, this should be an actual error:
-operators = GenericOperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[cos, sin])
-x1 = Node(Float64; feature=1)
-tree = sin(x1 / 0.0)
-X = randn(Float32, 10);
-@noinline stack = try
-    tree(X)[1]
-    @test false
-catch e
-    @test isa(e, ErrorException)
-    # Check that "Failed to evaluate" is in the message:
-    @test occursin("Failed to evaluate", e.msg)
-    current_exceptions()
-end;
-@test length(stack) == 2
-@test isa(stack[1].exception, DomainError)
+# Check if julia version >= 1.7:
+if VERSION >= v"1.7"
+    # And, with generic operator enum, this should be an actual error:
+    operators = GenericOperatorEnum(;
+        binary_operators=[+, -, *, /], unary_operators=[cos, sin]
+    )
+    x1 = Node(Float64; feature=1)
+    tree = sin(x1 / 0.0)
+    X = randn(Float32, 10)
+    local stack
+    try
+        tree(X)[1]
+        @test false
+    catch e
+        @test e isa ErrorException
+        # Check that "Failed to evaluate" is in the message:
+        @test occursin("Failed to evaluate", e.msg)
+        stack = current_exceptions()
+    end
+    @test length(stack) == 2
+    @test stack[1].exception isa DomainError
 
-# If a method is not defined, we should get a nothing:
-X = randn(Float32, 1, 10);
-@test tree(X; throw_errors=false) === nothing
-# or a MethodError:
-try
-    tree(X; throw_errors=true)
-    @test false
-catch e
-    @test isa(current_exceptions()[1].exception, MethodError)
+    # If a method is not defined, we should get a nothing:
+    X = randn(Float32, 1, 10)
+    @test tree(X; throw_errors=false) === nothing
+    # or a MethodError:
+    try
+        tree(X; throw_errors=true)
+        @test false
+    catch e
+        @test e isa ErrorException
+        @test occursin("Failed to evaluate", e.msg)
+        stack = current_exceptions()
+    end
+    @test length(stack) == 2
+    @test stack[1].exception isa MethodError
 end

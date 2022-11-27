@@ -27,27 +27,25 @@ jobs:
       fail-fast: false
       matrix:
         julia-version:
-          - '1.8.2'
+          - '1.8.3'
         os:
           - ubuntu-latest
+          - windows-latest
+          - macOS-latest
+        include:
+          - os: ubuntu-latest
+            julia-version: '1.7.2'
+          - os: ubuntu-latest
+            julia-version: '1.6.7'
 
     steps:
-      - uses: actions/checkout@v1.0.0
+      - uses: actions/checkout@v2
       - name: "Set up Julia"
-        uses: julia-actions/setup-julia@v1.6.0
+        uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.julia-version }}
-      - name: Cache dependencies
-        uses: actions/cache@v1 # Thanks FromFile.jl
-        env:
-          cache-name: cache-artifacts
-        with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-
-            ${{ runner.os }}-build-
-            ${{ runner.os }}-
+      - name: "Cache artifacts"
+        uses: julia-actions/cache@v1
       - name: "Build package"
         uses: julia-actions/julia-buildpkg@v1
       - name: "Run tests"
