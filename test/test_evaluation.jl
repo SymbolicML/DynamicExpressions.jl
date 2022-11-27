@@ -120,21 +120,25 @@ X = randn(Float32, 10);
     tree(X)[1]
     @test false
 catch e
-    @test isa(e, ErrorException)
+    @test e isa ErrorException
     # Check that "Failed to evaluate" is in the message:
     @test occursin("Failed to evaluate", e.msg)
     current_exceptions()
 end;
 @test length(stack) == 2
-@test isa(stack[1].exception, DomainError)
+@test stack[1].exception isa DomainError
 
 # If a method is not defined, we should get a nothing:
 X = randn(Float32, 1, 10);
 @test tree(X; throw_errors=false) === nothing
 # or a MethodError:
-try
+@noinline stack = try
     tree(X; throw_errors=true)
     @test false
 catch e
-    @test isa(current_exceptions()[1].exception, MethodError)
+    @test e isa ErrorException
+    @test occursin("Failed to evaluate", e.msg)
+    current_exceptions()
 end
+@test length(stack) == 2
+@test stack[1].exception isa MethodError
