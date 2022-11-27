@@ -174,7 +174,7 @@ function do_precompilation(; force_run=false)
         binary_operators = [[+, -, *, /, ^]]
         unary_operators = [[sin, cos, exp, log, sqrt, abs]]
         turbo = [true, false]
-        types = [Float16, Float32, Float64]
+        types = [Float32, Float64]
         @maybe_precompile_all_calls force_run begin
             test_all_combinations(;
                 binary_operators=binary_operators,
