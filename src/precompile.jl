@@ -141,41 +141,44 @@ function test_functions_on_trees(::Type{T}, operators) where {T}
     return nothing
 end
 
-"""Run force_run=true; @precompile_setup otherwise."""
-macro maybe_precompile_setup(force_run, ex)
+macro maybe_precompile_setup(mode, ex)
     precompile_ex = Expr(
         :macrocall, Symbol("@precompile_setup"), LineNumberNode(@__LINE__), ex
     )
     return quote
-        if $(esc(force_run))
+        if $(esc(mode)) == :compile
             $(esc(ex))
-        else
+        elseif $(esc(mode)) == :precompile
             $(esc(precompile_ex))
+        else
+            error("Invalid value for mode: " * show($(esc(mode))))
         end
     end
 end
 
-"""Run force_run=true; @precompile_all_calls otherwise."""
-macro maybe_precompile_all_calls(force_run, ex)
+macro maybe_precompile_all_calls(mode, ex)
     precompile_ex = Expr(
         :macrocall, Symbol("@precompile_all_calls"), LineNumberNode(@__LINE__), ex
     )
     return quote
-        if $(esc(force_run))
+        if $(esc(mode)) == :compile
             $(esc(ex))
-        else
+        elseif $(esc(mode)) == :precompile
             $(esc(precompile_ex))
+        else
+            error("Invalid value for mode: " * show($(esc(mode))))
         end
     end
 end
 
-function do_precompilation(; force_run=false)
-    @maybe_precompile_setup force_run begin
+"""`mode=:precompile` will use `@precompile_*` directives; `mode=:compile` runs."""
+function do_precompilation(; mode=:precompile)
+    @maybe_precompile_setup mode begin
         binary_operators = [[+, -, *, /, ^]]
         unary_operators = [[sin, cos, exp, log, sqrt, abs]]
         turbo = [true, false]
         types = [Float32, Float64]
-        @maybe_precompile_all_calls force_run begin
+        @maybe_precompile_all_calls mode begin
             test_all_combinations(;
                 binary_operators=binary_operators,
                 unary_operators=unary_operators,
@@ -191,7 +194,7 @@ function do_precompilation(; force_run=false)
         # Want to precompile all above calls.
         types = [Float16, Float32, Float64]
         for T in types
-            @maybe_precompile_all_calls force_run begin
+            @maybe_precompile_all_calls mode begin
                 test_functions_on_trees(T, operators)
             end
         end

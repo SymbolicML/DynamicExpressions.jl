@@ -1,4 +1,4 @@
 using Test
 using DynamicExpressions
 
-DynamicExpressions.do_precompilation(; force_run=true)
+DynamicExpressions.do_precompilation(; mode=:compile)
