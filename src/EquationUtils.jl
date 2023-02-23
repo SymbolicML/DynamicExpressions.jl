@@ -145,6 +145,47 @@ function set_constants(tree::Node{T}, constants::AbstractVector{T}) where {T}
     end
 end
 
+# Get all the constants from a tree named
+function get_named_constants(tree::Node{T}) where T
+    vals = Tuple{Symbol, Number}[]
+    _get_named_constants!(vals, tree)
+   NamedTuple(vals)
+end
+
+function _get_named_constants!(vals::Vector{Tuple{Symbol, <: Number}}, tree::Node{T}) where T
+    if tree.degree == 0
+        if tree.constant
+            push!(vals, (tree.name, tree.val))
+        end
+    elseif tree.degree == 1
+        _get_named_constants!(vals, tree.l)
+    else
+        _get_named_constants!(vals, tree.l)
+        _get_named_constants!(vals, tree.r)
+    end
+    return
+end
+
+# Set all the constants inside a tree
+function set_named_constants!(tree::Node{T}, constants::C) where {T, C}
+    _set_named_constants!(tree, constants)
+end
+
+function _set_named_constants!(tree::Node{T}, vals::C) where {T, C}
+    if tree.degree == 0
+        if tree.constant && (tree.name ∈ keys(vals))
+            tree.val = getfield(vals, tree.name)
+        end
+    elseif tree.degree == 1
+        _set_named_constants!(tree.l, vals)
+    else
+        _set_named_constants!(tree.l, vals)
+        _set_named_constants!(tree.r, vals)
+    end
+    return
+end
+
+
 ## Assign index to nodes of a tree
 # This will mirror a Node struct, rather
 # than adding a new attribute to Node.

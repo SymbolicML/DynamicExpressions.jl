@@ -35,6 +35,7 @@ nodes, you can evaluate or print a given expression.
     argument to the binary operator.
 """
 mutable struct Node{T}
+    name::Symbol # A unique identifier for each node
     degree::Int  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     constant::Bool  # false if variable
     val::Union{T,Nothing}  # If is a constant, this stores the actual value
@@ -43,22 +44,22 @@ mutable struct Node{T}
     op::Int  # If operator, this is the index of the operator in operators.binary_operators, or operators.unary_operators
     l::Node{T}  # Left child node. Only defined for degree=1 or degree=2.
     r::Node{T}  # Right child node. Only defined for degree=2. 
-
     #################
     ## Constructors:
     #################
-    Node(d::Int, c::Bool, v::_T) where {_T} = new{_T}(d, c, v)
-    Node(::Type{_T}, d::Int, c::Bool, v::_T) where {_T} = new{_T}(d, c, v)
-    Node(::Type{_T}, d::Int, c::Bool, v::Nothing, f::Int) where {_T} = new{_T}(d, c, v, f)
+    Node(d::Int, c::Bool, v::_T) where {_T} = new{_T}(gensym("Constant"),d, c, v)
+    Node(::Type{_T}, d::Int, c::Bool, v::_T) where {_T} = new{_T}(gensym("Constant"),d, c, v)
+    Node(::Type{_T}, d::Int, c::Bool, v::Nothing, f::Int) where {_T} = new{_T}(gensym("Feature"),d, c, v, f)
     function Node(d::Int, c::Bool, v::Nothing, f::Int, o::Int, l::Node{_T}) where {_T}
-        return new{_T}(d, c, v, f, o, l)
+        return new{_T}(gensym("Unary"),d, c, v, f, o, l)
     end
     function Node(
         d::Int, c::Bool, v::Nothing, f::Int, o::Int, l::Node{_T}, r::Node{_T}
     ) where {_T}
-        return new{_T}(d, c, v, f, o, l, r)
+        return new{_T}(gensym("Binary"),d, c, v, f, o, l, r)
     end
 end
+
 ################################################################################
 
 """
@@ -384,7 +385,7 @@ function Base.hash(tree::Node{T})::UInt where {T}
     if tree.degree == 0
         if tree.constant
             # tree.val used.
-            return hash((0, tree.val::T))
+            return hash((0, tree.val))
         else
             # tree.feature used.
             return hash((1, tree.feature))
