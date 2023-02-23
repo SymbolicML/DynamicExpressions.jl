@@ -47,16 +47,20 @@ mutable struct Node{T}
     #################
     ## Constructors:
     #################
-    Node(d::Int, c::Bool, v::_T) where {_T} = new{_T}(gensym("Constant"),d, c, v)
-    Node(::Type{_T}, d::Int, c::Bool, v::_T) where {_T} = new{_T}(gensym("Constant"),d, c, v)
-    Node(::Type{_T}, d::Int, c::Bool, v::Nothing, f::Int) where {_T} = new{_T}(gensym("Feature"),d, c, v, f)
+    Node(d::Int, c::Bool, v::_T) where {_T} = new{_T}(gensym("Constant"), d, c, v)
+    function Node(::Type{_T}, d::Int, c::Bool, v::_T) where {_T}
+        return new{_T}(gensym("Constant"), d, c, v)
+    end
+    function Node(::Type{_T}, d::Int, c::Bool, v::Nothing, f::Int) where {_T}
+        return new{_T}(gensym("Feature"), d, c, v, f)
+    end
     function Node(d::Int, c::Bool, v::Nothing, f::Int, o::Int, l::Node{_T}) where {_T}
-        return new{_T}(gensym("Unary"),d, c, v, f, o, l)
+        return new{_T}(gensym("Unary"), d, c, v, f, o, l)
     end
     function Node(
         d::Int, c::Bool, v::Nothing, f::Int, o::Int, l::Node{_T}, r::Node{_T}
     ) where {_T}
-        return new{_T}(gensym("Binary"),d, c, v, f, o, l, r)
+        return new{_T}(gensym("Binary"), d, c, v, f, o, l, r)
     end
 end
 
@@ -385,7 +389,7 @@ function Base.hash(tree::Node{T})::UInt where {T}
     if tree.degree == 0
         if tree.constant
             # tree.val used.
-            return hash((0, tree.val))
+            return hash((0, tree.val::T))
         else
             # tree.feature used.
             return hash((1, tree.feature))
