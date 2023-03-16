@@ -17,7 +17,7 @@ end
 
 @generate_idmap tree function _combine_operators(
     tree::Node{T}, operators
-)::Node{T} where {T<:Real}
+)::Node{T} where {T}
     # NOTE: (const (+*-) const) already accounted for. Call simplify_tree before.
     # ((const + var) + const) => (const + var)
     # ((const * var) * const) => (const * var)
