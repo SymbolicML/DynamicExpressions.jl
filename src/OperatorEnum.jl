@@ -7,8 +7,8 @@ abstract type AbstractOperatorEnum end
 
 Defines an enum over operators, along with their derivatives.
 # Fields
-- `binops`: A tuple of binary operators. Real scalar input type.
-- `unaops`: A tuple of unary operators. Real scalar input type.
+- `binops`: A tuple of binary operators. Scalar input type.
+- `unaops`: A tuple of unary operators. Scalar input type.
 - `diff_binops`: A tuple of Zygote-computed derivatives of the binary operators.
 - `diff_unaops`: A tuple of Zygote-computed derivatives of the unary operators.
 """

@@ -9,7 +9,7 @@ function combine_operators(
     tree::Node{T},
     operators::AbstractOperatorEnum,
     id_map::IdDict{Node{T},Node{T}}=IdDict{Node{T},Node{T}}(),
-)::Node{T} where {T<:Real}
+)::Node{T} where {T}
     # NOTE: (const (+*-) const) already accounted for. Call simplify_tree before.
     # ((const + var) + const) => (const + var)
     # ((const * var) * const) => (const * var)

@@ -36,11 +36,11 @@ functions = [
 ]
 
 for turbo in [false, true],
-    T in [Float16, Float32, Float64],
+    T in [Float16, Float32, Float64, ComplexF32, ComplexF64],
     (i_func, fnc) in enumerate(functions)
 
     # Float16 not implemented:
-    turbo && T == Float16 && continue
+    turbo && !(T in (Float32, Float64)) && continue
 
     # check if fnc is tuple
     if typeof(fnc) <: Tuple
@@ -62,15 +62,17 @@ for turbo in [false, true],
     nfeatures = 3
     X = randn(MersenneTwister(0), T, nfeatures, N)
 
-    test_y = eval_tree_array(tree, X, operators; turbo=turbo)[1]
     true_y = realfnc.(X[1, :], X[2, :], X[3, :])
+    !all(isfinite.(true_y)) && continue
 
-    zero_tolerance = (T == Float16 ? 1e-4 : 1e-6)
+    test_y = eval_tree_array(tree, X, operators; turbo=turbo)[1]
+
+    zero_tolerance = (T <: Union{Float16,Complex} ? 1e-4 : 1e-6)
     @test all(abs.(test_y .- true_y) / N .< zero_tolerance)
 end
 
-for turbo in [false, true], T in [Float16, Float32, Float64]
-    turbo && T == Float16 && continue
+for turbo in [false, true], T in [Float16, Float32, Float64, ComplexF32, ComplexF64]
+    turbo && !(T in (Float32, Float64)) && continue
     # Test specific branches of evaluation code:
     # op(op(<constant>))
     local tree, operators

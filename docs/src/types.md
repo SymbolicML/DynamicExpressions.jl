@@ -16,7 +16,7 @@ Construct this operator specification as follows:
 OperatorEnum(; binary_operators=[], unary_operators=[], enable_autodiff::Bool=false, define_helper_functions::Bool=true)
 ```
 
-This is just for scalar real operators. However, you can use
+This is just for scalar operators. However, you can use
 the following for more general operators:
 
 ```@docs
