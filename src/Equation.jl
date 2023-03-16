@@ -1,7 +1,7 @@
 module EquationModule
 
 import ..OperatorEnumModule: AbstractOperatorEnum
-import ..UtilsModule: maybe_get!
+import ..UtilsModule: @generate_idmap
 
 const DEFAULT_NODE_TYPE = Float32
 
@@ -82,31 +82,29 @@ function Base.convert(
     if preserve_topology
         _convert(Node{T1}, tree, IdDict{Node{T2},Node{T1}}())
     else
-        _convert(Node{T1}, tree, nothing)
+        _convert(Node{T1}, tree)
     end
 end
 
-function _convert(::Type{Node{T1}}, tree::Node{T2}, id_map) where {T1,T2}
-    maybe_get!(id_map, tree) do
-        if tree.degree == 0
-            if tree.constant
-                val = tree.val::T2
-                if !(T2 <: T1)
-                    # e.g., we don't want to convert Float32 to Union{Float32,Vector{Float32}}!
-                    val = convert(T1, val)
-                end
-                Node(T1, 0, tree.constant, val)
-            else
-                Node(T1, 0, tree.constant, nothing, tree.feature)
+@generate_idmap function _convert(::Type{Node{T1}}, tree::Node{T2}) where {T1,T2}
+    if tree.degree == 0
+        if tree.constant
+            val = tree.val::T2
+            if !(T2 <: T1)
+                # e.g., we don't want to convert Float32 to Union{Float32,Vector{Float32}}!
+                val = convert(T1, val)
             end
-        elseif tree.degree == 1
-            l = _convert(Node{T1}, tree.l, id_map)
-            Node(1, tree.constant, nothing, tree.feature, tree.op, l)
+            Node(T1, 0, tree.constant, val)
         else
-            l = _convert(Node{T1}, tree.l, id_map)
-            r = _convert(Node{T1}, tree.r, id_map)
-            Node(2, tree.constant, nothing, tree.feature, tree.op, l, r)
+            Node(T1, 0, tree.constant, nothing, tree.feature)
         end
+    elseif tree.degree == 1
+        l = _convert(Node{T1}, tree.l)
+        Node(1, tree.constant, nothing, tree.feature, tree.op, l)
+    else
+        l = _convert(Node{T1}, tree.l)
+        r = _convert(Node{T1}, tree.r)
+        Node(2, tree.constant, nothing, tree.feature, tree.op, l, r)
     end
 end
 
@@ -235,16 +233,6 @@ With `preserve_topology=true`, this will also
 preserve linkage between a node and
 multiple parents, whereas without, this would create
 duplicate child node copies.
-"""
-function copy_node(tree::Node{T}; preserve_topology::Bool=false)::Node{T} where {T}
-    if preserve_topology
-        _copy_node(tree, IdDict{Node{T},Node{T}}())
-    else
-        _copy_node(tree, nothing)
-    end
-end
-
-"""
 
 id_map is a map from `objectid(tree)` to `copy(tree)`.
 We check against the map before making a new copy; otherwise
@@ -253,19 +241,25 @@ we can simply reference the existing copy.
 
 Note that this will *not* preserve loops in graphs.
 """
-function _copy_node(tree::Node{T}, id_map)::Node{T} where {T}
-    maybe_get!(id_map, tree) do
-        if tree.degree == 0
-            if tree.constant
-                Node(; val=copy(tree.val::T))
-            else
-                Node(T; feature=copy(tree.feature))
-            end
-        elseif tree.degree == 1
-            Node(copy(tree.op), _copy_node(tree.l, id_map))
+function copy_node(tree::Node{T}; preserve_topology::Bool=false)::Node{T} where {T}
+    if preserve_topology
+        _copy_node(tree, IdDict{Node{T},Node{T}}())
+    else
+        _copy_node(tree)
+    end
+end
+
+@generate_idmap function _copy_node(tree::Node{T})::Node{T} where {T}
+    if tree.degree == 0
+        if tree.constant
+            Node(; val=copy(tree.val::T))
         else
-            Node(copy(tree.op), _copy_node(tree.l, id_map), _copy_node(tree.r, id_map))
+            Node(T; feature=copy(tree.feature))
         end
+    elseif tree.degree == 1
+        Node(copy(tree.op), _copy_node(tree.l))
+    else
+        Node(copy(tree.op), _copy_node(tree.l), _copy_node(tree.r))
     end
 end
 

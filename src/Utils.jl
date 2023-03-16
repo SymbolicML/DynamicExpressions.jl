@@ -2,6 +2,7 @@
 module UtilsModule
 
 using LoopVectorization: @turbo
+using MacroTools: postwalk, @capture, splitdef, combinedef
 
 """Remove all type assertions in an expression."""
 function _remove_type_assertions(ex::Expr)
@@ -79,12 +80,50 @@ isgood(x::T) where {T<:Number} = !(isnan(x) || !isfinite(x))
 isgood(x) = true
 isbad(x) = !isgood(x)
 
-# Utils for working with IdDict:
-# This basically allows us to use get!() conditionally.
-@inline maybe_get!(f::Function, ::Nothing, _) = f()
-@inline function maybe_get!(f::Function, collection::IdDict, key)
-    get!(collection, key) do
-        f()
+function _generate_idmap(def::Expr)
+    sdef = splitdef(def)
+
+    # Add an id_map argument
+    push!(sdef[:args], :(id_map::IdDict))
+
+    f_name = sdef[:name]
+
+    # Add id_map argument to all calls within the function:
+    sdef[:body] = postwalk(sdef[:body]) do ex
+        if @capture(ex, f_(args__))
+            if f == f_name
+                return Expr(:call, f, args..., :id_map)
+            end
+        end
+        return ex
+    end
+
+    # Wrap the function body in a get!(id_map, tree) do ... end block:
+    # TODO: we are assuming "tree" is the argument
+    sdef[:body] = quote
+        get!(id_map, tree) do
+            $(sdef[:body])
+        end
+    end
+
+    return combinedef(sdef)
+end
+
+"""
+    @generate_idmap function my_function_on_tree(tree::Node)
+        ...
+    end
+
+This macro takes a function definition and creates a second version of the
+function with an additional `id_map` argument. The function will use the
+`id_map` to avoid recomputing the same value for the same tree. Use this
+to automatically create functions that preserve topology of a tree.
+"""
+macro generate_idmap(def)
+    idmap_def = _generate_idmap(def)
+    return quote
+        $(esc(def)) # The normal function
+        $(esc(idmap_def)) # The function with an id_map argument
     end
 end
 
