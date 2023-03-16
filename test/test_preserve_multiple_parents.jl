@@ -51,7 +51,7 @@ copy_with_topology
 # The node type here should be Float64.
 @test typeof(tree).parameters[1] == Float64
 # Let's convert to Float32:
-float32_tree = convert(Node{Float32}, tree)
+float32_tree = convert(Node{Float32}, tree; preserve_topology=true)
 @test typeof(float32_tree).parameters[1] == Float32
 # The linkage should be kept:
 @test float32_tree.l.l === float32_tree.r

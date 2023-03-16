@@ -87,13 +87,13 @@ output3, flag3 = eval_tree_array(tree_copy2, X, operators)
 operators = OperatorEnum(; binary_operators=(+, -, *, /))
 base_tree = Node(1, Node(; val=0.3), Node(; val=0.2))
 tree = x1 * base_tree + base_tree
-simplify_tree(tree, operators)
+simplify_tree(tree, operators; preserve_topology=true)
 @test tree.l.r === tree.r
 
 base_tree = (x1 + Node(; val=0.3)) + Node(; val=0.2)
 true_simplification_value = 0.5
 tree = x2 * base_tree + base_tree
-combine_operators(tree, operators)
+combine_operators(tree, operators; preserve_topology=true)
 # Should not combine twice!
 @test tree.l.r.r.val == true_simplification_value
 
