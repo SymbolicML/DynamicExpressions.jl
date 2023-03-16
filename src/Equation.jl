@@ -1,6 +1,7 @@
 module EquationModule
 
 import ..OperatorEnumModule: AbstractOperatorEnum
+import ..UtilsModule: maybe_get!
 
 const DEFAULT_NODE_TYPE = Float32
 
@@ -73,14 +74,20 @@ using `convert(T1, tree.val)` at constant nodes.
 - `tree::Node{T2}`: Node to convert.
 """
 function Base.convert(
-    ::Type{Node{T1}},
-    tree::Node{T2},
-    id_map::IdDict{Node{T2},Node{T1}}=IdDict{Node{T2},Node{T1}}(),
+    ::Type{Node{T1}}, tree::Node{T2}; preserve_topology::Bool=false
 ) where {T1,T2}
     if T1 == T2
         return tree
     end
-    get!(id_map, tree) do
+    if preserve_topology
+        _convert(Node{T1}, tree, IdDict{Node{T2},Node{T1}}())
+    else
+        _convert(Node{T1}, tree, nothing)
+    end
+end
+
+function _convert(::Type{Node{T1}}, tree::Node{T2}, id_map) where {T1,T2}
+    maybe_get!(id_map, tree) do
         if tree.degree == 0
             if tree.constant
                 val = tree.val::T2
@@ -93,11 +100,11 @@ function Base.convert(
                 Node(T1, 0, tree.constant, nothing, tree.feature)
             end
         elseif tree.degree == 1
-            l = convert(Node{T1}, tree.l, id_map)
+            l = _convert(Node{T1}, tree.l, id_map)
             Node(1, tree.constant, nothing, tree.feature, tree.op, l)
         else
-            l = convert(Node{T1}, tree.l, id_map)
-            r = convert(Node{T1}, tree.r, id_map)
+            l = _convert(Node{T1}, tree.l, id_map)
+            r = _convert(Node{T1}, tree.r, id_map)
             Node(2, tree.constant, nothing, tree.feature, tree.op, l, r)
         end
     end
@@ -231,34 +238,13 @@ duplicate child node copies.
 """
 function copy_node(tree::Node{T}; preserve_topology::Bool=false)::Node{T} where {T}
     if preserve_topology
-        copy_node_with_topology(tree, IdDict{Node{T},Node{T}}())
+        _copy_node(tree, IdDict{Node{T},Node{T}}())
     else
-        copy_node_break_topology(tree)
-    end
-end
-
-function copy_node_break_topology(tree::Node{T})::Node{T} where {T}
-    if tree.degree == 0
-        if tree.constant
-            Node(; val=copy(tree.val::T))
-        else
-            Node(T; feature=copy(tree.feature))
-        end
-    elseif tree.degree == 1
-        Node(copy(tree.op), copy_node_break_topology(tree.l))
-    else
-        Node(
-            copy(tree.op),
-            copy_node_break_topology(tree.l),
-            copy_node_break_topology(tree.r),
-        )
+        _copy_node(tree, nothing)
     end
 end
 
 """
-    copy_node_with_topology(
-        tree::Node{T}, id_map::IdDict{Node{T},Node{T}}
-    )::Node{T} where {T}
 
 id_map is a map from `objectid(tree)` to `copy(tree)`.
 We check against the map before making a new copy; otherwise
@@ -267,10 +253,8 @@ we can simply reference the existing copy.
 
 Note that this will *not* preserve loops in graphs.
 """
-function copy_node_with_topology(
-    tree::Node{T}, id_map::IdDict{Node{T},Node{T}}
-)::Node{T} where {T}
-    get!(id_map, tree) do
+function _copy_node(tree::Node{T}, id_map)::Node{T} where {T}
+    maybe_get!(id_map, tree) do
         if tree.degree == 0
             if tree.constant
                 Node(; val=copy(tree.val::T))
@@ -278,13 +262,9 @@ function copy_node_with_topology(
                 Node(T; feature=copy(tree.feature))
             end
         elseif tree.degree == 1
-            Node(copy(tree.op), copy_node_with_topology(tree.l, id_map))
+            Node(copy(tree.op), _copy_node(tree.l, id_map))
         else
-            Node(
-                copy(tree.op),
-                copy_node_with_topology(tree.l, id_map),
-                copy_node_with_topology(tree.r, id_map),
-            )
+            Node(copy(tree.op), _copy_node(tree.l, id_map), _copy_node(tree.r, id_map))
         end
     end
 end

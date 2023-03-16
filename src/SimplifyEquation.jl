@@ -2,34 +2,43 @@ module SimplifyEquationModule
 
 import ..EquationModule: Node, copy_node
 import ..OperatorEnumModule: AbstractOperatorEnum
-import ..UtilsModule: isbad, isgood
+import ..UtilsModule: isbad, isgood, maybe_get!
 
 # Simplify tree
 function combine_operators(
-    tree::Node{T},
-    operators::AbstractOperatorEnum,
-    id_map::IdDict{Node{T},Node{T}}=IdDict{Node{T},Node{T}}(),
-)::Node{T} where {T<:Real}
+    tree::Node{T}, operators::AbstractOperatorEnum; preserve_topology::Bool=false
+) where {T}
+    if preserve_topology
+        _combine_operators(tree, operators, IdDict{Node{T},Node{T}}())
+    else
+        _combine_operators(tree, operators, nothing)
+    end
+end
+
+function _combine_operators(tree::Node{T}, operators, id_map)::Node{T} where {T<:Real}
     # NOTE: (const (+*-) const) already accounted for. Call simplify_tree before.
     # ((const + var) + const) => (const + var)
     # ((const * var) * const) => (const * var)
     # ((const - var) - const) => (const - var)
     # (want to add anything commutative!)
     # TODO - need to combine plus/sub if they are both there.
-    get!(id_map, tree) do
+    maybe_get!(id_map, tree) do
         if tree.degree == 0
             return tree
         elseif tree.degree == 1
-            tree.l = combine_operators(tree.l, operators, id_map)
+            tree.l = _combine_operators(tree.l, operators, id_map)
         elseif tree.degree == 2
-            tree.l = combine_operators(tree.l, operators, id_map)
-            tree.r = combine_operators(tree.r, operators, id_map)
+            tree.l = _combine_operators(tree.l, operators, id_map)
+            tree.r = _combine_operators(tree.r, operators, id_map)
         end
 
         top_level_constant = tree.degree == 2 && (tree.l.constant || tree.r.constant)
         if tree.degree == 2 &&
             (operators.binops[tree.op] == (*) || operators.binops[tree.op] == (+)) &&
             top_level_constant
+
+            # TODO: Does this break SymbolicRegression.jl due to the different names of operators?
+
             op = tree.op
             # Put the constant in r. Need to assume var in left for simplification assumption.
             if tree.l.constant
@@ -100,13 +109,19 @@ end
 
 # Simplify tree
 function simplify_tree(
-    tree::Node{T},
-    operators::AbstractOperatorEnum,
-    id_map::IdDict{Node{T},Node{T}}=IdDict{Node{T},Node{T}}(),
-)::Node{T} where {T}
-    get!(id_map, tree) do
+    tree::Node{T}, operators::AbstractOperatorEnum; preserve_topology::Bool=false
+) where {T}
+    if preserve_topology
+        _simplify_tree(tree, operators, IdDict{Node{T},Node{T}}())
+    else
+        _simplify_tree(tree, operators, nothing)
+    end
+end
+
+function _simplify_tree(tree::Node{T}, operators, id_map)::Node{T} where {T}
+    maybe_get!(id_map, tree) do
         if tree.degree == 1
-            tree.l = simplify_tree(tree.l, operators, id_map)
+            tree.l = _simplify_tree(tree.l, operators, id_map)
             if tree.l.degree == 0 && tree.l.constant
                 l = tree.l.val::T
                 if isgood(l)
@@ -118,8 +133,8 @@ function simplify_tree(
                 end
             end
         elseif tree.degree == 2
-            tree.l = simplify_tree(tree.l, operators, id_map)
-            tree.r = simplify_tree(tree.r, operators, id_map)
+            tree.l = _simplify_tree(tree.l, operators, id_map)
+            tree.r = _simplify_tree(tree.r, operators, id_map)
             constantsBelow = (
                 tree.l.degree == 0 &&
                 tree.l.constant &&

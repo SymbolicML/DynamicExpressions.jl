@@ -79,4 +79,13 @@ isgood(x::T) where {T<:Number} = !(isnan(x) || !isfinite(x))
 isgood(x) = true
 isbad(x) = !isgood(x)
 
+# Utils for working with IdDict:
+# This basically allows us to use get!() conditionally.
+@inline maybe_get!(f::Function, ::Nothing, _) = f()
+@inline function maybe_get!(f::Function, collection::IdDict, key)
+    get!(collection, key) do
+        f()
+    end
+end
+
 end
