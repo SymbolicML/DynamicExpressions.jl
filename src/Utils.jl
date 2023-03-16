@@ -117,7 +117,6 @@ function _generate_idmap(tree::Symbol, def::Expr)
     end
 
     # Wrap the function body in a get!(id_map, tree) do ... end block:
-    # TODO: we are assuming "tree" is the argument
     sdef[:body] = quote
         get!(id_map, $(tree)) do
             $(sdef[:body])
