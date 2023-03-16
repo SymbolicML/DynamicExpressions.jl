@@ -17,7 +17,7 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
 LoopVectorization = "0.12"
-MacroTools = "0.5"
+MacroTools = "0.4, 0.5"
 Reexport = "1"
 SnoopPrecompile = "1"
 SymbolicUtils = "0.19"
