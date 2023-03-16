@@ -2,20 +2,20 @@ module SimplifyEquationModule
 
 import ..EquationModule: Node, copy_node
 import ..OperatorEnumModule: AbstractOperatorEnum
-import ..UtilsModule: isbad, isgood, @generate_idmap
+import ..UtilsModule: isbad, isgood, @generate_idmap, @use_idmap
 
 # Simplify tree
 function combine_operators(
     tree::Node{T}, operators::AbstractOperatorEnum; preserve_topology::Bool=false
 ) where {T}
     if preserve_topology
-        _combine_operators(tree, operators, IdDict{Node{T},Node{T}}())
+        @use_idmap(_combine_operators(tree, operators), IdDict{Node{T},Node{T}}())
     else
         _combine_operators(tree, operators)
     end
 end
 
-@generate_idmap function _combine_operators(
+@generate_idmap tree function _combine_operators(
     tree::Node{T}, operators
 )::Node{T} where {T<:Real}
     # NOTE: (const (+*-) const) already accounted for. Call simplify_tree before.
@@ -112,13 +112,13 @@ function simplify_tree(
     tree::Node{T}, operators::AbstractOperatorEnum; preserve_topology::Bool=false
 ) where {T}
     if preserve_topology
-        _simplify_tree(tree, operators, IdDict{Node{T},Node{T}}())
+        @use_idmap(_simplify_tree(tree, operators), IdDict{Node{T},Node{T}}())
     else
         _simplify_tree(tree, operators)
     end
 end
 
-@generate_idmap function _simplify_tree(tree::Node{T}, operators)::Node{T} where {T}
+@generate_idmap tree function _simplify_tree(tree::Node{T}, operators)::Node{T} where {T}
     if tree.degree == 1
         tree.l = _simplify_tree(tree.l, operators)
         if tree.l.degree == 0 && tree.l.constant

@@ -80,7 +80,25 @@ isgood(x::T) where {T<:Number} = !(isnan(x) || !isfinite(x))
 isgood(x) = true
 isbad(x) = !isgood(x)
 
-function _generate_idmap(def::Expr)
+"""
+    @generate_idmap tree function my_function_on_tree(tree::Node)
+        ...
+    end
+
+This macro takes a function definition and creates a second version of the
+function with an additional `id_map` argument. When passed this argument (an
+IdDict()), it will use use the `id_map` to avoid recomputing the same value
+for the same node in a tree. Use this to automatically create functions that
+work with trees that have shared child nodes.
+"""
+macro generate_idmap(tree, def)
+    idmap_def = _generate_idmap(tree, def)
+    return quote
+        $(esc(def)) # The normal function
+        $(esc(idmap_def)) # The function with an id_map argument
+    end
+end
+function _generate_idmap(tree::Symbol, def::Expr)
     sdef = splitdef(def)
 
     # Add an id_map argument
@@ -101,7 +119,7 @@ function _generate_idmap(def::Expr)
     # Wrap the function body in a get!(id_map, tree) do ... end block:
     # TODO: we are assuming "tree" is the argument
     sdef[:body] = quote
-        get!(id_map, tree) do
+        get!(id_map, $(tree)) do
             $(sdef[:body])
         end
     end
@@ -110,21 +128,32 @@ function _generate_idmap(def::Expr)
 end
 
 """
-    @generate_idmap function my_function_on_tree(tree::Node)
-        ...
-    end
+    @use_idmap(call, id_map)
 
-This macro takes a function definition and creates a second version of the
-function with an additional `id_map` argument. The function will use the
-`id_map` to avoid recomputing the same value for the same tree. Use this
-to automatically create functions that preserve topology of a tree.
+This simple macro simply puts the `id_map`
+into the call, to be consistent with the `@generate_idmap` macro.
+
+```
+@use_idmap(_copy_node(tree), IdDict{Any,Any}())
+````
+
+is converted to 
+
+```
+_copy_node(tree, IdDict{Any,Any}())
+```
+
 """
-macro generate_idmap(def)
-    idmap_def = _generate_idmap(def)
+macro use_idmap(def, id_map)
+    idmap_def = _add_idmap_to_call(def, id_map)
     return quote
-        $(esc(def)) # The normal function
-        $(esc(idmap_def)) # The function with an id_map argument
+        $(esc(idmap_def))
     end
+end
+
+function _add_idmap_to_call(def::Expr, id_map::Expr)
+    @assert def.head == :call
+    return Expr(:call, def.args[1], def.args[2:end]..., id_map)
 end
 
 end

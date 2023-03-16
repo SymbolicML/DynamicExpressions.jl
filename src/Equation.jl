@@ -1,7 +1,7 @@
 module EquationModule
 
 import ..OperatorEnumModule: AbstractOperatorEnum
-import ..UtilsModule: @generate_idmap
+import ..UtilsModule: @generate_idmap, @use_idmap
 
 const DEFAULT_NODE_TYPE = Float32
 
@@ -80,13 +80,13 @@ function Base.convert(
         return tree
     end
     if preserve_topology
-        _convert(Node{T1}, tree, IdDict{Node{T2},Node{T1}}())
+        @use_idmap(_convert(Node{T1}, tree), IdDict{Node{T2},Node{T1}}())
     else
         _convert(Node{T1}, tree)
     end
 end
 
-@generate_idmap function _convert(::Type{Node{T1}}, tree::Node{T2}) where {T1,T2}
+@generate_idmap tree function _convert(::Type{Node{T1}}, tree::Node{T2}) where {T1,T2}
     if tree.degree == 0
         if tree.constant
             val = tree.val::T2
@@ -243,13 +243,13 @@ Note that this will *not* preserve loops in graphs.
 """
 function copy_node(tree::Node{T}; preserve_topology::Bool=false)::Node{T} where {T}
     if preserve_topology
-        _copy_node(tree, IdDict{Node{T},Node{T}}())
+        @use_idmap(_copy_node(tree), IdDict{Node{T},Node{T}}())
     else
         _copy_node(tree)
     end
 end
 
-@generate_idmap function _copy_node(tree::Node{T})::Node{T} where {T}
+@generate_idmap tree function _copy_node(tree::Node{T})::Node{T} where {T}
     if tree.degree == 0
         if tree.constant
             Node(; val=copy(tree.val::T))
@@ -397,6 +397,7 @@ end
 
 function Base.:(==)(a::Node{T1}, b::Node{T2})::Bool where {T1,T2}
     T = promote_type(T1, T2)
+    # TODO: Should also have preserve_topology check...
     return is_equal(convert(Node{T}, a), convert(Node{T}, b))
 end
 
