@@ -112,14 +112,36 @@ end
 
 function test_functions_on_trees(::Type{T}, operators) where {T}
     local x, c, tree
-    for T1 in [Float16, Float32, Float64]
+    num_unaops = length(operators.unaops)
+    num_binops = length(operators.binops)
+    @assert num_unaops > 0 && num_binops > 0
+
+    for T1 in [Float32, Float64]
         x = Node(T1; feature=1)
         c = Node(T1; val=T1(1.0))
-        tree = Node(
-            2,
-            Node(1, Node(1, Node(2, x, c), Node(3, c, Node(1, x)))),
-            Node(3, Node(1, Node(4, x, x))),
-        )
+
+        i_una = 1
+        i_bin = 1
+
+        # Here, we just cycle through the operators and build
+        # a more complex expression.
+        a1 = Node(i_una, x)
+        i_una = (i_una % num_unaops) + 1
+        a2 = Node(i_bin, c, a1)
+        i_bin = (i_bin % num_binops) + 1
+        a3 = Node(i_bin, x, c)
+        i_bin = (i_bin % num_binops) + 1
+        a4 = Node(i_bin, a3, a2)
+        i_bin = (i_bin % num_binops) + 1
+        a5 = Node(i_bin, x, x)
+        i_bin = (i_bin % num_binops) + 1
+        a6 = Node(i_una, a5)
+        i_una = (i_una % num_unaops) + 1
+        a7 = Node(i_una, a6)
+        i_una = (i_una % num_unaops) + 1
+        a8 = Node(i_una, a4)
+        i_una = (i_una % num_unaops) + 1
+        tree = Node(i_bin, a8, a7)
     end
     tree = convert(Node{T}, tree)
     for preserve_topology in [true, false]
@@ -174,9 +196,9 @@ end
 """`mode=:precompile` will use `@precompile_*` directives; `mode=:compile` runs."""
 function do_precompilation(; mode=:precompile)
     @maybe_precompile_setup mode begin
-        binary_operators = [[+, -, *, /, ^]]
-        unary_operators = [[sin, cos, exp, log, sqrt, abs]]
-        turbo = [true, false]
+        binary_operators = [[+, -, *, /]]
+        unary_operators = [[sin, cos]]
+        turbo = [false]
         types = [Float32, Float64]
         @maybe_precompile_all_calls mode begin
             test_all_combinations(;
@@ -192,7 +214,7 @@ function do_precompilation(; mode=:precompile)
             define_helper_functions=false,
         )
         # Want to precompile all above calls.
-        types = [Float16, Float32, Float64]
+        types = [Float32, Float64]
         for T in types
             @maybe_precompile_all_calls mode begin
                 test_functions_on_trees(T, operators)
