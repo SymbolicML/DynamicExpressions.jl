@@ -344,7 +344,7 @@ function string_tree(
 )::String where {T}
     if tree.degree == 0
         if tree.constant
-            return string(tree.val::T)
+            return string_constant(tree.val::T; bracketed=bracketed)
         else
             if varMap === nothing
                 return "x$(tree.feature)"
@@ -359,6 +359,15 @@ function string_tree(
         return string_op(
             operators.binops[tree.op], tree, operators; bracketed=bracketed, varMap=varMap
         )
+    end
+end
+
+string_constant(val::T; bracketed::Bool) where {T<:Union{Real,AbstractArray}} = string(val)
+function string_constant(val; bracketed::Bool)
+    if bracketed
+        string(val)
+    else
+        "(" * string(val) * ")"
     end
 end
 
