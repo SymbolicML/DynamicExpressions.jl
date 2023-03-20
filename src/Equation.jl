@@ -355,9 +355,11 @@ function string_op(
     op_name = get_op_name(string(op))
 
     left_bracket = "("
+    mid = ""
     right_bracket = ")"
     if colors
         left_bracket = get_color_for_level(level) * left_bracket
+        mid = get_color_for_level(level) * mid
         right_bracket = get_color_for_level(level) * right_bracket * RESET_TOKEN
     end
 
@@ -381,7 +383,7 @@ function string_op(
         if bracketed
             return l * " " * op_name * " " * r
         else
-            return left_bracket * l * " " * op_name * " " * r * right_bracket
+            return left_bracket * l * " " * mid * op_name * " " * mid * r * right_bracket
         end
     else
         l = string_tree(
@@ -390,7 +392,7 @@ function string_op(
         r = string_tree(
             tree.r, operators; bracketed=true, varMap=varMap, level=level + 1, colors=colors
         )
-        return op_name * left_bracket * l * ", " * r * right_bracket
+        return op_name * left_bracket * l * ", " * mid * r * right_bracket
     end
 end
 
