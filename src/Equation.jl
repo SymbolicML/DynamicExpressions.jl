@@ -329,7 +329,7 @@ const TOKENS_256 =
         Crayon(; foreground=196, bold=true),
     ])
 
-const DEFAULT_TOKEN = string(Crayon(; foreground=:default))
+const RESET_TOKEN = string(Crayon(; reset=true))
 
 function get_op_name(op::String)
     return get(OP_NAMES, op, op)
@@ -358,7 +358,7 @@ function string_op(
     right_bracket = ")"
     if colors
         left_bracket = get_color_for_level(level) * left_bracket
-        right_bracket = get_color_for_level(level) * right_bracket * DEFAULT_TOKEN
+        right_bracket = get_color_for_level(level) * right_bracket * RESET_TOKEN
     end
 
     if op_name in ["+", "-", "*", "/", "^"]
@@ -379,9 +379,9 @@ function string_op(
             colors=colors,
         )
         if bracketed
-            return "$l $op_name $r"
+            return l * " " * op_name * " " * r
         else
-            return left_bracket * "$l $op_name $r" * right_bracket
+            return left_bracket * l * " " * op_name * " " * r * right_bracket
         end
     else
         l = string_tree(
@@ -390,7 +390,7 @@ function string_op(
         r = string_tree(
             tree.r, operators; bracketed=true, varMap=varMap, level=level + 1, colors=colors
         )
-        return op_name * left_bracket * "$l, $r" * right_bracket
+        return op_name * left_bracket * l * ", " * r * right_bracket
     end
 end
 
@@ -430,7 +430,7 @@ function string_tree(
         right_bracket = ")"
         if colors
             left_bracket = get_color_for_level(level) * left_bracket
-            right_bracket = get_color_for_level(level) * right_bracket * DEFAULT_TOKEN
+            right_bracket = get_color_for_level(level) * right_bracket * RESET_TOKEN
         end
         return op_name *
                left_bracket *
@@ -469,7 +469,7 @@ function string_constant(val; bracketed::Bool, colors::Bool, level::Integer=1)
         right_bracket = ")"
         if colors
             left_bracket = get_color_for_level(level) * left_bracket
-            right_bracket = get_color_for_level(level) * right_bracket * DEFAULT_TOKEN
+            right_bracket = get_color_for_level(level) * right_bracket * RESET_TOKEN
         end
         left_bracket * string(val) * right_bracket
     end
