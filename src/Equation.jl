@@ -326,7 +326,7 @@ const TOKENS_256 =
         Crayon(; foreground=223),
         Crayon(; foreground=130),
         Crayon(; foreground=202),
-        Crayon(; foreground=196, bold=true),
+        Crayon(; foreground=196),
     ])
 
 const RESET_TOKEN = string(Crayon(; reset=true))
