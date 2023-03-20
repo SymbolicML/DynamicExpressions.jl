@@ -1,5 +1,6 @@
 module EquationModule
 
+import Crayons: Crayon
 import ..OperatorEnumModule: AbstractOperatorEnum
 
 const DEFAULT_NODE_TYPE = Float32
@@ -299,8 +300,45 @@ const OP_NAMES = Dict(
     "safe_pow" => "^",
 )
 
+const SUPPORTS_256_COLORS = !(Sys.iswindows() && VERSION < v"1.5.3")
+
+const TOKENS_16 = string.([
+    Crayon(; foreground=:default),
+    Crayon(; foreground=:yellow),
+    Crayon(; foreground=:green),
+    Crayon(; foreground=:cyan),
+    Crayon(; foreground=:magenta),
+    Crayon(; foreground=:light_gray),
+    Crayon(; foreground=:light_red),
+])
+
+const TOKENS_256 = string.([
+    Crayon(; foreground=:default),
+    Crayon(; foreground=178),
+    Crayon(; foreground=161),
+    Crayon(; foreground=034),
+    Crayon(; foreground=200),
+    Crayon(; foreground=045),
+    Crayon(; foreground=099),
+    Crayon(; foreground=033),
+    Crayon(; foreground=223),
+    Crayon(; foreground=130),
+    Crayon(; foreground=202),
+    Crayon(; foreground=196, bold=true),
+])
+
+const DEFAULT_TOKEN = string(Crayon(; foreground=:default))
+
 function get_op_name(op::String)
     return get(OP_NAMES, op, op)
+end
+
+function get_color_for_level(level::Integer)
+    if SUPPORTS_256_COLORS
+        return TOKENS_256[level % length(TOKENS_256) + 1]
+    else
+        return TOKENS_16[level % length(TOKENS_16) + 1]
+    end
 end
 
 function string_op(
@@ -309,20 +347,48 @@ function string_op(
     operators::AbstractOperatorEnum;
     bracketed::Bool=false,
     varMap::Union{Array{String,1},Nothing}=nothing,
+    level::Integer=1,
+    colors::Bool=false,
 )::String where {F}
     op_name = get_op_name(string(op))
+
+    left_bracket = "("
+    right_bracket = ")"
+    if colors
+        left_bracket = get_color_for_level(level) * left_bracket * DEFAULT_TOKEN
+        right_bracket = get_color_for_level(level) * right_bracket * DEFAULT_TOKEN
+    end
+
     if op_name in ["+", "-", "*", "/", "^"]
-        l = string_tree(tree.l, operators; bracketed=false, varMap=varMap)
-        r = string_tree(tree.r, operators; bracketed=false, varMap=varMap)
+        l = string_tree(
+            tree.l,
+            operators;
+            bracketed=false,
+            varMap=varMap,
+            level=level + 1,
+            colors=colors,
+        )
+        r = string_tree(
+            tree.r,
+            operators;
+            bracketed=false,
+            varMap=varMap,
+            level=level + 1,
+            colors=colors,
+        )
         if bracketed
             return "$l $op_name $r"
         else
-            return "($l $op_name $r)"
+            return left_bracket * "$l $op_name $r" * right_bracket
         end
     else
-        l = string_tree(tree.l, operators; bracketed=true, varMap=varMap)
-        r = string_tree(tree.r, operators; bracketed=true, varMap=varMap)
-        return "$op_name($l, $r)"
+        l = string_tree(
+            tree.l, operators; bracketed=true, varMap=varMap, level=level + 1, colors=colors
+        )
+        r = string_tree(
+            tree.r, operators; bracketed=true, varMap=varMap, level=level + 1, colors=colors
+        )
+        return op_name * left_bracket * "$l, $r" * right_bracket
     end
 end
 
@@ -341,10 +407,14 @@ function string_tree(
     operators::AbstractOperatorEnum;
     bracketed::Bool=false,
     varMap::Union{Array{String,1},Nothing}=nothing,
+    level::Integer=1,
+    colors::Bool=false,
 )::String where {T}
     if tree.degree == 0
         if tree.constant
-            return string_constant(tree.val::T; bracketed=bracketed)
+            return string_constant(
+                tree.val::T; bracketed=bracketed, level=level, colors=colors
+            )
         else
             if varMap === nothing
                 return "x$(tree.feature)"
@@ -354,20 +424,52 @@ function string_tree(
         end
     elseif tree.degree == 1
         op_name = get_op_name(string(operators.unaops[tree.op]))
-        return "$(op_name)($(string_tree(tree.l, operators, bracketed=true, varMap=varMap)))"
+        left_bracket = "("
+        right_bracket = ")"
+        if colors
+            left_bracket = get_color_for_level(level) * left_bracket * DEFAULT_TOKEN
+            right_bracket = get_color_for_level(level) * right_bracket * DEFAULT_TOKEN
+        end
+        return op_name *
+               left_bracket *
+               string_tree(
+                   tree.l,
+                   operators;
+                   bracketed=true,
+                   varMap=varMap,
+                   level=level + 1,
+                   colors=colors,
+               ) *
+               right_bracket
     else
         return string_op(
-            operators.binops[tree.op], tree, operators; bracketed=bracketed, varMap=varMap
+            operators.binops[tree.op],
+            tree,
+            operators;
+            bracketed=bracketed,
+            varMap=varMap,
+            level=level,
+            colors=colors,
         )
     end
 end
 
-string_constant(val::T; bracketed::Bool) where {T<:Union{Real,AbstractArray}} = string(val)
-function string_constant(val; bracketed::Bool)
+function string_constant(
+    val::T; bracketed::Bool, colors::Bool, level::Integer=1
+) where {T<:Union{Real,AbstractArray}}
+    return string(val)
+end
+function string_constant(val; bracketed::Bool, colors::Bool, level::Integer=1)
     if bracketed
         string(val)
     else
-        "(" * string(val) * ")"
+        left_bracket = "("
+        right_bracket = ")"
+        if colors
+            left_bracket = get_color_for_level(level) * left_bracket * DEFAULT_TOKEN
+            right_bracket = get_color_for_level(level) * right_bracket * DEFAULT_TOKEN
+        end
+        left_bracket * string(val) * right_bracket
     end
 end
 
@@ -377,16 +479,18 @@ function print_tree(
     tree::Node,
     operators::AbstractOperatorEnum;
     varMap::Union{Array{String,1},Nothing}=nothing,
+    colors::Bool=false,
 )
-    return println(io, string_tree(tree, operators; varMap=varMap))
+    return println(io, string_tree(tree, operators; varMap=varMap, colors=colors))
 end
 
 function print_tree(
     tree::Node,
     operators::AbstractOperatorEnum;
     varMap::Union{Array{String,1},Nothing}=nothing,
+    colors::Bool=false,
 )
-    return println(string_tree(tree, operators; varMap=varMap))
+    return println(string_tree(tree, operators; varMap=varMap, colors=colors))
 end
 
 function Base.hash(tree::Node{T})::UInt where {T}
