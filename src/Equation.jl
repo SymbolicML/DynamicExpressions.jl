@@ -302,30 +302,32 @@ const OP_NAMES = Dict(
 
 const SUPPORTS_256_COLORS = !(Sys.iswindows() && VERSION < v"1.5.3")
 
-const TOKENS_16 = string.([
-    Crayon(; foreground=:default),
-    Crayon(; foreground=:yellow),
-    Crayon(; foreground=:green),
-    Crayon(; foreground=:cyan),
-    Crayon(; foreground=:magenta),
-    Crayon(; foreground=:light_gray),
-    Crayon(; foreground=:light_red),
-])
+const TOKENS_16 =
+    string.([
+        Crayon(; foreground=:default),
+        Crayon(; foreground=:yellow),
+        Crayon(; foreground=:green),
+        Crayon(; foreground=:cyan),
+        Crayon(; foreground=:magenta),
+        Crayon(; foreground=:light_gray),
+        Crayon(; foreground=:light_red),
+    ])
 
-const TOKENS_256 = string.([
-    Crayon(; foreground=:default),
-    Crayon(; foreground=178),
-    Crayon(; foreground=161),
-    Crayon(; foreground=034),
-    Crayon(; foreground=200),
-    Crayon(; foreground=045),
-    Crayon(; foreground=099),
-    Crayon(; foreground=033),
-    Crayon(; foreground=223),
-    Crayon(; foreground=130),
-    Crayon(; foreground=202),
-    Crayon(; foreground=196, bold=true),
-])
+const TOKENS_256 =
+    string.([
+        Crayon(; foreground=:default),
+        Crayon(; foreground=178),
+        Crayon(; foreground=161),
+        Crayon(; foreground=034),
+        Crayon(; foreground=200),
+        Crayon(; foreground=045),
+        Crayon(; foreground=099),
+        Crayon(; foreground=033),
+        Crayon(; foreground=223),
+        Crayon(; foreground=130),
+        Crayon(; foreground=202),
+        Crayon(; foreground=196, bold=true),
+    ])
 
 const DEFAULT_TOKEN = string(Crayon(; foreground=:default))
 
@@ -355,7 +357,7 @@ function string_op(
     left_bracket = "("
     right_bracket = ")"
     if colors
-        left_bracket = get_color_for_level(level) * left_bracket * DEFAULT_TOKEN
+        left_bracket = get_color_for_level(level) * left_bracket
         right_bracket = get_color_for_level(level) * right_bracket * DEFAULT_TOKEN
     end
 
@@ -427,7 +429,7 @@ function string_tree(
         left_bracket = "("
         right_bracket = ")"
         if colors
-            left_bracket = get_color_for_level(level) * left_bracket * DEFAULT_TOKEN
+            left_bracket = get_color_for_level(level) * left_bracket
             right_bracket = get_color_for_level(level) * right_bracket * DEFAULT_TOKEN
         end
         return op_name *
@@ -466,7 +468,7 @@ function string_constant(val; bracketed::Bool, colors::Bool, level::Integer=1)
         left_bracket = "("
         right_bracket = ")"
         if colors
-            left_bracket = get_color_for_level(level) * left_bracket * DEFAULT_TOKEN
+            left_bracket = get_color_for_level(level) * left_bracket
             right_bracket = get_color_for_level(level) * right_bracket * DEFAULT_TOKEN
         end
         left_bracket * string(val) * right_bracket
