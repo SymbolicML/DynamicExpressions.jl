@@ -325,7 +325,7 @@ function get_color_for_level(level::Integer, depth=10)::String
         return RESET_TOKEN
     end
     if SUPPORTS_256_COLORS
-        scheme = ColorSchemes.colorschemes[:turbo]
+        scheme = ColorSchemes.colorschemes[:hsv]
         frac = Float64(level / depth)
         c = get(scheme, frac)
         rgb = (round(Int, c.r * 255), round(Int, c.g * 255), round(Int, c.b * 255))
