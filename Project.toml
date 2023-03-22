@@ -4,6 +4,7 @@ authors = ["MilesCranmer <miles.cranmer@gmail.com>"]
 version = "0.5.0"
 
 [deps]
+ColorSchemes = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
 Crayons = "a8cc5b0e-0ffa-5ad4-8c14-923d3ee1735f"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
