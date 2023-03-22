@@ -1,6 +1,7 @@
 module EquationModule
 
 import Crayons: Crayon
+using ColorSchemes: ColorSchemes
 import ..OperatorEnumModule: AbstractOperatorEnum
 
 const DEFAULT_NODE_TYPE = Float32
@@ -313,48 +314,22 @@ const TOKENS_16 =
         Crayon(; foreground=:light_red),
     ])
 
-# Define colormap from fraction to (r, g, b) tuple (0-255),
-# using rainbow colormap:
-function colormap(f::Float64)
-    f = clamp(f, 0.0, 1.0)
-    f = 6 * f
-    i = floor(Int, f)
-    f = f - i
-    if i % 2 == 0
-        f = 1 - f
-    end
-    t = round(Int, 255 * f)
-    if i == 0
-        return (255, t, 0)
-    elseif i == 1
-        return (t, 255, 0)
-    elseif i == 2
-        return (0, 255, t)
-    elseif i == 3
-        return (0, t, 255)
-    elseif i == 4
-        return (t, 0, 255)
-    else
-        return (255, 0, t)
-    end
-end
-
-const expected_max_depth = 15
-
-const TOKENS_256 =
-    string.([
-        Crayon(; foreground=colormap(i / expected_max_depth)) for i in 0:expected_max_depth
-    ])
-
 const RESET_TOKEN = string(Crayon(; reset=true))
 
 function get_op_name(op::String)
     return get(OP_NAMES, op, op)
 end
 
-function get_color_for_level(level::Integer)
+function get_color_for_level(level::Integer, depth=10)::String
+    if level < 1
+        return RESET_TOKEN
+    end
     if SUPPORTS_256_COLORS
-        return TOKENS_256[level % length(TOKENS_256) + 1]
+        scheme = ColorSchemes.colorschemes[:turbo]
+        frac = Float64(level / depth)
+        c = get(scheme, frac)
+        rgb = (round(Int, c.r * 255), round(Int, c.g * 255), round(Int, c.b * 255))
+        return string(Crayon(; foreground=rgb))
     else
         return TOKENS_16[level % length(TOKENS_16) + 1]
     end
@@ -368,48 +343,53 @@ function string_op(
     varMap::Union{Array{String,1},Nothing}=nothing,
     level::Integer=1,
     colors::Bool=false,
+    depth::Integer=10,
 )::String where {F}
     op_name = get_op_name(string(op))
-
-    left_bracket = "("
-    mid = ""
-    right_bracket = ")"
-    if colors
-        left_bracket = get_color_for_level(level) * left_bracket
-        mid = get_color_for_level(level) * mid
-        right_bracket = get_color_for_level(level) * right_bracket * RESET_TOKEN
-    end
-
     if op_name in ["+", "-", "*", "/", "^"]
-        l = string_tree(
+        l = _string_tree(
             tree.l,
             operators;
             bracketed=false,
             varMap=varMap,
             level=level + 1,
             colors=colors,
+            depth=depth,
         )
-        r = string_tree(
+        r = _string_tree(
             tree.r,
             operators;
             bracketed=false,
             varMap=varMap,
             level=level + 1,
             colors=colors,
+            depth=depth,
         )
         if bracketed
-            return l * " " * op_name * " " * r
+            return "$l $op_name $r"
         else
-            return left_bracket * l * " " * mid * op_name * " " * mid * r * right_bracket
+            return "($l $op_name $r)"
         end
     else
-        l = string_tree(
-            tree.l, operators; bracketed=true, varMap=varMap, level=level + 1, colors=colors
+        l = _string_tree(
+            tree.l,
+            operators;
+            bracketed=true,
+            varMap=varMap,
+            level=level + 1,
+            colors=colors,
+            depth=depth,
         )
-        r = string_tree(
-            tree.r, operators; bracketed=true, varMap=varMap, level=level + 1, colors=colors
+        r = _string_tree(
+            tree.r,
+            operators;
+            bracketed=true,
+            varMap=varMap,
+            level=level + 1,
+            colors=colors,
+            depth=depth,
         )
-        return op_name * left_bracket * l * ", " * mid * r * right_bracket
+        return "$op_name($l, $r)"
     end
 end
 
@@ -431,66 +411,72 @@ function string_tree(
     level::Integer=1,
     colors::Bool=false,
 )::String where {T}
-    if tree.degree == 0
-        if tree.constant
-            return string_constant(
-                tree.val::T; bracketed=bracketed, level=level, colors=colors
-            )
-        else
-            if varMap === nothing
-                return "x$(tree.feature)"
+    depth = count_depth(tree)
+    return _string_tree(
+        tree,
+        operators;
+        bracketed=bracketed,
+        varMap=varMap,
+        level=level,
+        colors=colors,
+        depth=depth,
+    )
+end
+
+function _string_tree(
+    tree::Node{T},
+    operators::AbstractOperatorEnum;
+    bracketed::Bool,
+    varMap::Union{Array{String,1},Nothing},
+    level::Integer,
+    colors::Bool,
+    depth::Integer,
+)::String where {T}
+    wrap_with_color(level, colors, depth) do
+        if tree.degree == 0
+            if tree.constant
+                return string_constant(tree.val::T; bracketed=bracketed)
             else
-                return varMap[tree.feature]
+                if varMap === nothing
+                    return "x$(tree.feature)"
+                else
+                    return varMap[tree.feature]
+                end
             end
+        elseif tree.degree == 1
+            op_name = get_op_name(string(operators.unaops[tree.op]))
+            return "$(op_name)($(_string_tree(tree.l, operators, bracketed=true, varMap=varMap, level=level+1, colors=colors, depth=depth)))"
+        else
+            return string_op(
+                operators.binops[tree.op],
+                tree,
+                operators;
+                bracketed=bracketed,
+                varMap=varMap,
+                level=level,
+                colors=colors,
+                depth=depth,
+            )
         end
-    elseif tree.degree == 1
-        op_name = get_op_name(string(operators.unaops[tree.op]))
-        left_bracket = "("
-        right_bracket = ")"
-        if colors
-            left_bracket = get_color_for_level(level) * left_bracket
-            right_bracket = get_color_for_level(level) * right_bracket * RESET_TOKEN
-        end
-        return op_name *
-               left_bracket *
-               string_tree(
-                   tree.l,
-                   operators;
-                   bracketed=true,
-                   varMap=varMap,
-                   level=level + 1,
-                   colors=colors,
-               ) *
-               right_bracket
-    else
-        return string_op(
-            operators.binops[tree.op],
-            tree,
-            operators;
-            bracketed=bracketed,
-            varMap=varMap,
-            level=level,
-            colors=colors,
-        )
     end
 end
 
-function string_constant(
-    val::T; bracketed::Bool, colors::Bool, level::Integer=1
-) where {T<:Union{Real,AbstractArray}}
-    return string(val)
+function wrap_with_color(f::Function, level::Integer, colors::Bool, depth)::String
+    mid = f()::String
+    if colors
+        return get_color_for_level(level, depth) *
+               mid *
+               get_color_for_level(level - 1, depth)
+    end
+    return mid
 end
-function string_constant(val; bracketed::Bool, colors::Bool, level::Integer=1)
+
+string_constant(val::T; bracketed::Bool) where {T<:Union{Real,AbstractArray}} = string(val)
+function string_constant(val; bracketed::Bool)
     if bracketed
         string(val)
     else
-        left_bracket = "("
-        right_bracket = ")"
-        if colors
-            left_bracket = get_color_for_level(level) * left_bracket
-            right_bracket = get_color_for_level(level) * right_bracket * RESET_TOKEN
-        end
-        left_bracket * string(val) * right_bracket
+        "(" * string(val) * ")"
     end
 end
 
@@ -558,6 +544,16 @@ end
 function Base.:(==)(a::Node{T1}, b::Node{T2})::Bool where {T1,T2}
     T = promote_type(T1, T2)
     return is_equal(convert(Node{T}, a), convert(Node{T}, b))
+end
+
+function count_depth(tree::Node)::Int
+    if tree.degree == 0
+        return 1
+    elseif tree.degree == 1
+        return 1 + count_depth(tree.l)
+    else
+        return 1 + max(count_depth(tree.l), count_depth(tree.r))
+    end
 end
 
 end
