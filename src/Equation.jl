@@ -313,20 +313,37 @@ const TOKENS_16 =
         Crayon(; foreground=:light_red),
     ])
 
+# Define colormap from fraction to (r, g, b) tuple (0-255),
+# using rainbow colormap:
+function colormap(f::Float64)
+    f = clamp(f, 0.0, 1.0)
+    f = 6 * f
+    i = floor(Int, f)
+    f = f - i
+    if i % 2 == 0
+        f = 1 - f
+    end
+    t = round(Int, 255 * f)
+    if i == 0
+        return (255, t, 0)
+    elseif i == 1
+        return (t, 255, 0)
+    elseif i == 2
+        return (0, 255, t)
+    elseif i == 3
+        return (0, t, 255)
+    elseif i == 4
+        return (t, 0, 255)
+    else
+        return (255, 0, t)
+    end
+end
+
+const expected_max_depth = 15
+
 const TOKENS_256 =
     string.([
-        Crayon(; foreground=:default),
-        Crayon(; foreground=178),
-        Crayon(; foreground=161),
-        Crayon(; foreground=034),
-        Crayon(; foreground=200),
-        Crayon(; foreground=045),
-        Crayon(; foreground=099),
-        Crayon(; foreground=033),
-        Crayon(; foreground=223),
-        Crayon(; foreground=130),
-        Crayon(; foreground=202),
-        Crayon(; foreground=196),
+        Crayon(; foreground=colormap(i / expected_max_depth)) for i in 0:expected_max_depth
     ])
 
 const RESET_TOKEN = string(Crayon(; reset=true))
