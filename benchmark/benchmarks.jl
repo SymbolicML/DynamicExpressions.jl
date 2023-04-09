@@ -27,7 +27,9 @@ simple_tree = Node(
     ),
 )
 for T in (ComplexF32, ComplexF64, Float32, Float64)
-    !(T <: Real) && v_PACKAGE_VERSION < v"0.5.0" && continue
+    if !(T <: Real) && v_PACKAGE_VERSION < v"0.5.0" && v_PACKAGE_VERSION != v"0.0.0"
+        continue
+    end
     evals = 10
     samples = 1_000
     n = 1_000
@@ -38,10 +40,12 @@ for T in (ComplexF32, ComplexF64, Float32, Float64)
     end
 
     for turbo in (false, true)
-        turbo && !(T in (Float32, Float64)) && continue
+        if turbo && !(T in (Float32, Float64))
+            continue
+        end
         extra_key = turbo ? "_turbo" : ""
         SUITE["OperatorEnum"][T]["evaluation$(extra_key)"] = @benchmarkable(
-            eval_tree_array(tree, X, $operators),
+            eval_tree_array(tree, X, $operators; turbo=$turbo),
             evals=evals,
             samples=samples,
             seconds=5.0,
@@ -52,7 +56,7 @@ for T in (ComplexF32, ComplexF64, Float32, Float64)
         )
         if T <: Real
             SUITE["OperatorEnum"][T]["derivative$(extra_key)"] = @benchmarkable(
-                eval_grad_tree_array(tree, X, $operators; variable=true),
+                eval_grad_tree_array(tree, X, $operators; variable=true, turbo=$turbo),
                 evals=evals,
                 samples=samples,
                 seconds=5.0,
