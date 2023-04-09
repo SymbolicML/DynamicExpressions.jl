@@ -100,41 +100,13 @@ function _eval_tree_array(
         return fill(result, size(cX, 2)), true
     elseif tree.degree == 1
         op = operators.unaops[tree.op]
-        if tree.l.degree == 2 && tree.l.l.degree == 0 && tree.l.r.degree == 0
-            # op(op2(x, y)), where x, y, z are constants or variables.
-            op_l = operators.binops[tree.l.op]
-            return deg1_l2_ll0_lr0_eval(tree, cX, op, op_l, Val(turbo))
-        elseif tree.l.degree == 1 && tree.l.l.degree == 0
-            # op(op2(x)), where x is a constant or variable.
-            op_l = operators.unaops[tree.l.op]
-            return deg1_l1_ll0_eval(tree, cX, op, op_l, Val(turbo))
-        end
-
         # op(x), for any x.
         (cumulator, complete) = _eval_tree_array(tree.l, cX, operators, Val(turbo))
         @return_on_false complete cumulator
         @return_on_nonfinite_array cumulator T n
         return deg1_eval(cumulator, op, Val(turbo))
-
     elseif tree.degree == 2
         op = operators.binops[tree.op]
-        # TODO - add op(op2(x, y), z) and op(x, op2(y, z))
-        # op(x, y), where x, y are constants or variables.
-        if tree.l.degree == 0 && tree.r.degree == 0
-            return deg2_l0_r0_eval(tree, cX, op, Val(turbo))
-        elseif tree.r.degree == 0
-            (cumulator_l, complete) = _eval_tree_array(tree.l, cX, operators, Val(turbo))
-            @return_on_false complete cumulator_l
-            @return_on_nonfinite_array cumulator_l T n
-            # op(x, y), where y is a constant or variable but x is not.
-            return deg2_r0_eval(tree, cumulator_l, cX, op, Val(turbo))
-        elseif tree.l.degree == 0
-            (cumulator_r, complete) = _eval_tree_array(tree.r, cX, operators, Val(turbo))
-            @return_on_false complete cumulator_r
-            @return_on_nonfinite_array cumulator_r T n
-            # op(x, y), where x is a constant or variable but y is not.
-            return deg2_l0_eval(tree, cumulator_r, cX, op, Val(turbo))
-        end
         (cumulator_l, complete) = _eval_tree_array(tree.l, cX, operators, Val(turbo))
         @return_on_false complete cumulator_l
         @return_on_nonfinite_array cumulator_l T n
