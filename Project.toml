@@ -1,7 +1,7 @@
 name = "DynamicExpressions"
 uuid = "a40a106e-89c9-4ca8-8020-a735e8728b6b"
 authors = ["MilesCranmer <miles.cranmer@gmail.com>"]
-version = "0.5.0"
+version = "0.5.1"
 
 [deps]
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
