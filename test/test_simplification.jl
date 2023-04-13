@@ -10,7 +10,6 @@ function Base.:≈(a::String, b::String)
     return a == b
 end
 
-
 simplify_tree = DynamicExpressions.SimplifyEquationModule.simplify_tree
 combine_operators = DynamicExpressions.SimplifyEquationModule.combine_operators
 
