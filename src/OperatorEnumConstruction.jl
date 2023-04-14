@@ -5,27 +5,26 @@ import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperator
 import ..EquationModule: string_tree, Node
 import ..EvaluateEquationModule: eval_tree_array
 import ..EvaluateEquationDerivativeModule: eval_grad_tree_array
+import ..EvaluationHelpersModule: _grad_evaluator
 
 function create_evaluation_helpers!(operators::OperatorEnum)
     @eval begin
         Base.print(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
         Base.show(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
         function (tree::Node)(X; kws...)
-            out, did_finish = eval_tree_array(tree, X, $operators; kws...)
-            if !did_finish
-                out .= convert(eltype(out), NaN)
-            end
-            return out
+            Base.depwarn(
+                "The `tree(X; kws...)` syntax is deprecated. Use `tree(X, operators; kws...)` instead.",
+                :Node,
+            )
+            return tree(X, $operators; kws...)
         end
         # Gradients:
-        function Base.adjoint(tree::Node{T}) where {T}
-            return (X; kws...) -> begin
-                _, grad, did_complete = eval_grad_tree_array(
-                    tree, X, $operators; variable=true, kws...
-                )
-                !did_complete && (grad .= T(NaN))
-                grad
-            end
+        function _grad_evaluator(tree::Node, X; kws...)
+            Base.depwarn(
+                "The `tree'(X; kws...)` syntax is deprecated. Use `tree'(X, operators; kws...)` instead.",
+                :Node,
+            )
+            return _grad_evaluator(tree, X, $operators; kws...)
         end
     end
 end
@@ -36,16 +35,14 @@ function create_evaluation_helpers!(operators::GenericOperatorEnum)
         Base.show(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
 
         function (tree::Node)(X; kws...)
-            out, did_finish = eval_tree_array(tree, X, $operators; kws...)
-            if !did_finish
-                return nothing
-            end
-            return out
+            Base.depwarn(
+                "The `tree(X; kws...)` syntax is deprecated. Use `tree(X, operators; kws...)` instead.",
+                :Node,
+            )
+            return tree(X, $operators; kws...)
         end
-        function Base.adjoint(::Node{T}) where {T}
-            return _ -> begin
-                error("Gradients are not implemented for `GenericOperatorEnum`.")
-            end
+        function _grad_evaluator(tree::Node, X; kws...)
+            @error "Gradients are not implemented for `GenericOperatorEnum`."
         end
     end
 end
