@@ -61,8 +61,8 @@ function (tree::Node)(X; kws...)
 end
 
 # Gradients:
-function _grad_evaluator(tree::Node, X, operators::OperatorEnum; kws...)
-    _, grad, did_complete = eval_grad_tree_array(tree, X, operators; variable=true, kws...)
+function _grad_evaluator(tree::Node, X, operators::OperatorEnum; variable=true, kws...)
+    _, grad, did_complete = eval_grad_tree_array(tree, X, operators; variable=variable, kws...)
     !did_complete && (grad .= convert(eltype(grad), NaN))
     return grad
 end
