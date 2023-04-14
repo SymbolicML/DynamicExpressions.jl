@@ -10,7 +10,7 @@ eval_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum) w
 Assuming you are only using a single `OperatorEnum`, you can also use
 the following short-hand by using the expression as a function:
 
-```julia
+```@example
 operators = OperatorEnum(; binary_operators=[+, -, *], unary_operators=[cos])
 tree = Node(; feature=1) * cos(Node(; feature=2) - 3.2)
 
