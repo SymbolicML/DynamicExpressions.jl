@@ -3,21 +3,6 @@ module TreeMapModule
 import ..EquationModule: Node
 
 """
-    tree_map(f, tree)
-
-Map a function over a tree and return a flat array of the results in depth-first order.
-"""
-function tree_map(f::F, tree::Node) where {F<:Function}
-    if tree.degree == 0
-        return [f(tree)]
-    elseif tree.degree == 1
-        return [f(tree), tree_map(f, tree.l)...]
-    else
-        return [f(tree), tree_map(f, tree.l)..., tree_map(f, tree.r)...]
-    end
-end
-
-"""
     tree_mapreduce(f, op, tree)
 
 Map a function over a tree and aggregate the result using an operator `op`.
@@ -56,6 +41,15 @@ function tree_mapreduce(f::F, op::G, tree::Node) where {F<:Function,G<:Function}
     else
         return op(f(tree), tree_mapreduce(f, op, tree.l), tree_mapreduce(f, op, tree.r))
     end
+end
+
+"""
+    tree_map(f, tree)
+
+Map a function over a tree and return a flat array of the results in depth-first order.
+"""
+function tree_map(f::F, tree::Node) where {F<:Function}
+    tree_mapreduce(t -> [f(t)], vcat, tree)
 end
 
 end
