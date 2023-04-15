@@ -49,7 +49,7 @@ end
 Map a function over a tree and return a flat array of the results in depth-first order.
 """
 function tree_map(f::F, tree::Node) where {F<:Function}
-    tree_mapreduce(t -> [f(t)], vcat, tree)
+    return tree_mapreduce(t -> [f(t)], vcat, tree)
 end
 
 end
