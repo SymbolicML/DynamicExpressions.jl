@@ -21,7 +21,7 @@ using SafeTestsets
         @test false
     catch e
         @test isa(e, ErrorException)
-        expected_error_msg = ""
+        expected_error_msg = "The `tree'(X; kws...)` syntax is deprecated"
         @test occursin(expected_error_msg, e.msg)
     end
 end
