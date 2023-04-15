@@ -42,7 +42,7 @@ function create_evaluation_helpers!(operators::GenericOperatorEnum)
             return tree(X, $operators; kws...)
         end
         function _grad_evaluator(tree::Node, X; kws...)
-            @error "Gradients are not implemented for `GenericOperatorEnum`."
+            return error("Gradients are not implemented for `GenericOperatorEnum`.")
         end
     end
 end
