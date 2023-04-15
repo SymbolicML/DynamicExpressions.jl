@@ -36,7 +36,7 @@ x2 = Node(; feature=2)
 expression = x1 * cos(x2 - 3.2)
 
 X = randn(Float64, 2, 100);
-expression(X) # 100-element Vector{Float64}
+expression(X, operators) # 100-element Vector{Float64}
 ```
 
 (We can construct this expression with normal operators, since calling `OperatorEnum()` will `@eval` new functions on `Node` that use the specified enum.)
@@ -53,18 +53,18 @@ First, what happens if we naively use Julia symbols to define and then evaluate 
 This is quite slow, meaning it will be hard to quickly search over the space of expressions. Let's see how DynamicExpressions.jl compares:
 
 ```julia
-@btime expression(X)
+@btime expression(X, operators)
 # 693 ns
 ```
 
-Much faster! And we didn't even need to compile it. (Internally, this is calling `eval_tree_array(expression, X, operators)` - where `operators` has been pre-defined when we called `OperatorEnum()`). 
+Much faster! And we didn't even need to compile it. (Internally, this is calling `eval_tree_array(expression, X, operators)`). 
 
 If we change `expression` dynamically with a random number generator, it will have the same performance:
 
 ```julia
 @btime begin
     expression.op = rand(1:3)  # random operator in [+, -, *]
-    expression(X)
+    expression(X, operators)
 end
 # 842 ns
 ```
@@ -113,13 +113,13 @@ expression = x1 * cos(x2 - 3.2)
 We can take the gradient with respect to inputs with simply the `'` character:
 
 ```julia
-grad = expression'(X)
+grad = expression'(X, operators)
 ```
 
 This is quite fast:
 
 ```julia
-@btime expression'(X)
+@btime expression'(X, operators)
 # 2894 ns
 ```
 
@@ -128,7 +128,7 @@ and again, we can change this expression at runtime, without loss in performance
 ```julia
 @btime begin
     expression.op = rand(1:3)
-    expression'(X)
+    expression'(X, operators)
 end
 # 3198 ns
 ```
@@ -180,14 +180,14 @@ Now, let's create an expression:
 tree = "H" * my_string_func(x1)
 # ^ `(H * my_string_func(x1))`
 
-tree(["World!", "Me?"])
+tree(["World!", "Me?"], operators)
 # Hello World!
 ```
 
 So indeed it works for arbitrary types. It is a bit slower due to the potential for type instability, but it's not too bad:
 
 ```julia
-@btime tree(["Hello", "Me?"])
+@btime tree(["Hello", "Me?"], operators)
 # 1738 ns
 ``` 
 
@@ -220,7 +220,7 @@ tree = vec_add(vec_add(vec_square(x1), c2), c1)
 X = [[-1.0, 5.2, 0.1], [0.0, 0.0, 0.0]]
 
 # Evaluate!
-tree(X)  # [2.0, 29.04, 3.01]
+tree(X, operators)  # [2.0, 29.04, 3.01]
 ```
 
 Note that if an operator is not defined for the particular input, `nothing` will be returned instead.
@@ -228,7 +228,7 @@ Note that if an operator is not defined for the particular input, `nothing` will
 This is all still pretty fast, too:
 
 ```julia
-@btime tree(X)
+@btime tree(X, operators)
 # 2,949 ns
 @btime eval(:(vec_add(vec_add(vec_square(X[1]), [1.0, 2.0, 3.0]), 0.0)))
 # 115,000 ns
