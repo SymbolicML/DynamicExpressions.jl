@@ -48,6 +48,6 @@ try
     @test false
 catch e
     @test isa(e, ErrorException)
-    expected_error_msg = "The `tree'(X; kws...)` syntax is deprecated"
+    expected_error_msg = "Gradients are not implemented"
     @test occursin(expected_error_msg, e.msg)
 end
