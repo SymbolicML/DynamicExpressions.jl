@@ -42,12 +42,10 @@ for turbo in [false, true], T in [Float16, Float32, Float64, ComplexF32, Complex
         for (i_func, fnc) in enumerate(functions)
 
             # check if fnc is tuple
-            if typeof(fnc) <: Tuple
-                realfnc = fnc[1]
-                nodefnc = fnc[2]
+            realfnc, nodefnc = if typeof(fnc) <: Tuple
+                fnc
             else
-                realfnc = fnc
-                nodefnc = fnc
+                fnc, fnc
             end
 
             local tree, operators, X
