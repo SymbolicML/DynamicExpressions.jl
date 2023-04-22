@@ -88,12 +88,15 @@ for type in [Float16, Float32, Float64], turbo in [true, false]
                     i in 1:nfeatures
                 ],
             )'
-        predicted_grad3 = tree'(X)
+        predicted_grad3 = tree'(X, operators; turbo=turbo)
+        # Test deprecated syntax:
+        predicted_grad4 = tree'(X; turbo=turbo)
 
         # Print largest difference between predicted_grad, true_grad:
         @test array_test(predicted_grad, true_grad)
         @test array_test(predicted_grad2, true_grad)
         @test array_test(predicted_grad3, true_grad)
+        @test array_test(predicted_grad4, true_grad)
 
         # Make sure that the array_test actually works:
         @test !array_test(predicted_grad .* 0, true_grad)

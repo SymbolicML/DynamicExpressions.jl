@@ -68,6 +68,9 @@ for turbo in [false, true], T in [Float16, Float32, Float64, ComplexF32, Complex
 
             zero_tolerance = (T <: Union{Float16,Complex} ? 1e-4 : 1e-6)
             @test all(abs.(test_y .- true_y) / N .< zero_tolerance)
+
+            test_y_helper = tree(X, operators; turbo=turbo)
+            @test all(test_y .== test_y_helper)
         end
     end
 end
@@ -114,9 +117,10 @@ end
         x1 = Node(T; feature=1)
         tree = sin(x1 / 0.0)
         X = randn(Float32, 3, 10)
-        @test isnan(tree(X; turbo=turbo)[1])
+        @test isnan(tree(X, operators; turbo=turbo)[1])
     end
 end
+
 
 # Check if julia version >= 1.7:
 if VERSION >= v"1.7"
@@ -130,7 +134,7 @@ if VERSION >= v"1.7"
         X = randn(Float32, 10)
         local stack
         try
-            tree(X)[1]
+            tree(X, operators)[1]
             @test false
         catch e
             @test e isa ErrorException
@@ -143,10 +147,10 @@ if VERSION >= v"1.7"
 
         # If a method is not defined, we should get a nothing:
         X = randn(Float32, 1, 10)
-        @test tree(X; throw_errors=false) === nothing
+        @test tree(X, operators; throw_errors=false) === nothing
         # or a MethodError:
         try
-            tree(X; throw_errors=true)
+            tree(X, operators; throw_errors=true)
             @test false
         catch e
             @test e isa ErrorException
