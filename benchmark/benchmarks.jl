@@ -1,4 +1,5 @@
 using DynamicExpressions, BenchmarkTools, Random
+using DynamicExpressions: copy_node
 using SymbolicRegression: gen_random_tree_fixed_size, Options
 
 const v_PACKAGE_VERSION = try
@@ -81,34 +82,57 @@ end
 
 function benchmark_utilities()
     suite = BenchmarkGroup()
-    for func in [simplify_tree, combine_operators]
-        suite[string(func)] = let s = BenchmarkGroup()
-            options = Options(; binary_operators=[+, -, /, *], unary_operators=[cos, exp])
-            #! format: off
-            nfeatures = 5
-            s["break_topology"] = @benchmarkable(
-                $(func)(tree, $options.operators),
-                evals=300,
-                samples=300,
-                seconds=10.0,
-                setup=(
-                    n=20;
-                    tree=gen_random_tree_fixed_size(n, $options, $nfeatures, Float32)
-                )
-            )
-            if v_PACKAGE_VERSION >= v"0.6.1"
-                s["preserve_topology"] = @benchmarkable(
-                    $(func)(tree, $options.operators; preserve_topology=true),
+    options = Options(; binary_operators=[+, -, /, *], unary_operators=[cos, exp])
+    for func_k in ("copy", "convert", "simplify_tree", "combine_operators")
+        suite[func_k] = let s = BenchmarkGroup()
+            for k in ("break_topology", "preserve_topology")
+                f = if func_k == "copy"
+                    tree -> copy_node(tree; preserve_topology=(k == "preserve_topology"))
+                elseif func_k == "convert"
+                    if v_PACKAGE_VERSION >= v"0.6.1"
+                        tree -> convert(
+                            Node{Float64},
+                            tree;
+                            preserve_topology=(k == "preserve_topology"),
+                        )
+                    else
+                        tree -> convert(Node{Float64}, tree)
+                    end
+                elseif func_k == "simplify_tree"
+                    if v_PACKAGE_VERSION >= v"0.6.1"
+                        tree -> simplify_tree(
+                            tree,
+                            options.operators;
+                            preserve_topology=(k == "preserve_topology"),
+                        )
+                    else
+                        tree -> simplify_tree(tree, options.operators)
+                    end
+                elseif func_k == "combine_operators"
+                    if v_PACKAGE_VERSION >= v"0.6.1"
+                        tree -> combine_operators(
+                            tree,
+                            options.operators;
+                            preserve_topology=(k == "preserve_topology"),
+                        )
+                    else
+                        tree -> combine_operators(tree, options.operators)
+                    end
+                end
+
+                #! format: off
+                s[k] = @benchmarkable(
+                    $(f)(tree),
                     evals=300,
                     samples=300,
                     seconds=10.0,
                     setup=(
                         n=20;
-                        tree=gen_random_tree_fixed_size(n, $options, $nfeatures, Float32)
+                        tree=gen_random_tree_fixed_size(n, $options, 5, Float32)
                     )
                 )
+                #! format: on
             end
-            #! format: on
             s
         end
     end
