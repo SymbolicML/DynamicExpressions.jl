@@ -2,7 +2,7 @@ using DynamicExpressions, BenchmarkTools, Random
 using SymbolicRegression: gen_random_tree_fixed_size, Options
 
 const v_PACKAGE_VERSION = try
-    VersionNumber(PACKAGE_VERSION)
+    VersionNumber(DynamicExpressions.PACKAGE_VERSION)
 catch
     VersionNumber("v0.0.0")
 end
@@ -115,5 +115,5 @@ function benchmark_utilities()
     return suite
 end
 
-SUITE["OperatorEnum"] = benchmark_evaluation()
+SUITE["eval"] = benchmark_evaluation()
 SUITE["utils"] = benchmark_utilities()
