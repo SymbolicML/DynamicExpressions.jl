@@ -92,7 +92,7 @@ function benchmark_utilities()
                 samples=300,
                 seconds=10.0,
                 setup=(
-                    n=rand(5:30);
+                    n=20;
                     tree=gen_random_tree_fixed_size(n, $options, $nfeatures, Float32)
                 )
             )
@@ -103,7 +103,7 @@ function benchmark_utilities()
                     samples=300,
                     seconds=10.0,
                     setup=(
-                        n=rand(5:30);
+                        n=20;
                         tree=gen_random_tree_fixed_size(n, $options, $nfeatures, Float32)
                     )
                 )
