@@ -1,5 +1,5 @@
 using DynamicExpressions, BenchmarkTools, Random
-using SymbolicRegression: gen_random_tree_fixed_size
+using SymbolicRegression: gen_random_tree_fixed_size, Options
 
 const v_PACKAGE_VERSION = try
     VersionNumber(PACKAGE_VERSION)
@@ -80,34 +80,36 @@ end
 
 function benchmark_utilities()
     suite = BenchmarkGroup()
-    suite["simplify_tree"] = let s = BenchmarkGroup()
-        operators = OperatorEnum(; binary_operators=[+, -, /, *], unary_operators=[cos, exp])
-        #! format: off
-        s["break_topology"] = @benchmarkable(
-            simplify_tree(tree, operators),
-            evals=300,
-            samples=300,
-            seconds=10.0,
-            setup=(
-                n=rand(5:30);
-                tree=gen_random_tree_fixed_size(n, $operators)
-            )
-        )
-        if v_PACKAGE_VERSION >= v"0.6.1"
-            s["preserve_topology"] = @benchmarkable(
-                simplify_tree(tree, operators; preserve_topology=true),
+    for func in [simplify_tree, combine_operators]
+        suite[string(func)] = let s = BenchmarkGroup()
+            options = Options(; binary_operators=[+, -, /, *], unary_operators=[cos, exp])
+            #! format: off
+            nfeatures = 5
+            s["break_topology"] = @benchmarkable(
+                $(func)(tree, $options.operators),
                 evals=300,
                 samples=300,
                 seconds=10.0,
                 setup=(
                     n=rand(5:30);
-                    tree=gen_random_tree_fixed_size(n, $operators)
+                    tree=gen_random_tree_fixed_size(n, $options, $nfeatures, Float32)
                 )
             )
+            if v_PACKAGE_VERSION >= v"0.6.1"
+                s["preserve_topology"] = @benchmarkable(
+                    $(func)(tree, $options.operators; preserve_topology=true),
+                    evals=300,
+                    samples=300,
+                    seconds=10.0,
+                    setup=(
+                        n=rand(5:30);
+                        tree=gen_random_tree_fixed_size(n, $options, $nfeatures, Float32)
+                    )
+                )
+            end
+            #! format: on
+            s
         end
-        #! format: on
-
-        s
     end
 
     return suite
