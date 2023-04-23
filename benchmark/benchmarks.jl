@@ -76,6 +76,7 @@ function benchmark_evaluation()
         end
         #! format: on
     end
+    return suite
 end
 
 function benchmark_utilities()
