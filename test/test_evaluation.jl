@@ -119,7 +119,6 @@ end
     end
 end
 
-
 # Check if julia version >= 1.7:
 if VERSION >= v"1.7"
     @testset "Test error catching for GenericOperatorEnum" begin
