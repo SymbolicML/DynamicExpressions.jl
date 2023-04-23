@@ -1,4 +1,5 @@
 using DynamicExpressions, BenchmarkTools, Random
+using SymbolicRegression: gen_random_tree_fixed_size
 
 const v_PACKAGE_VERSION = try
     VersionNumber(PACKAGE_VERSION)
@@ -77,4 +78,40 @@ function benchmark_evaluation()
     end
 end
 
+function benchmark_utilities()
+    suite = BenchmarkGroup()
+    suite["simplify_tree"] = let s = BenchmarkGroup()
+        operators = OperatorEnum(; binary_operators=[+, -, /, *], unary_operators=[cos, exp])
+        #! format: off
+        s["break_topology"] = @benchmarkable(
+            simplify_tree(tree, operators),
+            evals=300,
+            samples=300,
+            seconds=10.0,
+            setup=(
+                n=rand(5:30);
+                tree=gen_random_tree_fixed_size(n, $operators)
+            )
+        )
+        if v_PACKAGE_VERSION >= v"0.6.1"
+            s["preserve_topology"] = @benchmarkable(
+                simplify_tree(tree, operators; preserve_topology=true),
+                evals=300,
+                samples=300,
+                seconds=10.0,
+                setup=(
+                    n=rand(5:30);
+                    tree=gen_random_tree_fixed_size(n, $operators)
+                )
+            )
+        end
+        #! format: on
+
+        s
+    end
+
+    return suite
+end
+
 SUITE["OperatorEnum"] = benchmark_evaluation()
+SUITE["utils"] = benchmark_utilities()
