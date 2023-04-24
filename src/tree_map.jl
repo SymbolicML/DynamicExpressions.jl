@@ -1,7 +1,3 @@
-module TreeMapModule
-
-import ..EquationModule: Node
-
 """
     tree_mapreduce(f, op, tree)
 
@@ -81,6 +77,4 @@ function tree_any(f::F, tree::Node) where {F<:Function}
     else
         return @inline(f(tree))::Bool || tree_any(f, tree.l) || tree_any(f, tree.r)
     end
-end
-
 end
