@@ -4,44 +4,6 @@ import ..EquationModule: Node, copy_node
 import ..TreeMapModule: tree_mapreduce, tree_any
 
 """
-    count_nodes_with_stack(tree::Node{T}, preallocated_stack)::Int where {T}
-
-Count the number of nodes in the tree, using a stack instead of
-recursion. While counting nodes is a quick task already, for further
-speed, using a pre-allocated stack can be signficantly faster,
-especially if you can re-use the same stack for multiple calls.
-
-# Arguments
-- `tree::Node{T}`: The tree to count the nodes of.
-- `preallocated_stack::Vector{Node{T}}`: A pre-allocated stack
-   to use for the counting. This should have a length of the
-   potential max depth of a tree. e.g., you can initialize this
-   with `Array{Node{T}}(undef, 100)` for a max depth of 100.
-"""
-function count_nodes_with_stack(
-    tree::Node{T}, preallocated_stack::Vector{Node{T}}
-)::Int where {T}
-    preallocated_stack[1] = tree
-    count = 0
-    i = 1
-    while i !== 0
-        head = preallocated_stack[i]
-        i -= 1
-        count += 1
-        if head.degree == 1
-            i += 1
-            preallocated_stack[i] = head.l
-        elseif head.degree == 2
-            i += 1
-            preallocated_stack[i] = head.l
-            i += 1
-            preallocated_stack[i] = head.r
-        end
-    end
-    return count
-end
-
-"""
     count_nodes(tree::Node{T})::Int where {T}
 
 Count the number of nodes in the tree.
