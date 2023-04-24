@@ -74,7 +74,7 @@ count_constants(tree::Node) = tree_mapreduce(t -> is_node_constant(t) ? 1 : 0, +
 
 Check if a tree has any constants.
 """
-has_constants(tree::Node) = tree_any(t -> is_node_constant(t), tree)
+has_constants(tree::Node) = tree_any(is_node_constant, tree)
 
 """
     has_operators(tree::Node)::Bool
