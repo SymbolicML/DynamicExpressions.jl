@@ -93,15 +93,11 @@ function benchmark_utilities()
                 f = if func_k == "copy"
                     tree -> copy_node(tree; preserve_sharing=(k == "preserve_sharing"))
                 elseif func_k == "convert"
-                    if v_PACKAGE_VERSION >= v"0.6.1"
-                        tree -> convert(
-                            Node{Float64},
-                            tree;
-                            preserve_sharing=(k == "preserve_sharing"),
-                        )
-                    else
-                        tree -> convert(Node{Float64}, tree)
-                    end
+                    tree -> convert(
+                        Node{Float64},
+                        tree;
+                        preserve_sharing=(k == "preserve_sharing"),
+                    )
                 elseif func_k == "simplify_tree"
                     tree -> simplify_tree(tree, options.operators)
                 elseif func_k == "combine_operators"

@@ -43,12 +43,10 @@ include("test_params.jl")
     copied_base_tree.l.l = x1 * x2 * 5.2 - exp(x3)
     # "exp" should appear *twice* now:
     copy_with_sharing
-    @test length(collect(eachmatch(r"exp", string_tree(copy_with_sharing, operators)))) ==
-        2
+    @test length(collect(eachmatch(r"exp", string_tree(copy_with_sharing, operators)))) == 2
     @test copy_with_sharing.l.l === copy_with_sharing.r
     @test hash(copy_with_sharing.l.l) == hash(copy_with_sharing.r)
-    @test string_tree(copy_with_sharing.l.l, operators) !=
-        string_tree(base_tree, operators)
+    @test string_tree(copy_with_sharing.l.l, operators) != string_tree(base_tree, operators)
 
     # We also test whether `convert` breaks shared children.
     # The node type here should be Float64.
