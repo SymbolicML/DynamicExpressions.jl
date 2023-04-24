@@ -1,7 +1,6 @@
 module EquationUtilsModule
 
-import ..EquationModule: Node, copy_node
-import ..TreeMapModule: tree_mapreduce, tree_any
+import ..EquationModule: Node, copy_node, tree_mapreduce, tree_any
 
 """
     count_nodes(tree::Node{T})::Int where {T}

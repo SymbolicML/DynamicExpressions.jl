@@ -61,6 +61,8 @@ mutable struct Node{T}
 end
 ################################################################################
 
+include("tree_map.jl")
+
 """
     convert(::Type{Node{T1}}, n::Node{T2}) where {T1,T2}
 
