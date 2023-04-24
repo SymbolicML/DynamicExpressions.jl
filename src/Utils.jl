@@ -72,9 +72,19 @@ macro return_on_false2(flag, retval, retval2)
     )
 end
 
-# Fastest way to check for NaN in an array.
-# (due to optimizations in sum())
-is_bad_array(array) = !isfinite(sum(array))
+# https://discourse.julialang.org/t/fastest-way-to-check-for-inf-or-nan-in-an-array/76954/
+# ^ Thanks to discussion participants!
+function is_good_array(x::AbstractArray{T}) where {T}
+    for i = firstindex(x):64:(lastindex(x)-63)
+        s = zero(T)
+        @inbounds @fastmath for j = 0:63
+            s += x[i+j] * 0
+        end
+        !isfinite(s) && return false
+    end
+    return all(isfinite, @view x[max(end - 64, begin):end])
+end
+is_bad_array(x::AbstractArray) = !is_good_array(x)
 isgood(x::T) where {T<:Number} = !(isnan(x) || !isfinite(x))
 isgood(x) = true
 isbad(x) = !isgood(x)
