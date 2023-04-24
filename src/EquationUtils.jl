@@ -1,7 +1,7 @@
 module EquationUtilsModule
 
 import ..EquationModule: Node, copy_node
-import ..TreeMapModule: tree_mapreduce
+import ..TreeMapModule: tree_mapreduce, tree_any
 
 """
     count_nodes_with_stack(tree::Node{T}, preallocated_stack)::Int where {T}
@@ -51,32 +51,20 @@ Count the number of nodes in the tree.
 """
 count_nodes(tree::Node) = tree_mapreduce(_ -> 1, +, tree)
 
-# Count the max depth of a tree
-function count_depth(tree::Node)::Int
-    if tree.degree == 0
-        return 1
-    elseif tree.degree == 1
-        return 1 + count_depth(tree.l)
-    else
-        return 1 + max(count_depth(tree.l), count_depth(tree.r))
-    end
-end
+"""
+    count_depth(tree::Node{T})::Int where {T}
 
+Compute the max depth of the tree.
+
+# Arguments
+- `tree::Node{T}`: The tree to compute the depth of.
+"""
+count_depth(tree::Node) = tree_mapreduce(_ -> 1, (p, child...) -> p + max(child...), tree)
+
+@inline is_node_constant(tree::Node) = tree.degree == 0 && tree.constant
+count_constants(tree::Node) = tree_mapreduce(t -> is_node_constant(t) ? 1 : 0, +, tree)
+has_constants(tree::Node) = tree_any(t -> is_node_constant(t), tree)
 has_operators(tree::Node) = tree.degree > 0
-
-@inline is_constant(tree::Node) = tree.degree == 0 && tree.constant
-# Count the number of constants in an equation
-count_constants(tree::Node) = tree_mapreduce(t -> is_constant(t) ? 1 : 0, +, tree)
-
-function has_constants(tree::Node)::Bool
-    if tree.degree == 0
-        return tree.constant
-    elseif tree.degree == 1
-        return has_constants(tree.l)
-    else
-        return has_constants(tree.l) || has_constants(tree.r)
-    end
-end
 
 """
     is_constant(tree::Node)::Bool
@@ -84,29 +72,13 @@ end
 Check if an expression is a constant numerical value, or
 whether it depends on input features.
 """
-function is_constant(tree::Node)::Bool
-    if tree.degree == 0
-        return tree.constant
-    elseif tree.degree == 1
-        return is_constant(tree.l)
-    else
-        return is_constant(tree.l) && is_constant(tree.r)
-    end
-end
+is_constant(tree::Node) = !tree_any(t -> t.degree == 0 && !t.constant, tree)
 
 # Get all the constants from a tree
-function get_constants(tree::Node{T})::AbstractVector{T} where {T}
-    if tree.degree == 0
-        if tree.constant
-            return [tree.val::T]
-        else
+function get_constants(tree::Node{T}) where {T}
+    tree_mapreduce((_, args...) -> vcat(args...), tree) do t
+        t.degree == 0 && t.constant && return [t.val::T]
             return T[]
-        end
-    elseif tree.degree == 1
-        return get_constants(tree.l)
-    else
-        both = [get_constants(tree.l), get_constants(tree.r)]
-        return [constant for subtree in both for constant in subtree]
     end
 end
 
