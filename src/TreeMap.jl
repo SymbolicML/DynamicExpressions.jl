@@ -35,11 +35,13 @@ end  # Get list of constants
 """
 function tree_mapreduce(f::F, op::G, tree::Node) where {F<:Function,G<:Function}
     if tree.degree == 0
-        return f(tree)
+        return @inline(f(tree))
     elseif tree.degree == 1
-        return op(f(tree), tree_mapreduce(f, op, tree.l))
+        return op(@inline(f(tree)), tree_mapreduce(f, op, tree.l))
     else
-        return op(f(tree), tree_mapreduce(f, op, tree.l), tree_mapreduce(f, op, tree.r))
+        return op(
+            @inline(f(tree)), tree_mapreduce(f, op, tree.l), tree_mapreduce(f, op, tree.r)
+        )
     end
 end
 
@@ -49,7 +51,8 @@ end
 Map a function over a tree and return a flat array of the results in depth-first order.
 """
 function tree_map(f::F, tree::Node) where {F<:Function}
-    return tree_mapreduce(t -> [f(t)], vcat, tree)
+    return tree_mapreduce(t -> [@inline(f(t))], vcat, tree)
+end
 end
 
 end
