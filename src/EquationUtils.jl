@@ -78,22 +78,22 @@ is_constant(tree::Node) = !tree_any(t -> t.degree == 0 && !t.constant, tree)
 function get_constants(tree::Node{T}) where {T}
     tree_mapreduce((_, args...) -> vcat(args...), tree) do t
         t.degree == 0 && t.constant && return [t.val::T]
-            return T[]
+        return T[]
     end
 end
 
 # Set all the constants inside a tree
-function set_constants(tree::Node{T}, constants::AbstractVector{T}) where {T}
+function set_constants!(tree::Node{T}, constants::AbstractVector{T}) where {T}
     if tree.degree == 0
         if tree.constant
             tree.val = constants[1]
         end
     elseif tree.degree == 1
-        set_constants(tree.l, constants)
+        set_constants!(tree.l, constants)
     else
         numberLeft = count_constants(tree.l)
-        set_constants(tree.l, constants)
-        set_constants(tree.r, constants[(numberLeft + 1):end])
+        set_constants!(tree.l, constants)
+        set_constants!(tree.r, @view constants[(numberLeft + 1):end])
     end
 end
 
