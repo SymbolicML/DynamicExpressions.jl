@@ -14,7 +14,7 @@ include("OperatorEnumConstruction.jl")
 
 using Reexport
 @reexport import .EquationModule: Node, string_tree, print_tree, copy_node, set_node!
-@reexport import .TreeMapModule: tree_map, tree_mapreduce
+@reexport import .TreeMapModule: tree_map, tree_mapreduce, tree_any, tree_map!
 @reexport import .EquationUtilsModule:
     count_nodes,
     count_nodes_with_stack,
