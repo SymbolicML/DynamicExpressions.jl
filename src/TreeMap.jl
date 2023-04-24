@@ -79,9 +79,7 @@ function tree_any(f::F, tree::Node) where {F<:Function}
     elseif tree.degree == 1
         return @inline(f(tree))::Bool || tree_any(f, tree.l)
     else
-        return @inline(f(tree))::Bool ||
-               tree_any(f, tree.l) ||
-               tree_any(f, tree.r)
+        return @inline(f(tree))::Bool || tree_any(f, tree.l) || tree_any(f, tree.r)
     end
 end
 
