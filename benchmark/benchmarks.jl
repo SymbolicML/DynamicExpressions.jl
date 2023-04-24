@@ -85,19 +85,19 @@ function benchmark_utilities()
     options = Options(; binary_operators=[+, -, /, *], unary_operators=[cos, exp])
     for func_k in ("copy", "convert", "simplify_tree", "combine_operators")
         suite[func_k] = let s = BenchmarkGroup()
-            for k in ("break_topology", "preserve_topology")
-                k == "preserve_topology" &&
+            for k in ("break_sharing", "preserve_sharing")
+                k == "preserve_sharing" &&
                     func_k in ("simplify_tree", "combine_operators") &&
                     continue
 
                 f = if func_k == "copy"
-                    tree -> copy_node(tree; preserve_topology=(k == "preserve_topology"))
+                    tree -> copy_node(tree; preserve_sharing=(k == "preserve_sharing"))
                 elseif func_k == "convert"
                     if v_PACKAGE_VERSION >= v"0.6.1"
                         tree -> convert(
                             Node{Float64},
                             tree;
-                            preserve_topology=(k == "preserve_topology"),
+                            preserve_sharing=(k == "preserve_sharing"),
                         )
                     else
                         tree -> convert(Node{Float64}, tree)

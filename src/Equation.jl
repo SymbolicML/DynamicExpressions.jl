@@ -74,12 +74,12 @@ using `convert(T1, tree.val)` at constant nodes.
 - `tree::Node{T2}`: Node to convert.
 """
 function Base.convert(
-    ::Type{Node{T1}}, tree::Node{T2}; preserve_topology::Bool=false
+    ::Type{Node{T1}}, tree::Node{T2}; preserve_sharing::Bool=false
 ) where {T1,T2}
     if T1 == T2
         return tree
     end
-    if preserve_topology
+    if preserve_sharing
         @use_idmap(_convert(Node{T1}, tree), IdDict{Node{T2},Node{T1}}())
     else
         _convert(Node{T1}, tree)
@@ -225,11 +225,11 @@ function set_node!(tree::Node{T}, new_tree::Node{T}) where {T}
 end
 
 """
-    copy_node(tree::Node; preserve_topology::Bool=false)
+    copy_node(tree::Node; preserve_sharing::Bool=false)
 
 Copy a node, recursively copying all children nodes.
 This is more efficient than the built-in copy.
-With `preserve_topology=true`, this will also
+With `preserve_sharing=true`, this will also
 preserve linkage between a node and
 multiple parents, whereas without, this would create
 duplicate child node copies.
@@ -241,8 +241,8 @@ we can simply reference the existing copy.
 
 Note that this will *not* preserve loops in graphs.
 """
-function copy_node(tree::Node{T}; preserve_topology::Bool=false)::Node{T} where {T}
-    if preserve_topology
+function copy_node(tree::Node{T}; preserve_sharing::Bool=false)::Node{T} where {T}
+    if preserve_sharing
         @use_idmap(_copy_node(tree), IdDict{Node{T},Node{T}}())
     else
         _copy_node(tree)
@@ -406,7 +406,7 @@ end
 
 function Base.:(==)(a::Node{T1}, b::Node{T2})::Bool where {T1,T2}
     T = promote_type(T1, T2)
-    # TODO: Should also have preserve_topology check...
+    # TODO: Should also have preserve_sharing check...
     return is_equal(convert(Node{T}, a), convert(Node{T}, b))
 end
 
