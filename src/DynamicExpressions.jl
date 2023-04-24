@@ -17,7 +17,6 @@ using Reexport
 @reexport import .TreeMapModule: tree_map, tree_mapreduce, tree_any, tree_map!
 @reexport import .EquationUtilsModule:
     count_nodes,
-    count_nodes_with_stack,
     count_constants,
     count_depth,
     NodeIndex,
