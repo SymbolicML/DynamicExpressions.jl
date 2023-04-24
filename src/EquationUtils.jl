@@ -45,9 +45,6 @@ end
     count_nodes(tree::Node{T})::Int where {T}
 
 Count the number of nodes in the tree.
-
-# Arguments
-- `tree::Node{T}`: The tree to count the nodes of.
 """
 count_nodes(tree::Node) = tree_mapreduce(_ -> 1, +, tree)
 
@@ -55,15 +52,35 @@ count_nodes(tree::Node) = tree_mapreduce(_ -> 1, +, tree)
     count_depth(tree::Node{T})::Int where {T}
 
 Compute the max depth of the tree.
-
-# Arguments
-- `tree::Node{T}`: The tree to compute the depth of.
 """
 count_depth(tree::Node) = tree_mapreduce(_ -> 1, (p, child...) -> p + max(child...), tree)
 
+"""
+    is_node_constant(tree::Node)::Bool
+
+Check if the current node in a tree is constant.
+"""
 @inline is_node_constant(tree::Node) = tree.degree == 0 && tree.constant
+
+"""
+    count_constants(tree::Node)::Int
+
+Count the number of constants in a tree.
+"""
 count_constants(tree::Node) = tree_mapreduce(t -> is_node_constant(t) ? 1 : 0, +, tree)
+
+"""
+    has_constants(tree::Node)::Bool
+
+Check if a tree has any constants.
+"""
 has_constants(tree::Node) = tree_any(t -> is_node_constant(t), tree)
+
+"""
+    has_operators(tree::Node)::Bool
+
+Check if a tree has any operators.
+"""
 has_operators(tree::Node) = tree.degree > 0
 
 """
@@ -74,7 +91,13 @@ whether it depends on input features.
 """
 is_constant(tree::Node) = !tree_any(t -> t.degree == 0 && !t.constant, tree)
 
-# Get all the constants from a tree
+"""
+    get_constants(tree::Node{T})::Vector{T} where {T}
+
+Get all the constants inside a tree, in depth-first order.
+The function `set_constants!` sets them in the same order,
+given the output of this function.
+"""
 function get_constants(tree::Node{T}) where {T}
     tree_mapreduce((_, args...) -> vcat(args...), tree) do t
         t.degree == 0 && t.constant && return [t.val::T]
@@ -82,7 +105,12 @@ function get_constants(tree::Node{T}) where {T}
     end
 end
 
-# Set all the constants inside a tree
+"""
+    set_constants!(tree::Node{T}, constants::AbstractVector{T}) where {T}
+
+Set the constants in a tree, in depth-first order.
+The function `get_constants` gets them in the same order,
+"""
 function set_constants!(tree::Node{T}, constants::AbstractVector{T}) where {T}
     if tree.degree == 0
         if tree.constant
