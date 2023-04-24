@@ -2,22 +2,10 @@ module SimplifyEquationModule
 
 import ..EquationModule: Node, copy_node
 import ..OperatorEnumModule: AbstractOperatorEnum
-import ..UtilsModule: isbad, isgood, @generate_idmap, @use_idmap
+import ..UtilsModule: isbad, isgood
 
 # Simplify tree
-function combine_operators(
-    tree::Node{T}, operators::AbstractOperatorEnum; preserve_topology::Bool=false
-) where {T}
-    if preserve_topology
-        @use_idmap(_combine_operators(tree, operators), IdDict{Node{T},Node{T}}())
-    else
-        _combine_operators(tree, operators)
-    end
-end
-
-@generate_idmap tree function _combine_operators(
-    tree::Node{T}, operators
-)::Node{T} where {T}
+function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
     # NOTE: (const (+*-) const) already accounted for. Call simplify_tree before.
     # ((const + var) + const) => (const + var)
     # ((const * var) * const) => (const * var)
@@ -27,10 +15,10 @@ end
     if tree.degree == 0
         return tree
     elseif tree.degree == 1
-        tree.l = _combine_operators(tree.l, operators)
+        tree.l = combine_operators(tree.l, operators)
     elseif tree.degree == 2
-        tree.l = _combine_operators(tree.l, operators)
-        tree.r = _combine_operators(tree.r, operators)
+        tree.l = combine_operators(tree.l, operators)
+        tree.r = combine_operators(tree.r, operators)
     end
 
     top_level_constant = tree.degree == 2 && (tree.l.constant || tree.r.constant)
@@ -108,19 +96,9 @@ end
 end
 
 # Simplify tree
-function simplify_tree(
-    tree::Node{T}, operators::AbstractOperatorEnum; preserve_topology::Bool=false
-) where {T}
-    if preserve_topology
-        @use_idmap(_simplify_tree(tree, operators), IdDict{Node{T},Node{T}}())
-    else
-        _simplify_tree(tree, operators)
-    end
-end
-
-@generate_idmap tree function _simplify_tree(tree::Node{T}, operators)::Node{T} where {T}
+function simplify_tree(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
     if tree.degree == 1
-        tree.l = _simplify_tree(tree.l, operators)
+        tree.l = simplify_tree(tree.l, operators)
         if tree.l.degree == 0 && tree.l.constant
             l = tree.l.val::T
             if isgood(l)
@@ -132,8 +110,8 @@ end
             end
         end
     elseif tree.degree == 2
-        tree.l = _simplify_tree(tree.l, operators)
-        tree.r = _simplify_tree(tree.r, operators)
+        tree.l = simplify_tree(tree.l, operators)
+        tree.r = simplify_tree(tree.r, operators)
         constantsBelow = (
             tree.l.degree == 0 && tree.l.constant && tree.r.degree == 0 && tree.r.constant
         )
