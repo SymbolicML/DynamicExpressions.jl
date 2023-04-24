@@ -66,6 +66,23 @@ function tree_map!(f!::F, tree::Node) where {F<:Function}
     end
     return nothing
 end
+
+"""
+    tree_any(f, tree)
+
+Reduce a flag function over a tree, returning `true` if the function returns `true` for any node.
+By using this instead of mapreduce, we can lazily traverse the tree.
+"""
+function tree_any(f::F, tree::Node) where {F<:Function}
+    if tree.degree == 0
+        return @inline(f(tree))::Bool
+    elseif tree.degree == 1
+        return @inline(f(tree))::Bool || tree_any(f, tree.l)
+    else
+        return @inline(f(tree))::Bool ||
+               tree_any(f, tree.l) ||
+               tree_any(f, tree.r)
+    end
 end
 
 end
