@@ -3,7 +3,6 @@ module DynamicExpressions
 include("Utils.jl")
 include("OperatorEnum.jl")
 include("Equation.jl")
-include("TreeMap.jl")
 include("EquationUtils.jl")
 include("EvaluateEquation.jl")
 include("EvaluateEquationDerivative.jl")
@@ -13,8 +12,16 @@ include("SimplifyEquation.jl")
 include("OperatorEnumConstruction.jl")
 
 using Reexport
-@reexport import .EquationModule: Node, string_tree, print_tree, copy_node, set_node!
-@reexport import .TreeMapModule: tree_map, tree_mapreduce, tree_any, tree_map!
+@reexport import .EquationModule:
+    Node,
+    string_tree,
+    print_tree,
+    copy_node,
+    set_node!,
+    tree_map,
+    tree_mapreduce,
+    tree_any,
+    tree_map!
 @reexport import .EquationUtilsModule:
     count_nodes,
     count_constants,
