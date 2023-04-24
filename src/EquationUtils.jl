@@ -1,6 +1,7 @@
 module EquationUtilsModule
 
 import ..EquationModule: Node, copy_node
+import ..TreeMapModule: tree_mapreduce
 
 """
     count_nodes_with_stack(tree::Node{T}, preallocated_stack)::Int where {T}
@@ -48,15 +49,7 @@ Count the number of nodes in the tree.
 # Arguments
 - `tree::Node{T}`: The tree to count the nodes of.
 """
-function count_nodes(tree::Node{T})::Int where {T}
-    if tree.degree == 0
-        return 1
-    elseif tree.degree == 1
-        return 1 + count_nodes(tree.l)
-    else
-        return 1 + count_nodes(tree.l) + count_nodes(tree.r)
-    end
-end
+count_nodes(tree::Node) = tree_mapreduce(_ -> 1, +, tree)
 
 # Count the max depth of a tree
 function count_depth(tree::Node)::Int
@@ -69,24 +62,11 @@ function count_depth(tree::Node)::Int
     end
 end
 
-function has_operators(tree::Node)::Bool
-    return tree.degree > 0
-end
+has_operators(tree::Node) = tree.degree > 0
 
+@inline is_constant(tree::Node) = tree.degree == 0 && tree.constant
 # Count the number of constants in an equation
-function count_constants(tree::Node)::Int
-    if tree.degree == 0
-        if tree.constant
-            return 1
-        else
-            return 0
-        end
-    elseif tree.degree == 1
-        return 0 + count_constants(tree.l)
-    else
-        return 0 + count_constants(tree.l) + count_constants(tree.r)
-    end
-end
+count_constants(tree::Node) = tree_mapreduce(t -> is_constant(t) ? 1 : 0, +, tree)
 
 function has_constants(tree::Node)::Bool
     if tree.degree == 0
