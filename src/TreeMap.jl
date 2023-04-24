@@ -53,6 +53,19 @@ Map a function over a tree and return a flat array of the results in depth-first
 function tree_map(f::F, tree::Node) where {F<:Function}
     return tree_mapreduce(t -> [@inline(f(t))], vcat, tree)
 end
+function tree_map!(f!::F, tree::Node) where {F<:Function}
+    if tree.degree == 0
+        f!(tree)
+    elseif tree.degree == 1
+        f!(tree)
+        tree_map!(f!, tree.l)
+    else
+        f!(tree)
+        tree_map!(f!, tree.l)
+        tree_map!(f!, tree.r)
+    end
+    return nothing
+end
 end
 
 end
