@@ -99,7 +99,7 @@ The function `set_constants!` sets them in the same order,
 given the output of this function.
 """
 function get_constants(tree::Node{T}) where {T}
-    tree_mapreduce((_, args...) -> vcat(args...), tree) do t
+    tree_mapreduce((_, child...) -> vcat(child...), tree) do t
         t.degree == 0 && t.constant && return [t.val::T]
         return T[]
     end
