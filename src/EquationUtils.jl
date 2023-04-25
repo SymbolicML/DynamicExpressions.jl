@@ -1,20 +1,20 @@
 module EquationUtilsModule
 
-import ..EquationModule: Node, copy_node, tree_mapreduce, tree_any
+import ..EquationModule: Node, copy_node, mapreduce, any
 
 """
     count_nodes(tree::Node{T})::Int where {T}
 
 Count the number of nodes in the tree.
 """
-count_nodes(tree::Node) = tree_mapreduce(_ -> 1, +, tree)
+count_nodes(tree::Node) = mapreduce(_ -> 1, +, tree)
 
 """
     count_depth(tree::Node{T})::Int where {T}
 
 Compute the max depth of the tree.
 """
-count_depth(tree::Node) = tree_mapreduce(_ -> 1, (p, child...) -> p + max(child...), tree)
+count_depth(tree::Node) = mapreduce(_ -> 1, (p, child...) -> p + max(child...), tree)
 
 """
     is_node_constant(tree::Node)::Bool
@@ -28,14 +28,14 @@ Check if the current node in a tree is constant.
 
 Count the number of constants in a tree.
 """
-count_constants(tree::Node) = tree_mapreduce(t -> is_node_constant(t) ? 1 : 0, +, tree)
+count_constants(tree::Node) = mapreduce(t -> is_node_constant(t) ? 1 : 0, +, tree)
 
 """
     has_constants(tree::Node)::Bool
 
 Check if a tree has any constants.
 """
-has_constants(tree::Node) = tree_any(is_node_constant, tree)
+has_constants(tree::Node) = any(is_node_constant, tree)
 
 """
     has_operators(tree::Node)::Bool
@@ -50,7 +50,7 @@ has_operators(tree::Node) = tree.degree > 0
 Check if an expression is a constant numerical value, or
 whether it depends on input features.
 """
-is_constant(tree::Node) = !tree_any(t -> t.degree == 0 && !t.constant, tree)
+is_constant(tree::Node) = !any(t -> t.degree == 0 && !t.constant, tree)
 
 """
     get_constants(tree::Node{T})::Vector{T} where {T}
@@ -60,7 +60,7 @@ The function `set_constants!` sets them in the same order,
 given the output of this function.
 """
 function get_constants(tree::Node{T}) where {T}
-    tree_mapreduce((_, child...) -> vcat(child...), tree) do t
+    mapreduce((_, child...) -> vcat(child...), tree) do t
         t.degree == 0 && t.constant && return [t.val::T]
         return T[]
     end
