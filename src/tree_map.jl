@@ -54,19 +54,19 @@ function mapreduce(f::F, op::G, tree::Node) where {F<:Function,G<:Function}
     end
 end
 
-function _mapfilter!(f::F, post::G, tree::Node{T}, stack::Vector{GT}) where {F<:Function,G<:Function,GT,T}
+function _mapfilter(f::F, post::G, tree::Node{T}, stack::Vector{GT}) where {F<:Function,G<:Function,GT,T}
     @inline(f(tree)) && push!(stack, @inline(post(tree)))
     if tree.degree == 1
-        _mapfilter!(f, post, tree.l, stack)
+        _mapfilter(f, post, tree.l, stack)
     elseif tree.degree == 2
-        _mapfilter!(f, post, tree.l, stack)
-        _mapfilter!(f, post, tree.r, stack)
+        _mapfilter(f, post, tree.l, stack)
+        _mapfilter(f, post, tree.r, stack)
     end
     return nothing
 end
 function mapfilter(f::F, post::G, tree::Node{T}, ::Type{GT}=Any) where {F<:Function,G<:Function,GT,T}
     stack = GT[]
-    _mapfilter!(f, post, tree, stack)
+    _mapfilter(f, post, tree, stack)
     return stack::Vector{GT}
 end
 
