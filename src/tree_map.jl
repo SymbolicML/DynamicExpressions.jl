@@ -19,8 +19,7 @@ end
 
 function _fix_inline(ex)
     if VERSION >= v"1.8"
-        # return Expr(:macrocall, Symbol("@inline"), LineNumberNode(@__LINE__), ex)
-        return ex
+        return Expr(:macrocall, Symbol("@inline"), LineNumberNode(@__LINE__), ex)
     else
         return ex
     end
