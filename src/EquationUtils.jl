@@ -79,6 +79,7 @@ function set_constants!(tree::Node{T}, constants::AbstractVector{T}) where {T}
         set_constants!(tree.l, constants)
         set_constants!(tree.r, @view constants[(numberLeft + 1):end])
     end
+    return nothing
 end
 
 ## Assign index to nodes of a tree
