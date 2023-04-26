@@ -11,6 +11,21 @@ import Base:
     firstindex,
     lastindex
 
+"""Internal macro to fix @inline on Julia versions before 1.8"""
+macro _inline(ex)
+    ex = _fix_inline(ex)
+    return :($(esc(ex)))
+end
+
+function _fix_inline(ex)
+    if VERSION >= v"1.8"
+        # return Expr(:macrocall, Symbol("@inline"), LineNumberNode(@__LINE__), ex)
+        return ex
+    else
+        return ex
+    end
+end
+
 """
     mapreduce(f::Function, op::Function, tree::Node)
 
@@ -46,11 +61,11 @@ end  # Get list of constants
 """
 function mapreduce(f::F, op::G, tree::Node) where {F<:Function,G<:Function}
     if tree.degree == 0
-        return @inline(f(tree))
+        return @_inline(f(tree))
     elseif tree.degree == 1
-        return op(@inline(f(tree)), mapreduce(f, op, tree.l))
+        return op(@_inline(f(tree)), mapreduce(f, op, tree.l))
     else
-        return op(@inline(f(tree)), mapreduce(f, op, tree.l), mapreduce(f, op, tree.r))
+        return op(@_inline(f(tree)), mapreduce(f, op, tree.l), mapreduce(f, op, tree.r))
     end
 end
 
@@ -64,7 +79,7 @@ end
 function _filter_and_map(
     filter_fnc::F, map_fnc::G, tree::Node{T}, stack::Vector{GT}
 ) where {F<:Function,G<:Function,GT,T}
-    @inline(filter_fnc(tree)) && push!(stack, @inline(map_fnc(tree)))
+    @_inline(filter_fnc(tree)) && push!(stack, @_inline(map_fnc(tree)))
     if tree.degree == 1
         _filter_and_map(filter_fnc, map_fnc, tree.l, stack)
     elseif tree.degree == 2
@@ -82,11 +97,11 @@ By using this instead of mapreduce, we can lazily traverse the tree.
 """
 function any(f::F, tree::Node) where {F<:Function}
     if tree.degree == 0
-        return @inline(f(tree))::Bool
+        return @_inline(f(tree))::Bool
     elseif tree.degree == 1
-        return @inline(f(tree))::Bool || any(f, tree.l)
+        return @_inline(f(tree))::Bool || any(f, tree.l)
     else
-        return @inline(f(tree))::Bool || any(f, tree.l) || any(f, tree.r)
+        return @_inline(f(tree))::Bool || any(f, tree.l) || any(f, tree.r)
     end
 end
 
@@ -107,7 +122,7 @@ collect(tree::Node) = filter(Returns(true), tree)
 Map a function over a tree and return a flat array of the results in depth-first order.
 """
 map(f::F, tree::Node) where {F<:Function} = f.(collect(tree))
-all(f::F, tree::Node) where {F<:Function} = !any(t -> !@inline(f(t)), tree)
+all(f::F, tree::Node) where {F<:Function} = !any(t -> !@_inline(f(t)), tree)
 getindex(tree::Node, i::Int) = collect(tree)[i]
 iterate(root::Node) = (root, collect(root)[(begin + 1):end])
 iterate(_, stack) = isempty(stack) ? nothing : (popfirst!(stack), stack)
