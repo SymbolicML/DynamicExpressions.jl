@@ -163,7 +163,7 @@ function test_functions_on_trees(::Type{T}, operators) where {T}
     return nothing
 end
 
-macro maybe_precompile_setup(mode, ex)
+macro maybe_setup_workload(mode, ex)
     precompile_ex = Expr(
         :macrocall, Symbol("@setup_workload"), LineNumberNode(@__LINE__), ex
     )
@@ -178,7 +178,7 @@ macro maybe_precompile_setup(mode, ex)
     end
 end
 
-macro maybe_precompile_all_calls(mode, ex)
+macro maybe_compile_workload(mode, ex)
     precompile_ex = Expr(
         :macrocall, Symbol("@compile_workload"), LineNumberNode(@__LINE__), ex
     )
@@ -195,12 +195,12 @@ end
 
 """`mode=:precompile` will use `@precompile_*` directives; `mode=:compile` runs."""
 function do_precompilation(; mode=:precompile)
-    @maybe_precompile_setup mode begin
+    @maybe_setup_workload mode begin
         binary_operators = [[+, -, *, /]]
         unary_operators = [[sin, cos]]
         turbo = [false]
         types = [Float32, Float64]
-        @maybe_precompile_all_calls mode begin
+        @maybe_compile_workload mode begin
             test_all_combinations(;
                 binary_operators=binary_operators,
                 unary_operators=unary_operators,
@@ -216,7 +216,7 @@ function do_precompilation(; mode=:precompile)
         # Want to precompile all above calls.
         types = [Float32, Float64]
         for T in types
-            @maybe_precompile_all_calls mode begin
+            @maybe_compile_workload mode begin
                 test_functions_on_trees(T, operators)
             end
         end
