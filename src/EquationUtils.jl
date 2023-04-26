@@ -1,6 +1,6 @@
 module EquationUtilsModule
 
-import ..EquationModule: Node, copy_node, mapreduce, any
+import ..EquationModule: Node, copy_node, mapreduce, any, mapfilter
 
 """
     count_nodes(tree::Node{T})::Int where {T}
@@ -50,7 +50,7 @@ has_operators(tree::Node) = tree.degree > 0
 Check if an expression is a constant numerical value, or
 whether it depends on input features.
 """
-is_constant(tree::Node) = !any(t -> t.degree == 0 && !t.constant, tree)
+is_constant(tree::Node) = all(t -> t.degree > 0 || t.constant, tree)
 
 """
     get_constants(tree::Node{T})::Vector{T} where {T}
@@ -59,12 +59,7 @@ Get all the constants inside a tree, in depth-first order.
 The function `set_constants!` sets them in the same order,
 given the output of this function.
 """
-function get_constants(tree::Node{T}) where {T}
-    mapreduce((_, child...) -> vcat(child...), tree) do t
-        t.degree == 0 && t.constant && return [t.val::T]
-        return T[]
-    end
-end
+get_constants(tree::Node{T}) where {T} = mapfilter(is_node_constant, t -> t.val::T, tree, T)
 
 """
     set_constants!(tree::Node{T}, constants::AbstractVector{T}) where {T}
