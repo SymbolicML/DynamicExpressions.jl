@@ -54,20 +54,24 @@ function mapreduce(f::F, op::G, tree::Node) where {F<:Function,G<:Function}
     end
 end
 
-function _mapfilter(f::F, post::G, tree::Node{T}, stack::Vector{GT}) where {F<:Function,G<:Function,GT,T}
-    @inline(f(tree)) && push!(stack, @inline(post(tree)))
+function filter_and_map(
+    filter_fnc::F, map_fnc::G, tree::Node{T}; result_type::Type{GT}=Any
+) where {F<:Function,G<:Function,GT,T}
+    stack = result_type[]
+    _filter_and_map(filter_fnc, map_fnc, tree, stack)
+    return stack::Vector{result_type}
+end
+function _filter_and_map(
+    filter_fnc::F, map_fnc::G, tree::Node{T}, stack::Vector{GT}
+) where {F<:Function,G<:Function,GT,T}
+    @inline(filter_fnc(tree)) && push!(stack, @inline(map_fnc(tree)))
     if tree.degree == 1
-        _mapfilter(f, post, tree.l, stack)
+        _filter_and_map(filter_fnc, map_fnc, tree.l, stack)
     elseif tree.degree == 2
-        _mapfilter(f, post, tree.l, stack)
-        _mapfilter(f, post, tree.r, stack)
+        _filter_and_map(filter_fnc, map_fnc, tree.l, stack)
+        _filter_and_map(filter_fnc, map_fnc, tree.r, stack)
     end
     return nothing
-end
-function mapfilter(f::F, post::G, tree::Node{T}, ::Type{GT}=Any) where {F<:Function,G<:Function,GT,T}
-    stack = GT[]
-    _mapfilter(f, post, tree, stack)
-    return stack::Vector{GT}
 end
 
 """
@@ -86,16 +90,14 @@ function any(f::F, tree::Node) where {F<:Function}
     end
 end
 
-################################
-###### DERIVED FUNCTIONS: ######
-################################
-
 """
     filter(f::Function, tree::Node)
 
 Filter nodes of a tree, returning a flat array of the nodes for which the function returns `true`.
 """
-filter(f::F, tree::Node{T}) where {F<:Function,T} = mapfilter(f, t -> t, tree, Node{T})
+function filter(f::F, tree::Node{T}) where {F<:Function,T}
+    return filter_and_map(f, identity, tree; result_type=Node{T})
+end
 
 collect(tree::Node) = filter(Returns(true), tree)
 
