@@ -77,26 +77,44 @@ end
 
 function benchmark_utilities()
     suite = BenchmarkGroup()
-    operators = OperatorEnum(; binary_operators=[+, -, /, *], unary_operators=[cos, exp])
-    for func_k in ("copy", "convert", "simplify_tree", "combine_operators")
-        suite[func_k] = let s = BenchmarkGroup()
-            for k in ("break_sharing", "preserve_sharing")
-                k == "preserve_sharing" &&
-                    func_k in ("simplify_tree", "combine_operators") &&
-                    continue
 
-                f = if func_k == "copy"
-                    tree -> _copy_node(tree; preserve_sharing=(k == "preserve_sharing"))
-                elseif func_k == "convert"
+    all_funcs = (
+        :copy,
+        :convert,
+        :simplify_tree,
+        :combine_operators,
+        :count_nodes,
+        :count_depth,
+        :count_constants,
+        :has_constants,
+        :has_operators,
+        :is_constant,
+        :get_set_constants,
+        :index_constants,
+    )
+
+    operators = OperatorEnum(; binary_operators=[+, -, /, *], unary_operators=[cos, exp])
+
+    for func_k in all_funcs
+        suite[func_k] = let s = BenchmarkGroup()
+            for k in (:break_sharing, :preserve_sharing)
+                k == :preserve_sharing && !(func_k in (:copy, :convert)) && continue
+
+                f = if func_k == :copy
+                    tree -> _copy_node(tree; preserve_sharing=(k == :preserve_sharing))
+                elseif func_k == :convert
                     tree -> _convert(
                         Node{Float64},
                         tree;
                         preserve_sharing=(k == "preserve_sharing"),
                     )
-                elseif func_k == "simplify_tree"
-                    tree -> simplify_tree(tree, operators)
-                elseif func_k == "combine_operators"
-                    tree -> combine_operators(tree, operators)
+                elseif func_k in (:simplify_tree, :combine_operators)
+                    f = getfield(Main, func_k)
+                    tree -> f(tree, operators)
+                elseif func_k == :get_set_constants
+                    tree -> set_constants!(tree, get_constants(tree))
+                else
+                    getfield(Main, func_k)
                 end
 
                 #! format: off
