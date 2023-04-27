@@ -8,6 +8,7 @@ import ..EquationModule: Node, copy_node, tree_mapreduce, any, filter_and_map
 Count the number of nodes in the tree.
 """
 count_nodes(tree::Node) = tree_mapreduce(_ -> 1, +, tree)
+# This code is given as an example. Normally we could just use sum(Returns(1), tree).
 
 """
     count_depth(tree::Node{T})::Int where {T}
@@ -28,7 +29,7 @@ Check if the current node in a tree is constant.
 
 Count the number of constants in a tree.
 """
-count_constants(tree::Node) = tree_mapreduce(t -> is_node_constant(t) ? 1 : 0, +, tree)
+count_constants(tree::Node) = count(is_node_constant, tree)
 
 """
     has_constants(tree::Node)::Bool
@@ -50,7 +51,7 @@ has_operators(tree::Node) = tree.degree > 0
 Check if an expression is a constant numerical value, or
 whether it depends on input features.
 """
-is_constant(tree::Node) = all(t -> t.degree > 0 || t.constant, tree)
+is_constant(tree::Node) = all(t -> !is_node_constant(t), tree)
 
 """
     get_constants(tree::Node{T})::Vector{T} where {T}

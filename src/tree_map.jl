@@ -8,6 +8,7 @@ import Base:
     count,
     map,
     mapreduce,
+    sum,
     all,
     any,
     collect,
@@ -50,6 +51,7 @@ function _fix_inline(ex)
     end
 end
 
+#! format: off
 """
     tree_mapreduce(f::Function, op::Function, tree::Node)
 
@@ -89,11 +91,20 @@ function tree_mapreduce(f::F, op::G, tree::Node) where {F<:Function,G<:Function}
     elseif tree.degree == 1
         return op(@_inline(f(tree)), tree_mapreduce(f, op, tree.l))
     else
-        return op(
-            @_inline(f(tree)), tree_mapreduce(f, op, tree.l), tree_mapreduce(f, op, tree.r)
-        )
+        return op(@_inline(f(tree)), tree_mapreduce(f, op, tree.l), tree_mapreduce(f, op, tree.r))
     end
 end
+
+function mapreduce(f::F, op::G, tree::Node; init=nothing) where {F<:Function,G<:Function}
+    if tree.degree == 0
+        return @_inline(f(tree))
+    elseif tree.degree == 1
+        return op(@_inline(f(tree)), mapreduce(f, op, tree.l; init))
+    else
+        return op(op(@_inline(f(tree)), mapreduce(f, op, tree.l; init)), mapreduce(f, op, tree.r; init))
+    end
+end
+#! format: on
 
 function filter_and_map(
     filter_fnc::F, map_fnc::G, tree::Node{T}; result_type::Type{GT}=Any
@@ -199,10 +210,11 @@ end
 #! format: off
 iterate(root::Node) = (root, collect(root)[(begin + 1):end])
 iterate(::Node, stack) = isempty(stack) ? nothing : (popfirst!(stack), stack)
-length(tree::Node) = tree_mapreduce(_ -> 1, +, tree)
+in(item, tree::Node) = any(t -> t == item, tree)
+count(f::F, tree::Node; init=0) where {F} = tree_mapreduce(t -> f(t) ? 1 : 0, +, tree) + init
+sum(f::F, tree::Node; init=0) where {F} = tree_mapreduce(f, +, tree) + init
+length(tree::Node) = sum(_ -> 1, tree)
 firstindex(::Node) = 1
 lastindex(tree::Node) = length(tree)
 keys(tree::Node) = Base.OneTo(length(tree))
-in(item, tree::Node) = any(t -> t == item, tree)
-count(f::F, tree::Node; init=0) where {F} = tree_mapreduce(t -> f(t) ? 1 : 0, +, tree) + init
 #! format: on
