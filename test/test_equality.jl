@@ -14,10 +14,10 @@ tree = x1 + x2 * x3 - log(x2 * 3.2) + 1.5 * cos(x2 / x1)
 same_tree = x1 + x2 * x3 - log(x2 * 3.2) + 1.5 * cos(x2 / x1)
 @test tree == same_tree
 
-copied_tree = copy_node(tree; preserve_topology=true)
+copied_tree = copy_node(tree; preserve_sharing=true)
 @test tree == copied_tree
 
-copied_tree2 = copy_node(tree; preserve_topology=false)
+copied_tree2 = copy_node(tree; preserve_sharing=false)
 @test tree == copied_tree2
 
 modifed_tree = x1 + x2 * x1 - log(x2 * 3.2) + 1.5 * cos(x2 / x1)

@@ -144,9 +144,9 @@ function test_functions_on_trees(::Type{T}, operators) where {T}
         tree = Node(i_bin, a8, a7)
     end
     tree = convert(Node{T}, tree)
-    for preserve_topology in [true, false]
-        tree = copy_node(tree; preserve_topology)
-        set_node!(tree, copy_node(tree; preserve_topology))
+    for preserve_sharing in [true, false]
+        tree = copy_node(tree; preserve_sharing)
+        set_node!(tree, copy_node(tree; preserve_sharing))
     end
 
     string_tree(tree, operators)

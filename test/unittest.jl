@@ -62,7 +62,7 @@ end
     include("test_hash.jl")
 end
 
-@safetestset "Test topology-preserving copy" begin
+@safetestset "Test sharing-preserving copy" begin
     include("test_preserve_multiple_parents.jl")
 end
 
