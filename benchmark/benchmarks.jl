@@ -81,6 +81,18 @@ function benchmark_evaluation()
     return suite
 end
 
+# These macros make the benchmarks work on older versions:
+#! format: off
+@generated function _convert(::Type{N}, t; preserve_sharing) where {N<:Node}
+    PACKAGE_VERSION < v"0.7.0" && return :(convert(N, t))
+    return :(convert(N, t; preserve_sharing=preserve_sharing))
+end
+@generated function _copy_node(t; preserve_sharing)
+    PACKAGE_VERSION < v"0.7.0" && return :(copy_node(t; preserve_topology=preserve_sharing))
+    return :(copy_node(t; preserve_sharing=preserve_sharing))
+end
+#! format: on
+
 function benchmark_utilities()
     suite = BenchmarkGroup()
     operators = OperatorEnum(; binary_operators=[+, -, /, *], unary_operators=[cos, exp])
@@ -92,9 +104,9 @@ function benchmark_utilities()
                     continue
 
                 f = if func_k == "copy"
-                    tree -> copy_node(tree; preserve_sharing=(k == "preserve_sharing"))
+                    tree -> _copy_node(tree; preserve_sharing=(k == "preserve_sharing"))
                 elseif func_k == "convert"
-                    tree -> convert(
+                    tree -> _convert(
                         Node{Float64},
                         tree;
                         preserve_sharing=(k == "preserve_sharing"),
