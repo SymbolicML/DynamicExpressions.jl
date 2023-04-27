@@ -1,6 +1,7 @@
 using DynamicExpressions, BenchmarkTools, Random
 using DynamicExpressions: copy_node
-using SymbolicRegression: gen_random_tree_fixed_size, Options
+
+include("benchmark_utils.jl")
 
 const v_PACKAGE_VERSION = try
     VersionNumber(DynamicExpressions.PACKAGE_VERSION)
@@ -82,7 +83,7 @@ end
 
 function benchmark_utilities()
     suite = BenchmarkGroup()
-    options = Options(; binary_operators=[+, -, /, *], unary_operators=[cos, exp])
+    operators = OperatorEnum(; binary_operators=[+, -, /, *], unary_operators=[cos, exp])
     for func_k in ("copy", "convert", "simplify_tree", "combine_operators")
         suite[func_k] = let s = BenchmarkGroup()
             for k in ("break_sharing", "preserve_sharing")
@@ -99,20 +100,19 @@ function benchmark_utilities()
                         preserve_sharing=(k == "preserve_sharing"),
                     )
                 elseif func_k == "simplify_tree"
-                    tree -> simplify_tree(tree, options.operators)
+                    tree -> simplify_tree(tree, operators)
                 elseif func_k == "combine_operators"
-                    tree -> combine_operators(tree, options.operators)
+                    tree -> combine_operators(tree, operators)
                 end
 
                 #! format: off
                 s[k] = @benchmarkable(
-                    $(f)(tree),
-                    evals=300,
-                    samples=300,
+                    [$(f)(tree) for tree in trees],
                     seconds=10.0,
                     setup=(
+                        ntrees=100;
                         n=20;
-                        tree=gen_random_tree_fixed_size(n, $options, 5, Float32)
+                        trees=[gen_random_tree_fixed_size(n, $operators, 5, Float32) for _ in 1:ntrees]
                     )
                 )
                 #! format: on
