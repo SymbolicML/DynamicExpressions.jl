@@ -51,7 +51,7 @@ has_operators(tree::Node) = tree.degree > 0
 Check if an expression is a constant numerical value, or
 whether it depends on input features.
 """
-is_constant(tree::Node) = all(t -> !is_node_constant(t), tree)
+is_constant(tree::Node) = all(t -> t.degree > 0 || tree.constant, tree)
 
 """
     get_constants(tree::Node{T})::Vector{T} where {T}
