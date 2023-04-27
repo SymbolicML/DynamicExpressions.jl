@@ -1,4 +1,11 @@
 import Base:
+    reduce,
+    foldl,
+    foldr,
+    mapfoldl,
+    mapfoldr,
+    in,
+    count,
     map,
     mapreduce,
     all,
@@ -12,6 +19,22 @@ import Base:
     setindex!,
     firstindex,
     lastindex
+
+function reduce(f, tree::Node; init=nothing)
+    throw(ArgumentError("reduce is not supported for trees. Use tree_mapreduce instead."))
+end
+function foldl(f, tree::Node; init=nothing)
+    throw(ArgumentError("foldl is not supported for trees. Use tree_mapreduce instead."))
+end
+function foldr(f, tree::Node; init=nothing)
+    throw(ArgumentError("foldr is not supported for trees. Use tree_mapreduce instead."))
+end
+function mapfoldl(f, tree::Node; init=nothing)
+    throw(ArgumentError("mapfoldl is not supported for trees. Use tree_mapreduce instead."))
+end
+function mapfoldr(f, tree::Node; init=nothing)
+    throw(ArgumentError("mapfoldr is not supported for trees. Use tree_mapreduce instead."))
+end
 
 """Internal macro to fix @inline on Julia versions before 1.8"""
 macro _inline(ex)
@@ -28,7 +51,7 @@ function _fix_inline(ex)
 end
 
 """
-    mapreduce(f::Function, op::Function, tree::Node)
+    tree_mapreduce(f::Function, op::Function, tree::Node)
 
 Map a function over a tree and aggregate the result using an operator `op`.
 The operator will take the result of `f` on the current node, as well
@@ -43,30 +66,32 @@ julia> operators = OperatorEnum(; binary_operators=[+, *]);
 
 julia> tree = Node(; feature=1) + Node(; feature=2) * 3.2;
 
-julia> mapreduce(t -> 1, +, tree)  # count nodes
+julia> tree_mapreduce(t -> 1, +, tree)  # count nodes
 5
 
-julia> mapreduce(vcat, tree) do t
+julia> tree_mapreduce(vcat, tree) do t
     t.degree == 2 ? [t.op] : Int[]
 end  # Get list of binary operators used
 2-element Vector{Int64}:
  1
  2
 
-julia> mapreduce(vcat, tree) do t
+julia> tree_mapreduce(vcat, tree) do t
     (t.degree == 0 && t.constant) ? [t.val] : Float64[]
 end  # Get list of constants
 1-element Vector{Float64}:
  3.2
 ```
 """
-function mapreduce(f::F, op::G, tree::Node) where {F<:Function,G<:Function}
+function tree_mapreduce(f::F, op::G, tree::Node) where {F<:Function,G<:Function}
     if tree.degree == 0
         return @_inline(f(tree))
     elseif tree.degree == 1
-        return op(@_inline(f(tree)), mapreduce(f, op, tree.l))
+        return op(@_inline(f(tree)), tree_mapreduce(f, op, tree.l))
     else
-        return op(@_inline(f(tree)), mapreduce(f, op, tree.l), mapreduce(f, op, tree.r))
+        return op(
+            @_inline(f(tree)), tree_mapreduce(f, op, tree.l), tree_mapreduce(f, op, tree.r)
+        )
     end
 end
 
@@ -94,7 +119,7 @@ end
     any(f::Function, tree::Node)
 
 Reduce a flag function over a tree, returning `true` if the function returns `true` for any node.
-By using this instead of mapreduce, we can take advantage of early exits.
+By using this instead of tree_mapreduce, we can take advantage of early exits.
 """
 function any(f::F, tree::Node) where {F<:Function}
     if tree.degree == 0
@@ -171,9 +196,13 @@ function setindex!(root::Node{T1}, insert::Node{T2}, i::Int) where {T1,T2}
     return setindex!(root, convert(Node{T1}, insert), i)
 end
 
+#! format: off
 iterate(root::Node) = (root, collect(root)[(begin + 1):end])
 iterate(::Node, stack) = isempty(stack) ? nothing : (popfirst!(stack), stack)
-length(tree::Node) = mapreduce(_ -> 1, +, tree)
+length(tree::Node) = tree_mapreduce(_ -> 1, +, tree)
 firstindex(::Node) = 1
 lastindex(tree::Node) = length(tree)
 keys(tree::Node) = Base.OneTo(length(tree))
+in(item, tree::Node) = any(t -> t == item, tree)
+count(f::F, tree::Node; init=0) where {F} = tree_mapreduce(t -> f(t) ? 1 : 0, +, tree) + init
+#! format: on
