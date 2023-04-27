@@ -1,6 +1,7 @@
 import Base:
     map,
     mapreduce,
+    all,
     any,
     collect,
     iterate,
