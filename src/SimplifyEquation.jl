@@ -4,6 +4,9 @@ import ..EquationModule: Node, copy_node
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..UtilsModule: isbad, isgood
 
+_una_op_kernel(f::F, l::T) where {F,T} = f(l)
+_bin_op_kernel(f::F, l::T, r::T) where {F,T} = f(l, r)
+
 # Simplify tree
 function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
     # NOTE: (const (+*-) const) already accounted for. Call simplify_tree before.
@@ -41,10 +44,14 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
         if below.degree == 2 && below.op == op
             if below.l.constant
                 tree = below
-                tree.l.val = operators.binops[op](tree.l.val::T, topconstant)
+                tree.l.val = _bin_op_kernel(
+                    operators.binops[op], tree.l.val::T, topconstant
+                )
             elseif below.r.constant
                 tree = below
-                tree.r.val = operators.binops[op](tree.r.val::T, topconstant)
+                tree.r.val = _bin_op_kernel(
+                    operators.binops[op], tree.r.val::T, topconstant
+                )
             end
         end
     end
@@ -96,13 +103,14 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
 end
 
 # Simplify tree
+# TODO: This will get much more powerful with the tree-map functions.
 function simplify_tree(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
     if tree.degree == 1
         tree.l = simplify_tree(tree.l, operators)
         if tree.l.degree == 0 && tree.l.constant
             l = tree.l.val::T
             if isgood(l)
-                out = operators.unaops[tree.op](l)
+                out = _una_op_kernel(operators.unaops[tree.op], l)
                 if isbad(out)
                     return tree
                 end
@@ -124,7 +132,7 @@ function simplify_tree(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
             end
 
             # Actually compute:
-            out = operators.binops[tree.op](l, r)
+            out = _bin_op_kernel(operators.binops[tree.op], l, r)
             if isbad(out)
                 return tree
             end
