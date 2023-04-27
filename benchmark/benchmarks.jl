@@ -1,71 +1,122 @@
 using DynamicExpressions, BenchmarkTools, Random
+using DynamicExpressions: copy_node
 
-const v_PACKAGE_VERSION = try
-    VersionNumber(PACKAGE_VERSION)
-catch
-    VersionNumber("v0.0.0")
-end
+include("benchmark_utils.jl")
 
 const SUITE = BenchmarkGroup()
 
-SUITE["OperatorEnum"] = BenchmarkGroup()
-
-operators = OperatorEnum(;
-    binary_operators=[+, -, /, *], unary_operators=[cos, exp], enable_autodiff=true
-)
-simple_tree = Node(
-    2,
-    Node(
-        1,
-        Node(3, Node(1, Node(; val=1.0f0), Node(; feature=2)), Node(2, Node(; val=-1.0f0))),
-        Node(1, Node(; feature=3), Node(; feature=4)),
-    ),
-    Node(
-        4,
-        Node(3, Node(1, Node(; val=1.0f0), Node(; feature=2)), Node(2, Node(; val=-1.0f0))),
-        Node(1, Node(; feature=3), Node(; feature=4)),
-    ),
-)
-for T in (ComplexF32, ComplexF64, Float32, Float64)
-    if !(T <: Real) && v_PACKAGE_VERSION < v"0.5.0" && v_PACKAGE_VERSION != v"0.0.0"
-        continue
-    end
-    evals = 10
-    samples = 1_000
-    n = 1_000
-
-    #! format: off
-    if !haskey(SUITE["OperatorEnum"], T)
-        SUITE["OperatorEnum"][T] = BenchmarkGroup()
-    end
-
-    for turbo in (false, true)
-        if turbo && !(T in (Float32, Float64))
+function benchmark_evaluation()
+    suite = BenchmarkGroup()
+    operators = OperatorEnum(;
+        binary_operators=[+, -, /, *], unary_operators=[cos, exp], enable_autodiff=true
+    )
+    for T in (ComplexF32, ComplexF64, Float32, Float64)
+        if !(T <: Real) && PACKAGE_VERSION < v"0.5.0" && PACKAGE_VERSION != v"0.0.0"
             continue
         end
-        extra_key = turbo ? "_turbo" : ""
-        SUITE["OperatorEnum"][T]["evaluation$(extra_key)"] = @benchmarkable(
-            eval_tree_array(tree, X, $operators; turbo=$turbo),
-            evals=evals,
-            samples=samples,
-            seconds=5.0,
-            setup=(
-                X=randn(MersenneTwister(0), $T, 5, $n);
-                tree=convert(Node{$T}, copy_node($simple_tree))
+        suite[T] = BenchmarkGroup()
+
+        n = 1_000
+
+        #! format: off
+        for turbo in (false, true)
+            if turbo && !(T in (Float32, Float64))
+                continue
+            end
+            extra_key = turbo ? "_turbo" : ""
+            eval_tree_array(
+                gen_random_tree_fixed_size(20, operators, 5, T),
+                randn(MersenneTwister(0), T, 5, n),
+                operators;
+                turbo=turbo
             )
-        )
-        if T <: Real
-            SUITE["OperatorEnum"][T]["derivative$(extra_key)"] = @benchmarkable(
-                eval_grad_tree_array(tree, X, $operators; variable=true, turbo=$turbo),
-                evals=evals,
-                samples=samples,
-                seconds=5.0,
+            suite[T]["evaluation$(extra_key)"] = @benchmarkable(
+                [eval_tree_array(tree, X, $operators; turbo=$turbo) for tree in trees],
                 setup=(
                     X=randn(MersenneTwister(0), $T, 5, $n);
-                    tree=convert(Node{$T}, copy_node($simple_tree))
+                    treesize=20;
+                    ntrees=100;
+                    trees=[gen_random_tree_fixed_size(treesize, $operators, 5, $T) for _ in 1:ntrees]
                 )
             )
+            if T <: Real
+                eval_grad_tree_array(
+                    gen_random_tree_fixed_size(20, operators, 5, T),
+                    randn(MersenneTwister(0), T, 5, n),
+                    operators;
+                    variable=true,
+                    turbo=turbo
+                )
+                suite[T]["derivative$(extra_key)"] = @benchmarkable(
+                    [eval_grad_tree_array(tree, X, $operators; variable=true, turbo=$turbo) for tree in trees],
+                    setup=(
+                        X=randn(MersenneTwister(0), $T, 5, $n);
+                        treesize=20;
+                        ntrees=100;
+                        trees=[gen_random_tree_fixed_size(treesize, $operators, 5, $T) for _ in 1:ntrees]
+                    )
+                )
+            end
+        end
+        #! format: on
+    end
+    return suite
+end
+
+# These macros make the benchmarks work on older versions:
+#! format: off
+@generated function _convert(::Type{N}, t; preserve_sharing) where {N<:Node}
+    PACKAGE_VERSION < v"0.7.0" && return :(convert(N, t))
+    return :(convert(N, t; preserve_sharing=preserve_sharing))
+end
+@generated function _copy_node(t; preserve_sharing)
+    PACKAGE_VERSION < v"0.7.0" && return :(copy_node(t; preserve_topology=preserve_sharing))
+    return :(copy_node(t; preserve_sharing=preserve_sharing))
+end
+#! format: on
+
+function benchmark_utilities()
+    suite = BenchmarkGroup()
+    operators = OperatorEnum(; binary_operators=[+, -, /, *], unary_operators=[cos, exp])
+    for func_k in ("copy", "convert", "simplify_tree", "combine_operators")
+        suite[func_k] = let s = BenchmarkGroup()
+            for k in ("break_sharing", "preserve_sharing")
+                k == "preserve_sharing" &&
+                    func_k in ("simplify_tree", "combine_operators") &&
+                    continue
+
+                f = if func_k == "copy"
+                    tree -> _copy_node(tree; preserve_sharing=(k == "preserve_sharing"))
+                elseif func_k == "convert"
+                    tree -> _convert(
+                        Node{Float64},
+                        tree;
+                        preserve_sharing=(k == "preserve_sharing"),
+                    )
+                elseif func_k == "simplify_tree"
+                    tree -> simplify_tree(tree, operators)
+                elseif func_k == "combine_operators"
+                    tree -> combine_operators(tree, operators)
+                end
+
+                #! format: off
+                s[k] = @benchmarkable(
+                    [$(f)(tree) for tree in trees],
+                    seconds=10.0,
+                    setup=(
+                        ntrees=100;
+                        n=20;
+                        trees=[gen_random_tree_fixed_size(n, $operators, 5, Float32) for _ in 1:ntrees]
+                    )
+                )
+                #! format: on
+            end
+            s
         end
     end
-    #! format: on
+
+    return suite
 end
+
+SUITE["eval"] = benchmark_evaluation()
+SUITE["utils"] = benchmark_utilities()
