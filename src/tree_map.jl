@@ -1,25 +1,26 @@
 import Base:
-    reduce,
-    foldl,
-    foldr,
-    mapfoldl,
-    mapfoldr,
-    in,
-    count,
-    map,
-    mapreduce,
-    sum,
     all,
     any,
     collect,
-    iterate,
-    length,
+    count,
     filter,
-    getindex,
-    keys,
-    setindex!,
     firstindex,
-    lastindex
+    foldl,
+    foldr,
+    getindex,
+    in,
+    isempty,
+    iterate,
+    keys,
+    lastindex,
+    length,
+    map,
+    mapfoldl,
+    mapfoldr,
+    mapreduce,
+    reduce,
+    setindex!,
+    sum
 
 function reduce(f, tree::Node; init=nothing)
     throw(ArgumentError("reduce is not supported for trees. Use tree_mapreduce instead."))
@@ -208,6 +209,7 @@ function setindex!(root::Node{T1}, insert::Node{T2}, i::Int) where {T1,T2}
 end
 
 #! format: off
+isempty(::Node) = false
 iterate(root::Node) = (root, collect(root)[(begin + 1):end])
 iterate(::Node, stack) = isempty(stack) ? nothing : (popfirst!(stack), stack)
 in(item, tree::Node) = any(t -> t == item, tree)
