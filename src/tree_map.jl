@@ -110,19 +110,24 @@ end
 function filter_and_map(
     filter_fnc::F, map_fnc::G, tree::Node{T}; result_type::Type{GT}=Any
 ) where {F<:Function,G<:Function,GT,T}
-    stack = result_type[]
-    _filter_and_map(filter_fnc, map_fnc, tree, stack)
+    stack_size = count(filter_fnc, tree)
+    # Preallocate stack:
+    stack = Array{GT}(undef, stack_size)
+    pointer = Ref(0)
+    _filter_and_map(filter_fnc, map_fnc, tree, stack, pointer)
     return stack::Vector{result_type}
 end
 function _filter_and_map(
-    filter_fnc::F, map_fnc::G, tree::Node{T}, stack::Vector{GT}
+    filter_fnc::F, map_fnc::G, tree::Node{T}, stack::Vector{GT}, pointer::Ref
 ) where {F<:Function,G<:Function,GT,T}
-    @_inline(filter_fnc(tree)) && push!(stack, @_inline(map_fnc(tree)))
+    if @_inline(filter_fnc(tree))
+        stack[pointer.x += 1] = @_inline(map_fnc(tree))::GT
+    end
     if tree.degree == 1
-        _filter_and_map(filter_fnc, map_fnc, tree.l, stack)
+        _filter_and_map(filter_fnc, map_fnc, tree.l, stack, pointer)
     elseif tree.degree == 2
-        _filter_and_map(filter_fnc, map_fnc, tree.l, stack)
-        _filter_and_map(filter_fnc, map_fnc, tree.r, stack)
+        _filter_and_map(filter_fnc, map_fnc, tree.l, stack, pointer)
+        _filter_and_map(filter_fnc, map_fnc, tree.r, stack, pointer)
     end
     return nothing
 end
