@@ -198,6 +198,15 @@ function map(f::F, tree::Node; result_type::Type{RT}=Nothing) where {F<:Function
         return filter_and_map(_ -> true, f, tree; result_type=result_type)
     end
 end
+
+function count(f::F, tree::Node; init=0) where {F}
+    return tree_mapreduce(t -> @_inline(f(t)) ? 1 : 0, +, tree) + init
+end
+
+function sum(f::F, tree::Node; init=0) where {F}
+    return tree_mapreduce(f, +, tree) + init
+end
+
 all(f::F, tree::Node) where {F<:Function} = !any(t -> !@_inline(f(t)), tree)
 
 function setindex!(root::Node{T}, insert::Node{T}, i::Int) where {T}
@@ -208,15 +217,11 @@ function setindex!(root::Node{T1}, insert::Node{T2}, i::Int) where {T1,T2}
     return setindex!(root, convert(Node{T1}, insert), i)
 end
 
-#! format: off
 isempty(::Node) = false
 iterate(root::Node) = (root, collect(root)[(begin + 1):end])
 iterate(::Node, stack) = isempty(stack) ? nothing : (popfirst!(stack), stack)
 in(item, tree::Node) = any(t -> t == item, tree)
-count(f::F, tree::Node; init=0) where {F} = tree_mapreduce(t -> f(t) ? 1 : 0, +, tree) + init
-sum(f::F, tree::Node; init=0) where {F} = tree_mapreduce(f, +, tree) + init
 length(tree::Node) = sum(_ -> 1, tree)
 firstindex(::Node) = 1
 lastindex(tree::Node) = length(tree)
 keys(tree::Node) = Base.OneTo(length(tree))
-#! format: on
