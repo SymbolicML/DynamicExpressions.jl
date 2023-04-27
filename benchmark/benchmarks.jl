@@ -1,5 +1,5 @@
 using DynamicExpressions, BenchmarkTools, Random
-using DynamicExpressions: copy_node
+using DynamicExpressions.EquationUtilsModule: is_constant
 
 include("benchmark_utils.jl")
 
@@ -109,12 +109,12 @@ function benchmark_utilities()
                         preserve_sharing=(k == "preserve_sharing"),
                     )
                 elseif func_k in (:simplify_tree, :combine_operators)
-                    f = getfield(Main, func_k)
+                    f = getfield(@__MODULE__, func_k)
                     tree -> f(tree, operators)
                 elseif func_k == :get_set_constants
                     tree -> set_constants!(tree, get_constants(tree))
                 else
-                    getfield(Main, func_k)
+                    f = getfield(@__MODULE__, func_k)
                 end
 
                 #! format: off
