@@ -34,6 +34,8 @@ using Reexport
 @reexport import .SimplifyEquationModule: combine_operators, simplify_tree
 @reexport import .EvaluationHelpersModule
 
+include("deprecated.jl")
+
 import TOML: parsefile
 
 const PACKAGE_VERSION = let

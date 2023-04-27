@@ -73,7 +73,14 @@ end
     PACKAGE_VERSION < v"0.7.0" && return :(copy_node(t; preserve_topology=preserve_sharing))
     return :(copy_node(t; preserve_sharing=preserve_sharing))
 end
+@generated function get_set_constants!(tree)
+    !(@isdefined set_constants!) && return :(set_constants(tree, get_constants(tree)))
+    return :(set_constants!(tree, get_constants(tree)))
+end
 #! format: on
+
+f_tree_op(f::F, tree, operators) where {F} = f(tree, operators)
+f_tree_op(f::F, tree) where {F} = f(tree)
 
 function benchmark_utilities()
     suite = BenchmarkGroup()
@@ -89,7 +96,7 @@ function benchmark_utilities()
         :has_constants,
         :has_operators,
         :is_constant,
-        :get_set_constants,
+        :get_set_constants!,
         :index_constants,
     )
 
@@ -109,12 +116,11 @@ function benchmark_utilities()
                         preserve_sharing=(k == "preserve_sharing"),
                     )
                 elseif func_k in (:simplify_tree, :combine_operators)
-                    f = getfield(@__MODULE__, func_k)
-                    tree -> f(tree, operators)
-                elseif func_k == :get_set_constants
-                    tree -> set_constants!(tree, get_constants(tree))
+                    g = getfield(@__MODULE__, func_k)
+                    tree -> f_tree_op(g, tree, operators)
                 else
-                    f = getfield(@__MODULE__, func_k)
+                    g = getfield(@__MODULE__, func_k)
+                    tree -> f_tree_op(g, tree)
                 end
 
                 #! format: off
