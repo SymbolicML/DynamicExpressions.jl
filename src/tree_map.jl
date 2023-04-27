@@ -7,6 +7,7 @@ import Base:
     length,
     filter,
     getindex,
+    keys,
     setindex!,
     firstindex,
     lastindex
@@ -92,7 +93,7 @@ end
     any(f::Function, tree::Node)
 
 Reduce a flag function over a tree, returning `true` if the function returns `true` for any node.
-By using this instead of mapreduce, we can lazily traverse the tree.
+By using this instead of mapreduce, we can take advantage of early exits.
 """
 function any(f::F, tree::Node) where {F<:Function}
     if tree.degree == 0
@@ -105,6 +106,37 @@ function any(f::F, tree::Node) where {F<:Function}
 end
 
 """
+    getindex(root::Node, i::Int)
+
+Get the `i`th node of `root` in depth-first order. This does not require
+extra allocations, but does require a traversal of the tree for every call.
+Once the matching node is found, the traversal stops.
+"""
+function getindex(root::N, i::Int) where {N<:Node}
+    return_tree = Ref(root)
+    _extract!(return_tree, root, i, 0)
+    return return_tree.x
+end
+function _extract!(return_tree::Ref{N}, tree::N, i::Int, iter::Int)::Int where {N<:Node}
+    iter += 1
+    if i == iter
+        return_tree.x = tree
+        return iter
+    end
+    if tree.degree == 1
+        iter = _extract!(return_tree, tree.l, i, iter)
+    elseif tree.degree == 2
+        iter = _extract!(return_tree, tree.l, i, iter)
+        iter = _extract!(return_tree, tree.r, i, iter)
+    end
+    return iter
+end
+
+###############################################################################
+# Derived functions: ##########################################################
+###############################################################################
+
+"""
     filter(f::Function, tree::Node)
 
 Filter nodes of a tree, returning a flat array of the nodes for which the function returns `true`.
@@ -113,19 +145,34 @@ function filter(f::F, tree::Node{T}) where {F<:Function,T}
     return filter_and_map(f, identity, tree; result_type=Node{T})
 end
 
-collect(tree::Node) = filter(Returns(true), tree)
+collect(tree::Node) = filter(_ -> true, tree)
 
 """
-    map(f::Function, tree::Node{T})
+    map(f::Function, tree::Node{T}; result_type::Type{RT}=Nothing)
 
 Map a function over a tree and return a flat array of the results in depth-first order.
+Pre-specifying the `result_type` of the function can be used to avoid extra allocations,
 """
-map(f::F, tree::Node) where {F<:Function} = f.(collect(tree))
+function map(f::F, tree::Node; result_type::Type{RT}=Nothing) where {F<:Function,RT}
+    if RT == Nothing
+        return f.(collect(tree))
+    else
+        return filter_and_map(_ -> true, f, tree; result_type=result_type)
+    end
+end
 all(f::F, tree::Node) where {F<:Function} = !any(t -> !@_inline(f(t)), tree)
-getindex(tree::Node, i::Int) = collect(tree)[i]
+
+function setindex!(root::Node{T}, insert::Node{T}, i::Int) where {T}
+    set_node!(getindex(root, i), insert)
+    return nothing
+end
+function setindex!(root::Node{T1}, insert::Node{T2}, i::Int) where {T1,T2}
+    return setindex!(root, convert(Node{T1}, insert), i)
+end
+
 iterate(root::Node) = (root, collect(root)[(begin + 1):end])
 iterate(::Node, stack) = isempty(stack) ? nothing : (popfirst!(stack), stack)
 length(tree::Node) = mapreduce(_ -> 1, +, tree)
 firstindex(::Node) = 1
 lastindex(tree::Node) = length(tree)
-setindex!(::Node, _, ::Int) = error("Cannot setindex! on a tree. Use `set_node!` instead.")
+keys(tree::Node) = Base.OneTo(length(tree))
