@@ -57,11 +57,11 @@ end
     tree_mapreduce(f::Function, op::Function, tree::Node)
 
 Map a function over a tree and aggregate the result using an operator `op`.
-The operator will take the result of `f` on the current node, as well
-as on the left node. For binary nodes, `op` will receive the result of
-`f` on the current node, and both the left and right nodes (three arguments).
-In other words, you may define the function signature of `op` to be `(parent, child...)`
-for between 1 and 2 children.
+`op` should be defined with inputs `(parent, child...) ->` so that it can aggregate
+both unary and binary operators. `op` will not be called for leafs of the tree.
+This differs from a normal `mapreduce` in that it allows different treatment
+for parent nodes than children nodes. If this is not necessary, you may
+use the regular `mapreduce` instead.
 
 # Examples
 ```jldoctest
@@ -69,19 +69,22 @@ julia> operators = OperatorEnum(; binary_operators=[+, *]);
 
 julia> tree = Node(; feature=1) + Node(; feature=2) * 3.2;
 
-julia> tree_mapreduce(t -> 1, +, tree)  # count nodes
+julia> tree_mapreduce(t -> 1, +, tree)  # count nodes. (regular mapreduce also works)
+5
+
+julia> tree_mapreduce(t -> 1, (p, c...) -> p + max(c...), tree)  # compute depth. regular mapreduce would fail!
 5
 
 julia> tree_mapreduce(vcat, tree) do t
     t.degree == 2 ? [t.op] : Int[]
-end  # Get list of binary operators used
+end  # Get list of binary operators used. (regular mapreduce also works)
 2-element Vector{Int64}:
  1
  2
 
 julia> tree_mapreduce(vcat, tree) do t
     (t.degree == 0 && t.constant) ? [t.val] : Float64[]
-end  # Get list of constants
+end  # Get list of constants. (regular mapreduce also works)
 1-element Vector{Float64}:
  3.2
 ```
