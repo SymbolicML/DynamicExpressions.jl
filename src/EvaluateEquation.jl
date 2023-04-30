@@ -63,7 +63,7 @@ which speed up evaluation significantly.
 """
 function eval_tree_array(
     tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum; turbo::Bool=false
-)::Tuple{AbstractVector{T},Bool} where {T<:Number}
+) where {T<:Number}
     n = size(cX, 2)
     if turbo
         @assert T in (Float32, Float64)
@@ -87,7 +87,7 @@ end
 
 function _eval_tree_array(
     tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, ::Val{turbo}
-)::Tuple{AbstractVector{T},Bool} where {T<:Number,turbo}
+) where {T<:Number,turbo}
     n = size(cX, 2)
     # First, we see if there are only constants in the tree - meaning
     # we can just return the constant result.
@@ -148,7 +148,7 @@ end
 
 function deg2_eval(
     cumulator_l::AbstractVector{T}, cumulator_r::AbstractVector{T}, op::F, ::Val{turbo}
-)::Tuple{AbstractVector{T},Bool} where {T<:Number,F,turbo}
+) where {T<:Number,F,turbo}
     @maybe_turbo turbo for j in indices(cumulator_l)
         x = op(cumulator_l[j], cumulator_r[j])::T
         cumulator_l[j] = x
@@ -158,7 +158,7 @@ end
 
 function deg1_eval(
     cumulator::AbstractVector{T}, op::F, ::Val{turbo}
-)::Tuple{AbstractVector{T},Bool} where {T<:Number,F,turbo}
+) where {T<:Number,F,turbo}
     @maybe_turbo turbo for j in indices(cumulator)
         x = op(cumulator[j])::T
         cumulator[j] = x
@@ -168,7 +168,7 @@ end
 
 function deg0_eval(
     tree::Node{T}, cX::AbstractMatrix{T}
-)::Tuple{AbstractVector{T},Bool} where {T<:Number}
+) where {T<:Number}
     if tree.constant
         n = size(cX, 2)
         return (fill(tree.val::T, n), true)
@@ -179,7 +179,7 @@ end
 
 function deg1_l2_ll0_lr0_eval(
     tree::Node{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::Val{turbo}
-)::Tuple{AbstractVector{T},Bool} where {T<:Number,F,F2,turbo}
+) where {T<:Number,F,F2,turbo}
     n = size(cX, 2)
     if tree.l.l.constant && tree.l.r.constant
         val_ll = tree.l.l.val::T
@@ -229,7 +229,7 @@ end
 # op(op2(x)) for x variable or constant
 function deg1_l1_ll0_eval(
     tree::Node{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::Val{turbo}
-)::Tuple{AbstractVector{T},Bool} where {T<:Number,F,F2,turbo}
+) where {T<:Number,F,F2,turbo}
     n = size(cX, 2)
     if tree.l.l.constant
         val_ll = tree.l.l.val::T
@@ -254,7 +254,7 @@ end
 # op(x, y) for x and y variable/constant
 function deg2_l0_r0_eval(
     tree::Node{T}, cX::AbstractMatrix{T}, op::F, ::Val{turbo}
-)::Tuple{AbstractVector{T},Bool} where {T<:Number,F,turbo}
+) where {T<:Number,F,turbo}
     n = size(cX, 2)
     if tree.l.constant && tree.r.constant
         val_l = tree.l.val::T
@@ -297,7 +297,7 @@ end
 # op(x, y) for x variable/constant, y arbitrary
 function deg2_l0_eval(
     tree::Node{T}, cumulator::AbstractVector{T}, cX::AbstractArray{T}, op::F, ::Val{turbo}
-)::Tuple{AbstractVector{T},Bool} where {T<:Number,F,turbo}
+) where {T<:Number,F,turbo}
     n = size(cX, 2)
     if tree.l.constant
         val = tree.l.val::T
@@ -319,7 +319,7 @@ end
 # op(x, y) for x arbitrary, y variable/constant
 function deg2_r0_eval(
     tree::Node{T}, cumulator::AbstractVector{T}, cX::AbstractArray{T}, op::F, ::Val{turbo}
-)::Tuple{AbstractVector{T},Bool} where {T<:Number,F,turbo}
+) where {T<:Number,F,turbo}
     n = size(cX, 2)
     if tree.r.constant
         val = tree.r.val::T
@@ -347,7 +347,7 @@ over an entire array when the values are all the same.
 """
 function _eval_constant_tree(
     tree::Node{T}, operators::OperatorEnum
-)::Tuple{T,Bool} where {T<:Number}
+) where {T<:Number}
     if tree.degree == 0
         return deg0_eval_constant(tree)
     elseif tree.degree == 1
@@ -357,13 +357,13 @@ function _eval_constant_tree(
     end
 end
 
-@inline function deg0_eval_constant(tree::Node{T})::Tuple{T,Bool} where {T<:Number}
+@inline function deg0_eval_constant(tree::Node{T}) where {T<:Number}
     return tree.val::T, true
 end
 
 function deg1_eval_constant(
     tree::Node{T}, op::F, operators::OperatorEnum
-)::Tuple{T,Bool} where {T<:Number,F}
+) where {T<:Number,F}
     (cumulator, complete) = _eval_constant_tree(tree.l, operators)
     !complete && return zero(T), false
     output = op(cumulator)::T
@@ -372,7 +372,7 @@ end
 
 function deg2_eval_constant(
     tree::Node{T}, op::F, operators::OperatorEnum
-)::Tuple{T,Bool} where {T<:Number,F}
+) where {T<:Number,F}
     (cumulator, complete) = _eval_constant_tree(tree.l, operators)
     !complete && return zero(T), false
     (cumulator2, complete2) = _eval_constant_tree(tree.r, operators)
@@ -388,7 +388,7 @@ Evaluate an expression tree in a way that can be auto-differentiated.
 """
 function differentiable_eval_tree_array(
     tree::Node{T1}, cX::AbstractMatrix{T}, operators::OperatorEnum
-)::Tuple{AbstractVector{T},Bool} where {T<:Number,T1}
+) where {T<:Number,T1}
     n = size(cX, 2)
     if tree.degree == 0
         if tree.constant
@@ -405,7 +405,7 @@ end
 
 function deg1_diff_eval(
     tree::Node{T1}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum
-)::Tuple{AbstractVector{T},Bool} where {T<:Number,F,T1}
+) where {T<:Number,F,T1}
     (left, complete) = differentiable_eval_tree_array(tree.l, cX, operators)
     @return_on_false complete left
     out = op.(left)
@@ -415,7 +415,7 @@ end
 
 function deg2_diff_eval(
     tree::Node{T1}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum
-)::Tuple{AbstractVector{T},Bool} where {T<:Number,F,T1}
+) where {T<:Number,F,T1}
     (left, complete) = differentiable_eval_tree_array(tree.l, cX, operators)
     @return_on_false complete left
     (right, complete2) = differentiable_eval_tree_array(tree.r, cX, operators)
