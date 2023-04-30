@@ -113,7 +113,7 @@ function benchmark_utilities()
                     tree -> _convert(
                         Node{Float64},
                         tree;
-                        preserve_sharing=(k == "preserve_sharing"),
+                        preserve_sharing=(k == :preserve_sharing),
                     )
                 elseif func_k in (:simplify_tree, :combine_operators)
                     g = getfield(@__MODULE__, func_k)
