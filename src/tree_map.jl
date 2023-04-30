@@ -110,6 +110,7 @@ function mapreduce(f::F, op::G, tree::Node; init=nothing) where {F<:Function,G<:
 end
 #! format: on
 
+"""`map`, but only on nodes that pass a filter function."""
 function filter_and_map(
     filter_fnc::F, map_fnc::G, tree::Node{T}; result_type::Type{GT}=Any
 ) where {F<:Function,G<:Function,GT,T}
@@ -133,6 +134,41 @@ function _filter_and_map(
         _filter_and_map(filter_fnc, map_fnc, tree.r, stack, pointer)
     end
     return nothing
+end
+
+"""
+    filter_and_mapreduce(filter_fnc::Function, map_fnc::Function, reduce_fnc::Function, tree::Node; skip_reduce_on=nothing)
+
+`mapreduce`, but only those nodes that pass a filter function.
+"""
+function filter_and_mapreduce(
+    filter_fnc::F, map_fnc::G, reduce_fnc::H, tree::Node{T}; skip_reduce_on=nothing
+) where {F<:Function,G<:Function,H<:Function,T}
+    _filter_and_mapreduce(filter_fnc, map_fnc, reduce_fnc, tree, Val(skip_reduce_on))
+end
+
+function _filter_and_mapreduce(
+    filter_fnc::F, map_fnc::G, reduce_fnc::H, tree::Node{T}, ::Val{skip_reduce_on}
+) where {F<:Function,G<:Function,H<:Function,T,skip_reduce_on}
+    cur = @_inline(filter_fnc(tree)) ? @_inline(map_fnc(tree)) : skip_reduce_on
+    if tree.degree == 0
+        return cur
+    elseif tree.degree == 1
+        l = _filter_and_mapreduce(filter_fnc, map_fnc, reduce_fnc, tree.l, Val(skip_reduce_on))
+        return _maybe_reduce(reduce_fnc, cur, l, Val(skip_reduce_on))
+    else
+        l = _filter_and_mapreduce(filter_fnc, map_fnc, reduce_fnc, tree.l, Val(skip_reduce_on))
+        r = _filter_and_mapreduce(filter_fnc, map_fnc, reduce_fnc, tree.r, Val(skip_reduce_on))
+        return _maybe_reduce(
+            reduce_fnc, _maybe_reduce(reduce_fnc, cur, l, Val(skip_reduce_on)), r, Val(skip_reduce_on)
+        )
+    end
+end
+
+@inline function _maybe_reduce(reduce_fnc::H, l, r, ::Val{skip_reduce_on}) where {H<:Function,skip_reduce_on}
+    l === skip_reduce_on && return r
+    r === skip_reduce_on && return l
+    return @_inline(reduce_fnc(l, r))
 end
 
 """
