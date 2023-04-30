@@ -7,6 +7,7 @@ import Base:
     firstindex,
     foldl,
     foldr,
+    foreach,
     getindex,
     in,
     isempty,
@@ -242,3 +243,4 @@ length(tree::Node) = sum(_ -> 1, tree)
 firstindex(::Node) = 1
 lastindex(tree::Node) = length(tree)
 keys(tree::Node) = Base.OneTo(length(tree))
+foreach(f::Function, tree::Node) = mapreduce(t -> (@_inline(f(t)); nothing), Returns(nothing), tree)
