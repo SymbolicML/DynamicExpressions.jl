@@ -110,10 +110,17 @@ function mapreduce(f::F, op::G, tree::Node; init=nothing) where {F<:Function,G<:
 end
 #! format: on
 
-"""`map`, but only on nodes that pass a filter function."""
+"""
+    filter_and_map(filter_fnc::Function, map_fnc::Function, tree::Node; result_type)
+
+A faster equivalent to `map(map_fnc, filter(filter_fnc, tree))`
+that avoids the intermediate allocation. However, using this requires
+specifying the `result_type` of `map_fnc` so the resultant array can
+be preallocated.
+"""
 function filter_and_map(
-    filter_fnc::F, map_fnc::G, tree::Node{T}; result_type::Type{GT}=Any
-) where {F<:Function,G<:Function,GT,T}
+    filter_fnc::F, map_fnc::G, tree::Node; result_type::Type{GT}
+) where {F<:Function,G<:Function,GT}
     stack_size = count(filter_fnc, tree)
     # Preallocate stack:
     stack = Array{GT}(undef, stack_size)
@@ -122,10 +129,11 @@ function filter_and_map(
     return stack::Vector{result_type}
 end
 function _filter_and_map(
-    filter_fnc::F, map_fnc::G, tree::Node{T}, stack::Vector{GT}, pointer::Ref
-) where {F<:Function,G<:Function,GT,T}
+    filter_fnc::F, map_fnc::G, tree::Node, stack::Vector{GT}, pointer::Ref
+) where {F<:Function,G<:Function,GT}
     if @_inline(filter_fnc(tree))
-        stack[pointer.x += 1] = @_inline(map_fnc(tree))::GT
+        map_result = @_inline(map_fnc(tree))::GT
+        @inbounds stack[pointer.x += 1] = map_result
     end
     if tree.degree == 1
         _filter_and_map(filter_fnc, map_fnc, tree.l, stack, pointer)
@@ -135,7 +143,6 @@ function _filter_and_map(
     end
     return nothing
 end
-
 
 """
     any(f::Function, tree::Node)
@@ -196,7 +203,7 @@ end
 collect(tree::Node) = filter(_ -> true, tree)
 
 """
-    map(f::Function, tree::Node{T}; result_type::Type{RT}=Nothing)
+    map(f::Function, tree::Node; result_type::Type{RT}=Nothing)
 
 Map a function over a tree and return a flat array of the results in depth-first order.
 Pre-specifying the `result_type` of the function can be used to avoid extra allocations,
