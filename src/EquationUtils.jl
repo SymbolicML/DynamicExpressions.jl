@@ -1,5 +1,6 @@
 module EquationUtilsModule
 
+import Compat: Returns
 import ..EquationModule: Node, copy_node, tree_mapreduce, any, filter_and_map
 
 """
@@ -15,7 +16,9 @@ count_nodes(tree::Node) = tree_mapreduce(_ -> 1, +, tree)
 
 Compute the max depth of the tree.
 """
-count_depth(tree::Node) = tree_mapreduce(_ -> 1, (p, child...) -> p + max(child...), tree)
+function count_depth(tree::Node)
+    return tree_mapreduce(Returns(1), (p, child...) -> p + max(child...), tree)
+end
 
 """
     is_node_constant(tree::Node)::Bool

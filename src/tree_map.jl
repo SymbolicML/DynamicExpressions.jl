@@ -22,6 +22,7 @@ import Base:
     reduce,
     setindex!,
     sum
+import Compat: @inline, Returns
 
 function reduce(f, tree::Node; init=nothing)
     throw(ArgumentError("reduce is not supported for trees. Use tree_mapreduce instead."))
@@ -37,20 +38,6 @@ function mapfoldl(f, tree::Node; init=nothing)
 end
 function mapfoldr(f, tree::Node; init=nothing)
     throw(ArgumentError("mapfoldr is not supported for trees. Use tree_mapreduce instead."))
-end
-
-"""Internal macro to fix @inline on Julia versions before 1.8"""
-macro _inline(ex)
-    ex = _fix_inline(ex)
-    return :($(esc(ex)))
-end
-
-function _fix_inline(ex)
-    if VERSION >= v"1.8"
-        return Expr(:macrocall, Symbol("@inline"), LineNumberNode(@__LINE__), ex)
-    else
-        return ex
-    end
 end
 
 #! format: off
@@ -92,21 +79,21 @@ end  # Get list of constants. (regular mapreduce also works)
 """
 function tree_mapreduce(f::F, op::G, tree::Node) where {F<:Function,G<:Function}
     if tree.degree == 0
-        return @_inline(f(tree))
+        return @inline(f(tree))
     elseif tree.degree == 1
-        return op(@_inline(f(tree)), tree_mapreduce(f, op, tree.l))
+        return op(@inline(f(tree)), tree_mapreduce(f, op, tree.l))
     else
-        return op(@_inline(f(tree)), tree_mapreduce(f, op, tree.l), tree_mapreduce(f, op, tree.r))
+        return op(@inline(f(tree)), tree_mapreduce(f, op, tree.l), tree_mapreduce(f, op, tree.r))
     end
 end
 
 function mapreduce(f::F, op::G, tree::Node; init=nothing) where {F<:Function,G<:Function}
     if tree.degree == 0
-        return @_inline(f(tree))
+        return @inline(f(tree))
     elseif tree.degree == 1
-        return op(@_inline(f(tree)), mapreduce(f, op, tree.l; init))
+        return op(@inline(f(tree)), mapreduce(f, op, tree.l; init))
     else
-        return op(op(@_inline(f(tree)), mapreduce(f, op, tree.l; init)), mapreduce(f, op, tree.r; init))
+        return op(op(@inline(f(tree)), mapreduce(f, op, tree.l; init)), mapreduce(f, op, tree.r; init))
     end
 end
 #! format: on
@@ -132,8 +119,8 @@ end
 function _filter_and_map(
     filter_fnc::F, map_fnc::G, tree::Node, stack::Vector{GT}, pointer::Ref
 ) where {F<:Function,G<:Function,GT}
-    if @_inline(filter_fnc(tree))
-        map_result = @_inline(map_fnc(tree))::GT
+    if @inline(filter_fnc(tree))
+        map_result = @inline(map_fnc(tree))::GT
         @inbounds stack[pointer.x += 1] = map_result
     end
     if tree.degree == 1
@@ -153,11 +140,11 @@ By using this instead of tree_mapreduce, we can take advantage of early exits.
 """
 function any(f::F, tree::Node) where {F<:Function}
     if tree.degree == 0
-        return @_inline(f(tree))::Bool
+        return @inline(f(tree))::Bool
     elseif tree.degree == 1
-        return @_inline(f(tree))::Bool || any(f, tree.l)
+        return @inline(f(tree))::Bool || any(f, tree.l)
     else
-        return @_inline(f(tree))::Bool || any(f, tree.l) || any(f, tree.r)
+        return @inline(f(tree))::Bool || any(f, tree.l) || any(f, tree.r)
     end
 end
 
@@ -201,7 +188,7 @@ function filter(f::F, tree::Node{T}) where {F<:Function,T}
     return filter_and_map(f, identity, tree; result_type=Node{T})
 end
 
-collect(tree::Node) = filter(_ -> true, tree)
+collect(tree::Node) = filter(Returns(true), tree)
 
 """
     map(f::Function, tree::Node; result_type::Type{RT}=Nothing)
@@ -213,19 +200,19 @@ function map(f::F, tree::Node; result_type::Type{RT}=Nothing) where {F<:Function
     if RT == Nothing
         return f.(collect(tree))
     else
-        return filter_and_map(_ -> true, f, tree; result_type=result_type)
+        return filter_and_map(Returns(true), f, tree; result_type=result_type)
     end
 end
 
 function count(f::F, tree::Node; init=0) where {F}
-    return tree_mapreduce(t -> @_inline(f(t)) ? 1 : 0, +, tree) + init
+    return tree_mapreduce(t -> @inline(f(t)) ? 1 : 0, +, tree) + init
 end
 
 function sum(f::F, tree::Node; init=0) where {F}
     return tree_mapreduce(f, +, tree) + init
 end
 
-all(f::F, tree::Node) where {F<:Function} = !any(t -> !@_inline(f(t)), tree)
+all(f::F, tree::Node) where {F<:Function} = !any(t -> !@inline(f(t)), tree)
 
 function setindex!(root::Node{T}, insert::Node{T}, i::Int) where {T}
     set_node!(getindex(root, i), insert)
@@ -239,8 +226,10 @@ isempty(::Node) = false
 iterate(root::Node) = (root, collect(root)[(begin + 1):end])
 iterate(::Node, stack) = isempty(stack) ? nothing : (popfirst!(stack), stack)
 in(item, tree::Node) = any(t -> t == item, tree)
-length(tree::Node) = sum(_ -> 1, tree)
+length(tree::Node) = sum(Returns(1), tree)
 firstindex(::Node) = 1
 lastindex(tree::Node) = length(tree)
 keys(tree::Node) = Base.OneTo(length(tree))
-foreach(f::Function, tree::Node) = mapreduce(t -> (@_inline(f(t)); nothing), Returns(nothing), tree)
+function foreach(f::Function, tree::Node)
+    return mapreduce(t -> (@inline(f(t)); nothing), Returns(nothing), tree)
+end
