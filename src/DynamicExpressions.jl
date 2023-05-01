@@ -12,7 +12,12 @@ include("EvaluationHelpers.jl")
 include("InterfaceSymbolicUtils.jl")
 include("SimplifyEquation.jl")
 include("OperatorEnumConstruction.jl")
-@require Optim = "429524aa-4258-5aef-a3af-852621145aeb" include("ConstantOptimization.jl")
+
+function __init__()
+    @require Optim = "429524aa-4258-5aef-a3af-852621145aeb" include(
+        "ConstantOptimization.jl"
+    )
+end
 
 using Reexport: @reexport
 @reexport import .EquationModule:
@@ -44,8 +49,6 @@ using Reexport: @reexport
 @reexport import .InterfaceSymbolicUtilsModule: node_to_symbolic, symbolic_to_node
 @reexport import .SimplifyEquationModule: combine_operators, simplify_tree
 @reexport import .EvaluationHelpersModule
-@require Optim = "429524aa-4258-5aef-a3af-852621145aeb" @reexport import .ConstantOptimizationModule:
-    optimize
 
 include("deprecated.jl")
 
