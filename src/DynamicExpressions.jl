@@ -1,5 +1,7 @@
 module DynamicExpressions
 
+using Requires: @require
+
 include("Utils.jl")
 include("OperatorEnum.jl")
 include("Equation.jl")
@@ -10,8 +12,9 @@ include("EvaluationHelpers.jl")
 include("InterfaceSymbolicUtils.jl")
 include("SimplifyEquation.jl")
 include("OperatorEnumConstruction.jl")
+@require Optim = "429524aa-4258-5aef-a3af-852621145aeb" include("ConstantOptimization.jl")
 
-using Reexport
+using Reexport: @reexport
 @reexport import .EquationModule:
     Node,
     string_tree,
@@ -41,6 +44,8 @@ using Reexport
 @reexport import .InterfaceSymbolicUtilsModule: node_to_symbolic, symbolic_to_node
 @reexport import .SimplifyEquationModule: combine_operators, simplify_tree
 @reexport import .EvaluationHelpersModule
+@require Optim = "429524aa-4258-5aef-a3af-852621145aeb" @reexport import .ConstantOptimizationModule:
+    optimize
 
 include("deprecated.jl")
 
