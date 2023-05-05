@@ -3,12 +3,15 @@ import Base:
     any,
     collect,
     count,
+    convert,
+    copy,
     filter,
     firstindex,
     foldl,
     foldr,
     foreach,
     getindex,
+    hash,
     in,
     isempty,
     iterate,
@@ -23,6 +26,7 @@ import Base:
     setindex!,
     sum
 import Compat: @inline, Returns
+import ..UtilsModule: @generate_idmap, @use_idmap
 
 function reduce(f, tree::Node; init=nothing)
     throw(ArgumentError("reduce is not supported for trees. Use tree_mapreduce instead."))
@@ -175,6 +179,114 @@ function _extract!(return_tree::Ref{N}, tree::N, i::Int, iter::Int)::Int where {
     return iter
 end
 
+function Base.:(==)(a::Node{T}, b::Node{T})::Bool where {T}
+    (degree = a.degree) != b.degree && return false
+    if degree == 0
+        (constant = a.constant) != b.constant && return false
+        if a_constant
+            return a.val::T == b.val::T
+        else
+            return a.feature == b.feature
+        end
+    end
+    a.op != b.op && return false
+    return a.l == b.l && a.r == b.r
+end
+function Base.:(==)(a::Node{T1}, b::Node{T2})::Bool where {T1,T2}
+    # TODO: Should also have preserve_sharing check... But how?
+    T = promote_type(T1, T2)
+    return Node{T}(a) == Node{T}(b)
+end
+
+"""
+    convert(::Type{Node{T1}}, n::Node{T2}) where {T1,T2}
+
+Convert a `Node{T2}` to a `Node{T1}`.
+This will recursively convert all children nodes to `Node{T1}`,
+using `convert(T1, tree.val)` at constant nodes.
+
+# Arguments
+- `::Type{Node{T1}}`: Type to convert to.
+- `tree::Node{T2}`: Node to convert.
+"""
+function convert(
+    ::Type{Node{T1}}, tree::Node{T2}; preserve_sharing::Bool=false
+) where {T1,T2}
+    if T1 == T2
+        return tree
+    end
+    if preserve_sharing
+        @use_idmap(_convert(Node{T1}, tree), IdDict{Node{T2},Node{T1}}())
+    else
+        _convert(Node{T1}, tree)
+    end
+end
+
+@generate_idmap tree function _convert(::Type{Node{T1}}, tree::Node{T2}) where {T1,T2}
+    if tree.degree == 0
+        if tree.constant
+            val = tree.val::T2
+            if !(T2 <: T1)
+                # e.g., we don't want to convert Float32 to Union{Float32,Vector{Float32}}!
+                val = convert(T1, val)
+            end
+            Node(T1, 0, tree.constant, val)
+        else
+            Node(T1, 0, tree.constant, nothing, tree.feature)
+        end
+    elseif tree.degree == 1
+        l = _convert(Node{T1}, tree.l)
+        Node(1, tree.constant, nothing, tree.feature, tree.op, l)
+    else
+        l = _convert(Node{T1}, tree.l)
+        r = _convert(Node{T1}, tree.r)
+        Node(2, tree.constant, nothing, tree.feature, tree.op, l, r)
+    end
+end
+
+(::Type{Node{T}})(tree::Node; kws...) where {T} = convert(Node{T}, tree; kws...)
+
+"""
+    copy_node(tree::Node; preserve_sharing::Bool=false)
+
+Copy a node, recursively copying all children nodes.
+This is more efficient than the built-in copy.
+With `preserve_sharing=true`, this will also
+preserve linkage between a node and
+multiple parents, whereas without, this would create
+duplicate child node copies.
+
+id_map is a map from `objectid(tree)` to `copy(tree)`.
+We check against the map before making a new copy; otherwise
+we can simply reference the existing copy.
+[Thanks to Ted Hopp.](https://stackoverflow.com/questions/49285475/how-to-copy-a-full-non-binary-tree-including-loops)
+
+Note that this will *not* preserve loops in graphs.
+"""
+function copy_node(tree::Node{T}; preserve_sharing::Bool=false)::Node{T} where {T}
+    if preserve_sharing
+        @use_idmap(_copy_node(tree), IdDict{Node{T},Node{T}}())
+    else
+        _copy_node(tree)
+    end
+end
+
+@generate_idmap tree function _copy_node(tree::Node{T})::Node{T} where {T}
+    if tree.degree == 0
+        if tree.constant
+            Node(; val=copy(tree.val::T))
+        else
+            Node(T; feature=copy(tree.feature))
+        end
+    elseif tree.degree == 1
+        Node(copy(tree.op), _copy_node(tree.l))
+    else
+        Node(copy(tree.op), _copy_node(tree.l), _copy_node(tree.r))
+    end
+end
+
+copy(tree::Node; kws...) = copy_node(tree; kws...)
+
 ###############################################################################
 # Derived functions: ##########################################################
 ###############################################################################
@@ -232,4 +344,10 @@ lastindex(tree::Node) = length(tree)
 keys(tree::Node) = Base.OneTo(length(tree))
 function foreach(f::Function, tree::Node)
     return mapreduce(t -> (@inline(f(t)); nothing), Returns(nothing), tree)
+end
+function hash(tree::Node{T}) where {T}
+    tree_mapreduce((n...) -> hash(n), tree) do t
+        t.degree == 0 && return hash(t.constant ? (0, t.val::T) : (1, t.feature))
+        return hash((t.degree, t.op))
+    end
 end
