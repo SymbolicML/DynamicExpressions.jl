@@ -97,11 +97,8 @@ function tree_mapreduce(
     preserve_sharing::Bool=false,
     result_type::Type{RT}=Nothing,
 ) where {T,N<:Node{T},F1<:Function,F2<:Function,G<:Function,RT}
-    if preserve_sharing
-        return @use_idmap(
-            _tree_mapreduce(f_leaf, f_branch, op, tree), IdDict{N,result_type}()
-        )
-    end
+    preserve_sharing &&
+        return @use_idmap(_tree_mapreduce(f_leaf, f_branch, op, tree), IdDict{N,RT}())
     return _tree_mapreduce(f_leaf, f_branch, op, tree)
 end
 @generate_idmap tree function _tree_mapreduce(
