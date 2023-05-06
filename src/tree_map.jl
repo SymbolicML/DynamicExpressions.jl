@@ -228,53 +228,6 @@ function Base.:(==)(a::Node{T1}, b::Node{T2})::Bool where {T1,T2}
     return Node{T}(a) == Node{T}(b)
 end
 
-"""
-    convert(::Type{Node{T1}}, n::Node{T2}) where {T1,T2}
-
-Convert a `Node{T2}` to a `Node{T1}`.
-This will recursively convert all children nodes to `Node{T1}`,
-using `convert(T1, tree.val)` at constant nodes.
-
-# Arguments
-- `::Type{Node{T1}}`: Type to convert to.
-- `tree::Node{T2}`: Node to convert.
-"""
-function convert(
-    ::Type{Node{T1}}, tree::Node{T2}; preserve_sharing::Bool=false
-) where {T1,T2}
-    if T1 == T2
-        return tree
-    end
-    if preserve_sharing
-        @use_idmap(_convert(Node{T1}, tree), IdDict{Node{T2},Node{T1}}())
-    else
-        _convert(Node{T1}, tree)
-    end
-end
-
-@generate_idmap tree function _convert(::Type{Node{T1}}, tree::Node{T2}) where {T1,T2}
-    if tree.degree == 0
-        if tree.constant
-            val = tree.val::T2
-            if !(T2 <: T1)
-                # e.g., we don't want to convert Float32 to Union{Float32,Vector{Float32}}!
-                val = convert(T1, val)
-            end
-            Node(T1, 0, tree.constant, val)
-        else
-            Node(T1, 0, tree.constant, nothing, tree.feature)
-        end
-    elseif tree.degree == 1
-        l = _convert(Node{T1}, tree.l)
-        Node(1, tree.constant, nothing, tree.feature, tree.op, l)
-    else
-        l = _convert(Node{T1}, tree.l)
-        r = _convert(Node{T1}, tree.r)
-        Node(2, tree.constant, nothing, tree.feature, tree.op, l, r)
-    end
-end
-
-(::Type{Node{T}})(tree::Node; kws...) where {T} = convert(Node{T}, tree; kws...)
 
 ###############################################################################
 # Derived functions: ##########################################################
@@ -372,3 +325,40 @@ function copy_node(tree::N; preserve_sharing::Bool=false) where {T,N<:Node{T}}
 end
 
 copy(tree::Node; kws...) = copy_node(tree; kws...)
+
+"""
+    convert(::Type{Node{T1}}, n::Node{T2}) where {T1,T2}
+
+Convert a `Node{T2}` to a `Node{T1}`.
+This will recursively convert all children nodes to `Node{T1}`,
+using `convert(T1, tree.val)` at constant nodes.
+
+# Arguments
+- `::Type{Node{T1}}`: Type to convert to.
+- `tree::Node{T2}`: Node to convert.
+"""
+function convert(
+    ::Type{Node{T1}}, tree::Node{T2}; preserve_sharing::Bool=false
+) where {T1,T2}
+    if T1 == T2
+        return tree
+    end
+    return tree_mapreduce(
+        t -> if t.constant
+            Node(T1, 0, true, maybe_convert(t.val::T2, T1, T2))
+        else
+            Node(T1, 0, false, nothing, t.feature)
+        end,
+        identity,
+        (p, c...) -> Node(p.degree, false, nothing, 0, p.op, c...),
+        tree;
+        preserve_sharing,
+        result_type=Node{T1},
+    )
+end
+@inline function maybe_convert(val, ::Type{T1}, ::Type{T2}) where {T1,T2}
+    # e.g., we don't want to convert Float32 to Union{Float32,Vector{Float32}}!
+    !(T2 <: T1) && return convert(T1, val)
+    return val
+end
+(::Type{Node{T}})(tree::Node; kws...) where {T} = convert(Node{T}, tree; kws...)
