@@ -1,7 +1,7 @@
 module EquationModule
 
 import ..OperatorEnumModule: AbstractOperatorEnum
-import ..UtilsModule: @generate_idmap, @use_idmap
+import ..UtilsModule: @memoize_on, @with_memoization
 
 const DEFAULT_NODE_TYPE = Float32
 

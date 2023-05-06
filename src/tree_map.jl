@@ -26,7 +26,7 @@ import Base:
     setindex!,
     sum
 import Compat: @inline, Returns
-import ..UtilsModule: @generate_idmap, @use_idmap
+import ..UtilsModule: @memoize_on, @with_memoization
 
 function reduce(f, tree::Node; init=nothing)
     throw(ArgumentError("reduce is not supported for trees. Use tree_mapreduce instead."))
@@ -97,11 +97,12 @@ function tree_mapreduce(
     preserve_sharing::Bool=false,
     result_type::Type{RT}=Nothing,
 ) where {T,N<:Node{T},F1<:Function,F2<:Function,G<:Function,RT}
-    preserve_sharing &&
-        return @use_idmap(_tree_mapreduce(f_leaf, f_branch, op, tree), IdDict{N,RT}())
+    preserve_sharing && return @with_memoization(
+        _tree_mapreduce(f_leaf, f_branch, op, tree), IdDict{N,RT}()
+    )
     return _tree_mapreduce(f_leaf, f_branch, op, tree)
 end
-@generate_idmap tree function _tree_mapreduce(
+@memoize_on tree function _tree_mapreduce(
     f_leaf::F1, f_branch::F2, op::G, tree::Node
 ) where {F1<:Function,F2<:Function,G<:Function}
     if tree.degree == 0
