@@ -44,9 +44,9 @@ function mapfoldr(f, tree::Node; init=nothing)
     throw(ArgumentError("mapfoldr is not supported for trees. Use tree_mapreduce instead."))
 end
 
-#! format: off
 """
     tree_mapreduce(f::Function, op::Function, tree::Node)
+    tree_mapreduce(f_leaf::Function, f_branch::Function, op::Function, tree::Node)
 
 Map a function over a tree and aggregate the result using an operator `op`.
 `op` should be defined with inputs `(parent, child...) ->` so that it can aggregate
@@ -54,6 +54,9 @@ both unary and binary operators. `op` will not be called for leafs of the tree.
 This differs from a normal `mapreduce` in that it allows different treatment
 for parent nodes than children nodes. If this is not necessary, you may
 use the regular `mapreduce` instead.
+
+You can also provide separate functions for leaf (variable/constant) nodes
+and branch (operator) nodes.
 
 # Examples
 ```jldoctest
@@ -81,22 +84,41 @@ end  # Get list of constants. (regular mapreduce also works)
  3.2
 ```
 """
-function tree_mapreduce(f::F, op::G, tree::N; preserve_sharing::Bool=false, result_type::Type{RT}=Nothing) where {T,N<:Node{T},F<:Function,G<:Function,RT}
-    if preserve_sharing
-        @use_idmap(_tree_mapreduce(f, op, tree), IdDict{N,RT}())
-    end
-    _tree_mapreduce(f, op, tree)
+function tree_mapreduce(
+    f::F, op::G, tree::N; preserve_sharing::Bool=false, result_type::Type{RT}=Nothing
+) where {T,N<:Node{T},F<:Function,G<:Function,RT}
+    return tree_mapreduce(f, f, op, tree; preserve_sharing, result_type)
 end
-@generate_idmap tree function _tree_mapreduce(f::F, op::G, tree::Node) where {F<:Function,G<:Function}
+function tree_mapreduce(
+    f_leaf::F1,
+    f_branch::F2,
+    op::G,
+    tree::N;
+    preserve_sharing::Bool=false,
+    result_type::Type{RT}=Nothing,
+) where {T,N<:Node{T},F1<:Function,F2<:Function,G<:Function,RT}
+    if preserve_sharing
+        @use_idmap(_tree_mapreduce(f_leaf, f_branch, op, tree), IdDict{N,RT}())
+    end
+    return _tree_mapreduce(f_leaf, f_branch, op, tree)
+end
+@generate_idmap tree function _tree_mapreduce(
+    f_leaf::F1, f_branch::F2, op::G, tree::Node
+) where {F1<:Function,F2<:Function,G<:Function}
     if tree.degree == 0
-        return @inline(f(tree))
+        return @inline(f_leaf(tree))
     elseif tree.degree == 1
-        return op(@inline(f(tree)), _tree_mapreduce(f, op, tree.l))
+        return op(@inline(f_branch(tree)), _tree_mapreduce(f_leaf, f_branch, op, tree.l))
     else
-        return op(@inline(f(tree)), _tree_mapreduce(f, op, tree.l), _tree_mapreduce(f, op, tree.r))
+        return op(
+            @inline(f_branch(tree)),
+            _tree_mapreduce(f_leaf, f_branch, op, tree.l),
+            _tree_mapreduce(f_leaf, f_branch, op, tree.r),
+        )
     end
 end
 
+#! format: off
 function mapreduce(f::F, op::G, tree::Node; init=nothing) where {F<:Function,G<:Function}
     if tree.degree == 0
         return @inline(f(tree))
@@ -313,10 +335,12 @@ function foreach(f::Function, tree::Node)
     return tree_mapreduce(t -> (@inline(f(t)); nothing), Returns(nothing), tree)
 end
 function hash(tree::Node{T}) where {T}
-    tree_mapreduce((n...) -> hash(n), tree) do t
-        t.degree == 0 && return hash(t.constant ? (0, t.val::T) : (1, t.feature))
-        return hash((t.degree, t.op))
-    end
+    return tree_mapreduce(
+        t -> hash(t.constant ? (0, t.val::T) : (1, t.feature)),
+        t -> hash((t.degree + 1, t.op)),
+        (n...) -> hash(n),
+        tree,
+    )
 end
 
 """
@@ -337,16 +361,14 @@ we can simply reference the existing copy.
 Note that this will *not* preserve loops in graphs.
 """
 function copy_node(tree::N; preserve_sharing::Bool=false) where {T,N<:Node{T}}
-    copied = tree_mapreduce(
-        (p, c...) -> Node(copy(p.op), c...), tree; preserve_sharing, result_type=N
-    ) do t
-        if t.degree == 0
-            t.constant && return Node(; val=copy(t.val::T))
-            return Node(T; feature=copy(t.feature))
-        end
-        return t
-    end
-    return copied::N
+    return tree_mapreduce(
+        t -> t.constant ? Node(; val=t.val::T) : Node(T; feature=t.feature),
+        t -> t.op,
+        (op, c...) -> Node(op, c...),
+        tree;
+        preserve_sharing,
+        result_type=N,
+    )
 end
 
 copy(tree::Node; kws...) = copy_node(tree; kws...)
