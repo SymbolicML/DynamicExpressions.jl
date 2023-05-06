@@ -183,14 +183,16 @@ function Base.:(==)(a::Node{T}, b::Node{T})::Bool where {T}
     (degree = a.degree) != b.degree && return false
     if degree == 0
         (constant = a.constant) != b.constant && return false
-        if a_constant
+        if constant
             return a.val::T == b.val::T
         else
             return a.feature == b.feature
         end
     end
     a.op != b.op && return false
-    return a.l == b.l && a.r == b.r
+    a.l != b.l && return false
+    degree == 2 && a.r != b.r && return false
+    return true
 end
 function Base.:(==)(a::Node{T1}, b::Node{T2})::Bool where {T1,T2}
     # TODO: Should also have preserve_sharing check... But how?
