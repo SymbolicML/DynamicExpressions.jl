@@ -108,13 +108,12 @@ end
     if tree.degree == 0
         return @inline(f_leaf(tree))
     elseif tree.degree == 1
-        return op(@inline(f_branch(tree)), _tree_mapreduce(f_leaf, f_branch, op, tree.l))
+        l = _tree_mapreduce(f_leaf, f_branch, op, tree.l)
+        return @inline(op(@inline(f_branch(tree)), l))
     else
-        return op(
-            @inline(f_branch(tree)),
-            _tree_mapreduce(f_leaf, f_branch, op, tree.l),
-            _tree_mapreduce(f_leaf, f_branch, op, tree.r),
-        )
+        l = _tree_mapreduce(f_leaf, f_branch, op, tree.l)
+        r = _tree_mapreduce(f_leaf, f_branch, op, tree.r)
+        return @inline(op(@inline(f_branch(tree)), l, r))
     end
 end
 
@@ -123,9 +122,12 @@ function mapreduce(f::F, op::G, tree::Node; init=nothing) where {F<:Function,G<:
     if tree.degree == 0
         return @inline(f(tree))
     elseif tree.degree == 1
-        return op(@inline(f(tree)), mapreduce(f, op, tree.l; init))
+        l = mapreduce(f, op, tree.l; init)
+        return @inline(op(@inline(f(tree)), l))
     else
-        return op(op(@inline(f(tree)), mapreduce(f, op, tree.l; init)), mapreduce(f, op, tree.r; init))
+        l = mapreduce(f, op, tree.l; init)
+        r = mapreduce(f, op, tree.r; init)
+        return @inline(op(op(@inline(f(tree)), l), r))
     end
 end
 #! format: on
@@ -315,8 +317,8 @@ Note that this will *not* preserve loops in graphs.
 function copy_node(tree::N; preserve_sharing::Bool=false) where {T,N<:Node{T}}
     return tree_mapreduce(
         t -> t.constant ? Node(; val=t.val::T) : Node(T; feature=t.feature),
-        t -> t.op,
-        (op, c...) -> Node(op, c...),
+        identity,
+        (p, c...) -> Node(p.op, c...),
         tree;
         preserve_sharing,
         result_type=N,
