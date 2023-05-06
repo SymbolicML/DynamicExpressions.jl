@@ -81,13 +81,19 @@ end  # Get list of constants. (regular mapreduce also works)
  3.2
 ```
 """
-function tree_mapreduce(f::F, op::G, tree::Node) where {F<:Function,G<:Function}
+function tree_mapreduce(f::F, op::G, tree::N; preserve_sharing::Bool=false, result_type::Type{RT}=Nothing) where {T,N<:Node{T},F<:Function,G<:Function,RT}
+    if preserve_sharing
+        @use_idmap(_tree_mapreduce(f, op, tree), IdDict{N,RT}())
+    end
+    _tree_mapreduce(f, op, tree)
+end
+@generate_idmap tree function _tree_mapreduce(f::F, op::G, tree::Node) where {F<:Function,G<:Function}
     if tree.degree == 0
         return @inline(f(tree))
     elseif tree.degree == 1
-        return op(@inline(f(tree)), tree_mapreduce(f, op, tree.l))
+        return op(@inline(f(tree)), _tree_mapreduce(f, op, tree.l))
     else
-        return op(@inline(f(tree)), tree_mapreduce(f, op, tree.l), tree_mapreduce(f, op, tree.r))
+        return op(@inline(f(tree)), _tree_mapreduce(f, op, tree.l), _tree_mapreduce(f, op, tree.r))
     end
 end
 
@@ -248,47 +254,6 @@ end
 
 (::Type{Node{T}})(tree::Node; kws...) where {T} = convert(Node{T}, tree; kws...)
 
-"""
-    copy_node(tree::Node; preserve_sharing::Bool=false)
-
-Copy a node, recursively copying all children nodes.
-This is more efficient than the built-in copy.
-With `preserve_sharing=true`, this will also
-preserve linkage between a node and
-multiple parents, whereas without, this would create
-duplicate child node copies.
-
-id_map is a map from `objectid(tree)` to `copy(tree)`.
-We check against the map before making a new copy; otherwise
-we can simply reference the existing copy.
-[Thanks to Ted Hopp.](https://stackoverflow.com/questions/49285475/how-to-copy-a-full-non-binary-tree-including-loops)
-
-Note that this will *not* preserve loops in graphs.
-"""
-function copy_node(tree::Node{T}; preserve_sharing::Bool=false)::Node{T} where {T}
-    if preserve_sharing
-        @use_idmap(_copy_node(tree), IdDict{Node{T},Node{T}}())
-    else
-        _copy_node(tree)
-    end
-end
-
-@generate_idmap tree function _copy_node(tree::Node{T})::Node{T} where {T}
-    if tree.degree == 0
-        if tree.constant
-            Node(; val=copy(tree.val::T))
-        else
-            Node(T; feature=copy(tree.feature))
-        end
-    elseif tree.degree == 1
-        Node(copy(tree.op), _copy_node(tree.l))
-    else
-        Node(copy(tree.op), _copy_node(tree.l), _copy_node(tree.r))
-    end
-end
-
-copy(tree::Node; kws...) = copy_node(tree; kws...)
-
 ###############################################################################
 # Derived functions: ##########################################################
 ###############################################################################
@@ -345,7 +310,7 @@ firstindex(::Node) = 1
 lastindex(tree::Node) = length(tree)
 keys(tree::Node) = Base.OneTo(length(tree))
 function foreach(f::Function, tree::Node)
-    return mapreduce(t -> (@inline(f(t)); nothing), Returns(nothing), tree)
+    return tree_mapreduce(t -> (@inline(f(t)); nothing), Returns(nothing), tree)
 end
 function hash(tree::Node{T}) where {T}
     tree_mapreduce((n...) -> hash(n), tree) do t
@@ -353,3 +318,35 @@ function hash(tree::Node{T}) where {T}
         return hash((t.degree, t.op))
     end
 end
+
+"""
+    copy_node(tree::Node; preserve_sharing::Bool=false)
+
+Copy a node, recursively copying all children nodes.
+This is more efficient than the built-in copy.
+With `preserve_sharing=true`, this will also
+preserve linkage between a node and
+multiple parents, whereas without, this would create
+duplicate child node copies.
+
+id_map is a map from `objectid(tree)` to `copy(tree)`.
+We check against the map before making a new copy; otherwise
+we can simply reference the existing copy.
+[Thanks to Ted Hopp.](https://stackoverflow.com/questions/49285475/how-to-copy-a-full-non-binary-tree-including-loops)
+
+Note that this will *not* preserve loops in graphs.
+"""
+function copy_node(tree::N; preserve_sharing::Bool=false) where {T,N<:Node{T}}
+    copied = tree_mapreduce(
+        (p, c...) -> Node(copy(p.op), c...), tree; preserve_sharing, result_type=N
+    ) do t
+        if t.degree == 0
+            t.constant && return Node(; val=copy(t.val::T))
+            return Node(T; feature=copy(t.feature))
+        end
+        return t
+    end
+    return copied::N
+end
+
+copy(tree::Node; kws...) = copy_node(tree; kws...)
