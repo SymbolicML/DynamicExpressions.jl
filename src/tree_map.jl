@@ -98,7 +98,9 @@ function tree_mapreduce(
     result_type::Type{RT}=Nothing,
 ) where {T,N<:Node{T},F1<:Function,F2<:Function,G<:Function,RT}
     if preserve_sharing
-        @use_idmap(_tree_mapreduce(f_leaf, f_branch, op, tree), IdDict{N,RT}())
+        return @use_idmap(
+            _tree_mapreduce(f_leaf, f_branch, op, tree), IdDict{N,result_type}()
+        )
     end
     return _tree_mapreduce(f_leaf, f_branch, op, tree)
 end
@@ -227,7 +229,6 @@ function Base.:(==)(a::Node{T1}, b::Node{T2})::Bool where {T1,T2}
     T = promote_type(T1, T2)
     return Node{T}(a) == Node{T}(b)
 end
-
 
 ###############################################################################
 # Derived functions: ##########################################################
