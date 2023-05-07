@@ -205,11 +205,11 @@ function Base.:(==)(a::Node{T}, b::Node{T})::Bool where {T}
         else
             return a.feature == b.feature
         end
+    elseif degree == 1
+        return a.op == b.op && a.l == b.l
+    else
+        return a.op == b.op && a.l == b.l && a.r == b.r
     end
-    a.op != b.op && return false
-    a.l != b.l && return false
-    degree == 2 && a.r != b.r && return false
-    return true
 end
 function Base.:(==)(a::Node{T1}, b::Node{T2})::Bool where {T1,T2}
     # TODO: Should also have preserve_sharing check... But how?
