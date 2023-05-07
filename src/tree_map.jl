@@ -212,6 +212,7 @@ function filter_map!(
             @inbounds destination[pointer.x += 1] = map_result
         end
     end
+    return nothing
 end
 
 """
