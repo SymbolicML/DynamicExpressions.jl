@@ -10,6 +10,7 @@ include("EvaluationHelpers.jl")
 include("InterfaceSymbolicUtils.jl")
 include("SimplifyEquation.jl")
 include("OperatorEnumConstruction.jl")
+include("EnzymeInterface.jl")
 
 using Reexport
 @reexport import .EquationModule: Node, string_tree, print_tree, copy_node, set_node!
@@ -33,6 +34,7 @@ using Reexport
 @reexport import .InterfaceSymbolicUtilsModule: node_to_symbolic, symbolic_to_node
 @reexport import .SimplifyEquationModule: combine_operators, simplify_tree
 @reexport import .EvaluationHelpersModule
+@reexport import .EnzymeInterfaceModule: enzyme_reverse_gradient, enzyme_forward_gradient
 
 import TOML: parsefile
 
