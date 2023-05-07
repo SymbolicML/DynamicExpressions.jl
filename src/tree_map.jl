@@ -45,8 +45,8 @@ function mapfoldr(f, tree::Node; init=nothing)
 end
 
 """
-    tree_mapreduce(f::Function, op::Function, tree::Node)
-    tree_mapreduce(f_leaf::Function, f_branch::Function, op::Function, tree::Node)
+    tree_mapreduce(f::Function, op::Function, tree::Node, result_type::Type=Nothing)
+    tree_mapreduce(f_leaf::Function, f_branch::Function, op::Function, tree::Node, result_type::Type=Nothing)
 
 Map a function over a tree and aggregate the result using an operator `op`.
 `op` should be defined with inputs `(parent, child...) ->` so that it can aggregate
@@ -85,21 +85,23 @@ end  # Get list of constants. (regular mapreduce also works)
 ```
 """
 function tree_mapreduce(
-    f::F, op::G, tree::N; preserve_sharing::Bool=false, result_type::Type{RT}=Nothing
+    f::F, op::G, tree::N, result_type::Type{RT}=Nothing; preserve_sharing::Bool=false
 ) where {T,N<:Node{T},F<:Function,G<:Function,RT}
-    return tree_mapreduce(f, f, op, tree; preserve_sharing, result_type)
+    return tree_mapreduce(f, f, op, tree, result_type; preserve_sharing)
 end
 function tree_mapreduce(
     f_leaf::F1,
     f_branch::F2,
     op::G,
-    tree::N;
+    tree::N,
+    result_type::Type{RT}=Nothing;
     preserve_sharing::Bool=false,
-    result_type::Type{RT}=Nothing,
 ) where {T,N<:Node{T},F1<:Function,F2<:Function,G<:Function,RT}
-    preserve_sharing && return @with_memoization(
-        _tree_mapreduce(f_leaf, f_branch, op, tree), IdDict{N,RT}()
-    )
+    if preserve_sharing && RT != Nothing
+        return @with_memoization _tree_mapreduce(f_leaf, f_branch, op, tree) IdDict{N,RT}()
+    elseif preserve_sharing
+        throw(ArgumentError("Need to specify `result_type` if you use `preserve_sharing`."))
+    end
     return _tree_mapreduce(f_leaf, f_branch, op, tree)
 end
 @memoize_on tree function _tree_mapreduce(
@@ -133,7 +135,7 @@ end
 #! format: on
 
 """
-    filter_and_map(filter_fnc::Function, map_fnc::Function, tree::Node; result_type)
+    filter_and_map(filter_fnc::Function, map_fnc::Function, tree::Node, result_type::Type)
 
 A faster equivalent to `map(map_fnc, filter(filter_fnc, tree))`
 that avoids the intermediate allocation. However, using this requires
@@ -141,7 +143,7 @@ specifying the `result_type` of `map_fnc` so the resultant array can
 be preallocated.
 """
 function filter_and_map(
-    filter_fnc::F, map_fnc::G, tree::Node; result_type::Type{GT}
+    filter_fnc::F, map_fnc::G, tree::Node, result_type::Type{GT}
 ) where {F<:Function,G<:Function,GT}
     stack_size = count(filter_fnc, tree)
     # Preallocate stack:
@@ -240,7 +242,7 @@ end
 Filter nodes of a tree, returning a flat array of the nodes for which the function returns `true`.
 """
 function filter(f::F, tree::Node{T}) where {F<:Function,T}
-    return filter_and_map(f, identity, tree; result_type=Node{T})
+    return filter_and_map(f, identity, tree, Node{T})
 end
 
 collect(tree::Node) = filter(Returns(true), tree)
@@ -255,7 +257,7 @@ function map(f::F, tree::Node; result_type::Type{RT}=Nothing) where {F<:Function
     if RT == Nothing
         return f.(collect(tree))
     else
-        return filter_and_map(Returns(true), f, tree; result_type=result_type)
+        return filter_and_map(Returns(true), f, tree, result_type)
     end
 end
 
@@ -319,9 +321,9 @@ function copy_node(tree::N; preserve_sharing::Bool=false) where {T,N<:Node{T}}
         t -> t.constant ? Node(; val=t.val::T) : Node(T; feature=t.feature),
         identity,
         (p, c...) -> Node(p.op, c...),
-        tree;
+        tree,
+        N;
         preserve_sharing,
-        result_type=N,
     )
 end
 
@@ -352,9 +354,9 @@ function convert(
         end,
         identity,
         (p, c...) -> Node(p.degree, false, nothing, 0, p.op, c...),
-        tree;
+        tree,
+        Node{T1};
         preserve_sharing,
-        result_type=Node{T1},
     )
 end
 @inline function maybe_convert(val, ::Type{T1}, ::Type{T2}) where {T1,T2}
