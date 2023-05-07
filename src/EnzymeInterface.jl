@@ -6,14 +6,14 @@ import ..EquationUtilsModule: set_constants, get_constants
 import ..EvaluateEquationModule: eval_tree_array
 import ..OperatorEnumModule: OperatorEnum
 
-function eval_tree_array!(
+function _eval_tree_array!(
     result::AbstractVector{T},
     tree::Node{T},
     constants::C,
     X::AbstractMatrix{T},
     operators::OperatorEnum,
 ) where {T,C}
-    if constants !== nothing
+    if !(C <: Nothing)
         set_constants(tree, constants)
     end
     out, completed = eval_tree_array(tree, X, operators; turbo=false)
@@ -32,12 +32,10 @@ function enzyme_reverse_gradient(
     result = zeros(T, nrows)
     dresult = ones(T, nrows)
     if variable
-        throw(error("`variable` not implemented in reverse mode."))
-    else
         dX = zeros(T, nfeatures, nrows)
         autodiff(
             Reverse,
-            eval_tree_array_mutating!,
+            _eval_tree_array!,
             Duplicated(result, dresult),
             Const(tree),
             Const(nothing),
@@ -45,6 +43,8 @@ function enzyme_reverse_gradient(
             Const(operators),
         )
         return dX
+    else
+        throw(error("Gradients with respect to constants not implemented in reverse mode."))
     end
 end
 
@@ -62,7 +62,7 @@ function enzyme_forward_diff_constants(
     dconstants[i] = T(1)
     autodiff(
         Forward,
-        eval_tree_array_mutating!,
+        _eval_tree_array!,
         Duplicated(result, dresult),
         Const(tree),
         Duplicated(constants, dconstants),
@@ -82,7 +82,7 @@ function enzyme_forward_diff_variables(
     dX[i, :] .= T(1)
     autodiff(
         Forward,
-        eval_tree_array_mutating!,
+        _eval_tree_array!,
         Duplicated(result, dresult),
         Const(tree),
         Const(nothing),
@@ -97,6 +97,7 @@ function enzyme_forward_gradient(
 ) where {T}
     if variable
         output = similar(X)
+        nfeatures = size(X, 1)
         for i in 1:nfeatures
             output[i, :] .= enzyme_forward_diff_variables(i, tree, X, operators)
         end
