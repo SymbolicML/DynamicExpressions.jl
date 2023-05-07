@@ -28,22 +28,6 @@ import Base:
 import Compat: @inline, Returns
 import ..UtilsModule: @memoize_on, @with_memoization
 
-function reduce(f, tree::Node; init=nothing)
-    throw(ArgumentError("reduce is not supported for trees. Use tree_mapreduce instead."))
-end
-function foldl(f, tree::Node; init=nothing)
-    throw(ArgumentError("foldl is not supported for trees. Use tree_mapreduce instead."))
-end
-function foldr(f, tree::Node; init=nothing)
-    throw(ArgumentError("foldr is not supported for trees. Use tree_mapreduce instead."))
-end
-function mapfoldl(f, tree::Node; init=nothing)
-    throw(ArgumentError("mapfoldl is not supported for trees. Use tree_mapreduce instead."))
-end
-function mapfoldr(f, tree::Node; init=nothing)
-    throw(ArgumentError("mapfoldr is not supported for trees. Use tree_mapreduce instead."))
-end
-
 """
     tree_mapreduce(f::Function, op::Function, tree::Node, result_type::Type=Nothing)
     tree_mapreduce(f_leaf::Function, f_branch::Function, op::Function, tree::Node, result_type::Type=Nothing)
@@ -354,3 +338,19 @@ end
     return val
 end
 (::Type{Node{T}})(tree::Node; kws...) where {T} = convert(Node{T}, tree; kws...)
+
+function reduce(f, tree::Node; init=nothing)
+    throw(ArgumentError("reduce is not supported for trees. Use tree_mapreduce instead."))
+end
+function foldl(f, tree::Node; init=nothing)
+    throw(ArgumentError("foldl is not supported for trees. Use tree_mapreduce instead."))
+end
+function foldr(f, tree::Node; init=nothing)
+    throw(ArgumentError("foldr is not supported for trees. Use tree_mapreduce instead."))
+end
+function mapfoldl(f, tree::Node; init=nothing)
+    throw(ArgumentError("mapfoldl is not supported for trees. Use tree_mapreduce instead."))
+end
+function mapfoldr(f, tree::Node; init=nothing)
+    throw(ArgumentError("mapfoldr is not supported for trees. Use tree_mapreduce instead."))
+end
