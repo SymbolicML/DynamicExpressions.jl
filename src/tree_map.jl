@@ -19,6 +19,7 @@ import Base:
     lastindex,
     length,
     map,
+    map!,
     mapfoldl,
     mapfoldr,
     mapreduce,
@@ -104,40 +105,6 @@ end
 end
 
 """
-    filter_and_map(filter_fnc::Function, map_fnc::Function, tree::Node, result_type::Type)
-
-A faster equivalent to `map(map_fnc, filter(filter_fnc, tree))`
-that avoids the intermediate allocation. However, using this requires
-specifying the `result_type` of `map_fnc` so the resultant array can
-be preallocated.
-"""
-function filter_and_map(
-    filter_fnc::F, map_fnc::G, tree::Node, result_type::Type{GT}
-) where {F<:Function,G<:Function,GT}
-    stack_size = count(filter_fnc, tree)
-    # Preallocate stack:
-    stack = Array{GT}(undef, stack_size)
-    pointer = Ref(0)
-    _filter_and_map(filter_fnc, map_fnc, tree, stack, pointer)
-    return stack::Vector{result_type}
-end
-function _filter_and_map(
-    filter_fnc::F, map_fnc::G, tree::Node, stack::Vector{GT}, pointer::Ref
-) where {F<:Function,G<:Function,GT}
-    if @inline(filter_fnc(tree))
-        map_result = @inline(map_fnc(tree))::GT
-        @inbounds stack[pointer.x += 1] = map_result
-    end
-    if tree.degree == 1
-        _filter_and_map(filter_fnc, map_fnc, tree.l, stack, pointer)
-    elseif tree.degree == 2
-        _filter_and_map(filter_fnc, map_fnc, tree.l, stack, pointer)
-        _filter_and_map(filter_fnc, map_fnc, tree.r, stack, pointer)
-    end
-    return nothing
-end
-
-"""
     any(f::Function, tree::Node)
 
 Reduce a flag function over a tree, returning `true` if the function returns `true` for any node.
@@ -206,12 +173,63 @@ end
 ###############################################################################
 
 """
+    foreach(f::Function, tree::Node)
+
+Apply a function to each node in a tree.
+"""
+function foreach(f::Function, tree::Node)
+    return tree_mapreduce(t -> (@inline(f(t)); nothing), Returns(nothing), tree)
+end
+
+"""
+    filter_map(filter_fnc::Function, map_fnc::Function, tree::Node, result_type::Type)
+
+A faster equivalent to `map(map_fnc, filter(filter_fnc, tree))`
+that avoids the intermediate allocation. However, using this requires
+specifying the `result_type` of `map_fnc` so the resultant array can
+be preallocated.
+"""
+function filter_map(
+    filter_fnc::F, map_fnc::G, tree::Node, result_type::Type{GT}
+) where {F<:Function,G<:Function,GT}
+    stack = Array{GT}(undef, count(filter_fnc, tree))
+    filter_map!(filter_fnc, map_fnc, stack, tree)
+    return stack::Vector{GT}
+end
+
+"""
+    filter_map!(filter_fnc::Function, map_fnc::Function, stack::Vector{GT}, tree::Node)
+
+Equivalent to `filter_map`, but stores the results in a preallocated array.
+"""
+function filter_map!(
+    filter_fnc::Function, map_fnc::Function, destination::Vector{GT}, tree::Node
+) where {GT}
+    pointer = Ref(0)
+    foreach(tree) do t
+        if @inline(filter_fnc(t))
+            map_result = @inline(map_fnc(t))::GT
+            @inbounds destination[pointer.x += 1] = map_result
+        end
+    end
+end
+
+"""
+    map!(f::Function, stack, tree::Node)
+
+Apply a function to each node in a tree, storing the results in `stack`.
+The stack must be preallocated to the correct size. If uncertain about
+the correct size, use `filter_map` instead.
+"""
+map!(f::Function, stack, tree::Node) = filter_map!(Returns(true), f, stack, tree)
+
+"""
     filter(f::Function, tree::Node)
 
 Filter nodes of a tree, returning a flat array of the nodes for which the function returns `true`.
 """
 function filter(f::F, tree::Node{T}) where {F<:Function,T}
-    return filter_and_map(f, identity, tree, Node{T})
+    return filter_map(f, identity, tree, Node{T})
 end
 
 collect(tree::Node) = filter(Returns(true), tree)
@@ -226,7 +244,7 @@ function map(f::F, tree::Node, result_type::Type{RT}=Nothing) where {F<:Function
     if RT == Nothing
         return f.(collect(tree))
     else
-        return filter_and_map(Returns(true), f, tree, result_type)
+        return filter_map(Returns(true), f, tree, result_type)
     end
 end
 
@@ -260,9 +278,6 @@ length(tree::Node) = sum(Returns(1), tree)
 firstindex(::Node) = 1
 lastindex(tree::Node) = length(tree)
 keys(tree::Node) = Base.OneTo(length(tree))
-function foreach(f::Function, tree::Node)
-    return tree_mapreduce(t -> (@inline(f(t)); nothing), Returns(nothing), tree)
-end
 function hash(tree::Node{T}) where {T}
     return tree_mapreduce(
         t -> hash(t.constant ? (0, t.val::T) : (1, t.feature)),

@@ -21,7 +21,7 @@ using Reexport
     map,
     tree_mapreduce,
     any,
-    filter_and_map
+    filter_map
 @reexport import .EquationUtilsModule:
     count_nodes,
     count_constants,
