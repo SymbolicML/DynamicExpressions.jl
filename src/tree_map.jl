@@ -248,12 +248,12 @@ end
 collect(tree::Node) = filter(Returns(true), tree)
 
 """
-    map(f::Function, tree::Node; result_type::Type{RT}=Nothing)
+    map(f::Function, tree::Node, result_type::Type{RT}=Nothing)
 
 Map a function over a tree and return a flat array of the results in depth-first order.
 Pre-specifying the `result_type` of the function can be used to avoid extra allocations,
 """
-function map(f::F, tree::Node; result_type::Type{RT}=Nothing) where {F<:Function,RT}
+function map(f::F, tree::Node, result_type::Type{RT}=Nothing) where {F<:Function,RT}
     if RT == Nothing
         return f.(collect(tree))
     else
