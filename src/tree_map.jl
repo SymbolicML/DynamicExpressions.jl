@@ -119,21 +119,6 @@ end
     end
 end
 
-#! format: off
-function mapreduce(f::F, op::G, tree::Node; init=nothing) where {F<:Function,G<:Function}
-    if tree.degree == 0
-        return @inline(f(tree))
-    elseif tree.degree == 1
-        l = mapreduce(f, op, tree.l; init)
-        return @inline(op(@inline(f(tree)), l))
-    else
-        l = mapreduce(f, op, tree.l; init)
-        r = mapreduce(f, op, tree.r; init)
-        return @inline(op(op(@inline(f(tree)), l), r))
-    end
-end
-#! format: on
-
 """
     filter_and_map(filter_fnc::Function, map_fnc::Function, tree::Node, result_type::Type)
 
@@ -261,11 +246,11 @@ function map(f::F, tree::Node, result_type::Type{RT}=Nothing) where {F<:Function
     end
 end
 
-function count(f::F, tree::Node; init=0) where {F}
+function count(f::F, tree::Node; init=0) where {F<:Function}
     return tree_mapreduce(t -> @inline(f(t)) ? 1 : 0, +, tree) + init
 end
 
-function sum(f::F, tree::Node; init=0) where {F}
+function sum(f::F, tree::Node; init=0) where {F<:Function}
     return tree_mapreduce(f, +, tree) + init
 end
 
@@ -277,6 +262,10 @@ function setindex!(root::Node{T}, insert::Node{T}, i::Int) where {T}
 end
 function setindex!(root::Node{T1}, insert::Node{T2}, i::Int) where {T1,T2}
     return setindex!(root, convert(Node{T1}, insert), i)
+end
+
+function mapreduce(f::F, op::G, tree::Node) where {F<:Function,G<:Function}
+    return tree_mapreduce(f, (n...) -> reduce(op, n), tree)
 end
 
 isempty(::Node) = false
