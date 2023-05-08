@@ -239,7 +239,7 @@ function multiply_powers(
         @return_on_false isgood(r) eqn
         return op(l, r), true
     else
-        # return mapreduce(multiply_powers, op, args)
+        # return tree_mapreduce(multiply_powers, op, args)
         # ## reduce(op, map(multiply_powers, args))
         out = map(multiply_powers, args) #vector of tuples
         for i in 1:size(out, 1)

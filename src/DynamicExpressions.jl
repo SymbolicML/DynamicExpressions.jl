@@ -12,10 +12,10 @@ include("SimplifyEquation.jl")
 include("OperatorEnumConstruction.jl")
 
 using Reexport
-@reexport import .EquationModule: Node, string_tree, print_tree, copy_node, set_node!
+@reexport import .EquationModule:
+    Node, string_tree, print_tree, copy_node, set_node!, tree_mapreduce, filter_map
 @reexport import .EquationUtilsModule:
     count_nodes,
-    count_nodes_with_stack,
     count_constants,
     count_depth,
     NodeIndex,
@@ -23,7 +23,7 @@ using Reexport
     has_operators,
     has_constants,
     get_constants,
-    set_constants
+    set_constants!
 @reexport import .OperatorEnumModule: AbstractOperatorEnum
 @reexport import .OperatorEnumConstructionModule:
     OperatorEnum, GenericOperatorEnum, @extend_operators
@@ -33,6 +33,8 @@ using Reexport
 @reexport import .InterfaceSymbolicUtilsModule: node_to_symbolic, symbolic_to_node
 @reexport import .SimplifyEquationModule: combine_operators, simplify_tree
 @reexport import .EvaluationHelpersModule
+
+include("deprecated.jl")
 
 import TOML: parsefile
 

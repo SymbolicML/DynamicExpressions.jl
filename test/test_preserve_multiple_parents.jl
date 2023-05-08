@@ -83,8 +83,8 @@ expr_eql(x, y) = error("Unexpected type: $(typeof(x)) or $(typeof(y))")
     )
 end
 
-@testset "@use_idmap" begin
-    ex = @macroexpand DynamicExpressions.UtilsModule.@use_idmap(
+@testset "@with_memoize" begin
+    ex = @macroexpand DynamicExpressions.UtilsModule.@with_memoize(
         _convert(Node{T1}, tree), IdDict{Node{T2},Node{T1}}()
     )
     true_ex = quote
@@ -94,8 +94,8 @@ end
     @test expr_eql(ex, true_ex)
 end
 
-@testset "@generate_idmap" begin
-    ex = @macroexpand DynamicExpressions.UtilsModule.@generate_idmap tree function _copy_node(
+@testset "@memoize_on" begin
+    ex = @macroexpand DynamicExpressions.UtilsModule.@memoize_on tree function _copy_node(
         tree::Node{T}
     )::Node{T} where {T}
         if tree.degree == 0
