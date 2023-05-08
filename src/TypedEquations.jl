@@ -6,12 +6,12 @@ using ..EquationModule: Node
 using ..UtilsModule: @maybe_turbo
 
 abstract type TypedNode end
-struct BinaryNode{Op,L,R} <: TypedNode
+struct BinaryNode{Op,L<:TypedNode,R<:TypedNode} <: TypedNode
     op::Op
     l::L
     r::R
 end
-struct UnaryNode{Op,L} <: TypedNode
+struct UnaryNode{Op,L<:TypedNode} <: TypedNode
     op::Op
     l::L
 end
