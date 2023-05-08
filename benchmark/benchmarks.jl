@@ -15,13 +15,12 @@ function benchmark_evaluation()
     operators = OperatorEnum(;
         binary_operators=[+, -, /, *], unary_operators=[cos, exp], enable_autodiff=true
     )
-    for T in (ComplexF32, ComplexF64, Float32, Float64)
+    for T in (ComplexF32, ComplexF64, Float32, Float64), n in (50, 500, 5000)
         if !(T <: Real) && PACKAGE_VERSION < v"0.5.0" && PACKAGE_VERSION != v"0.0.0"
             continue
         end
-        suite[T] = BenchmarkGroup()
-
-        n = 1_000
+        !haskey(suite, T) && (suite[T] = BenchmarkGroup())
+        suite[T][n] = BenchmarkGroup()
 
         #! format: off
         for turbo in (false, true), specialize_kernels in (false, true)
@@ -37,7 +36,7 @@ function benchmark_evaluation()
                 turbo=turbo,
                 specialize_kernels=specialize_kernels
             )
-            suite[T]["evaluation$(extra_key)"] = @benchmarkable(
+            suite[T][n]["evaluation$(extra_key)"] = @benchmarkable(
                 [_eval_tree_array(tree, X, $operators; turbo=$turbo, specialize_kernels=$specialize_kernels) for tree in trees],
                 setup=(
                     X=randn(MersenneTwister(0), $T, 5, $n);
@@ -54,7 +53,7 @@ function benchmark_evaluation()
                     variable=true,
                     turbo=turbo
                 )
-                suite[T]["derivative$(extra_key)"] = @benchmarkable(
+                suite[T][n]["derivative$(extra_key)"] = @benchmarkable(
                     [eval_grad_tree_array(tree, X, $operators; variable=true, turbo=$turbo) for tree in trees],
                     setup=(
                         X=randn(MersenneTwister(0), $T, 5, $n);
