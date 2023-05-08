@@ -5,6 +5,11 @@ include("benchmark_utils.jl")
 
 const SUITE = BenchmarkGroup()
 
+@generated function _eval_tree_array(args...; specialize_kernels, kwargs...)
+    PACKAGE_VERSION < v"0.8.0" && return :(eval_tree_array(args...; kwargs...))
+    return :(eval_tree_array(args...; specialize_kernels, kwargs...))
+end
+
 function benchmark_evaluation()
     suite = BenchmarkGroup()
     operators = OperatorEnum(;
@@ -19,19 +24,21 @@ function benchmark_evaluation()
         n = 1_000
 
         #! format: off
-        for turbo in (false, true)
+        for turbo in (false, true), specialize_kernels in (false, true)
             if turbo && !(T in (Float32, Float64))
                 continue
             end
             extra_key = turbo ? "_turbo" : ""
-            eval_tree_array(
+            extra_key *= specialize_kernels ? "_specialized" : ""
+            _eval_tree_array(
                 gen_random_tree_fixed_size(20, operators, 5, T),
                 randn(MersenneTwister(0), T, 5, n),
                 operators;
-                turbo=turbo
+                turbo=turbo,
+                specialize_kernels=specialize_kernels
             )
             suite[T]["evaluation$(extra_key)"] = @benchmarkable(
-                [eval_tree_array(tree, X, $operators; turbo=$turbo) for tree in trees],
+                [_eval_tree_array(tree, X, $operators; turbo=$turbo, specialize_kernels=$specialize_kernels) for tree in trees],
                 setup=(
                     X=randn(MersenneTwister(0), $T, 5, $n);
                     treesize=20;
@@ -39,7 +46,7 @@ function benchmark_evaluation()
                     trees=[gen_random_tree_fixed_size(treesize, $operators, 5, $T) for _ in 1:ntrees]
                 )
             )
-            if T <: Real
+            if T <: Real && !specialize_kernels
                 eval_grad_tree_array(
                     gen_random_tree_fixed_size(20, operators, 5, T),
                     randn(MersenneTwister(0), T, 5, n),
