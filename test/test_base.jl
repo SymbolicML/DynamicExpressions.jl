@@ -163,3 +163,10 @@ end
     end
     @test sum(t -> (t.degree == 0 && t.constant) ? t.val : 0.0, ctree) ≈ 11.6 * 1.5
 end
+
+@testset "Unsupported" begin
+    for func in (:reduce, :foldl, :foldr, :mapfoldl, :mapfoldr)
+        wrapped_func(args...) = (@eval $func)(args...)
+        @test_throws ErrorException wrapped_func(Returns(1), tree)
+    end
+end
