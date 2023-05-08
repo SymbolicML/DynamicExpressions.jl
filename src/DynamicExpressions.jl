@@ -27,6 +27,7 @@ using Reexport
     count_nodes,
     count_constants,
     count_depth,
+    count_nodes_under_limit,
     NodeIndex,
     index_constants,
     has_operators,

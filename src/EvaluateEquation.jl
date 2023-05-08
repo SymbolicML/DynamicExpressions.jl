@@ -5,7 +5,7 @@ import ..EquationModule: Node, string_tree
 import ..TypedEquationsModule: _eval_tree_array_typed
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: @return_on_false, @maybe_turbo, is_bad_array
-import ..EquationUtilsModule: is_constant, count_nodes
+import ..EquationUtilsModule: is_constant, count_nodes_under_limit
 
 macro return_on_check(val, T, n)
     # This will generate the following code:
@@ -117,7 +117,7 @@ function _eval_tree_array(
         result, flag = _eval_constant_tree(tree, operators)
         !flag && return Array{T,1}(undef, size(cX, 2)), false
         return fill(result, size(cX, 2)), true
-    elseif specialize_kernels && count_nodes(tree) <= 7
+    elseif specialize_kernels && count_nodes_under_limit(tree, 7)
         # Speed hack with fully-specialized kernels
         return _eval_tree_array_typed(tree, cX, operators; turbo), true
     elseif tree.degree == 1

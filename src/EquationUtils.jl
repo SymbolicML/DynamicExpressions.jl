@@ -129,4 +129,10 @@ function index_constants(tree::Node, index_tree::NodeIndex, left_index::Int)
     end
 end
 
+"""Faster version of count_nodes(tree) <= limit"""
+function count_nodes_under_limit(tree::Node, limit::Int)
+    counter = Ref(0)
+    return all(_ -> (counter.x += 1) <= limit, tree)
+end
+
 end
