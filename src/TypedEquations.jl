@@ -1,5 +1,6 @@
 module TypedEquationsModule
 
+import LoopVectorization: @turbo, indices
 using ..OperatorEnumModule: OperatorEnum
 using ..EquationModule: Node
 using ..UtilsModule: @maybe_turbo
@@ -59,7 +60,7 @@ end
     kernel = gen_evaluation_code(tree, :X, :i, :tree)
     return quote
         result = Vector{T}(undef, size(X, 2))
-        @maybe_turbo $(turbo) for i in axes(X, 2)
+        @maybe_turbo $(turbo) for i in indices((X, result), (2, 1))
             result[i] = $kernel
         end
         return result

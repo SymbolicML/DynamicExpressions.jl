@@ -5,7 +5,7 @@ import ..EquationModule: Node, string_tree
 import ..TypedEquationsModule: _eval_tree_array_typed
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: @return_on_false, @maybe_turbo, is_bad_array
-import ..EquationUtilsModule: is_constant
+import ..EquationUtilsModule: is_constant, count_nodes
 
 macro return_on_check(val, T, n)
     # This will generate the following code:
@@ -63,32 +63,50 @@ which speed up evaluation significantly.
     to the equation.
 """
 function eval_tree_array(
-    tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum; turbo::Bool=false
+    tree::Node{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum;
+    turbo::Bool=false,
+    specialize_kernels::Bool=false,
 )::Tuple{AbstractVector{T},Bool} where {T<:Number}
     n = size(cX, 2)
     if turbo
         @assert T in (Float32, Float64)
     end
     result, finished = _eval_tree_array(
-        tree, cX, operators, (turbo ? Val(true) : Val(false))
+        tree,
+        cX,
+        operators,
+        (turbo ? Val(true) : Val(false)),
+        (specialize_kernels ? Val(true) : Val(false)),
     )
     @return_on_false finished result
     @return_on_nonfinite_array result T n
     return result, finished
 end
 function eval_tree_array(
-    tree::Node{T1}, cX::AbstractMatrix{T2}, operators::OperatorEnum; turbo::Bool=false
+    tree::Node{T1},
+    cX::AbstractMatrix{T2},
+    operators::OperatorEnum;
+    turbo::Bool=false,
+    specialize_kernels::Bool=false,
 ) where {T1<:Number,T2<:Number}
     T = promote_type(T1, T2)
     @warn "Warning: eval_tree_array received mixed types: tree=$(T1) and data=$(T2)."
     tree = convert(Node{T}, tree)
     cX = convert(AbstractMatrix{T}, cX)
-    return eval_tree_array(tree, cX, operators; turbo=turbo)
+    return eval_tree_array(
+        tree, cX, operators; turbo=turbo, specialize_kernels=specialize_kernels
+    )
 end
 
 function _eval_tree_array(
-    tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, ::Val{turbo}
-)::Tuple{AbstractVector{T},Bool} where {T<:Number,turbo}
+    tree::Node{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum,
+    ::Val{turbo},
+    ::Val{specialize_kernels},
+)::Tuple{AbstractVector{T},Bool} where {T<:Number,turbo,specialize_kernels}
     n = size(cX, 2)
     # First, we see if there are only constants in the tree - meaning
     # we can just return the constant result.
@@ -99,13 +117,15 @@ function _eval_tree_array(
         result, flag = _eval_constant_tree(tree, operators)
         !flag && return Array{T,1}(undef, size(cX, 2)), false
         return fill(result, size(cX, 2)), true
-    elseif count_nodes(tree) <= 7
+    elseif specialize_kernels && count_nodes(tree) <= 7
         # Speed hack with fully-specialized kernels
         return _eval_tree_array_typed(tree, cX, operators; turbo), true
     elseif tree.degree == 1
         op = operators.unaops[tree.op]
         # op(x), for any x.
-        (cumulator, complete) = _eval_tree_array(tree.l, cX, operators, Val(turbo))
+        (cumulator, complete) = _eval_tree_array(
+            tree.l, cX, operators, Val(turbo), Val(specialize_kernels)
+        )
         @return_on_false complete cumulator
         @return_on_nonfinite_array cumulator T n
         return deg1_eval(cumulator, op, Val(turbo))
@@ -114,10 +134,14 @@ function _eval_tree_array(
         op = operators.binops[tree.op]
         # TODO - add op(op2(x, y), z) and op(x, op2(y, z))
         # op(x, y), where x, y are constants or variables.
-        (cumulator_l, complete) = _eval_tree_array(tree.l, cX, operators, Val(turbo))
+        (cumulator_l, complete) = _eval_tree_array(
+            tree.l, cX, operators, Val(turbo), Val(specialize_kernels)
+        )
         @return_on_false complete cumulator_l
         @return_on_nonfinite_array cumulator_l T n
-        (cumulator_r, complete) = _eval_tree_array(tree.r, cX, operators, Val(turbo))
+        (cumulator_r, complete) = _eval_tree_array(
+            tree.r, cX, operators, Val(turbo), Val(specialize_kernels)
+        )
         @return_on_false complete cumulator_r
         @return_on_nonfinite_array cumulator_r T n
         # op(x, y), for any x or y
