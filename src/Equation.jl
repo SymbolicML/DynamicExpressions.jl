@@ -1,7 +1,7 @@
 module EquationModule
 
 import ..OperatorEnumModule: AbstractOperatorEnum
-import ..UtilsModule: @memoize_on, @with_memoization
+import ..UtilsModule: @memoize_on, @with_memoize
 
 const DEFAULT_NODE_TYPE = Float32
 

@@ -25,7 +25,7 @@ import Base:
     reduce,
     sum
 import Compat: @inline, Returns
-import ..UtilsModule: @memoize_on, @with_memoization
+import ..UtilsModule: @memoize_on, @with_memoize
 
 """
     tree_mapreduce(f::Function, op::Function, tree::Node, result_type::Type=Nothing)
@@ -99,7 +99,7 @@ function tree_mapreduce(
         throw(ArgumentError("Need to specify `result_type` if you use `preserve_sharing`."))
 
     if preserve_sharing
-        return @with_memoization inner(inner, tree) IdDict{N,RT}()
+        return @with_memoize inner(inner, tree) IdDict{N,RT}()
     else
         return inner(inner, tree)
     end

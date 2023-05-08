@@ -83,8 +83,8 @@ expr_eql(x, y) = error("Unexpected type: $(typeof(x)) or $(typeof(y))")
     )
 end
 
-@testset "@with_memoization" begin
-    ex = @macroexpand DynamicExpressions.UtilsModule.@with_memoization(
+@testset "@with_memoize" begin
+    ex = @macroexpand DynamicExpressions.UtilsModule.@with_memoize(
         _convert(Node{T1}, tree), IdDict{Node{T2},Node{T1}}()
     )
     true_ex = quote

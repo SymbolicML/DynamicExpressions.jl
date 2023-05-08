@@ -127,13 +127,13 @@ function _memoize_on(tree::Symbol, def::Expr)
 end
 
 """
-    @with_memoization(call, id_map)
+    @with_memoize(call, id_map)
 
 This simple macro simply puts the `id_map`
 into the call, to be consistent with the `@memoize_on` macro.
 
 ```
-@with_memoization(_copy_node(tree), IdDict{Any,Any}())
+@with_memoize(_copy_node(tree), IdDict{Any,Any}())
 ````
 
 is converted to 
@@ -143,7 +143,7 @@ _copy_node(tree, IdDict{Any,Any}())
 ```
 
 """
-macro with_memoization(def, id_map)
+macro with_memoize(def, id_map)
     idmap_def = _add_idmap_to_call(def, id_map)
     return quote
         $(esc(idmap_def))
