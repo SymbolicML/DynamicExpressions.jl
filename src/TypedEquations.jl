@@ -57,33 +57,44 @@ end
 @generated function _eval_typed_array(
     tree::TN, X::AbstractMatrix{T}, ::Val{turbo}
 )::AbstractVector{T} where {T,TN<:TypedNode,turbo}
-    kernel = gen_evaluation_code(tree, :X, :i, :tree)
-    return quote
+    preamble, kernel = gen_evaluation_code(tree, :X, :i, :tree, Ref(0), Ref(0))
+    output = quote
         result = Vector{T}(undef, size(X, 2))
         @maybe_turbo $(turbo) for i in indices((X, result), (2, 1))
             result[i] = $kernel
         end
         return result
     end
+    pushfirst!(output.args, preamble...)
+    return output
 end
 function gen_evaluation_code(
-    ::Type{BinaryNode{Op,L,R}}, x::Symbol, i::Symbol, tree
+    ::Type{BinaryNode{Op,L,R}}, x::Symbol, i::Symbol, tree, numconst, numvars
 ) where {Op,L,R}
-    l = gen_evaluation_code(L, x, i, :($(tree).l))
-    r = gen_evaluation_code(R, x, i, :($(tree).r))
-    return :($(Op.instance)($(l), $(r)))
+    preamble_l, l = gen_evaluation_code(L, x, i, :($(tree).l), numconst, numvars)
+    preamble_r, r = gen_evaluation_code(R, x, i, :($(tree).r), numconst, numvars)
+    return vcat(preamble_l, preamble_r), :($(Op.instance)($(l), $(r)))
 end
 function gen_evaluation_code(
-    ::Type{UnaryNode{Op,L}}, x::Symbol, i::Symbol, tree
+    ::Type{UnaryNode{Op,L}}, x::Symbol, i::Symbol, tree, numconst, numvars
 ) where {Op,L}
-    l = gen_evaluation_code(L, x, i, :($(tree).l))
-    return :($(Op.instance)($(l)))
+    preamble, l = gen_evaluation_code(L, x, i, :($(tree).l), numconst, numvars)
+    return preamble, :($(Op.instance)($(l)))
 end
-function gen_evaluation_code(::Type{ConstNode{T}}, x::Symbol, i::Symbol, tree) where {T}
-    return :($(tree).val::$(T))
+function gen_evaluation_code(
+    ::Type{ConstNode{T}}, x::Symbol, i::Symbol, tree, numconst, numvars
+) where {T}
+    const_name = Symbol("__constant_", numconst.x += 1)
+    preamble = [:($(const_name) = $(tree).val::$(T))]
+    return preamble, const_name
 end
-function gen_evaluation_code(::Type{FeatureNode}, x::Symbol, i::Symbol, tree)
-    return :($(x)[$(tree).feature, $(i)])
+function gen_evaluation_code(
+    ::Type{FeatureNode}, x::Symbol, i::Symbol, tree, numconst, numvars
+)
+    # return Expr[], :($(x)[$(tree).feature, $(i)])
+    varname = Symbol("__var_", numvars.x += 1)
+    preamble = [:($(varname) = $(tree).feature)]
+    return preamble, :($(x)[$(varname), $(i)])
 end
 
 end

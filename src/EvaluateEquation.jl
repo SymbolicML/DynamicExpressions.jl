@@ -68,6 +68,7 @@ function eval_tree_array(
     operators::OperatorEnum;
     turbo::Bool=false,
     specialize_kernels::Bool=false,
+    specialization_depth::Int=7,
 )::Tuple{AbstractVector{T},Bool} where {T<:Number}
     n = size(cX, 2)
     if turbo
@@ -79,6 +80,7 @@ function eval_tree_array(
         operators,
         (turbo ? Val(true) : Val(false)),
         (specialize_kernels ? Val(true) : Val(false)),
+        (specialize_kernels ? Val(specialization_depth) : Val(0)),
     )
     @return_on_false finished result
     @return_on_nonfinite_array result T n
@@ -90,13 +92,14 @@ function eval_tree_array(
     operators::OperatorEnum;
     turbo::Bool=false,
     specialize_kernels::Bool=false,
+    specialization_depth::Int=7,
 ) where {T1<:Number,T2<:Number}
     T = promote_type(T1, T2)
     @warn "Warning: eval_tree_array received mixed types: tree=$(T1) and data=$(T2)."
     tree = convert(Node{T}, tree)
     cX = convert(AbstractMatrix{T}, cX)
     return eval_tree_array(
-        tree, cX, operators; turbo=turbo, specialize_kernels=specialize_kernels
+        tree, cX, operators; turbo, specialize_kernels, specialization_depth
     )
 end
 
@@ -106,7 +109,10 @@ function _eval_tree_array(
     operators::OperatorEnum,
     ::Val{turbo},
     ::Val{specialize_kernels},
-)::Tuple{AbstractVector{T},Bool} where {T<:Number,turbo,specialize_kernels}
+    ::Val{specialization_depth},
+)::Tuple{
+    AbstractVector{T},Bool
+} where {T<:Number,turbo,specialize_kernels,specialization_depth}
     n = size(cX, 2)
     # First, we see if there are only constants in the tree - meaning
     # we can just return the constant result.
@@ -117,14 +123,19 @@ function _eval_tree_array(
         result, flag = _eval_constant_tree(tree, operators)
         !flag && return Array{T,1}(undef, size(cX, 2)), false
         return fill(result, size(cX, 2)), true
-    elseif specialize_kernels && count_nodes_under_limit(tree, 7)
+    elseif specialize_kernels && count_nodes_under_limit(tree, specialization_depth)
         # Speed hack with fully-specialized kernels
         return _eval_tree_array_typed(tree, cX, operators; turbo), true
     elseif tree.degree == 1
         op = operators.unaops[tree.op]
         # op(x), for any x.
         (cumulator, complete) = _eval_tree_array(
-            tree.l, cX, operators, Val(turbo), Val(specialize_kernels)
+            tree.l,
+            cX,
+            operators,
+            Val(turbo),
+            Val(specialize_kernels),
+            Val(specialization_depth),
         )
         @return_on_false complete cumulator
         @return_on_nonfinite_array cumulator T n
@@ -135,12 +146,22 @@ function _eval_tree_array(
         # TODO - add op(op2(x, y), z) and op(x, op2(y, z))
         # op(x, y), where x, y are constants or variables.
         (cumulator_l, complete) = _eval_tree_array(
-            tree.l, cX, operators, Val(turbo), Val(specialize_kernels)
+            tree.l,
+            cX,
+            operators,
+            Val(turbo),
+            Val(specialize_kernels),
+            Val(specialization_depth),
         )
         @return_on_false complete cumulator_l
         @return_on_nonfinite_array cumulator_l T n
         (cumulator_r, complete) = _eval_tree_array(
-            tree.r, cX, operators, Val(turbo), Val(specialize_kernels)
+            tree.r,
+            cX,
+            operators,
+            Val(turbo),
+            Val(specialize_kernels),
+            Val(specialization_depth),
         )
         @return_on_false complete cumulator_r
         @return_on_nonfinite_array cumulator_r T n
