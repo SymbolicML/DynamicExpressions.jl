@@ -295,7 +295,7 @@ function convert(
     end
     return tree_mapreduce(
         t -> if t.constant
-            Node(T1, 0, true, maybe_convert(t.val::T2, T1, T2))
+            Node(T1, 0, true, convert(T1, t.val::T2))
         else
             Node(T1, 0, false, nothing, t.feature)
         end,
@@ -305,11 +305,6 @@ function convert(
         Node{T1};
         preserve_sharing,
     )
-end
-@inline function maybe_convert(val, ::Type{T1}, ::Type{T2}) where {T1,T2}
-    # e.g., we don't want to convert Float32 to Union{Float32,Vector{Float32}}!
-    !(T2 <: T1) && return convert(T1, val)
-    return val
 end
 (::Type{Node{T}})(tree::Node; kws...) where {T} = convert(Node{T}, tree; kws...)
 
