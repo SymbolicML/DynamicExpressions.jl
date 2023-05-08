@@ -167,8 +167,10 @@ end
 end
 
 @testset "Unsupported" begin
-    for func in (:reduce, :foldl, :foldr, :mapfoldl, :mapfoldr)
-        wrapped_func(args...) = (@eval $func)(args...)
-        @test_throws ErrorException wrapped_func(Returns(1), tree)
+    if VERSION >= v"1.7.0"
+        for func in (:reduce, :foldl, :foldr, :mapfoldl, :mapfoldr)
+            wrapped_func(args...) = (@eval $func)(args...)
+            @test_throws ErrorException wrapped_func(Returns(1), tree)
+        end
     end
 end
