@@ -6,17 +6,14 @@ import Base:
     convert,
     copy,
     filter,
-    firstindex,
     foldl,
     foldr,
     foreach,
-    getindex,
     hash,
     in,
     isempty,
     iterate,
     keys,
-    lastindex,
     length,
     map,
     map!,
@@ -24,7 +21,6 @@ import Base:
     mapfoldr,
     mapreduce,
     reduce,
-    setindex!,
     sum
 import Compat: @inline, Returns
 import ..UtilsModule: @memoize_on, @with_memoization
@@ -118,33 +114,6 @@ function any(f::F, tree::Node) where {F<:Function}
     else
         return @inline(f(tree))::Bool || any(f, tree.l) || any(f, tree.r)
     end
-end
-
-"""
-    getindex(root::Node, i::Int)
-
-Get the `i`th node of `root` in depth-first order. This does not require
-extra allocations, but does require a traversal of the tree for every call.
-Once the matching node is found, the traversal stops.
-"""
-function getindex(root::N, i::Int) where {N<:Node}
-    return_tree = Ref(root)
-    _extract!(return_tree, root, i, 0)
-    return return_tree.x
-end
-function _extract!(return_tree::Ref{N}, tree::N, i::Int, iter::Int)::Int where {N<:Node}
-    iter += 1
-    if i == iter
-        return_tree.x = tree
-        return iter
-    end
-    if tree.degree == 1
-        iter = _extract!(return_tree, tree.l, i, iter)
-    elseif tree.degree == 2
-        iter = _extract!(return_tree, tree.l, i, iter)
-        iter = _extract!(return_tree, tree.r, i, iter)
-    end
-    return iter
 end
 
 function Base.:(==)(a::Node{T}, b::Node{T})::Bool where {T}
@@ -259,14 +228,6 @@ end
 
 all(f::F, tree::Node) where {F<:Function} = !any(t -> !@inline(f(t)), tree)
 
-function setindex!(root::Node{T}, insert::Node{T}, i::Int) where {T}
-    set_node!(getindex(root, i), insert)
-    return nothing
-end
-function setindex!(root::Node{T1}, insert::Node{T2}, i::Int) where {T1,T2}
-    return setindex!(root, convert(Node{T1}, insert), i)
-end
-
 function mapreduce(f::F, op::G, tree::Node) where {F<:Function,G<:Function}
     return tree_mapreduce(f, (n...) -> reduce(op, n), tree)
 end
@@ -276,9 +237,6 @@ iterate(root::Node) = (root, collect(root)[(begin + 1):end])
 iterate(::Node, stack) = isempty(stack) ? nothing : (popfirst!(stack), stack)
 in(item, tree::Node) = any(t -> t == item, tree)
 length(tree::Node) = sum(Returns(1), tree)
-firstindex(::Node) = 1
-lastindex(tree::Node) = length(tree)
-keys(tree::Node) = Base.OneTo(length(tree))
 function hash(tree::Node{T}) where {T}
     return tree_mapreduce(
         t -> hash(t.constant ? (0, t.val::T) : (1, t.feature)),
