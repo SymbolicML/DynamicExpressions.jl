@@ -25,7 +25,7 @@ end
 
 @testset "any" begin
     ctree = copy(tree)
-    @test any(t.degree == 2, ctree)
+    @test any(t -> t.degree == 2, ctree)
     @test any(_ -> true, ctree)
     @test any(t -> t.degree == 0 && t.constant && t.val == 3.2, ctree)
     @test !any(t -> t.degree == 0 && t.constant && t.val == 3.3, ctree)
@@ -33,7 +33,7 @@ end
 
 @testset "collect" begin
     ctree = copy(tree)
-    @test first(collect(ctree)) == Node{Float64}
+    @test typeof(first(collect(ctree))) == Node{Float64}
     @test objectid(first(collect(ctree))) == objectid(ctree)
     @test objectid(first(collect(ctree))) == objectid(ctree)
     @test objectid(first(collect(ctree))) == objectid(ctree)
@@ -55,8 +55,8 @@ end
 @testset "filter" begin
     ctree = copy(tree)
     @test filter(_ -> true, ctree) == collect(ctree)
-    @test length(filter(t -> t.degree == 0 && !t.constant)) == 6
-    @test unique(filter(t -> t.degree == 0 && !t.constant)) == [x1, x2, x3]
+    @test length(filter(t -> t.degree == 0 && !t.constant, ctree)) == 6
+    @test unique(filter(t -> t.degree == 0 && !t.constant, ctree)) == [x1, x2, x3]
     @test length(filter(t -> t.degree == 1, ctree)) == 1
     @test length(filter(t -> t.degree == 2, ctree)) == 11
     @test filter(==(x1), ctree) == [x1, x1, x1]
