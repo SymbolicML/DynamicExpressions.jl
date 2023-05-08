@@ -17,7 +17,6 @@ import Base:
     iterate,
     length,
     map,
-    map!,
     mapfoldl,
     mapfoldr,
     mapreduce,
@@ -182,15 +181,6 @@ function filter_map!(
     end
     return nothing
 end
-
-"""
-    map!(f::Function, stack, tree::Node)
-
-Apply a function to each node in a tree, storing the results in `stack`.
-The stack must be preallocated to the correct size. If uncertain about
-the correct size, use `filter_map` instead.
-"""
-map!(f::Function, stack, tree::Node) = filter_map!(Returns(true), f, stack, tree)
 
 """
     filter(f::Function, tree::Node)
