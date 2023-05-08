@@ -81,7 +81,7 @@ isgood(x) = true
 isbad(x) = !isgood(x)
 
 """
-    @generate_idmap tree function my_function_on_tree(tree::Node)
+    @memoize_on tree function my_function_on_tree(tree::Node)
         ...
     end
 
@@ -91,14 +91,14 @@ IdDict()), it will use use the `id_map` to avoid recomputing the same value
 for the same node in a tree. Use this to automatically create functions that
 work with trees that have shared child nodes.
 """
-macro generate_idmap(tree, def)
-    idmap_def = _generate_idmap(tree, def)
+macro memoize_on(tree, def)
+    idmap_def = _memoize_on(tree, def)
     return quote
         $(esc(def)) # The normal function
         $(esc(idmap_def)) # The function with an id_map argument
     end
 end
-function _generate_idmap(tree::Symbol, def::Expr)
+function _memoize_on(tree::Symbol, def::Expr)
     sdef = splitdef(def)
 
     # Add an id_map argument
@@ -127,13 +127,13 @@ function _generate_idmap(tree::Symbol, def::Expr)
 end
 
 """
-    @use_idmap(call, id_map)
+    @with_memoize(call, id_map)
 
 This simple macro simply puts the `id_map`
-into the call, to be consistent with the `@generate_idmap` macro.
+into the call, to be consistent with the `@memoize_on` macro.
 
 ```
-@use_idmap(_copy_node(tree), IdDict{Any,Any}())
+@with_memoize(_copy_node(tree), IdDict{Any,Any}())
 ````
 
 is converted to 
@@ -143,7 +143,7 @@ _copy_node(tree, IdDict{Any,Any}())
 ```
 
 """
-macro use_idmap(def, id_map)
+macro with_memoize(def, id_map)
     idmap_def = _add_idmap_to_call(def, id_map)
     return quote
         $(esc(idmap_def))
