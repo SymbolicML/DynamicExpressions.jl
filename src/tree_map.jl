@@ -78,30 +78,28 @@ function tree_mapreduce(
     result_type::Type{RT}=Nothing;
     preserve_sharing::Bool=false,
 ) where {T,N<:Node{T},F1<:Function,F2<:Function,G<:Function,RT}
-    if preserve_sharing && RT != Nothing
-        return @with_memoization _tree_mapreduce(f_leaf, f_branch, op, tree) IdDict{N,RT}()
-    elseif preserve_sharing
-        throw(ArgumentError("Need to specify `result_type` if you use `preserve_sharing`."))
+
+    # Trick taken from here:
+    # https://discourse.julialang.org/t/recursive-inner-functions-a-thousand-times-slower/85604/5
+    # to speed up recursive closure
+    @memoize_on t function inner(inner, t::Node)
+        if t.degree == 0
+            return @inline(f_leaf(t))
+        elseif t.degree == 1
+            return @inline(op(@inline(f_branch(t)), inner(inner, t.l)))
+        else
+            return @inline(op(@inline(f_branch(t)), inner(inner, t.l), inner(inner, t.r)))
+        end
     end
-    return _tree_mapreduce(f_leaf, f_branch, op, tree)
-end
-@memoize_on tree function _tree_mapreduce(
-    f_leaf::F1, f_branch::F2, op::G, tree::Node
-) where {F1<:Function,F2<:Function,G<:Function}
-    if tree.degree == 0
-        return @inline(f_leaf(tree))
-    elseif tree.degree == 1
-        return @inline(
-            op(@inline(f_branch(tree)), _tree_mapreduce(f_leaf, f_branch, op, tree.l))
-        )
+
+    RT == Nothing &&
+        preserve_sharing &&
+        throw(ArgumentError("Need to specify `result_type` if you use `preserve_sharing`."))
+
+    if preserve_sharing
+        return @with_memoization inner(inner, tree) IdDict{N,RT}()
     else
-        return @inline(
-            op(
-                @inline(f_branch(tree)),
-                _tree_mapreduce(f_leaf, f_branch, op, tree.l),
-                _tree_mapreduce(f_leaf, f_branch, op, tree.r),
-            )
-        )
+        return inner(inner, tree)
     end
 end
 
