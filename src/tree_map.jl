@@ -91,12 +91,17 @@ end
     if tree.degree == 0
         return @inline(f_leaf(tree))
     elseif tree.degree == 1
-        l = _tree_mapreduce(f_leaf, f_branch, op, tree.l)
-        return @inline(op(@inline(f_branch(tree)), l))
+        return @inline(
+            op(@inline(f_branch(tree)), _tree_mapreduce(f_leaf, f_branch, op, tree.l))
+        )
     else
-        l = _tree_mapreduce(f_leaf, f_branch, op, tree.l)
-        r = _tree_mapreduce(f_leaf, f_branch, op, tree.r)
-        return @inline(op(@inline(f_branch(tree)), l, r))
+        return @inline(
+            op(
+                @inline(f_branch(tree)),
+                _tree_mapreduce(f_leaf, f_branch, op, tree.l),
+                _tree_mapreduce(f_leaf, f_branch, op, tree.r),
+            )
+        )
     end
 end
 
