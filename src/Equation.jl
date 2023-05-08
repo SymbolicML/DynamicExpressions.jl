@@ -62,7 +62,7 @@ mutable struct Node{T}
 end
 ################################################################################
 
-include("tree_map.jl")
+include("base.jl")
 
 """
     Node([::Type{T}]; val=nothing, feature::Int=nothing) where {T}

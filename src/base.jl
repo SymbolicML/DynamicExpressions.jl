@@ -1,3 +1,5 @@
+"""This file is imported by Equation.jl"""
+
 import Base:
     all,
     any,
