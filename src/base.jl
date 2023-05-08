@@ -300,7 +300,12 @@ end
 for func in (:reduce, :foldl, :foldr, :mapfoldl, :mapfoldr)
     @eval begin
         function $func(f, tree::Node; kws...)
-            throw(error(string($func) * " not implemented for Node. Use `tree_mapreduce` instead."))
+            throw(
+                error(
+                    string($func) *
+                    " not implemented for Node. Use `tree_mapreduce` instead.",
+                ),
+            )
         end
     end
 end
