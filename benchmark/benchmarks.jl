@@ -19,6 +19,7 @@ function benchmark_evaluation()
         if !(T <: Real) && PACKAGE_VERSION < v"0.5.0" && PACKAGE_VERSION != v"0.0.0"
             continue
         end
+        n != 500 && T != Float64 && continue # skip some benchmarks
         !haskey(suite, T) && (suite[T] = BenchmarkGroup())
         suite[T][n] = BenchmarkGroup()
 
@@ -42,10 +43,11 @@ function benchmark_evaluation()
                     X=randn(MersenneTwister(0), $T, 5, $n);
                     treesize=20;
                     ntrees=100;
+                    Random.seed!(1);
                     trees=[gen_random_tree_fixed_size(treesize, $operators, 5, $T) for _ in 1:ntrees]
                 )
             )
-            if T <: Real && !specialize_kernels
+            if T <: Real && !specialize_kernels && n == 500
                 eval_grad_tree_array(
                     gen_random_tree_fixed_size(20, operators, 5, T),
                     randn(MersenneTwister(0), T, 5, n),
@@ -59,6 +61,7 @@ function benchmark_evaluation()
                         X=randn(MersenneTwister(0), $T, 5, $n);
                         treesize=20;
                         ntrees=100;
+                        Random.seed!(1);
                         trees=[gen_random_tree_fixed_size(treesize, $operators, 5, $T) for _ in 1:ntrees]
                     )
                 )
@@ -136,6 +139,7 @@ function benchmark_utilities()
                     setup=(
                         ntrees=100;
                         n=20;
+                        Random.seed!(1);
                         trees=[gen_random_tree_fixed_size(n, $operators, 5, Float32) for _ in 1:ntrees]
                     )
                 )
