@@ -1,7 +1,7 @@
 module EnzymeInterfaceModule
 
 import Enzyme: autodiff, Duplicated, Const, Forward, Reverse
-import ..EquationModule: Node
+import ..EquationModule: Node, copy_node
 import ..EquationUtilsModule: set_constants, get_constants
 import ..EvaluateEquationModule: eval_tree_array
 import ..OperatorEnumModule: OperatorEnum
@@ -64,7 +64,7 @@ function enzyme_forward_diff_constants(
         Forward,
         _eval_tree_array!,
         Duplicated(result, dresult),
-        Const(tree),
+        Duplicated(tree, copy_node(tree)),
         Duplicated(constants, dconstants),
         Const(X),
         Const(operators),
