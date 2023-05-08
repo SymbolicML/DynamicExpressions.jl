@@ -98,7 +98,7 @@ function tree_mapreduce(
         preserve_sharing &&
         throw(ArgumentError("Need to specify `result_type` if you use `preserve_sharing`."))
 
-    if preserve_sharing
+    if preserve_sharing && RT != Nothing
         return @with_memoize inner(inner, tree) IdDict{N,RT}()
     else
         return inner(inner, tree)
