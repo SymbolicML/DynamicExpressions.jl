@@ -121,12 +121,12 @@ function any(f::F, tree::Node) where {F<:Function}
     end
 end
 
-function Base.:(==)(a::Node{T}, b::Node{T})::Bool where {T}
+function Base.:(==)(a::Node{T1}, b::Node{T2})::Bool where {T1,T2}
     (degree = a.degree) != b.degree && return false
     if degree == 0
         (constant = a.constant) != b.constant && return false
         if constant
-            return a.val::T == b.val::T
+            return a.val::T1 == b.val::T2
         else
             return a.feature == b.feature
         end
@@ -135,11 +135,6 @@ function Base.:(==)(a::Node{T}, b::Node{T})::Bool where {T}
     else
         return a.op == b.op && a.l == b.l && a.r == b.r
     end
-end
-function Base.:(==)(a::Node{T1}, b::Node{T2})::Bool where {T1,T2}
-    # TODO: Should also have preserve_sharing check... But how?
-    T = promote_type(T1, T2)
-    return Node{T}(a) == Node{T}(b)
 end
 
 ###############################################################################
