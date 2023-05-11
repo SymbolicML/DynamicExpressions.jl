@@ -97,3 +97,7 @@ end
 @safetestset "Test Base" begin
     include("test_base.jl")
 end
+
+@safetestset "Test containers preserved" begin
+    include("test_container_preserved.jl")
+end

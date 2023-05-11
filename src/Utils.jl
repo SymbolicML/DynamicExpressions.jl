@@ -155,4 +155,6 @@ function _add_idmap_to_call(def::Expr, id_map::Expr)
     return Expr(:call, def.args[1], def.args[2:end]..., id_map)
 end
 
+@inline fill_similar(value, array, args...) = fill!(similar(array, args...), value)
+
 end
