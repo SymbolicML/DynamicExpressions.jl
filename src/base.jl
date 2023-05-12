@@ -68,7 +68,12 @@ end  # Get list of constants. (regular mapreduce also works)
 function tree_mapreduce(
     f::F, op::G, tree::N, result_type::Type{RT}=Nothing; preserve_sharing::Bool=false
 ) where {T,N<:Node{T},F<:Function,G<:Function,RT}
-    return tree_mapreduce(f, f, op, tree, result_type; preserve_sharing)
+    return tree_mapreduce(f, op, (tree,), result_type; preserve_sharing)
+end
+function tree_mapreduce(
+    f::F, op::G, trees::Ns, result_type::Type{RT}=Nothing; preserve_sharing::Bool=false
+) where {m,T,N<:Node{T},Ns<:NTuple{m,N},F<:Function,G<:Function,RT}
+    return tree_mapreduce(f, f, op, trees, result_type; preserve_sharing)
 end
 function tree_mapreduce(
     f_leaf::F1,
@@ -78,17 +83,33 @@ function tree_mapreduce(
     result_type::Type{RT}=Nothing;
     preserve_sharing::Bool=false,
 ) where {T,N<:Node{T},F1<:Function,F2<:Function,G<:Function,RT}
+    return tree_mapreduce(f_leaf, f_branch, op, (tree,), result_type; preserve_sharing)
+end
+function tree_mapreduce(
+    f_leaf::F1,
+    f_branch::F2,
+    op::G,
+    trees::Ns,
+    result_type::Type{RT}=Nothing;
+    preserve_sharing::Bool=false,
+) where {m,T,N<:Node{T},Ns<:NTuple{m,N},F1<:Function,F2<:Function,G<:Function,RT}
 
     # Trick taken from here:
     # https://discourse.julialang.org/t/recursive-inner-functions-a-thousand-times-slower/85604/5
     # to speed up recursive closure
-    @memoize_on t function inner(inner, t::Node)
-        if t.degree == 0
-            return @inline(f_leaf(t))
-        elseif t.degree == 1
-            return @inline(op(@inline(f_branch(t)), inner(inner, t.l)))
+    @memoize_on ts function inner(inner, ts)
+        if first(ts).degree == 0
+            return @inline(f_leaf(ts...))
+        elseif first(ts).degree == 1
+            return @inline(op(@inline(f_branch(ts...)), inner(inner, map(t -> t.l, ts))))
         else
-            return @inline(op(@inline(f_branch(t)), inner(inner, t.l), inner(inner, t.r)))
+            return @inline(
+                op(
+                    @inline(f_branch(ts...)),
+                    inner(inner, map(t -> t.l, ts)),
+                    inner(inner, map(t -> t.r, ts)),
+                )
+            )
         end
     end
 
@@ -97,9 +118,9 @@ function tree_mapreduce(
         throw(ArgumentError("Need to specify `result_type` if you use `preserve_sharing`."))
 
     if preserve_sharing && RT != Nothing
-        return @with_memoize inner(inner, tree) IdDict{N,RT}()
+        return @with_memoize inner(inner, trees) IdDict{Ns,RT}()
     else
-        return inner(inner, tree)
+        return inner(inner, trees)
     end
 end
 
