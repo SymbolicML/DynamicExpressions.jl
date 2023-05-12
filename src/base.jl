@@ -25,8 +25,8 @@ import Base:
 import Compat: @inline, Returns
 import ..UtilsModule: @memoize_on, @with_memoize
 
-const Nodes{T,m} = NTuple{m,Node{T}}
-const NodeOrNodes{T,m} = Union{Node{T},NTuple{m,Node{T}}}
+const Nodes = Tuple{Node,Vararg{Node}}
+const NodeOrNodes = Union{Node,Nodes}
 
 """
     tree_mapreduce(f::Function, op::Function, tree::Node, result_type::Type=Nothing)
@@ -104,13 +104,15 @@ function tree_mapreduce(
         if first(ts).degree == 0
             return @inline(f_leaf(ts...))
         elseif first(ts).degree == 1
-            return @inline(op(@inline(f_branch(ts...)), inner(inner, map(t -> t.l, ts))))
+            return @inline(
+                op(@inline(f_branch(ts...)), inner(inner, map(t -> t.l, ts)::Ns))
+            )
         else
             return @inline(
                 op(
                     @inline(f_branch(ts...)),
-                    inner(inner, map(t -> t.l, ts)),
-                    inner(inner, map(t -> t.r, ts)),
+                    inner(inner, map(t -> t.l, ts)::Ns),
+                    inner(inner, map(t -> t.r, ts)::Ns),
                 )
             )
         end
@@ -134,19 +136,17 @@ Reduce a flag function over a tree, returning `true` if the function returns `tr
 By using this instead of tree_mapreduce, we can take advantage of early exits.
 """
 any(f::F, tree::Node) where {F<:Function} = any(f, (tree,))
-function any(f::F, trees::Ns) where {Ns<:Nodes,F<:Function}
-    function inner(inner, ts)
-        if first(ts).degree == 0
-            return @inline(f(ts...))::Bool
-        elseif first(ts).degree == 1
-            return @inline(f(ts...))::Bool || inner(inner, map(t -> t.l, ts))
-        else
-            return @inline(f(ts...))::Bool ||
-                   inner(inner, map(t -> t.l, ts)) ||
-                   inner(inner, map(t -> t.r, ts))
-        end
+any(f::F, trees::Nodes) where {F<:Function} = any_inner(f, trees)
+function any_inner(f::F, ts::Ns) where {Ns<:Nodes,F<:Function}
+    if first(ts).degree == 0
+        return @inline(f(ts...)::Bool)
+    elseif first(ts).degree == 1
+        return @inline(f(ts...)::Bool) || any_inner(f, map(t -> t.l, ts)::Ns)
+    else
+        return @inline(f(ts...)::Bool) ||
+               any_inner(f, map(t -> t.l, ts)::Ns) ||
+               any_inner(f, map(t -> t.r, ts)::Ns)
     end
-    return inner(inner, trees)
 end
 
 ###############################################################################

@@ -39,7 +39,7 @@ end
     @test objectid(first(collect(ctree))) == objectid(ctree)
     @test typeof(collect(ctree)) == Vector{Node{Float64}}
     @test length(collect(ctree)) == 24
-    @test sum((t -> (t.degree == 0 && t.constant) ? t.val : 0.0).(collect(ctree))) == 11.6
+    @test sum((t -> (t.degree == 0 && t.constant) ? t.val : 0.0).(collect(ctree))) ≈ 11.6
 end
 
 @testset "count" begin
