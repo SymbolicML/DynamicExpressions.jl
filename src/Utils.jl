@@ -82,18 +82,28 @@ function is_good_array(x::AbstractArray{T}, V::Val{unroll}=Val(16)) where {unrol
     _zero = zero(T)
 
     # Vectorized segment
-    mask = ntuple(i -> _zero, unroll)
-    cumulator = mask
     vectorized_segment = eachindex(x)[begin:unroll:(end - unroll + 1)]
-    for i in vectorized_segment
-        batch = ntuple(j -> @inbounds(x[i + (j - 1)]), V)
-        cumulator = fma.(mask, batch, cumulator)
+    empty_vectorized_segment = isempty(vectorized_segment)
+    if !empty_vectorized_segment
+        mask = ntuple(i -> _zero, unroll)
+        cumulator = mask
+        for i in vectorized_segment
+            batch = ntuple(j -> @inbounds(x[i + (j - 1)]), V)
+            cumulator = fma.(mask, batch, cumulator)
+        end
+        cumulator == mask || return false
     end
-    cumulator == mask || return false
+
+    !empty_vectorized_segment && return true
 
     # Tail
+    tail_segment = if empty_vectorized_segment
+        firstindex(x):lastindex(x)
+    else
+        (vectorized_segment[end] + unroll):lastindex(x)
+    end
     scalar_cumulator = _zero
-    for i in (vectorized_segment[end] + unroll):lastindex(x)
+    for i in tail_segment
         scalar_cumulator = fma(_zero, @inbounds(x[i]), scalar_cumulator)
     end
     return scalar_cumulator == _zero
