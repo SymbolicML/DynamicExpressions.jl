@@ -294,7 +294,11 @@ function grad_deg0_eval(
 )::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Number,variable,n_gradients}
     const_part = deg0_eval(tree, cX)[1]
 
-    zero_mat = hcat((fill_similar(zero(T), cX, axes(cX, 2)) for _ in 1:n_gradients)...)'
+    zero_mat = if typeof(cX) <: Array
+        zeros(T, n_gradients, size(cX, 2))
+    else
+        hcat((fill_similar(zero(T), cX, axes(cX, 2)) for _ in 1:n_gradients)...)'
+    end
 
     if variable == tree.constant
         return (const_part, zero_mat, true)
