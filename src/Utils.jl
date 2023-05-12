@@ -98,7 +98,7 @@ macro memoize_on(tree, def)
         $(esc(idmap_def)) # The function with an id_map argument
     end
 end
-function _memoize_on(tree::Symbol, def::Expr)
+function _memoize_on(tree, def::Expr)
     sdef = splitdef(def)
 
     # Add an id_map argument

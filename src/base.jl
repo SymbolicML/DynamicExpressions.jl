@@ -100,7 +100,7 @@ function tree_mapreduce(
     # Trick taken from here:
     # https://discourse.julialang.org/t/recursive-inner-functions-a-thousand-times-slower/85604/5
     # to speed up recursive closure
-    @memoize_on ts function inner(inner, ts)
+    @memoize_on first(ts) function inner(inner, ts)
         if first(ts).degree == 0
             return @inline(f_leaf(ts...))
         elseif first(ts).degree == 1
@@ -123,7 +123,7 @@ function tree_mapreduce(
         throw(ArgumentError("Need to specify `result_type` if you use `preserve_sharing`."))
 
     if preserve_sharing && RT != Nothing
-        return @with_memoize inner(inner, trees) IdDict{Ns,RT}()
+        return @with_memoize inner(inner, trees) IdDict{Ns.parameters[1],RT}()
     else
         return inner(inner, trees)
     end
