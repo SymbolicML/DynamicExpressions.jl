@@ -78,6 +78,7 @@ end
 is_bad_array(x) = !is_good_array(x)
 
 function is_good_array(x::AbstractArray{T}, V::Val{unroll}=Val(16)) where {unroll,T}
+    isempty(x) && return true
     _zero = zero(T)
 
     # Vectorized segment
