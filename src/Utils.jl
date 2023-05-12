@@ -75,7 +75,7 @@ end
 
 # Fastest way to check for NaN in an array.
 # (due to optimizations in sum())
-is_bad_array(array) = !isfinite(sum(array))
+is_bad_array(array) = !(isempty(array) || isfinite(sum(array)))
 isgood(x::T) where {T<:Number} = !(isnan(x) || !isfinite(x))
 isgood(x) = true
 isbad(x) = !isgood(x)
@@ -154,5 +154,7 @@ function _add_idmap_to_call(def::Expr, id_map::Expr)
     @assert def.head == :call
     return Expr(:call, def.args[1], def.args[2:end]..., id_map)
 end
+
+@inline fill_similar(value, array, args...) = fill!(similar(array, args...), value)
 
 end
