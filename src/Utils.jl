@@ -74,8 +74,30 @@ macro return_on_false2(flag, retval, retval2)
 end
 
 # Fastest way to check for NaN in an array.
-# (due to optimizations in sum())
-is_bad_array(array) = !(isempty(array) || isfinite(sum(array)))
+# Thanks @mikmore https://discourse.julialang.org/t/fastest-way-to-check-for-inf-or-nan-in-an-array/76954/33?u=milescranmer
+is_bad_array(x) = !is_good_array(x)
+
+function is_good_array(x::AbstractArray{T}, V::Val{unroll}=Val(16)) where {unroll,T}
+    _zero = zero(T)
+
+    # Vectorized segment
+    mask = ntuple(i -> _zero, unroll)
+    cumulator = mask
+    vectorized_segment = eachindex(x)[begin:unroll:(end - unroll + 1)]
+    for i in vectorized_segment
+        batch = ntuple(j -> @inbounds(x[i + (j - 1)]), V)
+        cumulator = fma.(mask, batch, cumulator)
+    end
+    cumulator == mask || return false
+
+    # Tail
+    scalar_cumulator = _zero
+    for i in (vectorized_segment[end] + unroll):lastindex(x)
+        scalar_cumulator = fma(_zero, @inbounds(x[i]), scalar_cumulator)
+    end
+    return scalar_cumulator == _zero
+end
+
 isgood(x::T) where {T<:Number} = !(isnan(x) || !isfinite(x))
 isgood(x) = true
 isbad(x) = !isgood(x)
