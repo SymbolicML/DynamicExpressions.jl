@@ -25,6 +25,9 @@ import Base:
 import Compat: @inline, Returns
 import ..UtilsModule: @memoize_on, @with_memoize
 
+const Nodes{T,m} = NTuple{m,Node{T}}
+const NodeOrNodes{T,m} = Union{Node{T},NTuple{m,Node{T}}}
+
 """
     tree_mapreduce(f::Function, op::Function, tree::Node, result_type::Type=Nothing)
     tree_mapreduce(f_leaf::Function, f_branch::Function, op::Function, tree::Node, result_type::Type=Nothing)
@@ -67,12 +70,12 @@ end  # Get list of constants. (regular mapreduce also works)
 """
 function tree_mapreduce(
     f::F, op::G, tree::N, result_type::Type{RT}=Nothing; preserve_sharing::Bool=false
-) where {T,N<:Node{T},F<:Function,G<:Function,RT}
+) where {N<:Node,F<:Function,G<:Function,RT}
     return tree_mapreduce(f, op, (tree,), result_type; preserve_sharing)
 end
 function tree_mapreduce(
     f::F, op::G, trees::Ns, result_type::Type{RT}=Nothing; preserve_sharing::Bool=false
-) where {m,T,N<:Node{T},Ns<:NTuple{m,N},F<:Function,G<:Function,RT}
+) where {Ns<:Nodes,F<:Function,G<:Function,RT}
     return tree_mapreduce(f, f, op, trees, result_type; preserve_sharing)
 end
 function tree_mapreduce(
@@ -82,7 +85,7 @@ function tree_mapreduce(
     tree::N,
     result_type::Type{RT}=Nothing;
     preserve_sharing::Bool=false,
-) where {T,N<:Node{T},F1<:Function,F2<:Function,G<:Function,RT}
+) where {N<:Node,F1<:Function,F2<:Function,G<:Function,RT}
     return tree_mapreduce(f_leaf, f_branch, op, (tree,), result_type; preserve_sharing)
 end
 function tree_mapreduce(
@@ -92,7 +95,7 @@ function tree_mapreduce(
     trees::Ns,
     result_type::Type{RT}=Nothing;
     preserve_sharing::Bool=false,
-) where {m,T,N<:Node{T},Ns<:NTuple{m,N},F1<:Function,F2<:Function,G<:Function,RT}
+) where {Ns<:Nodes,F1<:Function,F2<:Function,G<:Function,RT}
 
     # Trick taken from here:
     # https://discourse.julialang.org/t/recursive-inner-functions-a-thousand-times-slower/85604/5
@@ -130,30 +133,20 @@ end
 Reduce a flag function over a tree, returning `true` if the function returns `true` for any node.
 By using this instead of tree_mapreduce, we can take advantage of early exits.
 """
-function any(f::F, tree::Node) where {F<:Function}
-    if tree.degree == 0
-        return @inline(f(tree))::Bool
-    elseif tree.degree == 1
-        return @inline(f(tree))::Bool || any(f, tree.l)
-    else
-        return @inline(f(tree))::Bool || any(f, tree.l) || any(f, tree.r)
-    end
-end
-
-function Base.:(==)(a::Node{T1}, b::Node{T2})::Bool where {T1,T2}
-    (degree = a.degree) != b.degree && return false
-    if degree == 0
-        (constant = a.constant) != b.constant && return false
-        if constant
-            return a.val::T1 == b.val::T2
+any(f::F, tree::Node) where {F<:Function} = any(f, (tree,))
+function any(f::F, trees::Ns) where {Ns<:Nodes,F<:Function}
+    function inner(inner, ts)
+        if first(ts).degree == 0
+            return @inline(f(ts...))::Bool
+        elseif first(ts).degree == 1
+            return @inline(f(ts...))::Bool || inner(inner, map(t -> t.l, ts))
         else
-            return a.feature == b.feature
+            return @inline(f(ts...))::Bool ||
+                   inner(inner, map(t -> t.l, ts)) ||
+                   inner(inner, map(t -> t.r, ts))
         end
-    elseif degree == 1
-        return a.op == b.op && a.l == b.l
-    else
-        return a.op == b.op && a.l == b.l && a.r == b.r
     end
+    return inner(inner, trees)
 end
 
 ###############################################################################
@@ -236,7 +229,9 @@ function sum(f::F, tree::Node; init=0) where {F<:Function}
     return tree_mapreduce(f, +, tree) + init
 end
 
-all(f::F, tree::Node) where {F<:Function} = !any(t -> !@inline(f(t)), tree)
+function all(f::F, tree::N) where {F<:Function,N<:NodeOrNodes}
+    return !any((t...) -> !@inline(f(t...)), tree)
+end
 
 function mapreduce(f::F, op::G, tree::Node) where {F<:Function,G<:Function}
     return tree_mapreduce(f, (n...) -> reduce(op, n), tree)
@@ -317,6 +312,22 @@ function convert(
     )
 end
 (::Type{Node{T}})(tree::Node; kws...) where {T} = convert(Node{T}, tree; kws...)
+
+function nodes_equal(t1::Node{T1}, t2::Node{T2})::Bool where {T1,T2}
+    (degree = t1.degree) != t2.degree && return false
+    if degree == 0
+        (constant = t1.constant) != t2.constant && return false
+        if constant
+            return t1.val::T1 == t2.val::T2
+        else
+            return t1.feature == t2.feature
+        end
+    end
+    return t1.op == t2.op
+end
+function Base.:(==)(a::Node{T1}, b::Node{T2})::Bool where {T1,T2}
+    return all(nodes_equal, (a, b))
+end
 
 for func in (:reduce, :foldl, :foldr, :mapfoldl, :mapfoldr)
     @eval begin
