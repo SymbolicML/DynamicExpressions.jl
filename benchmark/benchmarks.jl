@@ -180,10 +180,13 @@ function benchmark_utilities()
 
     suite["trees"] = tree_utilities()
     suite["extra"] = let s = BenchmarkGroup()
-        f(Xs) = [is_bad_array(X) for X in Xs]
-        s["is_bad_array_x16"] = @benchmarkable(
-            $(f)(Xs), setup = (Xs = ntuple(n -> randn(Float64, 1_000 + n), 16))
-        )
+        s["is_bad_array_x16"] = BenchmarkGroup()
+        f(Xs) = any(is_bad_array, Xs)
+        for m in [50, 500, 5000]
+            s["is_bad_array_x16"][m] = @benchmarkable(
+                $(f)(Xs), setup = (Xs = ntuple(n -> randn(Float64, $m + n), 16))
+            )
+        end
         s
     end
 
