@@ -75,7 +75,7 @@ end
 
 # Fastest way to check for NaN in an array.
 # Thanks @mikmore https://discourse.julialang.org/t/fastest-way-to-check-for-inf-or-nan-in-an-array/76954/33?u=milescranmer
-is_bad_array(x) = !is_good_array(x)
+is_bad_array(x, V::Val{unroll}=Val(16)) where {unroll} = !is_good_array(x, V)
 function is_good_array(x::AbstractArray{T}, V::Val{unroll}=Val(16)) where {unroll,T}
     isempty(x) && return true
     _zero = zero(T)
@@ -96,8 +96,6 @@ function is_good_array(x::AbstractArray{T}, V::Val{unroll}=Val(16)) where {unrol
         end
         cumulator == mask || return false
     end
-
-    !empty_vectorized_segment && return true
 
     # Tail
     tail_segment = if empty_vectorized_segment
