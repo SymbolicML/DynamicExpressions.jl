@@ -1,4 +1,3 @@
-println("Testing NaN detection.")
 using DynamicExpressions
 using Test
 
@@ -29,8 +28,37 @@ function run_nan_detection_test(T)
     @test !flag
 end
 
-for T in [Float16, Float32, Float64]
-    run_nan_detection_test(T)
+@testset "Simple NaN detections" begin
+    for T in [Float16, Float32, Float64]
+        @testset "NaN detection with $T" begin
+            run_nan_detection_test(T)
+        end
+    end
 end
 
-println("Passed.")
+using DynamicExpressions.UtilsModule: is_bad_array
+using StaticArrays
+
+function manual_nan_test(
+    ::Type{T}, array_size, nan_location, ::Val{static_array}, unroll
+) where {T,static_array}
+    x = ones(T, array_size)
+    x = static_array ? MVector{array_size}(x) : x
+    @test !is_bad_array(x, unroll)
+    x[nan_location] = T(NaN)
+    @test is_bad_array(x, unroll)
+end
+
+@testset "Manual NaN tests" begin
+    unroll_size = 16
+    unroll = Val(unroll_size)
+    for T in [Float16, Float32, Float64, ComplexF16, ComplexF32, ComplexF64],
+        array_size in 1:(2 * unroll_size + 1),
+        nan_location in 1:array_size,
+        static_array in [false, true]
+
+        manual_nan_test(
+            T, array_size, nan_location, static_array ? Val(true) : Val(false), unroll
+        )
+    end
+end
