@@ -1,5 +1,6 @@
 using DynamicExpressions, BenchmarkTools, Random
 using DynamicExpressions.EquationUtilsModule: is_constant
+using DynamicExpressions.UtilsModule: is_bad_array
 
 include("benchmark_utils.jl")
 
@@ -115,7 +116,7 @@ end
 f_tree_op(f::F, tree, operators) where {F} = f(tree, operators)
 f_tree_op(f::F, tree) where {F} = f(tree)
 
-function benchmark_utilities()
+function tree_utilities()
     suite = BenchmarkGroup()
 
     all_funcs = (
@@ -170,6 +171,20 @@ function benchmark_utilities()
             end
             s
         end
+    end
+    return suite
+end
+
+function benchmark_utilities()
+    suite = BenchmarkGroup()
+
+    suite["trees"] = tree_utilities()
+    suite["extra"] = let s = BenchmarkGroup()
+        f(Xs) = [is_bad_array(X) for X in Xs]
+        s["is_bad_array"] = @benchmarkable(
+            f(Xs), setup = (Xs = ntuple(n -> randn(Float64, 10_000 + n), 16))
+        )
+        s
     end
 
     return suite
