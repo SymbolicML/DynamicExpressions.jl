@@ -75,8 +75,8 @@ end
 
 # Fastest way to check for NaN in an array.
 # Thanks @mikmore https://discourse.julialang.org/t/fastest-way-to-check-for-inf-or-nan-in-an-array/76954/33?u=milescranmer
-is_bad_array(x, V::Val{unroll}=Val(16)) where {unroll} = !is_good_array(x, V)
-function is_good_array(x::AbstractArray{T}, V::Val{unroll}=Val(16)) where {unroll,T}
+is_bad_array(x, ::Val{unroll}=Val(16)) where {unroll} = !is_good_array(x, Val(unroll))
+function is_good_array(x::AbstractArray{T}, ::Val{unroll}=Val(16)) where {unroll,T}
     isempty(x) && return true
     _zero = zero(T)
 
@@ -84,10 +84,10 @@ function is_good_array(x::AbstractArray{T}, V::Val{unroll}=Val(16)) where {unrol
     vectorized_segment = eachindex(x)[begin:unroll:(end - unroll + 1)]
     empty_vectorized_segment = isempty(vectorized_segment)
     if !empty_vectorized_segment
-        mask = ntuple(i -> _zero, V)
+        mask = ntuple(i -> _zero, Val(unroll))
         cumulator = mask
         for i in vectorized_segment
-            batch = ntuple(j -> @inbounds(x[i + (j - 1)]), V)
+            batch = ntuple(j -> @inbounds(x[i + (j - 1)]), Val(unroll))
             cumulator = muladd.(mask, batch, cumulator)
         end
         cumulator == mask || return false
