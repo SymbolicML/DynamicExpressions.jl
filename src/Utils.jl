@@ -88,11 +88,7 @@ function is_good_array(x::AbstractArray{T}, V::Val{unroll}=Val(16)) where {unrol
         cumulator = mask
         for i in vectorized_segment
             batch = ntuple(j -> @inbounds(x[i + (j - 1)]), V)
-            if T <: Real
-                cumulator = fma.(mask, batch, cumulator)
-            else
-                cumulator = muladd.(mask, batch, cumulator)
-            end
+            cumulator = muladd.(mask, batch, cumulator)
         end
         cumulator == mask || return false
     end
@@ -105,11 +101,7 @@ function is_good_array(x::AbstractArray{T}, V::Val{unroll}=Val(16)) where {unrol
     end
     scalar_cumulator = _zero
     for i in tail_segment
-        if T <: Real
-            scalar_cumulator = fma(_zero, @inbounds(x[i]), scalar_cumulator)
-        else
-            scalar_cumulator = muladd(_zero, @inbounds(x[i]), scalar_cumulator)
-        end
+        scalar_cumulator = muladd(_zero, @inbounds(x[i]), scalar_cumulator)
     end
     return scalar_cumulator == _zero
 end
