@@ -75,8 +75,15 @@ end
 
 # Fastest way to check for NaN in an array.
 # Thanks @mikmore https://discourse.julialang.org/t/fastest-way-to-check-for-inf-or-nan-in-an-array/76954/33?u=milescranmer
-is_bad_array(x, ::Val{unroll}=Val(16)) where {unroll} = !is_good_array(x, Val(unroll))
-function is_good_array(x::AbstractArray{T}, ::Val{unroll}=Val(16)) where {unroll,T}
+is_bad_array(x) = !is_good_array(x)
+function is_good_array_mix(x::AbstractArray{T}) where {T}
+    n = length(x)
+    n == 0 && return true
+    n <= 256 && return isfinite(sum(xi -> xi * zero(typeof(xi)), x))
+    return _is_good_array(x, Val(8))
+end
+
+function _is_good_array(x::AbstractArray{T}, ::Val{unroll}) where {T,unroll}
     isempty(x) && return true
     _zero = zero(T)
 
