@@ -78,7 +78,7 @@ end
 is_bad_array(x) = !is_good_array(x)
 function is_good_array(x::AbstractArray{T}) where {T}
     cumulator = zero(T)
-    @turbo for i in eachindex(x)
+    @turbo safe = false for i in eachindex(x)
         cumulator += x[i] * 0
     end
     return cumulator == 0
