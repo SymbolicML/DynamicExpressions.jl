@@ -76,41 +76,12 @@ end
 # Fastest way to check for NaN in an array.
 # Thanks @mikmore https://discourse.julialang.org/t/fastest-way-to-check-for-inf-or-nan-in-an-array/76954/33?u=milescranmer
 is_bad_array(x) = !is_good_array(x)
-function is_good_array_mix(x::AbstractArray{T}) where {T}
-    n = length(x)
-    n == 0 && return true
-    n <= 256 && return isfinite(sum(xi -> xi * zero(typeof(xi)), x))
-    return _is_good_array(x, Val(8))
-end
-
-function _is_good_array(x::AbstractArray{T}, ::Val{unroll}) where {T,unroll}
-    isempty(x) && return true
-    _zero = zero(T)
-
-    # Vectorized segment
-    vectorized_segment = eachindex(x)[begin:unroll:(end - unroll + 1)]
-    empty_vectorized_segment = isempty(vectorized_segment)
-    if !empty_vectorized_segment
-        mask = ntuple(i -> _zero, Val(unroll))
-        cumulator = mask
-        for i in vectorized_segment
-            batch = ntuple(j -> @inbounds(x[i + (j - 1)]), Val(unroll))
-            cumulator = muladd.(mask, batch, cumulator)
-        end
-        cumulator == mask || return false
+function is_good_array(x::AbstractArray{T}) where {T}
+    cumulator = zero(T)
+    @turbo for i in eachindex(x)
+        cumulator += x[i] * 0
     end
-
-    # Tail
-    tail_segment = if empty_vectorized_segment
-        firstindex(x):lastindex(x)
-    else
-        (vectorized_segment[end] + unroll):lastindex(x)
-    end
-    scalar_cumulator = _zero
-    for i in tail_segment
-        scalar_cumulator = muladd(_zero, @inbounds(x[i]), scalar_cumulator)
-    end
-    return scalar_cumulator == _zero
+    return cumulator == 0
 end
 
 isgood(x::T) where {T<:Number} = !(isnan(x) || !isfinite(x))
