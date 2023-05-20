@@ -76,9 +76,10 @@ end
 # Fastest way to check for NaN in an array.
 # Thanks @mikmore https://discourse.julialang.org/t/fastest-way-to-check-for-inf-or-nan-in-an-array/76954/33?u=milescranmer
 is_bad_array(x) = !is_good_array(x)
-function is_good_array(x)
-    IS_WINDOWS && return sum(xi -> xi * zero(xi), x) == zero(eltype(x))
-    return isempty(x) || vmapreduce(xi -> xi * zero(xi), +, x) == zero(eltype(x))
+function is_good_array(x::AbstractArray{T}) where {T}
+    isempty(x) && return true
+    IS_WINDOWS && return sum(xi -> xi * zero(xi), x) == zero(T)
+    return vmapreduce(xi -> xi * zero(xi), +, x) == zero(T)
 end
 const IS_WINDOWS = Sys.iswindows()
 

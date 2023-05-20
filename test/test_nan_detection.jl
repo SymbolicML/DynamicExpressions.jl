@@ -56,8 +56,6 @@ end
         nan_location in 1:array_size,
         static_array in [false, true]
 
-        manual_nan_test(
-            T, array_size, nan_location, static_array ? Val(true) : Val(false)
-        )
+        manual_nan_test(T, array_size, nan_location, static_array ? Val(true) : Val(false))
     end
 end
