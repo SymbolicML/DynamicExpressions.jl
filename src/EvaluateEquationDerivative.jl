@@ -126,7 +126,7 @@ function diff_deg1_eval(
     @return_on_false2 complete cumulator dcumulator
 
     # TODO - add type assertions to get better speed:
-    @maybe_turbo turbo for j in indices((cumulator, dcumulator))
+    @maybe_turbo turbo for j in axes(cumulator, 1)
         x = op(cumulator[j])::T
         dx = diff_op(cumulator[j])::T * dcumulator[j]
 
@@ -154,7 +154,7 @@ function diff_deg2_eval(
     )
     @return_on_false2 complete2 array2 dcumulator2
 
-    @maybe_turbo turbo for j in indices((cumulator, dcumulator, array2, dcumulator2))
+    @maybe_turbo turbo for j in axes(cumulator, 1)
         x = op(cumulator[j], array2[j])::T
 
         first, second = diff_op(cumulator[j], array2[j])::Tuple{T,T}
@@ -328,12 +328,12 @@ function grad_deg1_eval(
     )
     @return_on_false2 complete cumulator dcumulator
 
-    @maybe_turbo turbo for j in indices((cumulator, dcumulator), (1, 2))
+    @maybe_turbo turbo for j in axes(cumulator, 1)
         x = op(cumulator[j])::T
         dx = diff_op(cumulator[j])::T
 
         cumulator[j] = x
-        for k in indices(dcumulator, 1)
+        for k in axes(dcumulator, 1)
             dcumulator[k, j] = dx * dcumulator[k, j]
         end
     end
@@ -362,15 +362,13 @@ function grad_deg2_eval(
     )
     @return_on_false2 complete2 cumulator1 dcumulator1
 
-    @maybe_turbo turbo for j in indices(
-        (cumulator1, cumulator2, dcumulator1, dcumulator2), (1, 1, 2, 2)
-    )
+    @maybe_turbo turbo for j in axes(cumulator1, 1)
         c1 = cumulator1[j]
         c2 = cumulator2[j]
         x = op(c1, c2)::T
         dx1, dx2 = diff_op(c1, c2)::Tuple{T,T}
         cumulator1[j] = x
-        for k in indices((dcumulator1, dcumulator2), (1, 1))
+        for k in axes(dcumulator1, 1)
             dcumulator1[k, j] = dx1 * dcumulator1[k, j] + dx2 * dcumulator2[k, j]
         end
     end
