@@ -3,13 +3,14 @@ module DynamicExpressionsSymbolicUtilsExt
 export node_to_symbolic, symbolic_to_node
 
 import Base: convert
-using SymbolicUtils
 if isdefined(Base, :get_extension)
+    using SymbolicUtils
     import DynamicExpressions.EquationModule: Node, DEFAULT_NODE_TYPE
     import DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
     import DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false
     import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 else
+    using ..SymbolicUtils
     import ..DynamicExpressions.EquationModule: Node, DEFAULT_NODE_TYPE
     import ..DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
     import ..DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false
