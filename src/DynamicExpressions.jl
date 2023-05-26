@@ -11,10 +11,8 @@ include("SimplifyEquation.jl")
 include("OperatorEnumConstruction.jl")
 include("ExtensionInterface.jl")
 
-if !isdefined(Base, :get_extension)
-    using Requires
-end
-using Reexport
+import Requires: @init, @require
+import Reexport: @reexport
 @reexport import .EquationModule:
     Node, string_tree, print_tree, copy_node, set_node!, tree_mapreduce, filter_map
 @reexport import .EquationUtilsModule:
