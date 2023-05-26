@@ -19,6 +19,9 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 [weakdeps]
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 
+[extensions]
+DynamicExpressionsSymbolicUtilsExt = "SymbolicUtils"
+
 [compat]
 Compat = "3.37, 4"
 LoopVectorization = "0.12"
