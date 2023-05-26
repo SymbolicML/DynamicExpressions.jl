@@ -5,13 +5,15 @@ export node_to_symbolic, symbolic_to_node
 import Base: convert
 using SymbolicUtils
 if isdefined(Base, :get_extension)
+    import DynamicExpressions.EquationModule: Node, DEFAULT_NODE_TYPE
+    import DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
+    import DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false
+    import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
+else
     import ..DynamicExpressions.EquationModule: Node, DEFAULT_NODE_TYPE
     import ..DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
     import ..DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false
-else
-    import ..EquationModule: Node, DEFAULT_NODE_TYPE
-    import ..OperatorEnumModule: AbstractOperatorEnum
-    import ..UtilsModule: isgood, isbad, @return_on_false
+    import ..DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 end
 
 const SYMBOLIC_UTILS_TYPES = Union{<:Number,SymbolicUtils.Symbolic{<:Number}}
@@ -190,8 +192,10 @@ function node_to_symbolic(
 end
 
 function symbolic_to_node(
-    eqn::T, operators::AbstractOperatorEnum; varMap::Union{Array{String,1},Nothing}=nothing
-)::Node where {T<:SymbolicUtils.Symbolic}
+    eqn::SymbolicUtils.Symbolic,
+    operators::AbstractOperatorEnum;
+    varMap::Union{Array{String,1},Nothing}=nothing,
+)::Node
     return convert(Node, eqn, operators; varMap=varMap)
 end
 
