@@ -1,11 +1,13 @@
 module OperatorEnumConstructionModule
 
-import Zygote: gradient
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
 import ..EquationModule: string_tree, Node
 import ..EvaluateEquationModule: eval_tree_array
 import ..EvaluateEquationDerivativeModule: eval_grad_tree_array
 import ..EvaluationHelpersModule: _grad_evaluator
+
+import LazyModules: @lazy
+@lazy import Zygote as LazyZygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 function create_evaluation_helpers!(operators::OperatorEnum)
     @eval begin
@@ -223,11 +225,11 @@ function OperatorEnum(;
 
     if enable_autodiff
         for op in binary_operators
-            diff_op(x, y) = gradient(op, x, y)
+            diff_op(x, y) = LazyZygote.gradient(op, x, y)
             push!(diff_binary_operators, diff_op)
         end
         for op in unary_operators
-            diff_op(x) = gradient(op, x)[1]
+            diff_op(x) = LazyZygote.gradient(op, x)[1]
             push!(diff_unary_operators, diff_op)
         end
     end
