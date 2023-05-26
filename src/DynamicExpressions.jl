@@ -38,11 +38,11 @@ using Reexport
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 
 function __init__()
+    #! format: off
     @static if !isdefined(Base, :get_extension)
-        @require SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b" begin
-            include("../ext/DynamicExpressionsSymbolicUtilsExt.jl")
-        end
+        @require SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b" include("../ext/DynamicExpressionsSymbolicUtilsExt.jl")
     end
+    #! format: on
 end
 
 include("deprecated.jl")
