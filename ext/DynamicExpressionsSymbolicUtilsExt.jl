@@ -1,12 +1,14 @@
+module DynamicExpressionsSymbolicUtilsExt
+
 using SymbolicUtils
 if isdefined(Base, :get_extension)
     import ..DynamicExpressions.EquationModule: Node, DEFAULT_NODE_TYPE
     import ..DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
     import ..DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false
 else
-    import .EquationModule: Node, DEFAULT_NODE_TYPE
-    import .OperatorEnumModule: AbstractOperatorEnum
-    import .UtilsModule: isgood, isbad, @return_on_false
+    import ..EquationModule: Node, DEFAULT_NODE_TYPE
+    import ..OperatorEnumModule: AbstractOperatorEnum
+    import ..UtilsModule: isgood, isbad, @return_on_false
 end
 
 const SYMBOLIC_UTILS_TYPES = Union{<:Number,SymbolicUtils.Symbolic{<:Number}}
@@ -257,4 +259,6 @@ function multiply_powers(
         end
         return cumulator, true
     end
+end
+
 end

@@ -39,7 +39,8 @@ function __init__()
     @static if !isdefined(Base, :get_extension)
         @require SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b" begin
             include("../ext/DynamicExpressionsSymbolicUtilsExt.jl")
-            export node_to_symbolic, symbolic_to_node
+            @reexport import .DynamicExpressionsSymbolicUtilsExt:
+                node_to_symbolic, symbolic_to_node
         end
     end
 end
