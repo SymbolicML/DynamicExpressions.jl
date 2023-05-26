@@ -1,7 +1,5 @@
 module DynamicExpressionsSymbolicUtilsExt
 
-export node_to_symbolic, symbolic_to_node
-
 import Base: convert
 if isdefined(Base, :get_extension)
     using SymbolicUtils
