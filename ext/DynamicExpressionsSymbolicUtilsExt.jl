@@ -1,5 +1,8 @@
 module DynamicExpressionsSymbolicUtilsExt
 
+export node_to_symbolic, symbolic_to_node
+
+import Base: convert
 using SymbolicUtils
 if isdefined(Base, :get_extension)
     import ..DynamicExpressions.EquationModule: Node, DEFAULT_NODE_TYPE
@@ -97,7 +100,7 @@ function findoperation(op, ops)
     throw(error("Operation $(op) in expression not found in operations $(ops)!"))
 end
 
-function Base.convert(
+function convert(
     ::typeof(SymbolicUtils.Symbolic),
     tree::Node,
     operators::AbstractOperatorEnum;
@@ -107,7 +110,7 @@ function Base.convert(
     return node_to_symbolic(tree, operators; varMap=varMap, index_functions=index_functions)
 end
 
-function Base.convert(
+function convert(
     ::typeof(Node),
     x::Number,
     operators::AbstractOperatorEnum;
@@ -116,7 +119,7 @@ function Base.convert(
     return Node(; val=DEFAULT_NODE_TYPE(x))
 end
 
-function Base.convert(
+function convert(
     ::typeof(Node),
     expr::SymbolicUtils.Symbolic,
     operators::AbstractOperatorEnum;
