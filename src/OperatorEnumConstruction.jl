@@ -253,14 +253,13 @@ function generate_diff_operators(binary_operators, unary_operators)
     Zygote = load_zygote()
     gradient = Zygote.gradient
     for op in binary_operators
-        diff_op(x, y) = gradient(op, x, y)
+        diff_op(x, y) = Base.invokelatest(gradient, op, x, y)
         push!(diff_bin, diff_op)
     end
     for op in unary_operators
-        diff_op(x) = gradient(op, x)[1]
+        diff_op(x) = Base.invokelatest(gradient, op, x)[1]
         push!(diff_una, diff_op)
     end
-
     return diff_bin, diff_una
 end
 
