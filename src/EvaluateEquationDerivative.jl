@@ -1,9 +1,8 @@
 module EvaluateEquationDerivativeModule
 
-import LoopVectorization: indices, @turbo
 import ..EquationModule: Node
 import ..OperatorEnumModule: OperatorEnum
-import ..UtilsModule: @return_on_false2, @maybe_turbo, is_bad_array, fill_similar
+import ..UtilsModule: @return_on_false2, is_bad_array, fill_similar
 import ..EquationUtilsModule: count_constants, index_constants, NodeIndex
 import ..EvaluateEquationModule: deg0_eval
 
@@ -47,31 +46,21 @@ function eval_diff_tree_array(
     assert_autodiff_enabled(operators)
     # TODO: Implement quick check for whether the variable is actually used
     # in this tree. Otherwise, return zero.
-    return _eval_diff_tree_array(
-        tree, cX, operators, direction, (turbo ? Val(true) : Val(false))
-    )
+    return _eval_diff_tree_array(tree, cX, operators, direction)
 end
 function eval_diff_tree_array(
-    tree::Node{T1},
-    cX::AbstractMatrix{T2},
-    operators::OperatorEnum,
-    direction::Int;
-    turbo::Bool=false,
+    tree::Node{T1}, cX::AbstractMatrix{T2}, operators::OperatorEnum, direction::Int
 ) where {T1<:Number,T2<:Number}
     T = promote_type(T1, T2)
     @warn "Warning: eval_diff_tree_array received mixed types: tree=$(T1) and data=$(T2)."
     tree = convert(Node{T}, tree)
     cX = T.(cX)
-    return eval_diff_tree_array(tree, cX, operators, direction; turbo=turbo)
+    return eval_diff_tree_array(tree, cX, operators, direction)
 end
 
 function _eval_diff_tree_array(
-    tree::Node{T},
-    cX::AbstractMatrix{T},
-    operators::OperatorEnum,
-    direction::Int,
-    ::Val{turbo},
-)::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Number,turbo}
+    tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Int
+)::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Number}
     evaluation, derivative, complete = if tree.degree == 0
         diff_deg0_eval(tree, cX, direction)
     elseif tree.degree == 1
@@ -82,7 +71,6 @@ function _eval_diff_tree_array(
             operators.diff_unaops[tree.op],
             operators,
             direction,
-            Val(turbo),
         )
     else
         diff_deg2_eval(
@@ -92,7 +80,6 @@ function _eval_diff_tree_array(
             operators.diff_binops[tree.op],
             operators,
             direction,
-            Val(turbo),
         )
     end
     @return_on_false2 complete evaluation derivative
@@ -118,15 +105,14 @@ function diff_deg1_eval(
     diff_op::dF,
     operators::OperatorEnum,
     direction::Int,
-    ::Val{turbo},
-)::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Number,F,dF,turbo}
+)::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Number,F,dF}
     (cumulator, dcumulator, complete) = _eval_diff_tree_array(
-        tree.l, cX, operators, direction, Val(turbo)
+        tree.l, cX, operators, direction
     )
     @return_on_false2 complete cumulator dcumulator
 
     # TODO - add type assertions to get better speed:
-    @maybe_turbo turbo for j in axes(cumulator, 1)
+    @inbounds @simd for j in axes(cumulator, 1)
         x = op(cumulator[j])::T
         dx = diff_op(cumulator[j])::T * dcumulator[j]
 
@@ -143,18 +129,17 @@ function diff_deg2_eval(
     diff_op::dF,
     operators::OperatorEnum,
     direction::Int,
-    ::Val{turbo},
-)::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Number,F,dF,turbo}
+)::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Number,F,dF}
     (cumulator, dcumulator, complete) = _eval_diff_tree_array(
-        tree.l, cX, operators, direction, Val(turbo)
+        tree.l, cX, operators, direction
     )
     @return_on_false2 complete cumulator dcumulator
     (array2, dcumulator2, complete2) = _eval_diff_tree_array(
-        tree.r, cX, operators, direction, Val(turbo)
+        tree.r, cX, operators, direction
     )
     @return_on_false2 complete2 array2 dcumulator2
 
-    @maybe_turbo turbo for j in axes(cumulator, 1)
+    @inbounds @simd for j in axes(cumulator, 1)
         x = op(cumulator[j], array2[j])::T
 
         first, second = diff_op(cumulator[j], array2[j])::Tuple{T,T}
@@ -206,7 +191,6 @@ function eval_grad_tree_array(
         cX,
         operators,
         (variable ? Val(true) : Val(false)),
-        (turbo ? Val(true) : Val(false)),
     )
 end
 
@@ -217,31 +201,20 @@ function eval_grad_tree_array(
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     ::Val{variable},
-    ::Val{turbo},
-)::Tuple{
-    AbstractVector{T},AbstractMatrix{T},Bool
-} where {T<:Number,variable,turbo,n_gradients}
+)::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Number,variable,n_gradients}
     evaluation, gradient, complete = _eval_grad_tree_array(
-        tree, Val(n_gradients), index_tree, cX, operators, Val(variable), Val(turbo)
+        tree, Val(n_gradients), index_tree, cX, operators, Val(variable)
     )
     @return_on_false2 complete evaluation gradient
     return evaluation, gradient, !(is_bad_array(evaluation) || is_bad_array(gradient))
 end
 
 function eval_grad_tree_array(
-    tree::Node{T1},
-    cX::AbstractMatrix{T2},
-    operators::OperatorEnum;
-    variable::Bool=false,
-    turbo::Bool=false,
+    tree::Node{T1}, cX::AbstractMatrix{T2}, operators::OperatorEnum; variable::Bool=false
 ) where {T1<:Number,T2<:Number}
     T = promote_type(T1, T2)
     return eval_grad_tree_array(
-        convert(Node{T}, tree),
-        convert(AbstractMatrix{T}, cX),
-        operators;
-        variable=variable,
-        turbo=turbo,
+        convert(Node{T}, tree), convert(AbstractMatrix{T}, cX), operators; variable=variable
     )
 end
 
@@ -252,10 +225,7 @@ function _eval_grad_tree_array(
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     ::Val{variable},
-    ::Val{turbo},
-)::Tuple{
-    AbstractVector{T},AbstractMatrix{T},Bool
-} where {T<:Number,variable,turbo,n_gradients}
+)::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Number,variable,n_gradients}
     if tree.degree == 0
         grad_deg0_eval(tree, Val(n_gradients), index_tree, cX, Val(variable))
     elseif tree.degree == 1
@@ -268,7 +238,6 @@ function _eval_grad_tree_array(
             operators.diff_unaops[tree.op],
             operators,
             Val(variable),
-            Val(turbo),
         )
     else
         grad_deg2_eval(
@@ -280,7 +249,6 @@ function _eval_grad_tree_array(
             operators.diff_binops[tree.op],
             operators,
             Val(variable),
-            Val(turbo),
         )
     end
 end
@@ -319,16 +287,15 @@ function grad_deg1_eval(
     diff_op::dF,
     operators::OperatorEnum,
     ::Val{variable},
-    ::Val{turbo},
 )::Tuple{
     AbstractVector{T},AbstractMatrix{T},Bool
-} where {T<:Number,F,dF,variable,turbo,n_gradients}
+} where {T<:Number,F,dF,variable,n_gradients}
     (cumulator, dcumulator, complete) = eval_grad_tree_array(
-        tree.l, Val(n_gradients), index_tree.l, cX, operators, Val(variable), Val(turbo)
+        tree.l, Val(n_gradients), index_tree.l, cX, operators, Val(variable)
     )
     @return_on_false2 complete cumulator dcumulator
 
-    @maybe_turbo turbo for j in axes(cumulator, 1)
+    @inbounds @simd for j in axes(cumulator, 1)
         x = op(cumulator[j])::T
         dx = diff_op(cumulator[j])::T
 
@@ -349,20 +316,19 @@ function grad_deg2_eval(
     diff_op::dF,
     operators::OperatorEnum,
     ::Val{variable},
-    ::Val{turbo},
 )::Tuple{
     AbstractVector{T},AbstractMatrix{T},Bool
-} where {T<:Number,F,dF,variable,turbo,n_gradients}
+} where {T<:Number,F,dF,variable,n_gradients}
     (cumulator1, dcumulator1, complete) = eval_grad_tree_array(
-        tree.l, Val(n_gradients), index_tree.l, cX, operators, Val(variable), Val(turbo)
+        tree.l, Val(n_gradients), index_tree.l, cX, operators, Val(variable)
     )
     @return_on_false2 complete cumulator1 dcumulator1
     (cumulator2, dcumulator2, complete2) = eval_grad_tree_array(
-        tree.r, Val(n_gradients), index_tree.r, cX, operators, Val(variable), Val(turbo)
+        tree.r, Val(n_gradients), index_tree.r, cX, operators, Val(variable)
     )
     @return_on_false2 complete2 cumulator1 dcumulator1
 
-    @maybe_turbo turbo for j in axes(cumulator1, 1)
+    @inbounds @simd for j in axes(cumulator1, 1)
         c1 = cumulator1[j]
         c2 = cumulator2[j]
         x = op(c1, c2)::T
