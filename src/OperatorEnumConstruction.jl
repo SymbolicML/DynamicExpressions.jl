@@ -6,18 +6,17 @@ import ..EvaluateEquationModule: eval_tree_array
 import ..EvaluateEquationDerivativeModule: eval_grad_tree_array
 import ..EvaluationHelpersModule: _grad_evaluator
 
-"""Lazy load Zygote to reduce startup time."""
-function load_zygote()::Module
+const ZygoteLoaded = Ref(false)
+const ZygoteLock = Threads.SpinLock()
+function load_zygote()
+    ZygoteLoaded.x && return nothing
     lock(ZygoteLock) do
-        if isempty(ZygoteBox)
-            @eval import Zygote as _Zygote
-            push!(ZygoteBox, _Zygote)
-        end
-        return only(ZygoteBox)
+        ZygoteLoaded.x && return nothing
+        @eval import Zygote: gradient
+        ZygoteLoaded.x = true
+        return nothing
     end
 end
-const ZygoteBox = Module[]
-const ZygoteLock = Threads.SpinLock()
 
 function create_evaluation_helpers!(operators::OperatorEnum)
     @eval begin
@@ -247,17 +246,15 @@ function OperatorEnum(;
 end
 
 function generate_diff_operators(binary_operators, unary_operators)
+    load_zygote()
     diff_bin = Function[]
     diff_una = Function[]
-
-    Zygote = load_zygote()
-    gradient = Zygote.gradient
     for op in binary_operators
-        diff_op(x, y) = Base.invokelatest(gradient, op, x, y)
+        diff_op(x, y) = gradient(op, x, y)
         push!(diff_bin, diff_op)
     end
     for op in unary_operators
-        diff_op(x) = Base.invokelatest(gradient, op, x)[1]
+        diff_op(x) = gradient(op, x)[1]
         push!(diff_una, diff_op)
     end
     return diff_bin, diff_una
