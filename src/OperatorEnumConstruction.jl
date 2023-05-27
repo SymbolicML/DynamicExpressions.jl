@@ -6,8 +6,18 @@ import ..EvaluateEquationModule: eval_tree_array
 import ..EvaluateEquationDerivativeModule: eval_grad_tree_array
 import ..EvaluationHelpersModule: _grad_evaluator
 
-import LazyModules: @lazy
-@lazy import Zygote as LazyZygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
+"""Lazy load Zygote to reduce startup time."""
+function load_zygote()::Module
+    lock(ZygoteLock) do
+        if isempty(ZygoteBox)
+            @eval import Zygote as _Zygote
+            push!(ZygoteBox, _Zygote)
+        end
+        return only(ZygoteBox)
+    end
+end
+const ZygoteBox = Module[]
+const ZygoteLock = Threads.SpinLock()
 
 function create_evaluation_helpers!(operators::OperatorEnum)
     @eval begin
@@ -220,24 +230,13 @@ function OperatorEnum(;
     binary_operators = Function[op for op in binary_operators]
     unary_operators = Function[op for op in unary_operators]
 
-    diff_binary_operators = Function[]
-    diff_unary_operators = Function[]
-
-    if enable_autodiff
-        gradient = LazyZygote.gradient
-        for op in binary_operators
-            diff_op(x, y) = gradient(op, x, y)
-            push!(diff_binary_operators, diff_op)
-        end
-        for op in unary_operators
-            diff_op(x) = gradient(op, x)[1]
-            push!(diff_unary_operators, diff_op)
-        end
+    diff_bin, diff_una = if enable_autodiff
+        generate_diff_operators(binary_operators, unary_operators)
+    else
+        Function[], Function[]
     end
 
-    operators = OperatorEnum(
-        binary_operators, unary_operators, diff_binary_operators, diff_unary_operators
-    )
+    operators = OperatorEnum(binary_operators, unary_operators, diff_bin, diff_una)
 
     if define_helper_functions
         @extend_operators_base operators
@@ -245,6 +244,24 @@ function OperatorEnum(;
     end
 
     return operators
+end
+
+function generate_diff_operators(binary_operators, unary_operators)
+    diff_bin = Function[]
+    diff_una = Function[]
+
+    Zygote = load_zygote()
+    gradient = Zygote.gradient
+    for op in binary_operators
+        diff_op(x, y) = gradient(op, x, y)
+        push!(diff_bin, diff_op)
+    end
+    for op in unary_operators
+        diff_op(x) = gradient(op, x)[1]
+        push!(diff_una, diff_op)
+    end
+
+    return diff_bin, diff_una
 end
 
 """
