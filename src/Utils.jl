@@ -1,7 +1,7 @@
 """Useful functions to be used throughout the library."""
 module UtilsModule
 
-using LoopVectorization: @turbo
+using LoopVectorization: @turbo, vmapreduce
 using MacroTools: postwalk, @capture, splitdef, combinedef
 
 """Remove all type assertions in an expression."""
@@ -74,8 +74,15 @@ macro return_on_false2(flag, retval, retval2)
 end
 
 # Fastest way to check for NaN in an array.
-# (due to optimizations in sum())
-is_bad_array(array) = !(isempty(array) || isfinite(sum(array)))
+# Thanks @mikmore https://discourse.julialang.org/t/fastest-way-to-check-for-inf-or-nan-in-an-array/76954/33?u=milescranmer
+is_bad_array(x) = !is_good_array(x)
+function is_good_array(x::AbstractArray{T}) where {T}
+    isempty(x) && return true
+    IS_WINDOWS && return sum(xi -> xi * zero(xi), x) == zero(T)
+    return vmapreduce(xi -> xi * zero(xi), +, x) == zero(T)
+end
+const IS_WINDOWS = Sys.iswindows()
+
 isgood(x::T) where {T<:Number} = !(isnan(x) || !isfinite(x))
 isgood(x) = true
 isbad(x) = !isgood(x)
