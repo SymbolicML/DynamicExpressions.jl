@@ -2,7 +2,7 @@ module EnzymeInterfaceModule
 
 import Enzyme: autodiff, Duplicated, Const, Forward, Reverse
 import ..EquationModule: Node, copy_node
-import ..EquationUtilsModule: set_constants, get_constants
+import ..EquationUtilsModule: set_constants!, get_constants
 import ..EvaluateEquationModule: eval_tree_array
 import ..OperatorEnumModule: OperatorEnum
 
@@ -14,7 +14,7 @@ function _eval_tree_array!(
     operators::OperatorEnum,
 ) where {T,C}
     if !(C <: Nothing)
-        set_constants(tree, constants)
+        set_constants!(tree, constants)
     end
     out, completed = eval_tree_array(tree, X, operators; turbo=false)
     if !completed
