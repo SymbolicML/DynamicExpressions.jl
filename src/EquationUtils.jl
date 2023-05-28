@@ -1,102 +1,52 @@
 module EquationUtilsModule
 
-import ..EquationModule: Node, copy_node
-
-"""
-    count_nodes_with_stack(tree::Node{T}, preallocated_stack)::Int where {T}
-
-Count the number of nodes in the tree, using a stack instead of
-recursion. While counting nodes is a quick task already, for further
-speed, using a pre-allocated stack can be signficantly faster,
-especially if you can re-use the same stack for multiple calls.
-
-# Arguments
-- `tree::Node{T}`: The tree to count the nodes of.
-- `preallocated_stack::Vector{Node{T}}`: A pre-allocated stack
-   to use for the counting. This should have a length of the
-   potential max depth of a tree. e.g., you can initialize this
-   with `Array{Node{T}}(undef, 100)` for a max depth of 100.
-"""
-function count_nodes_with_stack(
-    tree::Node{T}, preallocated_stack::Vector{Node{T}}
-)::Int where {T}
-    preallocated_stack[1] = tree
-    count = 0
-    i = 1
-    while i !== 0
-        head = preallocated_stack[i]
-        i -= 1
-        count += 1
-        if head.degree == 1
-            i += 1
-            preallocated_stack[i] = head.l
-        elseif head.degree == 2
-            i += 1
-            preallocated_stack[i] = head.l
-            i += 1
-            preallocated_stack[i] = head.r
-        end
-    end
-    return count
-end
+import Compat: Returns
+import ..EquationModule: Node, copy_node, tree_mapreduce, any, filter_map
 
 """
     count_nodes(tree::Node{T})::Int where {T}
 
 Count the number of nodes in the tree.
-
-# Arguments
-- `tree::Node{T}`: The tree to count the nodes of.
 """
-function count_nodes(tree::Node{T})::Int where {T}
-    if tree.degree == 0
-        return 1
-    elseif tree.degree == 1
-        return 1 + count_nodes(tree.l)
-    else
-        return 1 + count_nodes(tree.l) + count_nodes(tree.r)
-    end
+count_nodes(tree::Node) = tree_mapreduce(_ -> 1, +, tree)
+# This code is given as an example. Normally we could just use sum(Returns(1), tree).
+
+"""
+    count_depth(tree::Node{T})::Int where {T}
+
+Compute the max depth of the tree.
+"""
+function count_depth(tree::Node)
+    return tree_mapreduce(Returns(1), (p, child...) -> p + max(child...), tree)
 end
 
-# Count the max depth of a tree
-function count_depth(tree::Node)::Int
-    if tree.degree == 0
-        return 1
-    elseif tree.degree == 1
-        return 1 + count_depth(tree.l)
-    else
-        return 1 + max(count_depth(tree.l), count_depth(tree.r))
-    end
-end
+"""
+    is_node_constant(tree::Node)::Bool
 
-function has_operators(tree::Node)::Bool
-    return tree.degree > 0
-end
+Check if the current node in a tree is constant.
+"""
+@inline is_node_constant(tree::Node) = tree.degree == 0 && tree.constant
 
-# Count the number of constants in an equation
-function count_constants(tree::Node)::Int
-    if tree.degree == 0
-        if tree.constant
-            return 1
-        else
-            return 0
-        end
-    elseif tree.degree == 1
-        return 0 + count_constants(tree.l)
-    else
-        return 0 + count_constants(tree.l) + count_constants(tree.r)
-    end
-end
+"""
+    count_constants(tree::Node)::Int
 
-function has_constants(tree::Node)::Bool
-    if tree.degree == 0
-        return tree.constant
-    elseif tree.degree == 1
-        return has_constants(tree.l)
-    else
-        return has_constants(tree.l) || has_constants(tree.r)
-    end
-end
+Count the number of constants in a tree.
+"""
+count_constants(tree::Node) = count(is_node_constant, tree)
+
+"""
+    has_constants(tree::Node)::Bool
+
+Check if a tree has any constants.
+"""
+has_constants(tree::Node) = any(is_node_constant, tree)
+
+"""
+    has_operators(tree::Node)::Bool
+
+Check if a tree has any operators.
+"""
+has_operators(tree::Node) = tree.degree !== 0
 
 """
     is_constant(tree::Node)::Bool
@@ -104,45 +54,38 @@ end
 Check if an expression is a constant numerical value, or
 whether it depends on input features.
 """
-function is_constant(tree::Node)::Bool
-    if tree.degree == 0
-        return tree.constant
-    elseif tree.degree == 1
-        return is_constant(tree.l)
-    else
-        return is_constant(tree.l) && is_constant(tree.r)
-    end
+is_constant(tree::Node) = all(t -> t.degree !== 0 || t.constant, tree)
+
+"""
+    get_constants(tree::Node{T})::Vector{T} where {T}
+
+Get all the constants inside a tree, in depth-first order.
+The function `set_constants!` sets them in the same order,
+given the output of this function.
+"""
+function get_constants(tree::Node{T}) where {T}
+    return filter_map(is_node_constant, t -> (t.val::T), tree, T)
 end
 
-# Get all the constants from a tree
-function get_constants(tree::Node{T})::AbstractVector{T} where {T}
-    if tree.degree == 0
-        if tree.constant
-            return [tree.val::T]
-        else
-            return T[]
-        end
-    elseif tree.degree == 1
-        return get_constants(tree.l)
-    else
-        both = [get_constants(tree.l), get_constants(tree.r)]
-        return [constant for subtree in both for constant in subtree]
-    end
-end
+"""
+    set_constants!(tree::Node{T}, constants::AbstractVector{T}) where {T}
 
-# Set all the constants inside a tree
-function set_constants(tree::Node{T}, constants::AbstractVector{T}) where {T}
+Set the constants in a tree, in depth-first order.
+The function `get_constants` gets them in the same order,
+"""
+function set_constants!(tree::Node{T}, constants::AbstractVector{T}) where {T}
     if tree.degree == 0
         if tree.constant
             tree.val = constants[1]
         end
     elseif tree.degree == 1
-        set_constants(tree.l, constants)
+        set_constants!(tree.l, constants)
     else
         numberLeft = count_constants(tree.l)
-        set_constants(tree.l, constants)
-        set_constants(tree.r, constants[(numberLeft + 1):end])
+        set_constants!(tree.l, constants)
+        set_constants!(tree.r, @view constants[(numberLeft + 1):end])
     end
+    return nothing
 end
 
 ## Assign index to nodes of a tree
@@ -162,12 +105,12 @@ end
 
 function index_constants(tree::Node, left_index::Int)::NodeIndex
     index_tree = NodeIndex()
-    index_constants(tree, index_tree, left_index)
+    index_constants!(tree, index_tree, left_index)
     return index_tree
 end
 
 # Count how many constants to the left of this node, and put them in a tree
-function index_constants(tree::Node, index_tree::NodeIndex, left_index::Int)
+function index_constants!(tree::Node, index_tree::NodeIndex, left_index::Int)
     if tree.degree == 0
         if tree.constant
             index_tree.constant_index = left_index + 1
@@ -175,15 +118,16 @@ function index_constants(tree::Node, index_tree::NodeIndex, left_index::Int)
     elseif tree.degree == 1
         index_tree.constant_index = count_constants(tree.l)
         index_tree.l = NodeIndex()
-        index_constants(tree.l, index_tree.l, left_index)
+        index_constants!(tree.l, index_tree.l, left_index)
     else
         index_tree.l = NodeIndex()
         index_tree.r = NodeIndex()
-        index_constants(tree.l, index_tree.l, left_index)
+        index_constants!(tree.l, index_tree.l, left_index)
         index_tree.constant_index = count_constants(tree.l)
         left_index_here = left_index + index_tree.constant_index
-        index_constants(tree.r, index_tree.r, left_index_here)
+        index_constants!(tree.r, index_tree.r, left_index_here)
     end
+    return nothing
 end
 
 end

@@ -93,3 +93,11 @@ end
 @safetestset "Test precompilation" begin
     include("test_precompilation.jl")
 end
+
+@safetestset "Test Base" begin
+    include("test_base.jl")
+end
+
+@safetestset "Test containers preserved" begin
+    include("test_container_preserved.jl")
+end

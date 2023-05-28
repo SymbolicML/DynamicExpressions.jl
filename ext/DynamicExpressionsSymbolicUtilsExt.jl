@@ -1,9 +1,19 @@
-module InterfaceSymbolicUtilsModule
+module DynamicExpressionsSymbolicUtilsExt
 
-using SymbolicUtils
-import ..EquationModule: Node, DEFAULT_NODE_TYPE
-import ..OperatorEnumModule: AbstractOperatorEnum
-import ..UtilsModule: isgood, isbad, @return_on_false
+import Base: convert
+if isdefined(Base, :get_extension)
+    using SymbolicUtils
+    import DynamicExpressions.EquationModule: Node, DEFAULT_NODE_TYPE
+    import DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
+    import DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false
+    import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
+else
+    using ..SymbolicUtils
+    import ..DynamicExpressions.EquationModule: Node, DEFAULT_NODE_TYPE
+    import ..DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
+    import ..DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false
+    import ..DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
+end
 
 const SYMBOLIC_UTILS_TYPES = Union{<:Number,SymbolicUtils.Symbolic{<:Number}}
 
@@ -91,7 +101,7 @@ function findoperation(op, ops)
     throw(error("Operation $(op) in expression not found in operations $(ops)!"))
 end
 
-function Base.convert(
+function convert(
     ::typeof(SymbolicUtils.Symbolic),
     tree::Node,
     operators::AbstractOperatorEnum;
@@ -101,7 +111,7 @@ function Base.convert(
     return node_to_symbolic(tree, operators; varMap=varMap, index_functions=index_functions)
 end
 
-function Base.convert(
+function convert(
     ::typeof(Node),
     x::Number,
     operators::AbstractOperatorEnum;
@@ -110,7 +120,7 @@ function Base.convert(
     return Node(; val=DEFAULT_NODE_TYPE(x))
 end
 
-function Base.convert(
+function convert(
     ::typeof(Node),
     expr::SymbolicUtils.Symbolic,
     operators::AbstractOperatorEnum;
@@ -181,8 +191,10 @@ function node_to_symbolic(
 end
 
 function symbolic_to_node(
-    eqn::T, operators::AbstractOperatorEnum; varMap::Union{Array{String,1},Nothing}=nothing
-)::Node where {T<:SymbolicUtils.Symbolic}
+    eqn::SymbolicUtils.Symbolic,
+    operators::AbstractOperatorEnum;
+    varMap::Union{Array{String,1},Nothing}=nothing,
+)::Node
     return convert(Node, eqn, operators; varMap=varMap)
 end
 
@@ -239,7 +251,7 @@ function multiply_powers(
         @return_on_false isgood(r) eqn
         return op(l, r), true
     else
-        # return mapreduce(multiply_powers, op, args)
+        # return tree_mapreduce(multiply_powers, op, args)
         # ## reduce(op, map(multiply_powers, args))
         out = map(multiply_powers, args) #vector of tuples
         for i in 1:size(out, 1)
