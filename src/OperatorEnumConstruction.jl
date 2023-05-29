@@ -11,6 +11,9 @@ import ..EvaluationHelpersModule: _grad_evaluator
 generate_diff_operators(::Any, ::Any) = error("`Zygote` not loaded.")
 @init @require Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f" include("zygote_interface.jl")
 #! format: on
+const ZygoteLoaded = Ref(false)
+const ZygoteWorld = Ref(UInt64(0))
+const ZygoteLock = Threads.SpinLock()
 
 function create_evaluation_helpers!(operators::OperatorEnum)
     @eval begin
@@ -224,8 +227,17 @@ function OperatorEnum(;
     unary_operators = Function[op for op in unary_operators]
 
     diff_bin, diff_una = if enable_autodiff
-        Base.require(@__MODULE__, :Zygote)
-        Base.invokelatest(generate_diff_operators, binary_operators, unary_operators)
+        !ZygoteLoaded.x && lock(ZygoteLock) do
+            # Ensure we only load Zygote once:
+            ZygoteLoaded.x && return nothing
+            Base.require(@__MODULE__, :Zygote)
+            ZygoteLoaded.x = true
+            ZygoteWorld.x = Base.get_world_counter()
+            return nothing
+        end
+        Base.invoke_in_world(
+            ZygoteWorld.x, generate_diff_operators, binary_operators, unary_operators
+        )
     else
         Function[], Function[]
     end
