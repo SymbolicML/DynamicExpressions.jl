@@ -1,19 +1,12 @@
 module OperatorEnumConstructionModule
 
-import Requires: @init, @require
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
 import ..EquationModule: string_tree, Node
 import ..EvaluateEquationModule: eval_tree_array
 import ..EvaluateEquationDerivativeModule: eval_grad_tree_array
 import ..EvaluationHelpersModule: _grad_evaluator
 
-#! format: off
-generate_diff_operators(::Any, ::Any) = error("`Zygote` not loaded.")
-@init @require Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f" include("zygote_interface.jl")
-#! format: on
-const ZygoteLoaded = Ref(false)
-const ZygoteWorld = Ref(UInt64(0))
-const ZygoteLock = Threads.SpinLock()
+generate_diff_operators(args...) = error("`Zygote` not loaded.")
 
 function create_evaluation_helpers!(operators::OperatorEnum)
     @eval begin
@@ -227,17 +220,8 @@ function OperatorEnum(;
     unary_operators = Function[op for op in unary_operators]
 
     diff_bin, diff_una = if enable_autodiff
-        !ZygoteLoaded.x && lock(ZygoteLock) do
-            # Ensure we only load Zygote once:
-            ZygoteLoaded.x && return nothing
-            Base.require(@__MODULE__, :Zygote)
-            ZygoteLoaded.x = true
-            ZygoteWorld.x = Base.get_world_counter()
-            return nothing
-        end
-        Base.invoke_in_world(
-            ZygoteWorld.x, generate_diff_operators, binary_operators, unary_operators
-        )
+        Base.require(@__MODULE__, :Zygote)
+        generate_diff_operators(binary_operators, unary_operators)
     else
         Function[], Function[]
     end

@@ -1,4 +1,12 @@
-import Zygote: gradient
+module DynamicExpressionsZygoteExt
+
+if isdefined(Base, :get_extension)
+    import Zygote: gradient
+    import DynamicExpressions: generate_diff_operators
+else
+    import ..Zygote: gradient
+    import ..DynamicExpressions: generate_diff_operators
+end
 
 make_diff_bin(op) = (x, y) -> gradient(op, x, y)
 make_diff_una(op) = x -> gradient(op, x)[1]
@@ -18,4 +26,6 @@ function generate_diff_operators(
         push!(diff_una, diff_op)
     end
     return diff_bin, diff_una
+end
+
 end

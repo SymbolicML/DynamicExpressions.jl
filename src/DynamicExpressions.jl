@@ -27,7 +27,7 @@ import Reexport: @reexport
     set_constants!
 @reexport import .OperatorEnumModule: AbstractOperatorEnum
 @reexport import .OperatorEnumConstructionModule:
-    OperatorEnum, GenericOperatorEnum, @extend_operators
+    OperatorEnum, GenericOperatorEnum, @extend_operators, generate_diff_operators
 @reexport import .EvaluateEquationModule: eval_tree_array, differentiable_eval_tree_array
 @reexport import .EvaluateEquationDerivativeModule:
     eval_diff_tree_array, eval_grad_tree_array
@@ -38,6 +38,7 @@ import Reexport: @reexport
 #! format: off
 if !isdefined(Base, :get_extension)
     @init @require SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b" include("../ext/DynamicExpressionsSymbolicUtilsExt.jl")
+    @init @require Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f" include("../ext/DynamicExpressionsZygoteExt.jl")
 end
 #! format: on
 

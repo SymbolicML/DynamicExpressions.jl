@@ -21,6 +21,7 @@ SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 
 [extensions]
 DynamicExpressionsSymbolicUtilsExt = "SymbolicUtils"
+DynamicExpressionsZygoteExt = "Zygote"
 
 [compat]
 Compat = "3.37, 4"
