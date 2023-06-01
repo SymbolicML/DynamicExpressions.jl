@@ -15,4 +15,6 @@ function symbolic_to_node(args...; kws...)
     )
 end
 
+generate_diff_operators(args...) = error("`Zygote` not loaded.")
+
 end

@@ -5,8 +5,7 @@ import ..EquationModule: string_tree, Node
 import ..EvaluateEquationModule: eval_tree_array
 import ..EvaluateEquationDerivativeModule: eval_grad_tree_array
 import ..EvaluationHelpersModule: _grad_evaluator
-
-generate_diff_operators(args...) = error("`Zygote` not loaded.")
+import ..ExtensionInterfaceModule: generate_diff_operators
 
 function create_evaluation_helpers!(operators::OperatorEnum)
     @eval begin
@@ -221,7 +220,7 @@ function OperatorEnum(;
 
     diff_bin, diff_una = if enable_autodiff
         Base.require(@__MODULE__, :Zygote)
-        generate_diff_operators(binary_operators, unary_operators)
+        Base.invokelatest(generate_diff_operators, binary_operators, unary_operators)
     else
         Function[], Function[]
     end

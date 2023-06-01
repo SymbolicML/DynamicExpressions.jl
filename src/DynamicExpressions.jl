@@ -3,13 +3,13 @@ module DynamicExpressions
 include("Utils.jl")
 include("OperatorEnum.jl")
 include("Equation.jl")
+include("ExtensionInterface.jl")
 include("EquationUtils.jl")
 include("EvaluateEquation.jl")
 include("EvaluateEquationDerivative.jl")
 include("EvaluationHelpers.jl")
 include("SimplifyEquation.jl")
 include("OperatorEnumConstruction.jl")
-include("ExtensionInterface.jl")
 
 import Requires: @init, @require
 import Reexport: @reexport
@@ -27,13 +27,14 @@ import Reexport: @reexport
     set_constants!
 @reexport import .OperatorEnumModule: AbstractOperatorEnum
 @reexport import .OperatorEnumConstructionModule:
-    OperatorEnum, GenericOperatorEnum, @extend_operators, generate_diff_operators
+    OperatorEnum, GenericOperatorEnum, @extend_operators
 @reexport import .EvaluateEquationModule: eval_tree_array, differentiable_eval_tree_array
 @reexport import .EvaluateEquationDerivativeModule:
     eval_diff_tree_array, eval_grad_tree_array
 @reexport import .SimplifyEquationModule: combine_operators, simplify_tree
 @reexport import .EvaluationHelpersModule
-@reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
+@reexport import .ExtensionInterfaceModule:
+    node_to_symbolic, symbolic_to_node, generate_diff_operators
 
 #! format: off
 if !isdefined(Base, :get_extension)
