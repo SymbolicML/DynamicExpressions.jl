@@ -245,7 +245,7 @@ function string_variable(feature, variable_names)
     if variable_names === nothing
         return "x" * string(feature)
     else
-        return @inbounds(variable_names[feature])
+        return variable_names[feature]
     end
 end
 
