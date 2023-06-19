@@ -1,5 +1,6 @@
 using Test
 using DynamicExpressions
+import Compat: Returns
 
 include("test_params.jl")
 
