@@ -209,7 +209,7 @@ function string_op(
     ::Val{2}, op::F, tree::Node, args...; bracketed, kws...
 )::String where {F}
     op_name = get_op_name(op)
-    if op_name in ["+", "-", "*", "/", "^"]
+    if op_name in ["+", "-", "*", "/", "^", "×"]
         l = string_tree(tree.l, args...; bracketed=false, kws...)
         r = string_tree(tree.r, args...; bracketed=false, kws...)
         if bracketed
