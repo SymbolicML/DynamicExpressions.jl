@@ -157,4 +157,13 @@ end
 
 @inline fill_similar(value, array, args...) = fill!(similar(array, args...), value)
 
+function deprecate_varmap(variable_names, varMap, func_name)
+    if varMap !== nothing
+        Base.depwarn("`varMap` is deprecated; use `variable_names` instead", func_name)
+        @assert variable_names === nothing "Cannot pass both `varMap` and `variable_names`"
+        variable_names = varMap
+    end
+    return variable_names
+end
+
 end

@@ -19,7 +19,7 @@ true_s = "((sin(cos(sin(cos(x1) * x3) * 3.0) * -0.5) + 2.0) * 5.0)"
 
 # TODO: Next, we test that custom varMaps work:
 
-s = string_tree(tree, operators; varMap=["v1", "v2", "v3"])
+s = string_tree(tree, operators; variable_names=["v1", "v2", "v3"])
 true_s = "((sin(cos(sin(cos(v1) * v3) * 3.0) * -0.5) + 2.0) * 5.0)"
 @test s == true_s
 
