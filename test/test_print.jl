@@ -67,7 +67,7 @@ end
     @test string_tree(tree, operators; f_variable=Returns("TEST")) ==
         "((TEST * TEST) + 0.5)"
     @test string_tree(
-        tree, operators; f_variable=Returns("TEST"), f_variable=Returns("TEST2")
+        tree, operators; f_variable=Returns("TEST"), f_constant=Returns("TEST2")
     ) == "((TEST * TEST) + TEST2)"
 
     # Try printing with a precision:
