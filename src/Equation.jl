@@ -190,8 +190,19 @@ const OP_NAMES = Dict(
     "safe_pow" => "^",
 )
 
-function get_op_name(op::String)
-    return get(OP_NAMES, op, op)
+@generated function get_op_name(op::F) where {F}
+    try
+        # Bit faster to just cache the name of the operator:
+        op_s = string(F.instance)
+        out = get(OP_NAMES, op_s, op_s)
+        return :($out)
+    catch
+    end
+    return quote
+        op_s = string(op)
+        out = get(OP_NAMES, op_s, op_s)
+        return out
+    end
 end
 
 function string_op(
