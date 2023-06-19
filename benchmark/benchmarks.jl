@@ -98,6 +98,7 @@ function benchmark_utilities()
         :is_constant,
         :get_set_constants!,
         :index_constants,
+        :string_tree,
     )
 
     operators = OperatorEnum(; binary_operators=[+, -, /, *], unary_operators=[cos, exp])
@@ -115,7 +116,7 @@ function benchmark_utilities()
                         tree;
                         preserve_sharing=(k == :preserve_sharing),
                     )
-                elseif func_k in (:simplify_tree, :combine_operators)
+                elseif func_k in (:simplify_tree, :combine_operators, :string_tree)
                     g = getfield(@__MODULE__, func_k)
                     tree -> f_tree_op(g, tree, operators)
                 else
