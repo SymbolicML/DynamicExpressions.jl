@@ -195,80 +195,102 @@ function get_op_name(op::String)
 end
 
 function string_op(
-    op::F,
-    tree::Node,
-    operators::AbstractOperatorEnum;
-    bracketed::Bool=false,
-    variable_names::Union{Array{String,1},Nothing}=nothing,
-    # Deprecated
-    varMap=nothing,
+    ::Val{2}, op::F, tree::Node, args...; bracketed, kws...
 )::String where {F}
-    variable_names = deprecate_varmap(variable_names, varMap, :string_op)
     op_name = get_op_name(string(op))
     if op_name in ["+", "-", "*", "/", "^"]
-        l = string_tree(tree.l, operators; bracketed=false, variable_names=variable_names)
-        r = string_tree(tree.r, operators; bracketed=false, variable_names=variable_names)
+        l = string_tree(tree.l, args...; bracketed=false, kws...)
+        r = string_tree(tree.r, args...; bracketed=false, kws...)
         if bracketed
             return "$l $op_name $r"
         else
             return "($l $op_name $r)"
         end
     else
-        l = string_tree(tree.l, operators; bracketed=true, variable_names=variable_names)
-        r = string_tree(tree.r, operators; bracketed=true, variable_names=variable_names)
+        l = string_tree(tree.l, args...; bracketed=true, kws...)
+        r = string_tree(tree.r, args...; bracketed=true, kws...)
         return "$op_name($l, $r)"
+    end
+end
+function string_op(
+    ::Val{1}, op::F, tree::Node, args...; bracketed, kws...
+)::String where {F}
+    op_name = get_op_name(string(op))
+    l = string_tree(tree.l, args...; bracketed=true, kws...)
+    return "$(op_name)($l)"
+end
+
+function string_constant(val, bracketed::Bool)
+    does_not_need_brackets = (typeof(val) <: Union{Real,AbstractArray})
+    if does_not_need_brackets || bracketed
+        string(val)
+    else
+        "(" * string(val) * ")"
+    end
+end
+
+function string_variable(feature, variable_names)
+    if variable_names === nothing
+        return "x$(feature)"
+    else
+        return @inbounds(variable_names[feature])
     end
 end
 
 """
-    string_tree(tree::Node, operators::AbstractOperatorEnum; kws...)
+    string_tree(tree::Node, operators::AbstractOperatorEnum[; bracketed, variable_names, f_variable, f_constant])
 
 Convert an equation to a string.
 
 # Arguments
+- `tree`: the tree to convert to a string
+- `operators`: the operators used to define the tree
 
-- `variable_names::Union{Array{String, 1}, Nothing}=nothing`: what variables
-    to print for each feature.
+# Keyword Arguments
+- `bracketed`: (optional) whether to put brackets around the outside.
+- `f_variable`: (optional) function to convert a variable to a string, of the form `(feature::Int, variable_names)`.
+- `f_constant`: (optional) function to convert a constant to a string, of the form `(val, bracketed::Bool)`
+- `variable_names::Union{Array{String, 1}, Nothing}=nothing`: (optional) what variables to print for each feature.
 """
 function string_tree(
     tree::Node{T},
     operators::AbstractOperatorEnum;
     bracketed::Bool=false,
+    f_variable::F1=string_variable,
+    f_constant::F2=string_constant,
     variable_names::Union{Array{String,1},Nothing}=nothing,
     # Deprecated
     varMap=nothing,
-)::String where {T}
+)::String where {T,F1<:Function,F2<:Function}
     variable_names = deprecate_varmap(variable_names, varMap, :string_tree)
     if tree.degree == 0
-        if tree.constant
-            return string_constant(tree.val::T; bracketed=bracketed)
+        if !tree.constant
+            return f_variable(tree.feature, variable_names)
         else
-            if variable_names === nothing
-                return "x$(tree.feature)"
-            else
-                return variable_names[tree.feature]
-            end
+            return f_constant(tree.val::T, bracketed)
         end
     elseif tree.degree == 1
-        op_name = get_op_name(string(operators.unaops[tree.op]))
-        return "$(op_name)($(string_tree(tree.l, operators, bracketed=true, variable_names=variable_names)))"
+        return string_op(
+            Val(1),
+            operators.unaops[tree.op],
+            tree,
+            operators;
+            bracketed,
+            f_variable,
+            f_constant,
+            variable_names,
+        )
     else
         return string_op(
+            Val(2),
             operators.binops[tree.op],
             tree,
             operators;
-            bracketed=bracketed,
-            variable_names=variable_names,
+            bracketed,
+            f_variable,
+            f_constant,
+            variable_names,
         )
-    end
-end
-
-string_constant(val::T; bracketed::Bool) where {T<:Union{Real,AbstractArray}} = string(val)
-function string_constant(val; bracketed::Bool)
-    if bracketed
-        string(val)
-    else
-        "(" * string(val) * ")"
     end
 end
 
@@ -277,23 +299,27 @@ function print_tree(
     io::IO,
     tree::Node,
     operators::AbstractOperatorEnum;
+    f_variable::F1=string_variable,
+    f_constant::F2=string_constant,
     variable_names::Union{Array{String,1},Nothing}=nothing,
     # Deprecated
     varMap=nothing,
-)
+) where {F1<:Function,F2<:Function}
     variable_names = deprecate_varmap(variable_names, varMap, :print_tree)
-    return println(io, string_tree(tree, operators; variable_names=variable_names))
+    return println(io, string_tree(tree, operators; f_variable, f_constant, variable_names))
 end
 
 function print_tree(
     tree::Node,
     operators::AbstractOperatorEnum;
+    f_variable::F1=string_variable,
+    f_constant::F2=string_constant,
     variable_names::Union{Array{String,1},Nothing}=nothing,
     # Deprecated
     varMap=nothing,
-)
+) where {F1<:Function,F2<:Function}
     variable_names = deprecate_varmap(variable_names, varMap, :print_tree)
-    return println(string_tree(tree, operators; variable_names=variable_names))
+    return println(string_tree(tree, operators; f_variable, f_constant, variable_names))
 end
 
 end
