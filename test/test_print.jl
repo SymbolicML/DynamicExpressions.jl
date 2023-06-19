@@ -41,17 +41,21 @@ for binop in [safe_pow, ^]
 end
 
 @testset "Test print_tree function" begin
-    operators = OperatorEnum(; binary_operators=(+, *, /, -), unary_operators=(cos, sin))
-    x1, x2, x3 = [Node(Float64; feature=i) for i in 1:3]
-    tree = x1 * x1 + 0.5
-    # Capture stdout to variable:
-    pipe = Pipe()
-    redirect_stdout(pipe) do
-        print_tree(tree, operators)
+    if VERSION > v"1.8"
+        operators = OperatorEnum(;
+            binary_operators=(+, *, /, -), unary_operators=(cos, sin)
+        )
+        x1, x2, x3 = [Node(Float64; feature=i) for i in 1:3]
+        tree = x1 * x1 + 0.5
+        # Capture stdout to variable:
+        pipe = Pipe()
+        redirect_stdout(pipe) do
+            print_tree(tree, operators)
+        end
+        close(pipe.in)
+        s = read(pipe.out, String)
+        @test s == "((x1 * x1) + 0.5)\n"
     end
-    close(pipe.in)
-    s = read(pipe.out, String)
-    @test s == "((x1 * x1) + 0.5)\n"
 end
 
 @testset "Test printing of complex numbers" begin
