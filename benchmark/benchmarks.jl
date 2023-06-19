@@ -102,11 +102,11 @@ function benchmark_utilities()
     )
 
     operators = OperatorEnum(; binary_operators=[+, -, /, *], unary_operators=[cos, exp])
-
     for func_k in all_funcs
         suite[func_k] = let s = BenchmarkGroup()
             for k in (:break_sharing, :preserve_sharing)
-                k == :preserve_sharing && !(func_k in (:copy, :convert)) && continue
+                has_both_modes = func_k in (:copy, :convert)
+                k == :preserve_sharing && !has_both_modes && continue
 
                 f = if func_k == :copy
                     tree -> _copy_node(tree; preserve_sharing=(k == :preserve_sharing))
@@ -134,6 +134,9 @@ function benchmark_utilities()
                         trees=[gen_random_tree_fixed_size(n, $operators, 5, Float32) for _ in 1:ntrees]
                     )
                 )
+                if !has_both_modes
+                    s = s[k]
+                end
                 #! format: on
             end
             s
