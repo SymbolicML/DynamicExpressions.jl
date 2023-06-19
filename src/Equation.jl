@@ -208,27 +208,28 @@ end
 function string_op(
     ::Val{2}, op::F, tree::Node, args...; bracketed, kws...
 )::String where {F}
-    op_name = get_op_name(string(op))
+    op_name = get_op_name(op)
     if op_name in ["+", "-", "*", "/", "^"]
         l = string_tree(tree.l, args...; bracketed=false, kws...)
         r = string_tree(tree.r, args...; bracketed=false, kws...)
         if bracketed
-            return "$l $op_name $r"
+            return l * " " * op_name * " " * r
         else
-            return "($l $op_name $r)"
+            return "(" * l * " " * op_name * " " * r * ")"
         end
     else
         l = string_tree(tree.l, args...; bracketed=true, kws...)
         r = string_tree(tree.r, args...; bracketed=true, kws...)
-        return "$op_name($l, $r)"
+        # return "$op_name($l, $r)"
+        return op_name * "(" * l * ", " * r * ")"
     end
 end
 function string_op(
     ::Val{1}, op::F, tree::Node, args...; bracketed, kws...
 )::String where {F}
-    op_name = get_op_name(string(op))
+    op_name = get_op_name(op)
     l = string_tree(tree.l, args...; bracketed=true, kws...)
-    return "$(op_name)($l)"
+    return op_name * "(" * l * ")"
 end
 
 function string_constant(val, bracketed::Bool)
@@ -242,7 +243,7 @@ end
 
 function string_variable(feature, variable_names)
     if variable_names === nothing
-        return "x$(feature)"
+        return "x" * string(feature)
     else
         return @inbounds(variable_names[feature])
     end
