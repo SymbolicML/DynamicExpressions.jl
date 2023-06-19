@@ -130,7 +130,6 @@ function convert(
     expr::SymbolicUtils.Symbolic,
     operators::AbstractOperatorEnum;
     variable_names::Union{Array{String,1},Nothing}=nothing,
-    # Deprecated:
 )
     variable_names = deprecate_varmap(variable_names, nothing, :convert)
     if !SymbolicUtils.istree(expr)

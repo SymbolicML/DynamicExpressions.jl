@@ -55,7 +55,19 @@ jobs:
             julia --color=yes --project=. coverage.jl
         shell: bash
       - name: Coveralls
-        uses: coverallsapp/github-action@master
+        uses: coverallsapp/github-action@v2
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path-to-lcov: coverage-lcov.info
+          parallel: true
+          path-to-lcov: lcov.info
+          flag-name: julia-${{ matrix.julia-version }}-${{ matrix.os }}-${{ github.event_name }}
+
+  coveralls:
+    name: Indicate completion to coveralls
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Finish
+        uses: coverallsapp/github-action@v2
+        with:
+          parallel-finished: true
+
