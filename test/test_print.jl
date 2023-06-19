@@ -55,3 +55,25 @@ end
     tree = my_custom_op(x1, 1.0 + 2.0im)
     @test string_tree(tree, operators) == "my_custom_op(x1, 1.0 + 2.0im)"
 end
+
+@testset "Test user-define printing" begin
+    operators = OperatorEnum(;
+        default_params..., binary_operators=(+, *, /, -), unary_operators=(cos, sin)
+    )
+    @extend_operators operators
+    x1, x2, x3 = [Node(Float64; feature=i) for i in 1:3]
+    tree = x1 * x1 + 0.5
+    @test string_tree(tree, operators; f_constant=Returns("TEST")) == "((x1 * x1) + TEST)"
+    @test string_tree(tree, operators; f_variable=Returns("TEST")) ==
+        "((TEST * TEST) + 0.5)"
+    @test string_tree(
+        tree, operators; f_variable=Returns("TEST"), f_variable=Returns("TEST2")
+    ) == "((TEST * TEST) + TEST2)"
+
+    # Try printing with a precision:
+    tree = x1 * x1 + π
+    f_constant(val::Float64, args...) = string(round(val; digits=2))
+    @test string_tree(tree, operators; f_constant=f_constant) == "((x1 * x1) + 3.14)"
+    f_constant(val::Float64, args...) = string(round(val; digits=4))
+    @test string_tree(tree, operators; f_constant=f_constant) == "((x1 * x1) + 3.1416)"
+end
