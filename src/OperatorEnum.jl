@@ -12,11 +12,11 @@ Defines an enum over operators, along with their derivatives.
 - `diff_binops`: A tuple of Zygote-computed derivatives of the binary operators.
 - `diff_unaops`: A tuple of Zygote-computed derivatives of the unary operators.
 """
-struct OperatorEnum <: AbstractOperatorEnum
-    binops::Vector{Function}
-    unaops::Vector{Function}
-    diff_binops::Vector{Function}
-    diff_unaops::Vector{Function}
+struct OperatorEnum{B,U,dB,dU} <: AbstractOperatorEnum
+    binops::B
+    unaops::U
+    diff_binops::dB
+    diff_unaops::dU
 end
 
 """
@@ -29,9 +29,9 @@ Defines an enum over operators, along with their derivatives.
 - `diff_binops`: A tuple of Zygote-computed derivatives of the binary operators.
 - `diff_unaops`: A tuple of Zygote-computed derivatives of the unary operators.
 """
-struct GenericOperatorEnum <: AbstractOperatorEnum
-    binops::Vector{Function}
-    unaops::Vector{Function}
+struct GenericOperatorEnum{B,U} <: AbstractOperatorEnum
+    binops::B
+    unaops::U
 end
 
 end
