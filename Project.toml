@@ -16,6 +16,14 @@ Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
+[weakdeps]
+SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
+TermInterface = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c"
+
+[extensions]
+DynamicExpressionsSymbolicUtilsExt = "SymbolicUtils"
+DynamicExpressionsTermInterfaceExt = "TermInterface"
+
 [compat]
 Compat = "3.37, 4"
 LoopVectorization = "0.12"
@@ -24,11 +32,9 @@ PrecompileTools = "1"
 Reexport = "1"
 Requires = "1.0, 1.1, 1.2, 1.3"
 SymbolicUtils = "0.19, ^1.0.5"
+TermInterface = "0.3"
 Zygote = "0.6"
 julia = "1.6"
-
-[extensions]
-DynamicExpressionsSymbolicUtilsExt = "SymbolicUtils"
 
 [extras]
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
@@ -36,10 +42,8 @@ SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
+TermInterface = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "SafeTestsets", "SpecialFunctions", "ForwardDiff", "StaticArrays", "SymbolicUtils"]
-
-[weakdeps]
-SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
+test = ["Test", "SafeTestsets", "SpecialFunctions", "ForwardDiff", "StaticArrays", "SymbolicUtils", "TermInterface"]

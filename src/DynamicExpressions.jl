@@ -9,6 +9,7 @@ include("EvaluateEquationDerivative.jl")
 include("EvaluationHelpers.jl")
 include("SimplifyEquation.jl")
 include("OperatorEnumConstruction.jl")
+include("SelfContainedEquation.jl")
 include("ExtensionInterface.jl")
 
 import Requires: @init, @require
@@ -33,11 +34,13 @@ import Reexport: @reexport
     eval_diff_tree_array, eval_grad_tree_array
 @reexport import .SimplifyEquationModule: combine_operators, simplify_tree
 @reexport import .EvaluationHelpersModule
+@reexport import .SelfContainedEquationModule: SelfContainedNode
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 
 #! format: off
 if !isdefined(Base, :get_extension)
     @init @require SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b" include("../ext/DynamicExpressionsSymbolicUtilsExt.jl")
+    @init @require TermInterface = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c" include("../ext/DynamicExpressionsTermInterfaceExt.jl")
 end
 #! format: on
 
