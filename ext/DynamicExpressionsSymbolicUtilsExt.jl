@@ -4,16 +4,20 @@ import Base: convert
 #! format: off
 if isdefined(Base, :get_extension)
     using SymbolicUtils
+    import SymbolicUtils: istree, operation, arguments, similarterm, symtype
     import DynamicExpressions.EquationModule: Node, DEFAULT_NODE_TYPE
     import DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
     import DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false, deprecate_varmap
     import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
+    import DynamicExpressions.SelfContainedEquationModule: SelfContainedNode
 else
     using ..SymbolicUtils
+    import ..SymbolicUtils: istree, operation, arguments, similarterm, symtype
     import ..DynamicExpressions.EquationModule: Node, DEFAULT_NODE_TYPE
     import ..DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
     import ..DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false, deprecate_varmap
     import ..DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
+    import ..DynamicExpressions.SelfContainedEquationModule: SelfContainedNode
 end
 #! format: on
 
@@ -279,6 +283,44 @@ function multiply_powers(
             @return_on_false isgood(cumulator) eqn
         end
         return cumulator, true
+    end
+end
+
+#########################
+# Interface #############
+#########################
+
+istree(x::SelfContainedNode) = x.tree.degree > 0
+symtype(::S) where {T,S<:SelfContainedNode{T}} = T
+function operation(x::SelfContainedNode)
+    if x.tree.degree == 1
+        return x.operators.unaops[x.tree.op]
+    else # x.tree.degree == 2
+        return x.operators.binops[x.tree.op]
+    end
+end
+function arguments(x::S) where {S<:SelfContainedNode}
+    if x.tree.degree == 1
+        return [S(x.tree.l, x.operators)]
+    else # x.tree.degree == 2
+        return [S(x.tree.l, x.operators), S(x.tree.r, x.operators)]
+    end
+end
+function similarterm(t::S, f, args, symtype=T) where {T,OP,S<:SelfContainedNode{T,OP}}
+    #
+    if length(args) == 0
+        error("Unexpected input.")
+    elseif length(args) == 1
+        op_index = findfirst(==(f), t.operators.unaops)::Integer
+        new_node = convert(Node{T}, Node(op_index, only(args).tree))
+        return S(new_node, t.operators)
+    elseif length(args) == 2
+        op_index = findfirst(==(f), t.operators.binops)::Integer
+        new_node = convert(Node{T}, Node(op_index, args[1].tree, args[2].tree))
+        return S(new_node, t.operators)
+    else
+        l = similarterm(t, f, args[begin:(begin + 1)], symtype)
+        return similarterm(t, f, [l, args[(begin + 2):end]...], symtype)
     end
 end
 
