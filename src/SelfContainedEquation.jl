@@ -9,19 +9,21 @@ struct SelfContainedNode{T,OP<:AbstractOperatorEnum}
     operators::OP
 
     function SelfContainedNode(
-        tree::N, operators::_OP
-    ) where {_T,N<:Node{_T},_OP<:AbstractOperatorEnum}
+        tree::Node{_T}, operators::_OP
+    ) where {_T,_OP<:AbstractOperatorEnum}
         return new{_T,_OP}(tree, operators)
     end
     function SelfContainedNode{_T,_OP}(
-        tree::N, operators::_OP
-    ) where {_T,N<:Node{_T},_OP<:AbstractOperatorEnum}
+        tree::Node{_T}, operators::_OP
+    ) where {_T,_OP<:AbstractOperatorEnum}
         return new{_T,_OP}(tree, operators)
     end
 end
 
 Base.one(x::SelfContainedNode) = SelfContainedNode(one(x.tree), x.operators)
 Base.zero(x::SelfContainedNode) = SelfContainedNode(zero(x.tree), x.operators)
+Base.isequal(a::S, b::S) where {S<:SelfContainedNode} = isequal(a.tree, b.tree)
+Base.hash(a::S) where {S<:SelfContainedNode} = hash((a.tree, a.operators))
 
 function Base.promote(a::S, b::Number) where {TS,S<:SelfContainedNode{TS}}
     n = Node(TS; val=b)

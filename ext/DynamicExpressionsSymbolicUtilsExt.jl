@@ -4,7 +4,7 @@ import Base: convert
 #! format: off
 if isdefined(Base, :get_extension)
     using SymbolicUtils
-    import SymbolicUtils: istree, operation, arguments, similarterm, symtype
+    import SymbolicUtils: istree, operation, arguments, similarterm, symtype, issym, arity, metadata, simplify
     import DynamicExpressions.EquationModule: Node, DEFAULT_NODE_TYPE
     import DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
     import DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false, deprecate_varmap, mustfindfirst
@@ -12,7 +12,7 @@ if isdefined(Base, :get_extension)
     import DynamicExpressions.SelfContainedEquationModule: SelfContainedNode
 else
     using ..SymbolicUtils
-    import ..SymbolicUtils: istree, operation, arguments, similarterm, symtype
+    import ..SymbolicUtils: istree, operation, arguments, similarterm, symtype, issym, arity, metadata, simplify
     import ..DynamicExpressions.EquationModule: Node, DEFAULT_NODE_TYPE
     import ..DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
     import ..DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false, deprecate_varmap, mustfindfirst
@@ -286,41 +286,70 @@ function multiply_powers(
     end
 end
 
-#########################
-# Interface #############
-#########################
+###############################################
+# Direct Simplification Interface #############
+###############################################
 
-istree(x::SelfContainedNode) = x.tree.degree > 0
+arity(x::SelfContainedNode) = x.tree.degree
+istree(x::SelfContainedNode) = arity(x) > 0
 symtype(::S) where {T,S<:SelfContainedNode{T}} = T
 function operation(x::SelfContainedNode)
-    if x.tree.degree == 1
+    if arity(x) == 1
         return x.operators.unaops[x.tree.op]
-    else # x.tree.degree == 2
+    elseif arity(x) == 2
         return x.operators.binops[x.tree.op]
+    else
+        error("Unexpected degree $(x.tree.degree).")
     end
 end
-function arguments(x::S) where {S<:SelfContainedNode}
-    if x.tree.degree == 1
-        return [S(x.tree.l, x.operators)]
-    else # x.tree.degree == 2
-        return [S(x.tree.l, x.operators), S(x.tree.r, x.operators)]
+function unsorted_arguments(x::S) where {T,S<:SelfContainedNode{T}}
+    if arity(x) == 0
+        return Any[]
+    elseif arity(x) == 1
+        return Any[isconstant(x.tree.l) ? x.tree.l.val::T : S(x.tree.l, x.operators)]
+    elseif arity(x) == 2
+        return Any[
+            isconstant(x.tree.l) ? x.tree.l.val::T : S(x.tree.l, x.operators),
+            isconstant(x.tree.r) ? x.tree.r.val::T : S(x.tree.r, x.operators),
+        ]
     end
 end
-function similarterm(t::S, f, args, symtype=nothing) where {S<:SelfContainedNode}
-    if length(args) == 0
-        error("Unexpected input.")
-    elseif length(args) == 1
-        op_index = mustfindfirst(f, t.operators.unaops)::Integer
-        new_node = Node(op_index, only(args).tree)
+function arguments(x::S) where {T,S<:SelfContainedNode{T}}
+    return unsorted_arguments(x)
+end
+function similarterm(
+    t::S, f::F, args::AbstractArray, symtype=nothing; kws...
+)::S where {T,S<:SelfContainedNode{T},F<:Function}
+    if length(args) > 2
+        l = similarterm(t, f, args[begin:(begin + 1)], symtype; kws...)
+        return similarterm(t, f, [l, args[(begin + 2):end]...], symtype; kws...)
+    end
+    if length(args) == 1
+        op_index = mustfindfirst(f, t.operators.unaops)
+        new_node = Node(op_index, to_node(T, op_index, args[1]))
         return S(new_node, t.operators)
     elseif length(args) == 2
-        op_index = mustfindfirst(f, t.operators.binops)::Integer
-        new_node = Node(op_index, args[1].tree, args[2].tree)
+        op_index = mustfindfirst(f, t.operators.binops)
+        new_node = if all(isconstant, args)
+            to_node(T, op_index, f(args...))
+        else
+            Node(op_index, [to_node(T, op_index, arg) for arg in args]...)
+        end
         return S(new_node, t.operators)
     else
-        l = similarterm(t, f, args[begin:(begin + 1)], symtype)
-        return similarterm(t, f, [l, args[(begin + 2):end]...], symtype)
+        error("Unexpected length $(length(args)).")
     end
+end
+
+# Helper functions for interface
+isconstant(x::SelfContainedNode) = isconstant(x.tree)
+isconstant(x::Node) = x.degree == 0 && x.constant
+isconstant(::Number) = true
+to_node(::Type{T}, op_index, x::SelfContainedNode{T}) where {T} = Node(op_index, x.tree)
+to_node(::Type{T}, op_index, x::Number) where {T} = Node(T; val=x)
+
+function simplify(x::Node, operators::AbstractOperatorEnum, args...; kws...)
+    return simplify(SelfContainedNode(x, operators), args...; kws...)
 end
 
 end
