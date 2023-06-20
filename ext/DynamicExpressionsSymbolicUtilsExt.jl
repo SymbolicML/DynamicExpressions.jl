@@ -7,7 +7,7 @@ if isdefined(Base, :get_extension)
     import SymbolicUtils: istree, operation, arguments, similarterm, symtype
     import DynamicExpressions.EquationModule: Node, DEFAULT_NODE_TYPE
     import DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
-    import DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false, deprecate_varmap
+    import DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false, deprecate_varmap, mustfindfirst
     import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
     import DynamicExpressions.SelfContainedEquationModule: SelfContainedNode
 else
@@ -15,7 +15,7 @@ else
     import ..SymbolicUtils: istree, operation, arguments, similarterm, symtype
     import ..DynamicExpressions.EquationModule: Node, DEFAULT_NODE_TYPE
     import ..DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
-    import ..DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false, deprecate_varmap
+    import ..DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false, deprecate_varmap, mustfindfirst
     import ..DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
     import ..DynamicExpressions.SelfContainedEquationModule: SelfContainedNode
 end
@@ -306,17 +306,16 @@ function arguments(x::S) where {S<:SelfContainedNode}
         return [S(x.tree.l, x.operators), S(x.tree.r, x.operators)]
     end
 end
-function similarterm(t::S, f, args, symtype=T) where {T,OP,S<:SelfContainedNode{T,OP}}
-    #
+function similarterm(t::S, f, args, symtype=nothing) where {S<:SelfContainedNode}
     if length(args) == 0
         error("Unexpected input.")
     elseif length(args) == 1
-        op_index = findfirst(==(f), t.operators.unaops)::Integer
-        new_node = convert(Node{T}, Node(op_index, only(args).tree))
+        op_index = mustfindfirst(f, t.operators.unaops)::Integer
+        new_node = Node(op_index, only(args).tree)
         return S(new_node, t.operators)
     elseif length(args) == 2
-        op_index = findfirst(==(f), t.operators.binops)::Integer
-        new_node = convert(Node{T}, Node(op_index, args[1].tree, args[2].tree))
+        op_index = mustfindfirst(f, t.operators.binops)::Integer
+        new_node = Node(op_index, args[1].tree, args[2].tree)
         return S(new_node, t.operators)
     else
         l = similarterm(t, f, args[begin:(begin + 1)], symtype)

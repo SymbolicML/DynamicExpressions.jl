@@ -40,7 +40,6 @@ import Reexport: @reexport
 #! format: off
 if !isdefined(Base, :get_extension)
     @init @require SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b" include("../ext/DynamicExpressionsSymbolicUtilsExt.jl")
-    @init @require TermInterface = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c" include("../ext/DynamicExpressionsTermInterfaceExt.jl")
 end
 #! format: on
 

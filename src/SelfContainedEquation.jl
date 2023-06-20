@@ -2,6 +2,7 @@ module SelfContainedEquationModule
 
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..EquationModule: Node, string_tree
+import ..UtilsModule: mustfindfirst
 
 struct SelfContainedNode{T,OP<:AbstractOperatorEnum}
     tree::Node{T}
@@ -70,11 +71,5 @@ for unaop in (
 end
 
 Base.:+(a::SelfContainedNode) = a
-
-function mustfindfirst(el, container)::Integer
-    i = findfirst(==(el), container)
-    i === nothing && error("Could not find element $(el) in container $(container)")
-    return i
-end
 
 end

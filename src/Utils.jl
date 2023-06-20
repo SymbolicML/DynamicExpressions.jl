@@ -166,4 +166,16 @@ function deprecate_varmap(variable_names, varMap, func_name)
     return variable_names
 end
 
+"""
+    mustfindfirst(el, container)
+
+Find the index of the first element in `container` that is equal to `el`.
+If no such element exists, throw an error.
+"""
+function mustfindfirst(el, container)::Integer
+    i = findfirst(==(el), container)
+    i === nothing && error("Could not find element $(el) in container $(container)")
+    return i
+end
+
 end
