@@ -88,6 +88,11 @@ function set_constants!(tree::Node{T}, constants::AbstractVector{T}) where {T}
     return nothing
 end
 
+Base.one(::Type{N}) where {T,N<:Node{T}} = Node(T; val=one(T))
+Base.one(::N) where {N<:Node} = one(N)
+Base.zero(::Type{N}) where {T,N<:Node{T}} = Node(T; val=zero(T))
+Base.zero(::N) where {N<:Node} = zero(N)
+
 ## Assign index to nodes of a tree
 # This will mirror a Node struct, rather
 # than adding a new attribute to Node.
