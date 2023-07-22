@@ -7,6 +7,8 @@ import ..UtilsModule: @return_on_false2, @maybe_turbo, is_bad_array, fill_simila
 import ..EquationUtilsModule: count_constants, index_constants, NodeIndex
 import ..EvaluateEquationModule: deg0_eval
 
+_zygote_gradient(args...) = error("Please load the Zygote.jl package.")
+
 function assert_autodiff_enabled(operators::OperatorEnum)
     if length(operators.diff_binops) == 0 && length(operators.diff_unaops) == 0
         error(

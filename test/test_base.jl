@@ -1,6 +1,7 @@
 using DynamicExpressions
 using Random
 using Test
+using Zygote
 
 operators = OperatorEnum(;
     binary_operators=[+, -, *, /], unary_operators=[cos, sin], enable_autodiff=true

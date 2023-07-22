@@ -1,6 +1,7 @@
 using DynamicExpressions
 using StaticArrays
 using Test
+using Zygote
 
 @testset "StaticArrays type preserved" begin
     for T in (Float32, Float64)

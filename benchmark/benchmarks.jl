@@ -1,5 +1,6 @@
 using DynamicExpressions, BenchmarkTools, Random
 using DynamicExpressions.EquationUtilsModule: is_constant
+using Zygote
 
 include("benchmark_utils.jl")
 
