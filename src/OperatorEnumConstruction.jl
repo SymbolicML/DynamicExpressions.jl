@@ -1,10 +1,9 @@
 module OperatorEnumConstructionModule
 
-import Zygote: gradient
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
 import ..EquationModule: string_tree, Node
 import ..EvaluateEquationModule: eval_tree_array
-import ..EvaluateEquationDerivativeModule: eval_grad_tree_array
+import ..EvaluateEquationDerivativeModule: eval_grad_tree_array, _zygote_gradient
 import ..EvaluationHelpersModule: _grad_evaluator
 
 function create_evaluation_helpers!(operators::OperatorEnum)
@@ -223,12 +222,10 @@ function OperatorEnum(;
 
     if enable_autodiff
         for op in binary_operators
-            diff_op(x, y) = gradient(op, x, y)
-            push!(diff_binary_operators, diff_op)
+            push!(diff_binary_operators, _zygote_gradient(op, Val(2)))
         end
         for op in unary_operators
-            diff_op(x) = gradient(op, x)[1]
-            push!(diff_unary_operators, diff_op)
+            push!(diff_unary_operators, _zygote_gradient(op, Val(1)))
         end
     end
 

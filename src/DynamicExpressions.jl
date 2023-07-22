@@ -11,7 +11,7 @@ include("SimplifyEquation.jl")
 include("OperatorEnumConstruction.jl")
 include("ExtensionInterface.jl")
 
-import Requires: @init, @require
+import PackageExtensionCompat: @require_extensions
 import Reexport: @reexport
 @reexport import .EquationModule:
     Node, string_tree, print_tree, copy_node, set_node!, tree_mapreduce, filter_map
@@ -35,11 +35,9 @@ import Reexport: @reexport
 @reexport import .EvaluationHelpersModule
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 
-#! format: off
-if !isdefined(Base, :get_extension)
-    @init @require SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b" include("../ext/DynamicExpressionsSymbolicUtilsExt.jl")
+function __init__()
+    @require_extensions
 end
-#! format: on
 
 include("deprecated.jl")
 

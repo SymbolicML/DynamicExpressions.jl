@@ -1,24 +1,12 @@
 module DynamicExpressionsSymbolicUtilsExt
 
-import Base: convert
-#! format: off
-if isdefined(Base, :get_extension)
-    using SymbolicUtils
-    import DynamicExpressions.EquationModule: Node, DEFAULT_NODE_TYPE
-    import DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
-    import DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false, deprecate_varmap
-    import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
-else
-    using ..SymbolicUtils
-    import ..DynamicExpressions.EquationModule: Node, DEFAULT_NODE_TYPE
-    import ..DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
-    import ..DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false, deprecate_varmap
-    import ..DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
-end
-#! format: on
+using SymbolicUtils
+import DynamicExpressions.EquationModule: Node, DEFAULT_NODE_TYPE
+import DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
+import DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false, deprecate_varmap
+import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 
 const SYMBOLIC_UTILS_TYPES = Union{<:Number,SymbolicUtils.Symbolic{<:Number}}
-
 const SUPPORTED_OPS = (cos, sin, exp, cot, tan, csc, sec, +, -, *, /)
 
 function isgood(x::SymbolicUtils.Symbolic)
@@ -106,7 +94,7 @@ function findoperation(op, ops)
     throw(error("Operation $(op) in expression not found in operations $(ops)!"))
 end
 
-function convert(
+function Base.convert(
     ::typeof(SymbolicUtils.Symbolic),
     tree::Node,
     operators::AbstractOperatorEnum;
@@ -121,11 +109,11 @@ function convert(
     )
 end
 
-function convert(::typeof(Node), x::Number, operators::AbstractOperatorEnum; kws...)
+function Base.convert(::typeof(Node), x::Number, operators::AbstractOperatorEnum; kws...)
     return Node(; val=DEFAULT_NODE_TYPE(x))
 end
 
-function convert(
+function Base.convert(
     ::typeof(Node),
     expr::SymbolicUtils.Symbolic,
     operators::AbstractOperatorEnum;
