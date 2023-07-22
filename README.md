@@ -100,6 +100,8 @@ More importantly: we can change `expression` throughout runtime, and expect the 
 We can also compute gradients with the same speed:
 
 ```julia
+using Zygote  # trigger extension
+
 operators = OperatorEnum(;
     binary_operators=[+, -, *],
     unary_operators=[cos],
