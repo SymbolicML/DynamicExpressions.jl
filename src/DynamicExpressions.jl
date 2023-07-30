@@ -8,21 +8,14 @@ include("TypedEquations.jl")
 include("EvaluateEquation.jl")
 include("EvaluateEquationDerivative.jl")
 include("EvaluationHelpers.jl")
-include("InterfaceSymbolicUtils.jl")
 include("SimplifyEquation.jl")
 include("OperatorEnumConstruction.jl")
+include("ExtensionInterface.jl")
 
-using Reexport
+import PackageExtensionCompat: @require_extensions
+import Reexport: @reexport
 @reexport import .EquationModule:
-    Node,
-    string_tree,
-    print_tree,
-    copy_node,
-    set_node!,
-    map,
-    tree_mapreduce,
-    any,
-    filter_map
+    Node, string_tree, print_tree, copy_node, set_node!, tree_mapreduce, filter_map
 @reexport import .EquationUtilsModule:
     count_nodes,
     count_constants,
@@ -40,9 +33,13 @@ using Reexport
 @reexport import .EvaluateEquationModule: eval_tree_array, differentiable_eval_tree_array
 @reexport import .EvaluateEquationDerivativeModule:
     eval_diff_tree_array, eval_grad_tree_array
-@reexport import .InterfaceSymbolicUtilsModule: node_to_symbolic, symbolic_to_node
 @reexport import .SimplifyEquationModule: combine_operators, simplify_tree
 @reexport import .EvaluationHelpersModule
+@reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
+
+function __init__()
+    @require_extensions
+end
 
 include("deprecated.jl")
 

@@ -105,12 +105,12 @@ end
 
 function index_constants(tree::Node, left_index::Int)::NodeIndex
     index_tree = NodeIndex()
-    index_constants(tree, index_tree, left_index)
+    index_constants!(tree, index_tree, left_index)
     return index_tree
 end
 
 # Count how many constants to the left of this node, and put them in a tree
-function index_constants(tree::Node, index_tree::NodeIndex, left_index::Int)
+function index_constants!(tree::Node, index_tree::NodeIndex, left_index::Int)
     if tree.degree == 0
         if tree.constant
             index_tree.constant_index = left_index + 1
@@ -118,15 +118,16 @@ function index_constants(tree::Node, index_tree::NodeIndex, left_index::Int)
     elseif tree.degree == 1
         index_tree.constant_index = count_constants(tree.l)
         index_tree.l = NodeIndex()
-        index_constants(tree.l, index_tree.l, left_index)
+        index_constants!(tree.l, index_tree.l, left_index)
     else
         index_tree.l = NodeIndex()
         index_tree.r = NodeIndex()
-        index_constants(tree.l, index_tree.l, left_index)
+        index_constants!(tree.l, index_tree.l, left_index)
         index_tree.constant_index = count_constants(tree.l)
         left_index_here = left_index + index_tree.constant_index
-        index_constants(tree.r, index_tree.r, left_index_here)
+        index_constants!(tree.r, index_tree.r, left_index_here)
     end
+    return nothing
 end
 
 """Faster version of count_nodes(tree) <= limit"""

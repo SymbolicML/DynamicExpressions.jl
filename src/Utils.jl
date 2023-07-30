@@ -75,7 +75,7 @@ end
 
 # Fastest way to check for NaN in an array.
 # (due to optimizations in sum())
-is_bad_array(array) = !isfinite(sum(array))
+is_bad_array(array) = !(isempty(array) || isfinite(sum(array)))
 isgood(x::T) where {T<:Number} = !(isnan(x) || !isfinite(x))
 isgood(x) = true
 isbad(x) = !isgood(x)
@@ -127,13 +127,13 @@ function _memoize_on(tree::Symbol, def::Expr)
 end
 
 """
-    @with_memoization(call, id_map)
+    @with_memoize(call, id_map)
 
 This simple macro simply puts the `id_map`
 into the call, to be consistent with the `@memoize_on` macro.
 
 ```
-@with_memoization(_copy_node(tree), IdDict{Any,Any}())
+@with_memoize(_copy_node(tree), IdDict{Any,Any}())
 ````
 
 is converted to 
@@ -143,7 +143,7 @@ _copy_node(tree, IdDict{Any,Any}())
 ```
 
 """
-macro with_memoization(def, id_map)
+macro with_memoize(def, id_map)
     idmap_def = _add_idmap_to_call(def, id_map)
     return quote
         $(esc(idmap_def))
@@ -153,6 +153,17 @@ end
 function _add_idmap_to_call(def::Expr, id_map::Expr)
     @assert def.head == :call
     return Expr(:call, def.args[1], def.args[2:end]..., id_map)
+end
+
+@inline fill_similar(value, array, args...) = fill!(similar(array, args...), value)
+
+function deprecate_varmap(variable_names, varMap, func_name)
+    if varMap !== nothing
+        Base.depwarn("`varMap` is deprecated; use `variable_names` instead", func_name)
+        @assert variable_names === nothing "Cannot pass both `varMap` and `variable_names`"
+        variable_names = varMap
+    end
+    return variable_names
 end
 
 end

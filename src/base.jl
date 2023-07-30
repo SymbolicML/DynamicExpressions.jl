@@ -1,3 +1,5 @@
+"""This file is imported by Equation.jl"""
+
 import Base:
     all,
     any,
@@ -13,17 +15,15 @@ import Base:
     in,
     isempty,
     iterate,
-    keys,
     length,
     map,
-    map!,
     mapfoldl,
     mapfoldr,
     mapreduce,
     reduce,
     sum
 import Compat: @inline, Returns
-import ..UtilsModule: @memoize_on, @with_memoization
+import ..UtilsModule: @memoize_on, @with_memoize
 
 """
     tree_mapreduce(f::Function, op::Function, tree::Node, result_type::Type=Nothing)
@@ -78,30 +78,28 @@ function tree_mapreduce(
     result_type::Type{RT}=Nothing;
     preserve_sharing::Bool=false,
 ) where {T,N<:Node{T},F1<:Function,F2<:Function,G<:Function,RT}
-    if preserve_sharing && RT != Nothing
-        return @with_memoization _tree_mapreduce(f_leaf, f_branch, op, tree) IdDict{N,RT}()
-    elseif preserve_sharing
-        throw(ArgumentError("Need to specify `result_type` if you use `preserve_sharing`."))
+
+    # Trick taken from here:
+    # https://discourse.julialang.org/t/recursive-inner-functions-a-thousand-times-slower/85604/5
+    # to speed up recursive closure
+    @memoize_on t function inner(inner, t::Node)
+        if t.degree == 0
+            return @inline(f_leaf(t))
+        elseif t.degree == 1
+            return @inline(op(@inline(f_branch(t)), inner(inner, t.l)))
+        else
+            return @inline(op(@inline(f_branch(t)), inner(inner, t.l), inner(inner, t.r)))
+        end
     end
-    return _tree_mapreduce(f_leaf, f_branch, op, tree)
-end
-@memoize_on tree function _tree_mapreduce(
-    f_leaf::F1, f_branch::F2, op::G, tree::Node
-) where {F1<:Function,F2<:Function,G<:Function}
-    if tree.degree == 0
-        return @inline(f_leaf(tree))
-    elseif tree.degree == 1
-        return @inline(
-            op(@inline(f_branch(tree)), _tree_mapreduce(f_leaf, f_branch, op, tree.l))
-        )
+
+    RT == Nothing &&
+        preserve_sharing &&
+        throw(ArgumentError("Need to specify `result_type` if you use `preserve_sharing`."))
+
+    if preserve_sharing && RT != Nothing
+        return @with_memoize inner(inner, tree) IdDict{N,RT}()
     else
-        return @inline(
-            op(
-                @inline(f_branch(tree)),
-                _tree_mapreduce(f_leaf, f_branch, op, tree.l),
-                _tree_mapreduce(f_leaf, f_branch, op, tree.r),
-            )
-        )
+        return inner(inner, tree)
     end
 end
 
@@ -183,15 +181,6 @@ function filter_map!(
     end
     return nothing
 end
-
-"""
-    map!(f::Function, stack, tree::Node)
-
-Apply a function to each node in a tree, storing the results in `stack`.
-The stack must be preallocated to the correct size. If uncertain about
-the correct size, use `filter_map` instead.
-"""
-map!(f::Function, stack, tree::Node) = filter_map!(Returns(true), f, stack, tree)
 
 """
     filter(f::Function, tree::Node)
@@ -308,18 +297,15 @@ function convert(
 end
 (::Type{Node{T}})(tree::Node; kws...) where {T} = convert(Node{T}, tree; kws...)
 
-function reduce(f, tree::Node; init=nothing)
-    throw(ArgumentError("reduce is not supported for trees. Use tree_mapreduce instead."))
-end
-function foldl(f, tree::Node; init=nothing)
-    throw(ArgumentError("foldl is not supported for trees. Use tree_mapreduce instead."))
-end
-function foldr(f, tree::Node; init=nothing)
-    throw(ArgumentError("foldr is not supported for trees. Use tree_mapreduce instead."))
-end
-function mapfoldl(f, tree::Node; init=nothing)
-    throw(ArgumentError("mapfoldl is not supported for trees. Use tree_mapreduce instead."))
-end
-function mapfoldr(f, tree::Node; init=nothing)
-    throw(ArgumentError("mapfoldr is not supported for trees. Use tree_mapreduce instead."))
+for func in (:reduce, :foldl, :foldr, :mapfoldl, :mapfoldr)
+    @eval begin
+        function $func(f, tree::Node; kws...)
+            throw(
+                error(
+                    string($func) *
+                    " not implemented for Node. Use `tree_mapreduce` instead.",
+                ),
+            )
+        end
+    end
 end

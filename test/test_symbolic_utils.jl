@@ -1,3 +1,4 @@
+using SymbolicUtils
 using DynamicExpressions
 using Test
 include("test_params.jl")
@@ -12,8 +13,8 @@ operators = OperatorEnum(;
 )
 tree = Node(5, (Node(; val=3.0) * Node(1, Node("x1")))^2.0, Node(; val=-1.2))
 
-eqn = node_to_symbolic(tree, operators; varMap=["energy"], index_functions=true)
+eqn = node_to_symbolic(tree, operators; variable_names=["energy"], index_functions=true)
 @test string(eqn) == "greater(safe_pow(3.0_inv(energy), 2.0), -1.2)"
 
-tree2 = symbolic_to_node(eqn, operators; varMap=["energy"])
+tree2 = symbolic_to_node(eqn, operators; variable_names=["energy"])
 @test string_tree(tree, operators) == string_tree(tree2, operators)
