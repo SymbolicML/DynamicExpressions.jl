@@ -21,8 +21,12 @@ const LATEST_OPERATORS = Ref{Union{Nothing,AbstractOperatorEnum}}(nothing)
 const LATEST_OPERATORS_TYPE = Ref{AvailableOperatorTypes}(IsNothing)
 const LATEST_UNARY_OPERATOR_MAPPING = Dict{Function,Int}()
 const LATEST_BINARY_OPERATOR_MAPPING = Dict{Function,Int}()
-const ALREADY_DEFINED_UNARY_OPERATORS = Dict{Function,Bool}()
-const ALREADY_DEFINED_BINARY_OPERATORS = Dict{Function,Bool}()
+const ALREADY_DEFINED_UNARY_OPERATORS = (;
+    operator_enum=Dict{Function,Bool}(), generic_operator_enum=Dict{Function,Bool}()
+)
+const ALREADY_DEFINED_BINARY_OPERATORS = (;
+    operator_enum=Dict{Function,Bool}(), generic_operator_enum=Dict{Function,Bool}()
+)
 
 function Base.show(io::IO, tree::Node)
     latest_operators_type = LATEST_OPERATORS_TYPE.x
@@ -170,12 +174,18 @@ function _extend_operators(operators, skip_user_operators, __module__::Module)
     return quote
         local type_requirements
         local build_converters
+        local binary_exists
+        local unary_exists
         if isa($operators, OperatorEnum)
             type_requirements = Number
             build_converters = true
+            binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum
+            unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum
         else
             type_requirements = Any
             build_converters = false
+            binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum
+            unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum
         end
         # Trigger errors if operators are not yet defined:
         empty!($(LATEST_BINARY_OPERATOR_MAPPING))
@@ -193,9 +203,9 @@ function _extend_operators(operators, skip_user_operators, __module__::Module)
             $(LATEST_BINARY_OPERATOR_MAPPING)[func] = op
             skip && continue
             # Avoid redefining methods:
-            if !haskey($(ALREADY_DEFINED_UNARY_OPERATORS), func)
+            if !haskey(unary_exists, func)
                 eval($binary_ex)
-                $(ALREADY_DEFINED_UNARY_OPERATORS)[func] = true
+                unary_exists[func] = true
             end
         end
         for (op, func) in enumerate($(operators).unaops)
@@ -211,9 +221,9 @@ function _extend_operators(operators, skip_user_operators, __module__::Module)
             $(LATEST_UNARY_OPERATOR_MAPPING)[func] = op
             skip && continue
             # Avoid redefining methods:
-            if !haskey($(ALREADY_DEFINED_BINARY_OPERATORS), func)
+            if !haskey(binary_exists, func)
                 eval($unary_ex)
-                $(ALREADY_DEFINED_BINARY_OPERATORS)[func] = true
+                binary_exists[func] = true
             end
         end
     end
