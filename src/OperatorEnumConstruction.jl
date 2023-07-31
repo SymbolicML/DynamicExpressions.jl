@@ -31,7 +31,7 @@ const ALREADY_DEFINED_BINARY_OPERATORS = (;
 function Base.show(io::IO, tree::Node)
     latest_operators_type = LATEST_OPERATORS_TYPE.x
     if latest_operators_type == IsNothing
-        return print(io, string(tree))
+        return print(io, string_tree(tree))
     elseif latest_operators_type == IsOperatorEnum
         latest_operators = LATEST_OPERATORS.x::OperatorEnum
         return print(io, string_tree(tree, latest_operators))
