@@ -5,10 +5,13 @@ using Zygote
 # Before defining OperatorEnum, calling the implicit (deprecated)
 # syntax should fail:
 tree = Node(; feature=1)
-@test_throws ErrorException tree([1.0 2.0]')
-@test_throws "Please use the " tree([1.0 2.0]')
-@test_throws ErrorException tree'([1.0 2.0]')
-@test_throws "Please use the " tree'([1.0 2.0]')
+
+if VERSION >= v"1.8"
+    @test_throws ErrorException tree([1.0 2.0]')
+    @test_throws "Please use the " tree([1.0 2.0]')
+    @test_throws ErrorException tree'([1.0 2.0]')
+    @test_throws "Please use the " tree'([1.0 2.0]')
+end
 
 @test string(tree) == "x1"
 @test string(Node(1, tree)) == "unary_operator[1](x1)"
