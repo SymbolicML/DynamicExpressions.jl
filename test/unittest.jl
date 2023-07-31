@@ -101,3 +101,7 @@ end
 @safetestset "Test containers preserved" begin
     include("test_container_preserved.jl")
 end
+
+@safetestset "Test helpers break upon redefining" begin
+    include("test_safe_helpers.jl")
+end
