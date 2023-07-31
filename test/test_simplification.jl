@@ -51,10 +51,9 @@ x1, x2, x3 = Node("x1"), Node("x2"), Node("x3")
 pow_abs2(x, y) = abs(x)^y
 
 operators = OperatorEnum(;
-    binary_operators=(+, *, -, /, pow_abs2),
-    unary_operators=(custom_cos, exp, sin),
-    define_helper_functions,
+    binary_operators=(+, *, -, /, pow_abs2), unary_operators=(custom_cos, exp, sin)
 )
+@extend_operators operators
 tree = (
     ((x2 + x2) * ((-0.5982493 / pow_abs2(x1, x2)) / -0.54734415)) + (
         sin(
