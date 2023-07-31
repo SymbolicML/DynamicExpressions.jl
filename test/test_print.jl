@@ -32,6 +32,8 @@ for unaop in [safe_log, safe_log2, safe_log10, safe_log1p, safe_sqrt, safe_acosh
     @test string_tree(minitree, opts) == replace(string(unaop), "safe_" => "") * "(x1)"
 end
 
+!(@isdefined safe_pow) &&
+    @eval safe_pow(x::T, y::T) where {T<:Number} = (x < 0 && y != round(y)) ? T(NaN) : x^y
 for binop in [safe_pow, ^]
     opts = OperatorEnum(;
         default_params..., binary_operators=(+, *, /, -, binop), unary_operators=(cos,)
