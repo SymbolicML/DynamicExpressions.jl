@@ -54,13 +54,6 @@ function (tree::Node)(X, operators::GenericOperatorEnum; kws...)
     !did_finish && return nothing
     return out
 end
-function (tree::Node)(X; kws...)
-    ## This will be overwritten by OperatorEnumConstructionModule, and turned
-    ## into a depwarn.
-    return error(
-        "The `tree(X; kws...)` syntax is deprecated. Use `tree(X, operators; kws...)` instead.",
-    )
-end
 
 # Gradients:
 function _grad_evaluator(tree::Node, X, operators::OperatorEnum; variable=true, kws...)
@@ -72,13 +65,6 @@ function _grad_evaluator(tree::Node, X, operators::OperatorEnum; variable=true, 
 end
 function _grad_evaluator(tree::Node, X, operators::GenericOperatorEnum; kws...)
     return error("Gradients are not implemented for `GenericOperatorEnum`.")
-end
-function _grad_evaluator(tree::Node, X; kws...)
-    ## This will be overwritten by OperatorEnumConstructionModule, and turned
-    ## into a depwarn
-    return error(
-        "The `tree'(X; kws...)` syntax is deprecated. Use `tree'(X, operators; kws...)` instead.",
-    )
 end
 
 """

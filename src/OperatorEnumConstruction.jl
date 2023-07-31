@@ -6,82 +6,131 @@ import ..EvaluateEquationModule: eval_tree_array
 import ..EvaluateEquationDerivativeModule: eval_grad_tree_array, _zygote_gradient
 import ..EvaluationHelpersModule: _grad_evaluator
 
-function create_evaluation_helpers!(operators::OperatorEnum)
-    @eval begin
-        Base.print(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
-        Base.show(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
-        function (tree::Node)(X; kws...)
-            Base.depwarn(
-                "The `tree(X; kws...)` syntax is deprecated. Use `tree(X, operators; kws...)` instead.",
-                :Node,
-            )
-            return tree(X, $operators; kws...)
-        end
-        # Gradients:
-        function _grad_evaluator(tree::Node, X; kws...)
-            Base.depwarn(
-                "The `tree'(X; kws...)` syntax is deprecated. Use `tree'(X, operators; kws...)` instead.",
-                :Node,
-            )
-            return _grad_evaluator(tree, X, $operators; kws...)
-        end
+"""Used to set a default value for `operators` for ease of use."""
+@enum AvailableOperatorTypes begin
+    IsNothing
+    IsOperatorEnum
+    IsGenericOperatorEnum
+end
+
+# These constants are purely for convenience. Internal code
+# should make use of `Node`, `string_tree`, `eval_tree_array`,
+# and `eval_grad_tree_array` directly.
+
+const LATEST_OPERATORS = Ref{Union{Nothing,AbstractOperatorEnum}}(nothing)
+const LATEST_OPERATORS_TYPE = Ref{AvailableOperatorTypes}(IsNothing)
+const LATEST_UNARY_OPERATOR_MAPPING = Dict{Function,Int}()
+const LATEST_BINARY_OPERATOR_MAPPING = Dict{Function,Int}()
+const ALREADY_DEFINED_UNARY_OPERATORS = Dict{Function,Bool}()
+const ALREADY_DEFINED_BINARY_OPERATORS = Dict{Function,Bool}()
+
+function Base.show(io::IO, tree::Node)
+    latest_operators_type = LATEST_OPERATORS_TYPE.x
+    if latest_operators_type == IsNothing
+        return print(io, string(tree))
+    elseif latest_operators_type == IsOperatorEnum
+        latest_operators = LATEST_OPERATORS.x::OperatorEnum
+        return print(io, string_tree(tree, latest_operators))
+    else
+        latest_operators = LATEST_OPERATORS.x::GenericOperatorEnum
+        return print(io, string_tree(tree, latest_operators))
     end
+end
+function (tree::Node)(X; kws...)
+    Base.depwarn(
+        "The `tree(X; kws...)` syntax is deprecated. Use `tree(X, operators; kws...)` instead.",
+        :Node,
+    )
+    latest_operators_type = LATEST_OPERATORS_TYPE.x
+    if latest_operators_type == IsNothing
+        error("Please use the `tree(X, operators; kws...)` syntax instead.")
+    elseif latest_operators_type == IsOperatorEnum
+        latest_operators = LATEST_OPERATORS.x::OperatorEnum
+        return tree(X, latest_operators; kws...)
+    else
+        latest_operators = LATEST_OPERATORS.x::GenericOperatorEnum
+        return tree(X, latest_operators; kws...)
+    end
+end
+
+function _grad_evaluator(tree::Node, X; kws...)
+    Base.depwarn(
+        "The `tree'(X; kws...)` syntax is deprecated. Use `tree'(X, operators; kws...)` instead.",
+        :Node,
+    )
+    latest_operators_type = LATEST_OPERATORS_TYPE.x
+    # return _grad_evaluator(tree, X, $operators; kws...)
+    if latest_operators_type == IsNothing
+        error("Please use the `tree'(X, operators; kws...)` syntax instead.")
+    elseif latest_operators_type == IsOperatorEnum
+        latest_operators = LATEST_OPERATORS.x::OperatorEnum
+        return _grad_evaluator(tree, X, latest_operators; kws...)
+    else
+        error("Gradients are not implemented for `GenericOperatorEnum`.")
+    end
+end
+
+function create_evaluation_helpers!(operators::OperatorEnum)
+    LATEST_OPERATORS.x = operators
+    return LATEST_OPERATORS_TYPE.x = IsOperatorEnum
 end
 
 function create_evaluation_helpers!(operators::GenericOperatorEnum)
-    @eval begin
-        Base.print(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
-        Base.show(io::IO, tree::Node) = print(io, string_tree(tree, $operators))
-
-        function (tree::Node)(X; kws...)
-            Base.depwarn(
-                "The `tree(X; kws...)` syntax is deprecated. Use `tree(X, operators; kws...)` instead.",
-                :Node,
-            )
-            return tree(X, $operators; kws...)
-        end
-        function _grad_evaluator(tree::Node, X; kws...)
-            return error("Gradients are not implemented for `GenericOperatorEnum`.")
-        end
+    LATEST_OPERATORS.x = operators
+    return LATEST_OPERATORS_TYPE.x = IsGenericOperatorEnum
+end
+function lookup_op(@nospecialize(f), ::Val{degree}) where {degree}
+    mapping = degree == 1 ? LATEST_UNARY_OPERATOR_MAPPING : LATEST_BINARY_OPERATOR_MAPPING
+    if !haskey(mapping, f)
+        error(
+            "Convenience constructor for `Node` using operator `$(f)` is out-of-date. " *
+            "Please create an `OperatorEnum` (or `GenericOperatorEnum`) with " *
+            "`define_helper_functions=true` and pass `$(f)`.",
+        )
     end
+    return mapping[f]
 end
 
-function _extend_unary_operator(f::Symbol, op, type_requirements)
+function _extend_unary_operator(f::Symbol, type_requirements)
     quote
         quote
             function $($f)(l::Node{T})::Node{T} where {T<:$($type_requirements)}
                 return if (l.degree == 0 && l.constant)
                     Node(T; val=$($f)(l.val::T))
                 else
-                    Node($($op), l)
+                    latest_op_idx = $($lookup_op)($($f), Val(1))
+                    Node(latest_op_idx, l)
                 end
             end
         end
     end
 end
 
-function _extend_binary_operator(f::Symbol, op, type_requirements, build_converters)
+function _extend_binary_operator(f::Symbol, type_requirements, build_converters)
     quote
         quote
             function $($f)(l::Node{T}, r::Node{T}) where {T<:$($type_requirements)}
                 if (l.degree == 0 && l.constant && r.degree == 0 && r.constant)
                     Node(T; val=$($f)(l.val::T, r.val::T))
                 else
-                    Node($($op), l, r)
+                    latest_op_idx = $($lookup_op)($($f), Val(2))
+                    Node(latest_op_idx, l, r)
                 end
             end
             function $($f)(l::Node{T}, r::T) where {T<:$($type_requirements)}
                 if l.degree == 0 && l.constant
                     Node(T; val=$($f)(l.val::T, r))
                 else
-                    Node($($op), l, Node(T; val=r))
+                    latest_op_idx = $($lookup_op)($($f), Val(2))
+                    Node(latest_op_idx, l, Node(T; val=r))
                 end
             end
             function $($f)(l::T, r::Node{T}) where {T<:$($type_requirements)}
                 if r.degree == 0 && r.constant
                     Node(T; val=$($f)(l, r.val::T))
                 else
-                    Node($($op), Node(T; val=l), r)
+                    latest_op_idx = $($lookup_op)($($f), Val(2))
+                    Node(latest_op_idx, Node(T; val=l), r)
                 end
             end
             if $($build_converters)
@@ -116,8 +165,8 @@ function _extend_binary_operator(f::Symbol, op, type_requirements, build_convert
 end
 
 function _extend_operators(operators, skip_user_operators, __module__::Module)
-    binary_ex = _extend_binary_operator(:f, :op, :type_requirements, :build_converters)
-    unary_ex = _extend_unary_operator(:f, :op, :type_requirements)
+    binary_ex = _extend_binary_operator(:f, :type_requirements, :build_converters)
+    unary_ex = _extend_unary_operator(:f, :type_requirements)
     return quote
         local type_requirements
         local build_converters
@@ -128,25 +177,44 @@ function _extend_operators(operators, skip_user_operators, __module__::Module)
             type_requirements = Any
             build_converters = false
         end
-        for (op, f) in enumerate(map(Symbol, $(operators).binops))
+        # Trigger errors if operators are not yet defined:
+        empty!($(LATEST_BINARY_OPERATOR_MAPPING))
+        empty!($(LATEST_UNARY_OPERATOR_MAPPING))
+        for (op, func) in enumerate($(operators).binops)
+            local f = Symbol(func)
+            local skip = false
             if isdefined(Base, f)
                 f = :(Base.$(f))
             elseif $(skip_user_operators)
-                continue
+                skip = true
             else
                 f = :($($__module__).$(f))
             end
-            eval($binary_ex)
+            $(LATEST_BINARY_OPERATOR_MAPPING)[func] = op
+            skip && continue
+            # Avoid redefining methods:
+            if !haskey($(ALREADY_DEFINED_UNARY_OPERATORS), func)
+                eval($binary_ex)
+                $(ALREADY_DEFINED_UNARY_OPERATORS)[func] = true
+            end
         end
-        for (op, f) in enumerate(map(Symbol, $(operators).unaops))
+        for (op, func) in enumerate($(operators).unaops)
+            local f = Symbol(func)
+            local skip = false
             if isdefined(Base, f)
                 f = :(Base.$(f))
             elseif $(skip_user_operators)
-                continue
+                skip = true
             else
                 f = :($($__module__).$(f))
             end
-            eval($unary_ex)
+            $(LATEST_UNARY_OPERATOR_MAPPING)[func] = op
+            skip && continue
+            # Avoid redefining methods:
+            if !haskey($(ALREADY_DEFINED_BINARY_OPERATORS), func)
+                eval($unary_ex)
+                $(ALREADY_DEFINED_BINARY_OPERATORS)[func] = true
+            end
         end
     end
 end
@@ -162,14 +230,16 @@ apply this macro to the operator enum in the same module you have the operators
 defined.
 """
 macro extend_operators(operators)
-    ex = _extend_operators(esc(operators), false, __module__)
+    ex = _extend_operators(operators, false, __module__)
     expected_type = AbstractOperatorEnum
-    quote
-        if !isa($(esc(operators)), $expected_type)
-            error("You must pass an operator enum to `@extend_operators`.")
-        end
-        $ex
-    end
+    return esc(
+        quote
+            if !isa($(operators), $expected_type)
+                error("You must pass an operator enum to `@extend_operators`.")
+            end
+            $ex
+        end,
+    )
 end
 
 """
@@ -179,14 +249,16 @@ Similar to `@extend_operators`, but only extends operators already
 defined in `Base`.
 """
 macro extend_operators_base(operators)
-    ex = _extend_operators(esc(operators), true, __module__)
+    ex = _extend_operators(operators, true, __module__)
     expected_type = AbstractOperatorEnum
-    quote
-        if !isa($(esc(operators)), $expected_type)
-            error("You must pass an operator enum to `@extend_operators_base`.")
-        end
-        $ex
-    end
+    return esc(
+        quote
+            if !isa($(operators), $expected_type)
+                error("You must pass an operator enum to `@extend_operators_base`.")
+            end
+            $ex
+        end,
+    )
 end
 
 """
