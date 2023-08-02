@@ -27,7 +27,7 @@ const ALREADY_DEFINED_UNARY_OPERATORS = (;
 const ALREADY_DEFINED_BINARY_OPERATORS = (;
     operator_enum=Dict{Function,Bool}(), generic_operator_enum=Dict{Function,Bool}()
 )
-const LATEST_VARIABLE_NAMES = Ref{Union{Nothing,Vector{String}}}(nothing)
+const LATEST_VARIABLE_NAMES = Ref{Vector{String}}(String[])
 
 function Base.show(io::IO, tree::Node)
     latest_operators_type = LATEST_OPERATORS_TYPE.x
