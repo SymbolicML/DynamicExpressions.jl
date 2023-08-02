@@ -98,3 +98,20 @@ end
     f_constant(val::Float64, args...) = string(round(val; digits=4))
     @test string_tree(tree, operators; f_constant=f_constant) == "((x1 * x1) + 3.1416)"
 end
+
+@testset "Test variable names" begin
+    operators = OperatorEnum(; binary_operators=[+, *, /, -], unary_operators=[cos, sin])
+    @extend_operators operators
+    x1, x2, x3 = [Node(Float64; feature=i) for i in 1:3]
+    DynamicExpressions.OperatorEnumConstructionModule.LATEST_VARIABLE_NAMES.x = [
+        "k1", "k2", "k3"
+    ]
+    tree = x1 * x2 + x3
+    @test string(tree) == "((k1 * k2) + k3)"
+    empty!(DynamicExpressions.OperatorEnumConstructionModule.LATEST_VARIABLE_NAMES.x)
+    @test string(tree) == "((x1 * x2) + x3)"
+    # Check if we can pass the wrong number of variable names:
+    DynamicExpressions.OperatorEnumConstructionModule.LATEST_VARIABLE_NAMES.x = ["k1"]
+    @test string(tree) == "((k1 * x2) + x3)"
+    empty!(DynamicExpressions.OperatorEnumConstructionModule.LATEST_VARIABLE_NAMES.x)
+end

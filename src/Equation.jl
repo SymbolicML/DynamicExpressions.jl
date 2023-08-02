@@ -243,7 +243,7 @@ function string_constant(val, bracketed::Bool)
 end
 
 function string_variable(feature, variable_names)
-    if variable_names === nothing
+    if variable_names === nothing || feature > lastindex(variable_names)
         return "x" * string(feature)
     else
         return variable_names[feature]

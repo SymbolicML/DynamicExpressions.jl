@@ -27,17 +27,22 @@ const ALREADY_DEFINED_UNARY_OPERATORS = (;
 const ALREADY_DEFINED_BINARY_OPERATORS = (;
     operator_enum=Dict{Function,Bool}(), generic_operator_enum=Dict{Function,Bool}()
 )
+const LATEST_VARIABLE_NAMES = Ref{Vector{String}}(String[])
 
 function Base.show(io::IO, tree::Node)
     latest_operators_type = LATEST_OPERATORS_TYPE.x
     if latest_operators_type == IsNothing
-        return print(io, string_tree(tree))
+        return print(io, string_tree(tree; variable_names=LATEST_VARIABLE_NAMES.x))
     elseif latest_operators_type == IsOperatorEnum
         latest_operators = LATEST_OPERATORS.x::OperatorEnum
-        return print(io, string_tree(tree, latest_operators))
+        return print(
+            io, string_tree(tree, latest_operators; variable_names=LATEST_VARIABLE_NAMES.x)
+        )
     else
         latest_operators = LATEST_OPERATORS.x::GenericOperatorEnum
-        return print(io, string_tree(tree, latest_operators))
+        return print(
+            io, string_tree(tree, latest_operators; variable_names=LATEST_VARIABLE_NAMES.x)
+        )
     end
 end
 function (tree::Node)(X; kws...)
