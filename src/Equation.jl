@@ -190,6 +190,7 @@ const OP_NAMES = Dict(
     "safe_pow" => "^",
 )
 
+get_op_name(op::String) = op
 @generated function get_op_name(op::F) where {F}
     try
         # Bit faster to just cache the name of the operator:
@@ -266,7 +267,7 @@ Convert an equation to a string.
 """
 function string_tree(
     tree::Node{T},
-    operators::AbstractOperatorEnum;
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     bracketed::Bool=false,
     f_variable::F1=string_variable,
     f_constant::F2=string_constant,
@@ -284,7 +285,11 @@ function string_tree(
     elseif tree.degree == 1
         return string_op(
             Val(1),
-            operators.unaops[tree.op],
+            if operators === nothing
+                "unary_operator[" * string(tree.op) * "]"
+            else
+                operators.unaops[tree.op]
+            end,
             tree,
             operators;
             bracketed,
@@ -295,7 +300,11 @@ function string_tree(
     else
         return string_op(
             Val(2),
-            operators.binops[tree.op],
+            if operators === nothing
+                "binary_operator[" * string(tree.op) * "]"
+            else
+                operators.binops[tree.op]
+            end,
             tree,
             operators;
             bracketed,

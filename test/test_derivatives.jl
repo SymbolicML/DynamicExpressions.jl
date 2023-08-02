@@ -4,11 +4,11 @@ using DynamicExpressions: eval_diff_tree_array, eval_grad_tree_array
 using Random
 using Zygote
 using LinearAlgebra
+include("test_params.jl")
 
 seed = 0
 # SIMD doesn't like abs(x) ^ y for some reason.
 pow_abs2(x, y) = exp(y * log(abs(x)))
-custom_cos(x) = cos(x)^2
 
 equation1(x1, x2, x3) = x1 + x2 + x3 + 3.2
 equation2(x1, x2, x3) = pow_abs2(x1, x2) + x3 + custom_cos(1.0 + x3) + 3.0 / x1
