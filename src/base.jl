@@ -228,7 +228,7 @@ in(item, tree::Node) = any(t -> t == item, tree)
 length(tree::Node) = sum(Returns(1), tree)
 function hash(tree::Node{T}) where {T}
     return tree_mapreduce(
-        t -> hash(t.constant ? (0, t.val::T) : (1, t.feature)),
+        t -> t.constant ? hash((0, t.val::T)) : hash((1, t.feature)),
         t -> hash((t.degree + 1, t.op)),
         (n...) -> hash(n),
         tree,
