@@ -29,3 +29,10 @@ operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[cos, 
 
 # Breaks:
 @test_throws ErrorException _square(x1 + x2 / x3) * x2 + 0.5
+
+# We can also turn this behavior off:
+operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[cos, sin])
+operators = OperatorEnum(;
+    binary_operators=[+, -, *, /], unary_operators=[cos, tan], empty_old_operators=false
+)
+@test tan(x1) == sin(x1)

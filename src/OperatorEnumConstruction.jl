@@ -177,7 +177,18 @@ function _extend_binary_operator(f::Symbol, type_requirements, build_converters)
     end
 end
 
-function _extend_operators(operators, skip_user_operators, __module__::Module)
+function _extend_operators(operators, skip_user_operators, kws, __module__::Module)
+    empty_old_operators =
+        if length(kws) == 1 && :empty_old_operators in map(x -> x.args[1], kws)
+            @assert kws[1].head == :(=)
+            kws[1].args[2]
+        elseif length(kws) > 0
+            error(
+                "You passed the keywords $(kws), but only `empty_old_operators` is supported.",
+            )
+        else
+            true
+        end
     binary_ex = _extend_binary_operator(:f, :type_requirements, :build_converters)
     unary_ex = _extend_unary_operator(:f, :type_requirements)
     return quote
@@ -196,9 +207,11 @@ function _extend_operators(operators, skip_user_operators, __module__::Module)
             binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum
             unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum
         end
-        # Trigger errors if operators are not yet defined:
-        empty!($(LATEST_BINARY_OPERATOR_MAPPING))
-        empty!($(LATEST_UNARY_OPERATOR_MAPPING))
+        if $(empty_old_operators)
+            # Trigger errors if operators are not yet defined:
+            empty!($(LATEST_BINARY_OPERATOR_MAPPING))
+            empty!($(LATEST_UNARY_OPERATOR_MAPPING))
+        end
         for (op, func) in enumerate($(operators).binops)
             local f = Symbol(func)
             local skip = false
@@ -239,7 +252,7 @@ function _extend_operators(operators, skip_user_operators, __module__::Module)
 end
 
 """
-    @extend_operators operators
+    @extend_operators operators [kws...]
 
 Extends all operators defined in this operator enum to work on the
 `Node` type. While by default this is already done for operators defined
@@ -248,8 +261,8 @@ this does not apply to the user-defined operators. Thus, to do so, you must
 apply this macro to the operator enum in the same module you have the operators
 defined.
 """
-macro extend_operators(operators)
-    ex = _extend_operators(operators, false, __module__)
+macro extend_operators(operators, kws...)
+    ex = _extend_operators(operators, false, kws, __module__)
     expected_type = AbstractOperatorEnum
     return esc(
         quote
@@ -262,13 +275,13 @@ macro extend_operators(operators)
 end
 
 """
-    @extend_operators_base operators
+    @extend_operators_base operators [kws...]
 
 Similar to `@extend_operators`, but only extends operators already
 defined in `Base`.
 """
-macro extend_operators_base(operators)
-    ex = _extend_operators(operators, true, __module__)
+macro extend_operators_base(operators, kws...)
+    ex = _extend_operators(operators, true, kws, __module__)
     expected_type = AbstractOperatorEnum
     return esc(
         quote
@@ -281,7 +294,9 @@ macro extend_operators_base(operators)
 end
 
 """
-    OperatorEnum(; binary_operators=[], unary_operators=[], enable_autodiff::Bool=false, define_helper_functions::Bool=true)
+    OperatorEnum(; binary_operators=[], unary_operators=[],
+                   enable_autodiff::Bool=false, define_helper_functions::Bool=true,
+                   empty_old_operators::Bool=true)
 
 Construct an `OperatorEnum` object, defining the possible expressions. This will also
 redefine operators for `Node` types, as well as `show`, `print`, and `(::Node)(X)`.
@@ -296,12 +311,14 @@ It will automatically compute derivatives with `Zygote.jl`.
 - `define_helper_functions::Bool=true`: Whether to define helper functions for creating
    and evaluating node types. Turn this off when doing precompilation. Note that these
    are *not* needed for the package to work; they are purely for convenience.
+- `empty_old_operators::Bool=true`: Whether to clear the old operators.
 """
 function OperatorEnum(;
     binary_operators=[],
     unary_operators=[],
     enable_autodiff::Bool=false,
     define_helper_functions::Bool=true,
+    empty_old_operators::Bool=true,
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
 
@@ -325,7 +342,7 @@ function OperatorEnum(;
     )
 
     if define_helper_functions
-        @extend_operators_base operators
+        @extend_operators_base operators empty_old_operators = empty_old_operators
         create_evaluation_helpers!(operators)
     end
 
@@ -333,7 +350,8 @@ function OperatorEnum(;
 end
 
 """
-    GenericOperatorEnum(; binary_operators=[], unary_operators=[], define_helper_functions::Bool=true)
+    GenericOperatorEnum(; binary_operators=[], unary_operators=[],
+                          define_helper_functions::Bool=true, empty_old_operators::Bool=true)
 
 Construct a `GenericOperatorEnum` object, defining possible expressions.
 Unlike `OperatorEnum`, this enum one will work arbitrary operators and data types.
@@ -348,9 +366,13 @@ and `(::Node)(X)`.
 - `define_helper_functions::Bool=true`: Whether to define helper functions for creating
    and evaluating node types. Turn this off when doing precompilation. Note that these
    are *not* needed for the package to work; they are purely for convenience.
+- `empty_old_operators::Bool=true`: Whether to clear the old operators.
 """
 function GenericOperatorEnum(;
-    binary_operators=[], unary_operators=[], define_helper_functions::Bool=true
+    binary_operators=[],
+    unary_operators=[],
+    define_helper_functions::Bool=true,
+    empty_old_operators::Bool=true,
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
 
@@ -360,7 +382,7 @@ function GenericOperatorEnum(;
     operators = GenericOperatorEnum(binary_operators, unary_operators)
 
     if define_helper_functions
-        @extend_operators_base operators
+        @extend_operators_base operators empty_old_operators = empty_old_operators
         create_evaluation_helpers!(operators)
     end
 
