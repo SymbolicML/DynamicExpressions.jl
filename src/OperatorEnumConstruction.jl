@@ -79,15 +79,19 @@ function _grad_evaluator(tree::Node, X; kws...)
     end
 end
 
+function set_default_variable_names!(variable_names::Vector{String})
+    return LATEST_VARIABLE_NAMES.x = variable_names
+end
+
 function create_evaluation_helpers!(operators::OperatorEnum)
     LATEST_OPERATORS.x = operators
     return LATEST_OPERATORS_TYPE.x = IsOperatorEnum
 end
-
 function create_evaluation_helpers!(operators::GenericOperatorEnum)
     LATEST_OPERATORS.x = operators
     return LATEST_OPERATORS_TYPE.x = IsGenericOperatorEnum
 end
+
 function lookup_op(@nospecialize(f), ::Val{degree}) where {degree}
     mapping = degree == 1 ? LATEST_UNARY_OPERATOR_MAPPING : LATEST_BINARY_OPERATOR_MAPPING
     if !haskey(mapping, f)

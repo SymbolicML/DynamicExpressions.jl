@@ -111,7 +111,7 @@ end
     empty!(DynamicExpressions.OperatorEnumConstructionModule.LATEST_VARIABLE_NAMES.x)
     @test string(tree) == "((x1 * x2) + x3)"
     # Check if we can pass the wrong number of variable names:
-    DynamicExpressions.OperatorEnumConstructionModule.LATEST_VARIABLE_NAMES.x = ["k1"]
+    set_default_variable_names!(["k1"])
     @test string(tree) == "((k1 * x2) + x3)"
     empty!(DynamicExpressions.OperatorEnumConstructionModule.LATEST_VARIABLE_NAMES.x)
 end
