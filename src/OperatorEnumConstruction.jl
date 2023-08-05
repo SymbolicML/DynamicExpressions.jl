@@ -185,7 +185,7 @@ function _extend_operators(operators, skip_user_operators, __module__::Module)
         local build_converters
         local binary_exists
         local unary_exists
-        if isa($operators, OperatorEnum)
+        if isa($operators, $OperatorEnum)
             type_requirements = Number
             build_converters = true
             binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum
