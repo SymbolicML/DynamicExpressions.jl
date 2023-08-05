@@ -29,3 +29,15 @@ operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[cos, 
 
 # Breaks:
 @test_throws ErrorException _square(x1 + x2 / x3) * x2 + 0.5
+
+# We can also turn this behavior off:
+operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[cos, sin])
+operators = OperatorEnum(;
+    binary_operators=[+, -, *, /], unary_operators=[cos, tan], empty_old_operators=false
+)
+@test tan(x1) == sin(x1)
+
+# Should catch errors in kws:
+@test_throws LoadError begin
+    @eval @extend_operators operators empty_old_operators_bad_kw = true
+end
