@@ -36,3 +36,8 @@ operators = OperatorEnum(;
     binary_operators=[+, -, *, /], unary_operators=[cos, tan], empty_old_operators=false
 )
 @test tan(x1) == sin(x1)
+
+# Should catch errors in kws:
+@test_throws LoadError begin
+    @eval @extend_operators operators empty_old_operators_bad_kw = true
+end
