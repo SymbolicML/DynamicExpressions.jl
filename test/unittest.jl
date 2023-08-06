@@ -1,6 +1,6 @@
 using SafeTestsets
 
-@safetestset "Test Aqua.jl" begin
+VERSION >= v"1.9" && @safetestset "Test Aqua.jl" begin
     include("test_aqua.jl")
 end
 
