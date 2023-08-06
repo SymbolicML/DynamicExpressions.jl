@@ -1,5 +1,9 @@
 using SafeTestsets
 
+VERSION >= v"1.9" && @safetestset "Test Aqua.jl" begin
+    include("test_aqua.jl")
+end
+
 @safetestset "Initial error handling test" begin
     include("test_initial_errors.jl")
 end
