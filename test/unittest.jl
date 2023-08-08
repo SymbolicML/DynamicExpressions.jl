@@ -20,6 +20,10 @@ end
     include("test_derivatives.jl")
 end
 
+@safetestset "Test undefined derivatives" begin
+    include("test_undefined_derivatives.jl")
+end
+
 @safetestset "Test simplification" begin
     include("test_simplification.jl")
 end
