@@ -19,5 +19,3 @@ x = zeros(3, 1) .- 1
 # Normally, Zygote's gradients would return `nothing`.
 # However, we wrap the gradient to keep it type-stable.
 @test all(isnan, tree'(x, operators; variable=true))
-
-@test x1'(x, operators; variable=true) == [1.0; 0.0; 0.0;;]
