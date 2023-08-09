@@ -12,7 +12,7 @@ include("OperatorEnumConstruction.jl")
 include("EnzymeInterface.jl")
 include("ExtensionInterface.jl")
 
-import Requires: @init, @require
+import PackageExtensionCompat: @require_extensions
 import Reexport: @reexport
 @reexport import .EquationModule:
     Node, string_tree, print_tree, copy_node, set_node!, tree_mapreduce, filter_map
@@ -28,7 +28,7 @@ import Reexport: @reexport
     set_constants!
 @reexport import .OperatorEnumModule: AbstractOperatorEnum
 @reexport import .OperatorEnumConstructionModule:
-    OperatorEnum, GenericOperatorEnum, @extend_operators
+    OperatorEnum, GenericOperatorEnum, @extend_operators, set_default_variable_names!
 @reexport import .EvaluateEquationModule: eval_tree_array, differentiable_eval_tree_array
 @reexport import .EvaluateEquationDerivativeModule:
     eval_diff_tree_array, eval_grad_tree_array
@@ -37,11 +37,9 @@ import Reexport: @reexport
 @reexport import .EnzymeInterfaceModule: enzyme_reverse_gradient, enzyme_forward_gradient
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 
-#! format: off
-if !isdefined(Base, :get_extension)
-    @init @require SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b" include("../ext/DynamicExpressionsSymbolicUtilsExt.jl")
+function __init__()
+    @require_extensions
 end
-#! format: on
 
 include("deprecated.jl")
 
