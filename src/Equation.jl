@@ -4,7 +4,6 @@ import ..OperatorEnumModule: AbstractOperatorEnum
 import ..UtilsModule: @memoize_on, @with_memoize, deprecate_varmap
 
 const DEFAULT_NODE_TYPE = Float32
-const FIELD_TYPE = Int16
 
 #! format: off
 """
@@ -38,23 +37,23 @@ nodes, you can evaluate or print a given expression.
     argument to the binary operator.
 """
 mutable struct Node{T}
-    degree::FIELD_TYPE  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
+    degree::Int8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     constant::Bool  # false if variable
     val::Union{T,Nothing}  # If is a constant, this stores the actual value
     # ------------------- (possibly undefined below)
-    feature::FIELD_TYPE  # If is a variable (e.g., x in cos(x)), this stores the feature index.
-    op::FIELD_TYPE  # If operator, this is the index of the operator in operators.binary_operators, or operators.unary_operators
+    feature::Int16  # If is a variable (e.g., x in cos(x)), this stores the feature index.
+    op::Int8  # If operator, this is the index of the operator in operators.binary_operators, or operators.unary_operators
     l::Node{T}  # Left child node. Only defined for degree=1 or degree=2.
     r::Node{T}  # Right child node. Only defined for degree=2. 
 
     #################
     ## Constructors:
     #################
-    Node(d::Integer, c::Bool, v::_T) where {_T} = new{_T}(FIELD_TYPE(d), c, v)
-    Node(::Type{_T}, d::Integer, c::Bool, v::_T) where {_T} = new{_T}(FIELD_TYPE(d), c, v)
-    Node(::Type{_T}, d::Integer, c::Bool, v::Nothing, f::Integer) where {_T} = new{_T}(FIELD_TYPE(d), c, v, FIELD_TYPE(f))
-    Node(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::Node{_T}) where {_T} = new{_T}(FIELD_TYPE(d), c, v, FIELD_TYPE(f), FIELD_TYPE(o), l)
-    Node(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::Node{_T}, r::Node{_T}) where {_T} = new{_T}(FIELD_TYPE(d), c, v, FIELD_TYPE(f), FIELD_TYPE(o), l, r)
+    Node(d::Integer, c::Bool, v::_T) where {_T} = new{_T}(Int8(d), c, v)
+    Node(::Type{_T}, d::Integer, c::Bool, v::_T) where {_T} = new{_T}(Int8(d), c, v)
+    Node(::Type{_T}, d::Integer, c::Bool, v::Nothing, f::Integer) where {_T} = new{_T}(Int8(d), c, v, Int16(f))
+    Node(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::Node{_T}) where {_T} = new{_T}(Int8(d), c, v, Int16(f), Int8(o), l)
+    Node(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::Node{_T}, r::Node{_T}) where {_T} = new{_T}(Int8(d), c, v, Int16(f), Int8(o), l, r)
 
 end
 ################################################################################
@@ -148,11 +147,9 @@ Create a variable node, using a user-passed format
 """
 function Node(var_string::String, variable_names::Array{String,1})
     return Node(;
-        feature=FIELD_TYPE(
-            [
-                i for (i, _variable) in enumerate(variable_names) if _variable == var_string
-            ][1]::Int,
-        ),
+        feature=[
+            i for (i, _variable) in enumerate(variable_names) if _variable == var_string
+        ][1]::Int,
     )
 end
 
