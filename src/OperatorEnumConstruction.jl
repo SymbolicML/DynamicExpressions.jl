@@ -19,8 +19,8 @@ end
 
 const LATEST_OPERATORS = Ref{Union{Nothing,AbstractOperatorEnum}}(nothing)
 const LATEST_OPERATORS_TYPE = Ref{AvailableOperatorTypes}(IsNothing)
-const LATEST_UNARY_OPERATOR_MAPPING = Dict{Function,Int}()
-const LATEST_BINARY_OPERATOR_MAPPING = Dict{Function,Int}()
+const LATEST_UNARY_OPERATOR_MAPPING = Dict{Function,Int8}()
+const LATEST_BINARY_OPERATOR_MAPPING = Dict{Function,Int8}()
 const ALREADY_DEFINED_UNARY_OPERATORS = (;
     operator_enum=Dict{Function,Bool}(), generic_operator_enum=Dict{Function,Bool}()
 )

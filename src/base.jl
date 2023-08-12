@@ -52,9 +52,9 @@ julia> tree_mapreduce(t -> 1, (p, c...) -> p + max(c...), tree)  # compute depth
 5
 
 julia> tree_mapreduce(vcat, tree) do t
-    t.degree == 2 ? [t.op] : Int[]
+    t.degree == 2 ? [t.op] : Int8[]
 end  # Get list of binary operators used. (regular mapreduce also works)
-2-element Vector{Int64}:
+2-element Vector{Int8}:
  1
  2
 

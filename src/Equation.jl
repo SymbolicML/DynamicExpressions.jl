@@ -16,16 +16,16 @@ nodes, you can evaluate or print a given expression.
 
 # Fields
 
-- `degree::Int`: Degree of the node. 0 for constants, 1 for
+- `degree::Int8`: Degree of the node. 0 for constants, 1 for
     unary operators, 2 for binary operators.
 - `constant::Bool`: Whether the node is a constant.
 - `val::T`: Value of the node. If `degree==0`, and `constant==true`,
     this is the value of the constant. It has a type specified by the
     overall type of the `Node` (e.g., `Float64`).
-- `feature::Int` (optional): Index of the feature to use in the
+- `feature::Int16` (optional): Index of the feature to use in the
     case of a feature node. Only used if `degree==0` and `constant==false`. 
     Only defined if `degree == 0 && constant == false`.
-- `op::Int`: If `degree==1`, this is the index of the operator
+- `op::Int8`: If `degree==1`, this is the index of the operator
     in `operators.unaops`. If `degree==2`, this is the index of the
     operator in `operators.binops`. In other words, this is an enum
     of the operators, and is dependent on the specific `OperatorEnum`
@@ -62,7 +62,7 @@ end
 include("base.jl")
 
 """
-    Node([::Type{T}]; val=nothing, feature::Int=nothing) where {T}
+    Node([::Type{T}]; val=nothing, feature::Union{Integer,Nothing}=nothing) where {T}
 
 Create a leaf node: either a constant, or a variable.
 
@@ -112,14 +112,14 @@ function Node(
 end
 
 """
-    Node(op::Int, l::Node)
+    Node(op::Integer, l::Node)
 
 Apply unary operator `op` (enumerating over the order given) to `Node` `l`
 """
 Node(op::Integer, l::Node{T}) where {T} = Node(1, false, nothing, 0, op, l)
 
 """
-    Node(op::Int, l::Node, r::Node)
+    Node(op::Integer, l::Node, r::Node)
 
 Apply binary operator `op` (enumerating over the order given) to `Node`s `l` and `r`
 """
@@ -138,7 +138,7 @@ end
 
 Create a variable node, using the format `"x1"` to mean feature 1
 """
-Node(var_string::String) = Node(; feature=parse(Int, var_string[2:end]))
+Node(var_string::String) = Node(; feature=parse(Int16, var_string[2:end]))
 
 """
     Node(var_string::String, variable_names::Array{String, 1})
@@ -258,7 +258,7 @@ Convert an equation to a string.
 
 # Keyword Arguments
 - `bracketed`: (optional) whether to put brackets around the outside.
-- `f_variable`: (optional) function to convert a variable to a string, of the form `(feature::Int, variable_names)`.
+- `f_variable`: (optional) function to convert a variable to a string, of the form `(feature::Int8, variable_names)`.
 - `f_constant`: (optional) function to convert a constant to a string, of the form `(val, bracketed::Bool)`
 - `variable_names::Union{Array{String, 1}, Nothing}=nothing`: (optional) what variables to print for each feature.
 """

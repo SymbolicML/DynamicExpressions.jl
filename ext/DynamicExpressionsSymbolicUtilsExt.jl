@@ -228,7 +228,7 @@ function multiply_powers(
         @return_on_false complete eqn
         @return_on_false isgood(l) eqn
         n = args[2]
-        if typeof(n) <: Int
+        if typeof(n) <: Integer
             if n == 1
                 return l, true
             elseif n == -1

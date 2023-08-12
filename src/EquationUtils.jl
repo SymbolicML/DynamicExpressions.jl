@@ -92,7 +92,7 @@ end
 # This will mirror a Node struct, rather
 # than adding a new attribute to Node.
 mutable struct NodeIndex
-    constant_index::Int  # Index of this constant (if a constant exists here)
+    constant_index::Int16  # Index of this constant (if a constant exists here)
     l::NodeIndex
     r::NodeIndex
 
@@ -103,14 +103,14 @@ function index_constants(tree::Node)::NodeIndex
     return index_constants(tree, 0)
 end
 
-function index_constants(tree::Node, left_index::Int)::NodeIndex
+function index_constants(tree::Node, left_index::Int16)::NodeIndex
     index_tree = NodeIndex()
     index_constants!(tree, index_tree, left_index)
     return index_tree
 end
 
 # Count how many constants to the left of this node, and put them in a tree
-function index_constants!(tree::Node, index_tree::NodeIndex, left_index::Int)
+function index_constants!(tree::Node, index_tree::NodeIndex, left_index::Int16)
     if tree.degree == 0
         if tree.constant
             index_tree.constant_index = left_index + 1
