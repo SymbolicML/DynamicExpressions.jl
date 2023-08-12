@@ -16,16 +16,16 @@ nodes, you can evaluate or print a given expression.
 
 # Fields
 
-- `degree::Int8`: Degree of the node. 0 for constants, 1 for
+- `degree::UInt8`: Degree of the node. 0 for constants, 1 for
     unary operators, 2 for binary operators.
 - `constant::Bool`: Whether the node is a constant.
 - `val::T`: Value of the node. If `degree==0`, and `constant==true`,
     this is the value of the constant. It has a type specified by the
     overall type of the `Node` (e.g., `Float64`).
-- `feature::Int16` (optional): Index of the feature to use in the
+- `feature::UInt16`: Index of the feature to use in the
     case of a feature node. Only used if `degree==0` and `constant==false`. 
     Only defined if `degree == 0 && constant == false`.
-- `op::Int8`: If `degree==1`, this is the index of the operator
+- `op::UInt8`: If `degree==1`, this is the index of the operator
     in `operators.unaops`. If `degree==2`, this is the index of the
     operator in `operators.binops`. In other words, this is an enum
     of the operators, and is dependent on the specific `OperatorEnum`
@@ -37,23 +37,23 @@ nodes, you can evaluate or print a given expression.
     argument to the binary operator.
 """
 mutable struct Node{T}
-    degree::Int8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
+    degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     constant::Bool  # false if variable
     val::Union{T,Nothing}  # If is a constant, this stores the actual value
     # ------------------- (possibly undefined below)
-    feature::Int16  # If is a variable (e.g., x in cos(x)), this stores the feature index.
-    op::Int8  # If operator, this is the index of the operator in operators.binary_operators, or operators.unary_operators
+    feature::UInt16  # If is a variable (e.g., x in cos(x)), this stores the feature index.
+    op::UInt8  # If operator, this is the index of the operator in operators.binary_operators, or operators.unary_operators
     l::Node{T}  # Left child node. Only defined for degree=1 or degree=2.
     r::Node{T}  # Right child node. Only defined for degree=2. 
 
     #################
     ## Constructors:
     #################
-    Node(d::Integer, c::Bool, v::_T) where {_T} = new{_T}(Int8(d), c, v)
-    Node(::Type{_T}, d::Integer, c::Bool, v::_T) where {_T} = new{_T}(Int8(d), c, v)
-    Node(::Type{_T}, d::Integer, c::Bool, v::Nothing, f::Integer) where {_T} = new{_T}(Int8(d), c, v, Int16(f))
-    Node(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::Node{_T}) where {_T} = new{_T}(Int8(d), c, v, Int16(f), Int8(o), l)
-    Node(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::Node{_T}, r::Node{_T}) where {_T} = new{_T}(Int8(d), c, v, Int16(f), Int8(o), l, r)
+    Node(d::Integer, c::Bool, v::_T) where {_T} = new{_T}(UInt8(d), c, v)
+    Node(::Type{_T}, d::Integer, c::Bool, v::_T) where {_T} = new{_T}(UInt8(d), c, v)
+    Node(::Type{_T}, d::Integer, c::Bool, v::Nothing, f::Integer) where {_T} = new{_T}(UInt8(d), c, v, UInt16(f))
+    Node(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::Node{_T}) where {_T} = new{_T}(UInt8(d), c, v, UInt16(f), UInt8(o), l)
+    Node(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::Node{_T}, r::Node{_T}) where {_T} = new{_T}(UInt8(d), c, v, UInt16(f), UInt8(o), l, r)
 
 end
 ################################################################################
@@ -138,7 +138,7 @@ end
 
 Create a variable node, using the format `"x1"` to mean feature 1
 """
-Node(var_string::String) = Node(; feature=parse(Int16, var_string[2:end]))
+Node(var_string::String) = Node(; feature=parse(UInt16, var_string[2:end]))
 
 """
     Node(var_string::String, variable_names::Array{String, 1})
@@ -258,7 +258,7 @@ Convert an equation to a string.
 
 # Keyword Arguments
 - `bracketed`: (optional) whether to put brackets around the outside.
-- `f_variable`: (optional) function to convert a variable to a string, of the form `(feature::Int8, variable_names)`.
+- `f_variable`: (optional) function to convert a variable to a string, of the form `(feature::UInt8, variable_names)`.
 - `f_constant`: (optional) function to convert a constant to a string, of the form `(val, bracketed::Bool)`
 - `variable_names::Union{Array{String, 1}, Nothing}=nothing`: (optional) what variables to print for each feature.
 """
