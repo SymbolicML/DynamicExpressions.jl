@@ -200,7 +200,7 @@ function eval_grad_tree_array(
 )::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Number}
     assert_autodiff_enabled(operators)
     n_gradients = variable ? size(cX, 1) : count_constants(tree)
-    index_tree = index_constants(tree, Int16(0))
+    index_tree = index_constants(tree, UInt16(0))
     return eval_grad_tree_array(
         tree,
         Val(n_gradients),
