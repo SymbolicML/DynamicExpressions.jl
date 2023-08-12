@@ -114,8 +114,9 @@ end
     @test length(unique(map(objectid, copy_node(tree; preserve_sharing=true)))) == 24 - 3
     map(t -> (t.degree == 0 && t.constant) ? (t.val *= 2) : nothing, ctree)
     @test sum(t -> t.val, filter(t -> t.degree == 0 && t.constant, ctree)) == 11.6 * 2
-    @test typeof(map(t -> t.degree, ctree, Int8)) == Vector{Int8}
-    @test first(map(t -> t.degree, ctree, Int8)) == 2
+    local T = fieldtype(typeof(ctree), :degree)
+    @test typeof(map(t -> t.degree, ctree, T)) == Vector{T}
+    @test first(map(t -> t.degree, ctree, T)) == 2
 end
 
 @testset "in" begin
