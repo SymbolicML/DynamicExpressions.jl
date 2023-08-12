@@ -7,7 +7,7 @@ import ..EvaluateEquationDerivativeModule: eval_grad_tree_array, _zygote_gradien
 import ..EvaluationHelpersModule: _grad_evaluator
 
 """Used to set a default value for `operators` for ease of use."""
-@enum AvailableOperatorTypes begin
+@enum AvailableOperatorTypes::UInt8 begin
     IsNothing
     IsOperatorEnum
     IsGenericOperatorEnum
@@ -19,8 +19,8 @@ end
 
 const LATEST_OPERATORS = Ref{Union{Nothing,AbstractOperatorEnum}}(nothing)
 const LATEST_OPERATORS_TYPE = Ref{AvailableOperatorTypes}(IsNothing)
-const LATEST_UNARY_OPERATOR_MAPPING = Dict{Function,Int}()
-const LATEST_BINARY_OPERATOR_MAPPING = Dict{Function,Int}()
+const LATEST_UNARY_OPERATOR_MAPPING = Dict{Function,fieldtype(Node{Float64}, :op)}()
+const LATEST_BINARY_OPERATOR_MAPPING = Dict{Function,fieldtype(Node{Float64}, :op)}()
 const ALREADY_DEFINED_UNARY_OPERATORS = (;
     operator_enum=Dict{Function,Bool}(), generic_operator_enum=Dict{Function,Bool}()
 )

@@ -55,8 +55,8 @@ There are a variety of constructors for `Node` objects, including:
 
 ```@docs
 Node(::Type{T}; val=nothing, feature::Integer=nothing) where {T}
-Node(op::Int, l::Node)
-Node(op::Int, l::Node, r::Node)
+Node(op::Integer, l::Node)
+Node(op::Integer, l::Node, r::Node)
 Node(var_string::String)
 ```
 

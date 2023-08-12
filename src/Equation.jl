@@ -5,6 +5,7 @@ import ..UtilsModule: @memoize_on, @with_memoize, deprecate_varmap
 
 const DEFAULT_NODE_TYPE = Float32
 
+#! format: off
 """
     Node{T}
 
@@ -15,16 +16,16 @@ nodes, you can evaluate or print a given expression.
 
 # Fields
 
-- `degree::Int`: Degree of the node. 0 for constants, 1 for
+- `degree::UInt8`: Degree of the node. 0 for constants, 1 for
     unary operators, 2 for binary operators.
 - `constant::Bool`: Whether the node is a constant.
 - `val::T`: Value of the node. If `degree==0`, and `constant==true`,
     this is the value of the constant. It has a type specified by the
     overall type of the `Node` (e.g., `Float64`).
-- `feature::Int` (optional): Index of the feature to use in the
+- `feature::UInt16`: Index of the feature to use in the
     case of a feature node. Only used if `degree==0` and `constant==false`. 
     Only defined if `degree == 0 && constant == false`.
-- `op::Int`: If `degree==1`, this is the index of the operator
+- `op::UInt8`: If `degree==1`, this is the index of the operator
     in `operators.unaops`. If `degree==2`, this is the index of the
     operator in `operators.binops`. In other words, this is an enum
     of the operators, and is dependent on the specific `OperatorEnum`
@@ -36,36 +37,32 @@ nodes, you can evaluate or print a given expression.
     argument to the binary operator.
 """
 mutable struct Node{T}
-    degree::Int  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
+    degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     constant::Bool  # false if variable
     val::Union{T,Nothing}  # If is a constant, this stores the actual value
     # ------------------- (possibly undefined below)
-    feature::Int  # If is a variable (e.g., x in cos(x)), this stores the feature index.
-    op::Int  # If operator, this is the index of the operator in operators.binary_operators, or operators.unary_operators
+    feature::UInt16  # If is a variable (e.g., x in cos(x)), this stores the feature index.
+    op::UInt8  # If operator, this is the index of the operator in operators.binops, or operators.unaops
     l::Node{T}  # Left child node. Only defined for degree=1 or degree=2.
     r::Node{T}  # Right child node. Only defined for degree=2. 
 
     #################
     ## Constructors:
     #################
-    Node(d::Int, c::Bool, v::_T) where {_T} = new{_T}(d, c, v)
-    Node(::Type{_T}, d::Int, c::Bool, v::_T) where {_T} = new{_T}(d, c, v)
-    Node(::Type{_T}, d::Int, c::Bool, v::Nothing, f::Int) where {_T} = new{_T}(d, c, v, f)
-    function Node(d::Int, c::Bool, v::Nothing, f::Int, o::Int, l::Node{_T}) where {_T}
-        return new{_T}(d, c, v, f, o, l)
-    end
-    function Node(
-        d::Int, c::Bool, v::Nothing, f::Int, o::Int, l::Node{_T}, r::Node{_T}
-    ) where {_T}
-        return new{_T}(d, c, v, f, o, l, r)
-    end
+    Node(d::Integer, c::Bool, v::_T) where {_T} = new{_T}(UInt8(d), c, v)
+    Node(::Type{_T}, d::Integer, c::Bool, v::_T) where {_T} = new{_T}(UInt8(d), c, v)
+    Node(::Type{_T}, d::Integer, c::Bool, v::Nothing, f::Integer) where {_T} = new{_T}(UInt8(d), c, v, UInt16(f))
+    Node(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::Node{_T}) where {_T} = new{_T}(UInt8(d), c, v, UInt16(f), UInt8(o), l)
+    Node(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::Node{_T}, r::Node{_T}) where {_T} = new{_T}(UInt8(d), c, v, UInt16(f), UInt8(o), l, r)
+
 end
 ################################################################################
+#! format: on
 
 include("base.jl")
 
 """
-    Node([::Type{T}]; val=nothing, feature::Int=nothing) where {T}
+    Node([::Type{T}]; val=nothing, feature::Union{Integer,Nothing}=nothing) where {T}
 
 Create a leaf node: either a constant, or a variable.
 
@@ -115,18 +112,18 @@ function Node(
 end
 
 """
-    Node(op::Int, l::Node)
+    Node(op::Integer, l::Node)
 
 Apply unary operator `op` (enumerating over the order given) to `Node` `l`
 """
-Node(op::Int, l::Node{T}) where {T} = Node(1, false, nothing, 0, op, l)
+Node(op::Integer, l::Node{T}) where {T} = Node(1, false, nothing, 0, op, l)
 
 """
-    Node(op::Int, l::Node, r::Node)
+    Node(op::Integer, l::Node, r::Node)
 
 Apply binary operator `op` (enumerating over the order given) to `Node`s `l` and `r`
 """
-function Node(op::Int, l::Node{T1}, r::Node{T2}) where {T1,T2}
+function Node(op::Integer, l::Node{T1}, r::Node{T2}) where {T1,T2}
     # Get highest type:
     if T1 != T2
         T = promote_type(T1, T2)
@@ -141,7 +138,7 @@ end
 
 Create a variable node, using the format `"x1"` to mean feature 1
 """
-Node(var_string::String) = Node(; feature=parse(Int, var_string[2:end]))
+Node(var_string::String) = Node(; feature=parse(UInt16, var_string[2:end]))
 
 """
     Node(var_string::String, variable_names::Array{String, 1})
@@ -261,7 +258,7 @@ Convert an equation to a string.
 
 # Keyword Arguments
 - `bracketed`: (optional) whether to put brackets around the outside.
-- `f_variable`: (optional) function to convert a variable to a string, of the form `(feature::Int, variable_names)`.
+- `f_variable`: (optional) function to convert a variable to a string, of the form `(feature::UInt8, variable_names)`.
 - `f_constant`: (optional) function to convert a constant to a string, of the form `(val, bracketed::Bool)`
 - `variable_names::Union{Array{String, 1}, Nothing}=nothing`: (optional) what variables to print for each feature.
 """

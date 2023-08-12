@@ -46,7 +46,7 @@ has_constants(tree::Node) = any(is_node_constant, tree)
 
 Check if a tree has any operators.
 """
-has_operators(tree::Node) = tree.degree !== 0
+has_operators(tree::Node) = tree.degree != 0
 
 """
     is_constant(tree::Node)::Bool
@@ -54,7 +54,7 @@ has_operators(tree::Node) = tree.degree !== 0
 Check if an expression is a constant numerical value, or
 whether it depends on input features.
 """
-is_constant(tree::Node) = all(t -> t.degree !== 0 || t.constant, tree)
+is_constant(tree::Node) = all(t -> t.degree != 0 || t.constant, tree)
 
 """
     get_constants(tree::Node{T})::Vector{T} where {T}
@@ -92,7 +92,7 @@ end
 # This will mirror a Node struct, rather
 # than adding a new attribute to Node.
 mutable struct NodeIndex
-    constant_index::Int  # Index of this constant (if a constant exists here)
+    constant_index::UInt16  # Index of this constant (if a constant exists here)
     l::NodeIndex
     r::NodeIndex
 
@@ -100,17 +100,17 @@ mutable struct NodeIndex
 end
 
 function index_constants(tree::Node)::NodeIndex
-    return index_constants(tree, 0)
+    return index_constants(tree, UInt16(0))
 end
 
-function index_constants(tree::Node, left_index::Int)::NodeIndex
+function index_constants(tree::Node, left_index)::NodeIndex
     index_tree = NodeIndex()
     index_constants!(tree, index_tree, left_index)
     return index_tree
 end
 
 # Count how many constants to the left of this node, and put them in a tree
-function index_constants!(tree::Node, index_tree::NodeIndex, left_index::Int)
+function index_constants!(tree::Node, index_tree::NodeIndex, left_index)
     if tree.degree == 0
         if tree.constant
             index_tree.constant_index = left_index + 1

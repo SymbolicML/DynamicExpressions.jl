@@ -18,7 +18,7 @@ function assert_autodiff_enabled(operators::OperatorEnum)
 end
 
 """
-    eval_diff_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Int; turbo::Bool=false)
+    eval_diff_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Integer; turbo::Bool=false)
 
 Compute the forward derivative of an expression, using a similar
 structure and optimization to eval_tree_array. `direction` is the index of a particular
@@ -31,7 +31,7 @@ respect to `x1`.
 - `cX::AbstractMatrix{T}`: The data matrix, with each column being a data point.
 - `operators::OperatorEnum`: The operators used to create the `tree`. Note that `operators.enable_autodiff`
     must be `true`. This is needed to create the derivative operations.
-- `direction::Int`: The index of the variable to take the derivative with respect to.
+- `direction::Integer`: The index of the variable to take the derivative with respect to.
 - `turbo::Bool`: Use `LoopVectorization.@turbo` for faster evaluation.
 
 # Returns
@@ -43,7 +43,7 @@ function eval_diff_tree_array(
     tree::Node{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    direction::Int;
+    direction::Integer;
     turbo::Bool=false,
 )::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Number}
     assert_autodiff_enabled(operators)
@@ -57,7 +57,7 @@ function eval_diff_tree_array(
     tree::Node{T1},
     cX::AbstractMatrix{T2},
     operators::OperatorEnum,
-    direction::Int;
+    direction::Integer;
     turbo::Bool=false,
 ) where {T1<:Number,T2<:Number}
     T = promote_type(T1, T2)
@@ -71,7 +71,7 @@ function _eval_diff_tree_array(
     tree::Node{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    direction::Int,
+    direction::Integer,
     ::Val{turbo},
 )::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Number,turbo}
     evaluation, derivative, complete = if tree.degree == 0
@@ -102,7 +102,7 @@ function _eval_diff_tree_array(
 end
 
 function diff_deg0_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, direction::Int
+    tree::Node{T}, cX::AbstractMatrix{T}, direction::Integer
 )::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Number}
     const_part = deg0_eval(tree, cX)[1]
     derivative_part = if ((!tree.constant) && tree.feature == direction)
@@ -119,7 +119,7 @@ function diff_deg1_eval(
     op::F,
     diff_op::dF,
     operators::OperatorEnum,
-    direction::Int,
+    direction::Integer,
     ::Val{turbo},
 )::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Number,F,dF,turbo}
     (cumulator, dcumulator, complete) = _eval_diff_tree_array(
@@ -144,7 +144,7 @@ function diff_deg2_eval(
     op::F,
     diff_op::dF,
     operators::OperatorEnum,
-    direction::Int,
+    direction::Integer,
     ::Val{turbo},
 )::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Number,F,dF,turbo}
     (cumulator, dcumulator, complete) = _eval_diff_tree_array(
@@ -200,7 +200,7 @@ function eval_grad_tree_array(
 )::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Number}
     assert_autodiff_enabled(operators)
     n_gradients = variable ? size(cX, 1) : count_constants(tree)
-    index_tree = index_constants(tree, 0)
+    index_tree = index_constants(tree, UInt16(0))
     return eval_grad_tree_array(
         tree,
         Val(n_gradients),
