@@ -42,7 +42,7 @@ mutable struct Node{T}
     val::Union{T,Nothing}  # If is a constant, this stores the actual value
     # ------------------- (possibly undefined below)
     feature::UInt16  # If is a variable (e.g., x in cos(x)), this stores the feature index.
-    op::UInt8  # If operator, this is the index of the operator in operators.binary_operators, or operators.unary_operators
+    op::UInt8  # If operator, this is the index of the operator in operators.binops, or operators.unaops
     l::Node{T}  # Left child node. Only defined for degree=1 or degree=2.
     r::Node{T}  # Right child node. Only defined for degree=2. 
 
