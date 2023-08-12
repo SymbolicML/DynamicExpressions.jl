@@ -46,7 +46,7 @@ has_constants(tree::Node) = any(is_node_constant, tree)
 
 Check if a tree has any operators.
 """
-has_operators(tree::Node) = tree.degree !== 0
+has_operators(tree::Node) = tree.degree != 0
 
 """
     is_constant(tree::Node)::Bool
@@ -54,7 +54,7 @@ has_operators(tree::Node) = tree.degree !== 0
 Check if an expression is a constant numerical value, or
 whether it depends on input features.
 """
-is_constant(tree::Node) = all(t -> t.degree !== 0 || t.constant, tree)
+is_constant(tree::Node) = all(t -> t.degree != 0 || t.constant, tree)
 
 """
     get_constants(tree::Node{T})::Vector{T} where {T}

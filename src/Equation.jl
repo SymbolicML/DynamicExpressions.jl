@@ -4,7 +4,9 @@ import ..OperatorEnumModule: AbstractOperatorEnum
 import ..UtilsModule: @memoize_on, @with_memoize, deprecate_varmap
 
 const DEFAULT_NODE_TYPE = Float32
+const FIELD_TYPE = Int16
 
+#! format: off
 """
     Node{T}
 
@@ -36,31 +38,27 @@ nodes, you can evaluate or print a given expression.
     argument to the binary operator.
 """
 mutable struct Node{T}
-    degree::Int  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
+    degree::FIELD_TYPE  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     constant::Bool  # false if variable
     val::Union{T,Nothing}  # If is a constant, this stores the actual value
     # ------------------- (possibly undefined below)
-    feature::Int  # If is a variable (e.g., x in cos(x)), this stores the feature index.
-    op::Int  # If operator, this is the index of the operator in operators.binary_operators, or operators.unary_operators
+    feature::FIELD_TYPE  # If is a variable (e.g., x in cos(x)), this stores the feature index.
+    op::FIELD_TYPE  # If operator, this is the index of the operator in operators.binary_operators, or operators.unary_operators
     l::Node{T}  # Left child node. Only defined for degree=1 or degree=2.
     r::Node{T}  # Right child node. Only defined for degree=2. 
 
     #################
     ## Constructors:
     #################
-    Node(d::Int, c::Bool, v::_T) where {_T} = new{_T}(d, c, v)
-    Node(::Type{_T}, d::Int, c::Bool, v::_T) where {_T} = new{_T}(d, c, v)
-    Node(::Type{_T}, d::Int, c::Bool, v::Nothing, f::Int) where {_T} = new{_T}(d, c, v, f)
-    function Node(d::Int, c::Bool, v::Nothing, f::Int, o::Int, l::Node{_T}) where {_T}
-        return new{_T}(d, c, v, f, o, l)
-    end
-    function Node(
-        d::Int, c::Bool, v::Nothing, f::Int, o::Int, l::Node{_T}, r::Node{_T}
-    ) where {_T}
-        return new{_T}(d, c, v, f, o, l, r)
-    end
+    Node(d::Integer, c::Bool, v::_T) where {_T} = new{_T}(FIELD_TYPE(d), c, v)
+    Node(::Type{_T}, d::Integer, c::Bool, v::_T) where {_T} = new{_T}(FIELD_TYPE(d), c, v)
+    Node(::Type{_T}, d::Integer, c::Bool, v::Nothing, f::Integer) where {_T} = new{_T}(FIELD_TYPE(d), c, v, FIELD_TYPE(f))
+    Node(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::Node{_T}) where {_T} = new{_T}(FIELD_TYPE(d), c, v, FIELD_TYPE(f), FIELD_TYPE(o), l)
+    Node(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::Node{_T}, r::Node{_T}) where {_T} = new{_T}(FIELD_TYPE(d), c, v, FIELD_TYPE(f), FIELD_TYPE(o), l, r)
+
 end
 ################################################################################
+#! format: on
 
 include("base.jl")
 
@@ -119,14 +117,14 @@ end
 
 Apply unary operator `op` (enumerating over the order given) to `Node` `l`
 """
-Node(op::Int, l::Node{T}) where {T} = Node(1, false, nothing, 0, op, l)
+Node(op::Integer, l::Node{T}) where {T} = Node(1, false, nothing, 0, op, l)
 
 """
     Node(op::Int, l::Node, r::Node)
 
 Apply binary operator `op` (enumerating over the order given) to `Node`s `l` and `r`
 """
-function Node(op::Int, l::Node{T1}, r::Node{T2}) where {T1,T2}
+function Node(op::Integer, l::Node{T1}, r::Node{T2}) where {T1,T2}
     # Get highest type:
     if T1 != T2
         T = promote_type(T1, T2)
@@ -150,9 +148,11 @@ Create a variable node, using a user-passed format
 """
 function Node(var_string::String, variable_names::Array{String,1})
     return Node(;
-        feature=[
-            i for (i, _variable) in enumerate(variable_names) if _variable == var_string
-        ][1]::Int,
+        feature=FIELD_TYPE(
+            [
+                i for (i, _variable) in enumerate(variable_names) if _variable == var_string
+            ][1]::Int,
+        ),
     )
 end
 
