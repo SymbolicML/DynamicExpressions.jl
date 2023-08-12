@@ -100,7 +100,7 @@ mutable struct NodeIndex
 end
 
 function index_constants(tree::Node)::NodeIndex
-    return index_constants(tree, 0)
+    return index_constants(tree, Int16(0))
 end
 
 function index_constants(tree::Node, left_index::Int16)::NodeIndex
