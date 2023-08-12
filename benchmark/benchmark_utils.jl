@@ -8,13 +8,11 @@ function random_node(tree::Node{T})::Node{T} where {T}
     if tree.degree == 0
         return tree
     end
-    b = 0
-    c = 0
-    if tree.degree >= 1
-        b = count_nodes(tree.l)
-    end
-    if tree.degree == 2
-        c = count_nodes(tree.r)
+    b = count_nodes(tree.l)
+    c = if tree.degree == 2
+        count_nodes(tree.r)
+    else
+        0
     end
 
     i = rand(1:(1 + b + c))
