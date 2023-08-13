@@ -1,4 +1,5 @@
 using DynamicExpressions
+using DynamicExpressions.UtilsModule: fill_similar
 using Test
 
 operators = OperatorEnum(; binary_operators=(+, *, -, /, ^), unary_operators=(exp, sin))
