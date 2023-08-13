@@ -1,4 +1,6 @@
 using DynamicExpressions
+using DynamicExpressions.UtilsModule: fill_similar
+using Test
 
 operators = OperatorEnum(; binary_operators=(+, *, -, /, ^), unary_operators=(exp, sin))
 
@@ -33,3 +35,8 @@ tree = x1 + Node(; val=0.0) - sin(x2 - Node(; val=0.5))
 @test get_constants(tree) == [0.0, 0.5]
 set_constants!(tree, [1.0, 2.0])
 @test repr(tree) == "((x1 + 1.0) - sin(x2 - 2.0))"
+
+# Ensure that fill_similar is type stable
+x = randn(Float32, 3, 10)
+@inferred fill_similar(0.5f0, x, axes(x, 1))
+fill_similar(0.5f0, x, axes(x, 1)) == fill(0.5f0, 3)
