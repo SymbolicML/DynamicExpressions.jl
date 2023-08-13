@@ -30,9 +30,9 @@ function enzyme_reverse_gradient(
 ) where {T}
     nfeatures, nrows = size(X)
     result = zeros(T, nrows)
-    dresult = ones(T, nrows)
     if variable
         dX = zeros(T, nfeatures, nrows)
+        dresult = ones(T, nrows)
         autodiff(
             Reverse,
             _eval_tree_array!,
@@ -44,7 +44,26 @@ function enzyme_reverse_gradient(
         )
         return dX
     else
-        throw(error("Gradients with respect to constants not implemented in reverse mode."))
+        ctree = copy_node(tree)
+        c = get_constants(tree)
+        set_constants!(ctree, c .* zero(T))
+        output = zeros(T, length(c), nrows)
+        for i in 1:nrows
+            dresult = zeros(T, nrows)
+            dresult[i] = 1
+            cc = copy(c) .* zero(T)
+            autodiff(
+                Reverse,
+                _eval_tree_array!,
+                Duplicated(result, dresult),
+                Duplicated(tree, ctree),
+                Duplicated(c, cc),
+                Const(X),
+                Const(operators),
+            )
+            output[:, i] .= cc
+        end
+        return output
     end
 end
 
