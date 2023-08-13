@@ -155,7 +155,11 @@ function _add_idmap_to_call(def::Expr, id_map::Expr)
     return Expr(:call, def.args[1], def.args[2:end]..., id_map)
 end
 
-@inline fill_similar(value, array, args...) = fill!(similar(array, args...), value)
+@inline function fill_similar(value, array, args...)
+    out_array = similar(array, args...)
+    fill!(out_array, value)
+    return out_array
+end
 
 function deprecate_varmap(variable_names, varMap, func_name)
     if varMap !== nothing
