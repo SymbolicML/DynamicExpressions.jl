@@ -338,7 +338,10 @@ function OperatorEnum(;
     end
 
     operators = OperatorEnum(
-        binary_operators, unary_operators, diff_binary_operators, diff_unary_operators
+        Tuple(binary_operators),
+        Tuple(unary_operators),
+        Tuple(diff_binary_operators),
+        Tuple(diff_unary_operators),
     )
 
     if define_helper_functions
@@ -379,7 +382,7 @@ function GenericOperatorEnum(;
     binary_operators = Function[op for op in binary_operators]
     unary_operators = Function[op for op in unary_operators]
 
-    operators = GenericOperatorEnum(binary_operators, unary_operators)
+    operators = GenericOperatorEnum(Tuple(binary_operators), Tuple(unary_operators))
 
     if define_helper_functions
         @extend_operators_base operators empty_old_operators = empty_old_operators
