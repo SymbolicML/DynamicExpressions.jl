@@ -104,7 +104,7 @@ end
 function diff_deg0_eval(
     tree::Node{T}, cX::AbstractMatrix{T}, direction::Integer
 )::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Number}
-    const_part = deg0_eval(tree, cX)[1]
+    const_part = deg0_eval(tree, cX).x
     derivative_part = if ((!tree.constant) && tree.feature == direction)
         fill_similar(one(T), cX, axes(cX, 2))
     else
@@ -294,7 +294,7 @@ function grad_deg0_eval(
     cX::AbstractMatrix{T},
     ::Val{variable},
 )::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Number,variable,n_gradients}
-    const_part = deg0_eval(tree, cX)[1]
+    const_part = deg0_eval(tree, cX).x
 
     zero_mat = if typeof(cX) <: Array
         zeros(T, n_gradients, size(cX, 2))
