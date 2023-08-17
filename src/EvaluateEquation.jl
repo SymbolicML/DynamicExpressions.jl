@@ -6,7 +6,7 @@ import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: @maybe_turbo, is_bad_array, fill_similar
 import ..EquationUtilsModule: is_constant
 
-struct ResultOk{A}
+struct ResultOk{A<:AbstractArray}
     x::A
     ok::Bool
 end
@@ -93,7 +93,7 @@ function eval_tree_array(
     T = promote_type(T1, T2)
     @warn "Warning: eval_tree_array received mixed types: tree=$(T1) and data=$(T2)."
     tree = convert(Node{T}, tree)
-    cX = T.(cX)
+    cX = Base.Fix1(convert, T).(cX)
     return eval_tree_array(tree, cX, operators; kws...)
 end
 
@@ -351,9 +351,7 @@ Evaluate a tree which is assumed to not contain any variable nodes. This
 gives better performance, as we do not need to perform computation
 over an entire array when the values are all the same.
 """
-function _eval_constant_tree(
-    tree::Node{T}, operators::OperatorEnum
-)::ResultOk{Base.RefValue{T}} where {T<:Number}
+function _eval_constant_tree(tree::Node{T}, operators::OperatorEnum) where {T<:Number}
     if tree.degree == 0
         return deg0_eval_constant(tree)
     elseif tree.degree == 1
@@ -364,7 +362,8 @@ function _eval_constant_tree(
 end
 
 @inline function deg0_eval_constant(tree::Node{T}) where {T<:Number}
-    return ResultOk(Ref(tree.val::T), true)
+    output = tree.val::T
+    return ResultOk([output], true)
 end
 
 function deg1_eval_constant(
@@ -372,8 +371,8 @@ function deg1_eval_constant(
 ) where {T<:Number,F}
     result = _eval_constant_tree(tree.l, operators)
     !result.ok && return result
-    result.x[] = op(result.x[])::T
-    return ResultOk(result.x, isfinite(result.x[]))
+    output = op(result.x[])::T
+    return ResultOk([output], isfinite(output))
 end
 
 function deg2_eval_constant(
@@ -383,8 +382,8 @@ function deg2_eval_constant(
     !cumulator.ok && return cumulator
     result_r = _eval_constant_tree(tree.r, operators)
     !result_r.ok && return result_r
-    cumulator.x[] = op(cumulator.x[], result_r.x[])::T
-    return ResultOk(cumulator.x, isfinite(cumulator.x[]))
+    output = op(cumulator.x[], result_r.x[])::T
+    return ResultOk([output], isfinite(output))
 end
 
 """
