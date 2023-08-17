@@ -384,11 +384,11 @@ end
 function deg2_eval_constant(
     tree::Node{T}, op::F, operators::OperatorEnum
 ) where {T<:Number,F}
-    result = _eval_constant_tree(tree.l, operators)
-    !result.complete && return ValidResult(zero(T), false)
-    result2 = _eval_constant_tree(tree.r, operators)
-    !result2.complete && return ValidResult(zero(T), false)
-    output = op(result.x, result2.x)::T
+    result_l = _eval_constant_tree(tree.l, operators)
+    !result_l.complete && return ValidResult(zero(T), false)
+    result_r = _eval_constant_tree(tree.r, operators)
+    !result_r.complete && return ValidResult(zero(T), false)
+    output = op(result_l.x, result_r.x)::T
     return ValidResult(output, isfinite(output))
 end
 
