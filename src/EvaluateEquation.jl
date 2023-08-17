@@ -6,15 +6,15 @@ import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: @maybe_turbo, is_bad_array, fill_similar
 import ..EquationUtilsModule: is_constant
 
-struct ValidResult{A}
+struct ResultOk{A}
     x::A
-    complete::Bool
+    ok::Bool
 end
 
 macro return_on_false(flag, retval)
     :(
         if !$(esc(flag))
-            return $(ValidResult)($(esc(retval)), false)
+            return $(ResultOk)($(esc(retval)), false)
         end
     )
 end
@@ -22,7 +22,7 @@ end
 macro return_on_check(val, X)
     :(
         if !isfinite($(esc(val)))
-            return $(ValidResult)(similar($(esc(X)), axes($(esc(X)), 2)), false)
+            return $(ResultOk)(similar($(esc(X)), axes($(esc(X)), 2)), false)
         end
     )
 end
@@ -30,7 +30,7 @@ end
 macro return_on_nonfinite_array(array)
     :(
         if is_bad_array($(esc(array)))
-            return $(ValidResult)($(esc(array)), false)
+            return $(ResultOk)($(esc(array)), false)
         end
     )
 end
@@ -85,7 +85,7 @@ function eval_tree_array(
     end
 
     result = _eval_tree_array(tree, cX, operators, v_turbo)
-    return (result.x, result.complete && !is_bad_array(result.x))
+    return (result.x, result.ok && !is_bad_array(result.x))
 end
 function eval_tree_array(
     tree::Node{T1}, cX::AbstractMatrix{T2}, operators::OperatorEnum; kws...
@@ -99,7 +99,7 @@ end
 
 function _eval_tree_array(
     tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, ::Val{turbo}
-)::ValidResult where {T<:Number,turbo}
+)::ResultOk where {T<:Number,turbo}
     # First, we see if there are only constants in the tree - meaning
     # we can just return the constant result.
     if tree.degree == 0
@@ -107,8 +107,8 @@ function _eval_tree_array(
     elseif is_constant(tree)
         # Speed hack for constant trees.
         const_result = _eval_constant_tree(tree, operators)
-        !const_result.complete && return ValidResult(similar(cX, axes(cX, 2)), false)
-        return ValidResult(fill_similar(const_result.x, cX, axes(cX, 2)), true)
+        !const_result.ok && return ResultOk(similar(cX, axes(cX, 2)), false)
+        return ResultOk(fill_similar(const_result.x, cX, axes(cX, 2)), true)
     elseif tree.degree == 1
         op = operators.unaops[tree.op]
         if tree.l.degree == 2 && tree.l.l.degree == 0 && tree.l.r.degree == 0
@@ -123,7 +123,7 @@ function _eval_tree_array(
 
         # op(x), for any x.
         result = _eval_tree_array(tree.l, cX, operators, Val(turbo))
-        @return_on_false result.complete result.x
+        @return_on_false result.ok result.x
         @return_on_nonfinite_array result.x
         return deg1_eval(result.x, op, Val(turbo))
     elseif tree.degree == 2
@@ -134,22 +134,22 @@ function _eval_tree_array(
             return deg2_l0_r0_eval(tree, cX, op, Val(turbo))
         elseif tree.r.degree == 0
             result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
-            @return_on_false result_l.complete result_l.x
+            @return_on_false result_l.ok result_l.x
             @return_on_nonfinite_array result_l.x
             # op(x, y), where y is a constant or variable but x is not.
             return deg2_r0_eval(tree, result_l.x, cX, op, Val(turbo))
         elseif tree.l.degree == 0
             result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
-            @return_on_false result_r.complete result_r.x
+            @return_on_false result_r.ok result_r.x
             @return_on_nonfinite_array result_r.x
             # op(x, y), where x is a constant or variable but y is not.
             return deg2_l0_eval(tree, result_r.x, cX, op, Val(turbo))
         end
         result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
-        @return_on_false result_l.complete result_l.x
+        @return_on_false result_l.ok result_l.x
         @return_on_nonfinite_array result_l.x
         result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
-        @return_on_false result_r.complete result_r.x
+        @return_on_false result_r.ok result_r.x
         @return_on_nonfinite_array result_r.x
         # op(x, y), for any x or y
         return deg2_eval(result_l.x, result_r.x, op, Val(turbo))
@@ -158,31 +158,31 @@ end
 
 function deg2_eval(
     cumulator_l::AbstractVector{T}, cumulator_r::AbstractVector{T}, op::F, ::Val{turbo}
-)::ValidResult where {T<:Number,F,turbo}
+)::ResultOk where {T<:Number,F,turbo}
     @maybe_turbo turbo for j in indices(cumulator_l)
         x = op(cumulator_l[j], cumulator_r[j])::T
         cumulator_l[j] = x
     end
-    return ValidResult(cumulator_l, true)
+    return ResultOk(cumulator_l, true)
 end
 
 function deg1_eval(
     cumulator::AbstractVector{T}, op::F, ::Val{turbo}
-)::ValidResult where {T<:Number,F,turbo}
+)::ResultOk where {T<:Number,F,turbo}
     @maybe_turbo turbo for j in indices(cumulator)
         x = op(cumulator[j])::T
         cumulator[j] = x
     end
-    return ValidResult(cumulator, true)
+    return ResultOk(cumulator, true)
 end
 
-function deg0_eval(tree::Node{T}, cX::AbstractMatrix{T})::ValidResult where {T<:Number}
+function deg0_eval(tree::Node{T}, cX::AbstractMatrix{T})::ResultOk where {T<:Number}
     if tree.constant
-        return ValidResult(fill_similar(tree.val::T, cX, axes(cX, 2)), true)
+        return ResultOk(fill_similar(tree.val::T, cX, axes(cX, 2)), true)
     else
         output = similar(cX, axes(cX, 2))
         output .= cX[tree.feature, :]
-        return ValidResult(output, true)
+        return ResultOk(output, true)
     end
 end
 
@@ -198,7 +198,7 @@ function deg1_l2_ll0_lr0_eval(
         @return_on_check x_l cX
         x = op(x_l)::T
         @return_on_check x cX
-        return ValidResult(fill_similar(x, cX, axes(cX, 2)), true)
+        return ResultOk(fill_similar(x, cX, axes(cX, 2)), true)
     elseif tree.l.l.constant
         val_ll = tree.l.l.val::T
         @return_on_check val_ll cX
@@ -209,7 +209,7 @@ function deg1_l2_ll0_lr0_eval(
             x = isfinite(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
         end
-        return ValidResult(cumulator, true)
+        return ResultOk(cumulator, true)
     elseif tree.l.r.constant
         feature_ll = tree.l.l.feature
         val_lr = tree.l.r.val::T
@@ -220,7 +220,7 @@ function deg1_l2_ll0_lr0_eval(
             x = isfinite(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
         end
-        return ValidResult(cumulator, true)
+        return ResultOk(cumulator, true)
     else
         feature_ll = tree.l.l.feature
         feature_lr = tree.l.r.feature
@@ -230,7 +230,7 @@ function deg1_l2_ll0_lr0_eval(
             x = isfinite(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
         end
-        return ValidResult(cumulator, true)
+        return ResultOk(cumulator, true)
     end
 end
 
@@ -245,7 +245,7 @@ function deg1_l1_ll0_eval(
         @return_on_check x_l cX
         x = op(x_l)::T
         @return_on_check x cX
-        return ValidResult(fill_similar(x, cX, axes(cX, 2)), true)
+        return ResultOk(fill_similar(x, cX, axes(cX, 2)), true)
     else
         feature_ll = tree.l.l.feature
         cumulator = similar(cX, axes(cX, 2))
@@ -254,7 +254,7 @@ function deg1_l1_ll0_eval(
             x = isfinite(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
         end
-        return ValidResult(cumulator, true)
+        return ResultOk(cumulator, true)
     end
 end
 
@@ -269,7 +269,7 @@ function deg2_l0_r0_eval(
         @return_on_check val_r cX
         x = op(val_l, val_r)::T
         @return_on_check x cX
-        return ValidResult(fill_similar(x, cX, axes(cX, 2)), true)
+        return ResultOk(fill_similar(x, cX, axes(cX, 2)), true)
     elseif tree.l.constant
         cumulator = similar(cX, axes(cX, 2))
         val_l = tree.l.val::T
@@ -279,7 +279,7 @@ function deg2_l0_r0_eval(
             x = op(val_l, cX[feature_r, j])::T
             cumulator[j] = x
         end
-        return ValidResult(cumulator, true)
+        return ResultOk(cumulator, true)
     elseif tree.r.constant
         cumulator = similar(cX, axes(cX, 2))
         feature_l = tree.l.feature
@@ -289,7 +289,7 @@ function deg2_l0_r0_eval(
             x = op(cX[feature_l, j], val_r)::T
             cumulator[j] = x
         end
-        return ValidResult(cumulator, true)
+        return ResultOk(cumulator, true)
     else
         cumulator = similar(cX, axes(cX, 2))
         feature_l = tree.l.feature
@@ -298,7 +298,7 @@ function deg2_l0_r0_eval(
             x = op(cX[feature_l, j], cX[feature_r, j])::T
             cumulator[j] = x
         end
-        return ValidResult(cumulator, true)
+        return ResultOk(cumulator, true)
     end
 end
 
@@ -313,14 +313,14 @@ function deg2_l0_eval(
             x = op(val, cumulator[j])::T
             cumulator[j] = x
         end
-        return ValidResult(cumulator, true)
+        return ResultOk(cumulator, true)
     else
         feature = tree.l.feature
         @maybe_turbo turbo for j in indices((cX, cumulator), (2, 1))
             x = op(cX[feature, j], cumulator[j])::T
             cumulator[j] = x
         end
-        return ValidResult(cumulator, true)
+        return ResultOk(cumulator, true)
     end
 end
 
@@ -335,14 +335,14 @@ function deg2_r0_eval(
             x = op(cumulator[j], val)::T
             cumulator[j] = x
         end
-        return ValidResult(cumulator, true)
+        return ResultOk(cumulator, true)
     else
         feature = tree.r.feature
         @maybe_turbo turbo for j in indices((cX, cumulator), (2, 1))
             x = op(cumulator[j], cX[feature, j])::T
             cumulator[j] = x
         end
-        return ValidResult(cumulator, true)
+        return ResultOk(cumulator, true)
     end
 end
 
@@ -364,27 +364,27 @@ function _eval_constant_tree(tree::Node{T}, operators::OperatorEnum) where {T<:N
 end
 
 @inline function deg0_eval_constant(tree::Node{T}) where {T<:Number}
-    return ValidResult(tree.val::T, true)
+    return ResultOk(tree.val::T, true)
 end
 
 function deg1_eval_constant(
     tree::Node{T}, op::F, operators::OperatorEnum
 ) where {T<:Number,F}
     result = _eval_constant_tree(tree.l, operators)
-    !result.complete && return ValidResult(zero(T), false)
+    !result.ok && return ResultOk(zero(T), false)
     output = op(result.x)::T
-    return ValidResult(output, isfinite(output))
+    return ResultOk(output, isfinite(output))
 end
 
 function deg2_eval_constant(
     tree::Node{T}, op::F, operators::OperatorEnum
 ) where {T<:Number,F}
     result_l = _eval_constant_tree(tree.l, operators)
-    !result_l.complete && return ValidResult(zero(T), false)
+    !result_l.ok && return ResultOk(zero(T), false)
     result_r = _eval_constant_tree(tree.r, operators)
-    !result_r.complete && return ValidResult(zero(T), false)
+    !result_r.ok && return ResultOk(zero(T), false)
     output = op(result_l.x, result_r.x)::T
-    return ValidResult(output, isfinite(output))
+    return ResultOk(output, isfinite(output))
 end
 
 """
