@@ -108,7 +108,7 @@ function _eval_tree_array(
         # Speed hack for constant trees.
         const_result = _eval_constant_tree(tree, operators)
         !const_result.ok && return ResultOk(similar(cX, axes(cX, 2)), false)
-        return ResultOk(fill_similar(const_result.x, cX, axes(cX, 2)), true)
+        return ResultOk(fill_similar(const_result.x[], cX, axes(cX, 2)), true)
     elseif tree.degree == 1
         op = operators.unaops[tree.op]
         if tree.l.degree == 2 && tree.l.l.degree == 0 && tree.l.r.degree == 0
@@ -351,7 +351,9 @@ Evaluate a tree which is assumed to not contain any variable nodes. This
 gives better performance, as we do not need to perform computation
 over an entire array when the values are all the same.
 """
-function _eval_constant_tree(tree::Node{T}, operators::OperatorEnum) where {T<:Number}
+function _eval_constant_tree(
+    tree::Node{T}, operators::OperatorEnum
+)::ResultOk{Base.RefValue{T}} where {T<:Number}
     if tree.degree == 0
         return deg0_eval_constant(tree)
     elseif tree.degree == 1
@@ -362,27 +364,27 @@ function _eval_constant_tree(tree::Node{T}, operators::OperatorEnum) where {T<:N
 end
 
 @inline function deg0_eval_constant(tree::Node{T}) where {T<:Number}
-    return ResultOk(tree.val::T, true)
+    return ResultOk(Ref(tree.val::T), true)
 end
 
 function deg1_eval_constant(
     tree::Node{T}, op::F, operators::OperatorEnum
 ) where {T<:Number,F}
     result = _eval_constant_tree(tree.l, operators)
-    !result.ok && return ResultOk(zero(T), false)
-    output = op(result.x)::T
-    return ResultOk(output, isfinite(output))
+    !result.ok && return result
+    result.x[] = op(result.x[])::T
+    return ResultOk(result.x, isfinite(result.x[]))
 end
 
 function deg2_eval_constant(
     tree::Node{T}, op::F, operators::OperatorEnum
 ) where {T<:Number,F}
-    result_l = _eval_constant_tree(tree.l, operators)
-    !result_l.ok && return ResultOk(zero(T), false)
+    cumulator = _eval_constant_tree(tree.l, operators)
+    !cumulator.ok && return cumulator
     result_r = _eval_constant_tree(tree.r, operators)
-    !result_r.ok && return ResultOk(zero(T), false)
-    output = op(result_l.x, result_r.x)::T
-    return ResultOk(output, isfinite(output))
+    !result_r.ok && return result_r
+    cumulator.x[] = op(cumulator.x[], result_r.x[])::T
+    return ResultOk(cumulator.x, isfinite(cumulator.x[]))
 end
 
 """
