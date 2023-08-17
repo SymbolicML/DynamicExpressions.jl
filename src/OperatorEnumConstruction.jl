@@ -307,42 +307,51 @@ It will automatically compute derivatives with `Zygote.jl`.
   operator.
 - `unary_operators::Vector{Function}`: A vector of functions, each of which is a unary
   operator.
-- `enable_autodiff::Bool=false`: Whether to enable automatic differentiation.
+- `enable_autodiff::Union{Bool,Val}=false`: Whether to enable automatic differentiation.
 - `define_helper_functions::Bool=true`: Whether to define helper functions for creating
    and evaluating node types. Turn this off when doing precompilation. Note that these
    are *not* needed for the package to work; they are purely for convenience.
 - `empty_old_operators::Bool=true`: Whether to clear the old operators.
+- `specialize::Union{Bool,Val}=false`: For whether we should return
+    a specialized operator type, like `OperatorEnum{Tuple{typeof(+), ...}}`
+    or `OperatorEnum{Vector{Function}}`. This can be used to make `OperatorEnum`
+    specialize to the functions you passed, which is required for things like Enzyme
+    to work. However, it will reduce the effectiveness of precompilation. Can
+    be a `Val` for type specialization.
 """
 function OperatorEnum(;
-    binary_operators=[],
-    unary_operators=[],
-    enable_autodiff::Bool=false,
+    binary_operators=Function[],
+    unary_operators=Function[],
+    enable_autodiff::Union{Bool,Val}=Val(false),
     define_helper_functions::Bool=true,
     empty_old_operators::Bool=true,
+    specialize::Union{Bool,Val}=Val(false),
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
 
-    binary_operators = Function[op for op in binary_operators]
-    unary_operators = Function[op for op in unary_operators]
-
-    diff_binary_operators = Function[]
-    diff_unary_operators = Function[]
-
-    if enable_autodiff
-        for op in binary_operators
-            push!(diff_binary_operators, _zygote_gradient(op, Val(2)))
-        end
-        for op in unary_operators
-            push!(diff_unary_operators, _zygote_gradient(op, Val(1)))
-        end
+    if enable_autodiff === Val(true) || (isa(enable_autodiff, Bool) && enable_autodiff)
+        diff_binary_operators = Base.Fix2(_zygote_gradient, Val(2)).(binary_operators)
+        diff_unary_operators = Base.Fix2(_zygote_gradient, Val(1)).(unary_operators)
+    else
+        diff_binary_operators = Function[]
+        diff_unary_operators = Function[]
     end
 
-    operators = OperatorEnum(
-        Tuple(binary_operators),
-        Tuple(unary_operators),
-        Tuple(diff_binary_operators),
-        Tuple(diff_unary_operators),
-    )
+    operators = if specialize === Val(true) || (isa(specialize, Bool) && specialize)
+        OperatorEnum(
+            Tuple(binary_operators),
+            Tuple(unary_operators),
+            Tuple(diff_binary_operators),
+            Tuple(diff_unary_operators),
+        )
+    else
+        OperatorEnum(
+            binary_operators,
+            unary_operators,
+            diff_binary_operators,
+            diff_unary_operators,
+        )
+    end
 
     if define_helper_functions
         @extend_operators_base operators empty_old_operators = empty_old_operators
@@ -370,19 +379,26 @@ and `(::Node)(X)`.
    and evaluating node types. Turn this off when doing precompilation. Note that these
    are *not* needed for the package to work; they are purely for convenience.
 - `empty_old_operators::Bool=true`: Whether to clear the old operators.
+- `specialize::Union{Bool,Val}=Val(false)`: For whether we should return
+    a specialized operator type, like `GenericOperatorEnum{Tuple{typeof(+), ...}}`
+    or `GenericOperatorEnum{Vector{Function}}`. This can be used to make `GenericOperatorEnum`
+    specialize to the functions you passed, which is required for things like Enzyme
+    to work. However, it will reduce the effectiveness of precompilation.
 """
 function GenericOperatorEnum(;
-    binary_operators=[],
-    unary_operators=[],
+    binary_operators=Function[],
+    unary_operators=Function[],
     define_helper_functions::Bool=true,
     empty_old_operators::Bool=true,
+    specialize::Union{Bool,Val}=Val(false),
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
 
-    binary_operators = Function[op for op in binary_operators]
-    unary_operators = Function[op for op in unary_operators]
-
-    operators = GenericOperatorEnum(Tuple(binary_operators), Tuple(unary_operators))
+    operators = if specialize === Val(true) || (isa(specialize, Bool) && specialize)
+        GenericOperatorEnum(Tuple(binary_operators), Tuple(unary_operators))
+    else
+        GenericOperatorEnum(binary_operators, unary_operators)
+    end
 
     if define_helper_functions
         @extend_operators_base operators empty_old_operators = empty_old_operators
