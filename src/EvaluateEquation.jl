@@ -60,7 +60,7 @@ which speed up evaluation significantly.
 - `tree::Node`: The root node of the tree to evaluate.
 - `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
 - `operators::OperatorEnum`: The operators used in the tree.
-- `turbo::Bool`: Use `LoopVectorization.@turbo` for faster evaluation.
+- `turbo::Union{Bool,Val}`: Use `LoopVectorization.@turbo` for faster evaluation.
 
 # Returns
 - `(output, complete)::Tuple{AbstractVector{T}, Bool}`: the result,
@@ -73,17 +73,12 @@ function eval_tree_array(
     tree::Node{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
-    turbo::Union{Bool,Nothing}=nothing,
-    v_turbo::Val{_turbo}=Val(nothing),
-) where {T<:Number,_turbo}
-    v_turbo = if _turbo === nothing && turbo === nothing
-        Val(false)
-    elseif turbo === nothing
-        Val(_turbo)
-    elseif _turbo === nothing
-        turbo ? Val(true) : Val(false)
+    turbo::Union{Bool,Val}=Val(false),
+) where {T<:Number}
+    v_turbo = if isa(turbo, Val)
+        turbo
     else
-        error("Cannot specify both turbo and v_turbo.")
+        turbo ? Val(true) : Val(false)
     end
     if v_turbo === Val(true)
         @assert T in (Float32, Float64)
