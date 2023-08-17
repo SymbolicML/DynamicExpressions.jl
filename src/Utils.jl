@@ -149,7 +149,7 @@ end
 
 @inline function fill_similar(value, array, args...)
     out_array = similar(array, args...)
-    fill!(out_array, value)
+    out_array .= value
     return out_array
 end
 
