@@ -56,14 +56,6 @@ macro maybe_turbo(turboflag, ex)
     end
 end
 
-macro return_on_false(flag, retval)
-    :(
-        if !$(esc(flag))
-            return ($(esc(retval)), false)
-        end
-    )
-end
-
 # Returns two arrays
 macro return_on_false2(flag, retval, retval2)
     :(
