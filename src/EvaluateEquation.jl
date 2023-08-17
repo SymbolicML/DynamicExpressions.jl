@@ -70,22 +70,36 @@ which speed up evaluation significantly.
     to the equation.
 """
 function eval_tree_array(
-    tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum; turbo::Bool=false
-) where {T<:Number}
-    if turbo
+    tree::Node{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum;
+    turbo::Union{Bool,Nothing}=nothing,
+    v_turbo::Val{_turbo}=Val(nothing),
+) where {T<:Number,_turbo}
+    v_turbo = if _turbo === nothing && turbo === nothing
+        Val(false)
+    elseif turbo === nothing
+        Val(_turbo)
+    elseif _turbo === nothing
+        turbo ? Val(true) : Val(false)
+    else
+        error("Cannot specify both turbo and v_turbo.")
+    end
+    if v_turbo === Val(true)
         @assert T in (Float32, Float64)
     end
-    result = _eval_tree_array(tree, cX, operators, turbo ? Val(true) : Val(false))
+
+    result = _eval_tree_array(tree, cX, operators, v_turbo)
     return (result.x, result.complete && !is_bad_array(result.x))
 end
 function eval_tree_array(
-    tree::Node{T1}, cX::AbstractMatrix{T2}, operators::OperatorEnum; turbo::Bool=false
+    tree::Node{T1}, cX::AbstractMatrix{T2}, operators::OperatorEnum; kws...
 ) where {T1<:Number,T2<:Number}
     T = promote_type(T1, T2)
     @warn "Warning: eval_tree_array received mixed types: tree=$(T1) and data=$(T2)."
     tree = convert(Node{T}, tree)
     cX = T.(cX)
-    return eval_tree_array(tree, cX, operators; turbo=turbo)
+    return eval_tree_array(tree, cX, operators; kws...)
 end
 
 function _eval_tree_array(
