@@ -180,9 +180,7 @@ function deg0_eval(tree::Node{T}, cX::AbstractMatrix{T})::ResultOk where {T<:Num
     if tree.constant
         return ResultOk(fill_similar(tree.val::T, cX, axes(cX, 2)), true)
     else
-        output = similar(cX, axes(cX, 2))
-        output .= cX[tree.feature, :]
-        return ResultOk(output, true)
+        return ResultOk(cX[tree.feature, :], true)
     end
 end
 
