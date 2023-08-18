@@ -346,10 +346,10 @@ function OperatorEnum(;
         )
     else
         OperatorEnum(
-            binary_operators,
-            unary_operators,
-            diff_binary_operators,
-            diff_unary_operators,
+            Function[binary_operators...],
+            Function[unary_operators...],
+            Function[diff_binary_operators...],
+            Function[diff_unary_operators...],
         )
     end
 
@@ -397,7 +397,7 @@ function GenericOperatorEnum(;
     operators = if specialize === Val(true) || (isa(specialize, Bool) && specialize)
         GenericOperatorEnum(Tuple(binary_operators), Tuple(unary_operators))
     else
-        GenericOperatorEnum(binary_operators, unary_operators)
+        GenericOperatorEnum(Function[binary_operators...], Function[unary_operators...])
     end
 
     if define_helper_functions
