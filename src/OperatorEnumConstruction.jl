@@ -322,8 +322,14 @@ function OperatorEnum(;
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
 
-    diff_binary_operators = [_zygote_gradient(op, Val(2)) for op in binary_operators]
-    diff_unary_operators = [_zygote_gradient(op, Val(1)) for op in unary_operators]
+    (diff_binary_operators, diff_unary_operators) = if enable_autodiff
+        (
+            Function[_zygote_gradient(op, Val(2)) for op in binary_operators],
+            Function[_zygote_gradient(op, Val(1)) for op in unary_operators],
+        )
+    else
+        (Function[], Function[])
+    end
 
     operators = OperatorEnum(
         Tuple(binary_operators),
