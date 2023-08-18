@@ -312,7 +312,7 @@ It will automatically compute derivatives with `Zygote.jl`.
    and evaluating node types. Turn this off when doing precompilation. Note that these
    are *not* needed for the package to work; they are purely for convenience.
 - `empty_old_operators::Bool=true`: Whether to clear the old operators.
-- `specialize::Union{Bool,Val}=false`: For whether we should return
+- `specialize::Union{Bool,Val}=Val(true)`: For whether we should return
     a specialized operator type, like `OperatorEnum{Tuple{typeof(+), ...}}`
     or `OperatorEnum{Vector{Function}}`. This can be used to make `OperatorEnum`
     specialize to the functions you passed, which is required for things like Enzyme
@@ -325,7 +325,7 @@ function OperatorEnum(;
     enable_autodiff::Union{Bool,Val}=Val(false),
     define_helper_functions::Bool=true,
     empty_old_operators::Bool=true,
-    specialize::Union{Bool,Val}=Val(false),
+    specialize::Union{Bool,Val}=Val(true),
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
 
@@ -379,7 +379,7 @@ and `(::Node)(X)`.
    and evaluating node types. Turn this off when doing precompilation. Note that these
    are *not* needed for the package to work; they are purely for convenience.
 - `empty_old_operators::Bool=true`: Whether to clear the old operators.
-- `specialize::Union{Bool,Val}=Val(false)`: For whether we should return
+- `specialize::Union{Bool,Val}=Val(true)`: For whether we should return
     a specialized operator type, like `GenericOperatorEnum{Tuple{typeof(+), ...}}`
     or `GenericOperatorEnum{Vector{Function}}`. This can be used to make `GenericOperatorEnum`
     specialize to the functions you passed, which is required for things like Enzyme
@@ -390,7 +390,7 @@ function GenericOperatorEnum(;
     unary_operators=Function[],
     define_helper_functions::Bool=true,
     empty_old_operators::Bool=true,
-    specialize::Union{Bool,Val}=Val(false),
+    specialize::Union{Bool,Val}=Val(true),
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
 
