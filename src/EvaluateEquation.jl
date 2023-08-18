@@ -106,7 +106,7 @@ function _eval_tree_array(
         return deg0_eval(tree, cX)
     elseif is_constant(tree)
         # Speed hack for constant trees.
-        const_result = _eval_constant_tree(tree, operators)
+        const_result = _eval_constant_tree(tree, operators)::ResultOk{Vector{T}}
         !const_result.ok && return ResultOk(similar(cX, axes(cX, 2)), false)
         return ResultOk(fill_similar(const_result.x[], cX, axes(cX, 2)), true)
     elseif tree.degree == 1
@@ -353,17 +353,21 @@ over an entire array when the values are all the same.
 """
 function _eval_constant_tree(tree::Node{T}, operators::OperatorEnum) where {T<:Number}
     if tree.degree == 0
-        return deg0_eval_constant(tree)
+        return deg0_eval_constant(tree)::ResultOk{Vector{T}}
     elseif tree.degree == 1
-        return deg1_eval_constant(tree, operators.unaops[tree.op], operators)
+        return deg1_eval_constant(
+            tree, operators.unaops[tree.op], operators
+        )::ResultOk{Vector{T}}
     else
-        return deg2_eval_constant(tree, operators.binops[tree.op], operators)
+        return deg2_eval_constant(
+            tree, operators.binops[tree.op], operators
+        )::ResultOk{Vector{T}}
     end
 end
 
 @inline function deg0_eval_constant(tree::Node{T}) where {T<:Number}
     output = tree.val::T
-    return ResultOk([output], true)
+    return ResultOk([output], true)::ResultOk{Vector{T}}
 end
 
 function deg1_eval_constant(
@@ -372,7 +376,7 @@ function deg1_eval_constant(
     result = _eval_constant_tree(tree.l, operators)
     !result.ok && return result
     output = op(result.x[])::T
-    return ResultOk([output], isfinite(output))
+    return ResultOk([output], isfinite(output))::ResultOk{Vector{T}}
 end
 
 function deg2_eval_constant(
@@ -383,7 +387,7 @@ function deg2_eval_constant(
     result_r = _eval_constant_tree(tree.r, operators)
     !result_r.ok && return result_r
     output = op(cumulator.x[], result_r.x[])::T
-    return ResultOk([output], isfinite(output))
+    return ResultOk([output], isfinite(output))::ResultOk{Vector{T}}
 end
 
 """
