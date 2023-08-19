@@ -107,8 +107,7 @@ to every constant in the expression.
 
 # Arguments
 - `X::AbstractMatrix{T}`: The data matrix, with each column being a data point.
-- `operators::OperatorEnum`: The operators used to create the `tree`. Note that `operators.enable_autodiff`
-    must be `true`. This is needed to create the derivative operations.
+- `operators::OperatorEnum`: The operators used to create the `tree`.
 - `variable::Bool`: Whether to take derivatives with respect to features (i.e., `X` - with `variable=true`),
     or with respect to every constant in the expression (`variable=false`).
 - `turbo::Bool`: Use `LoopVectorization.@turbo` for faster evaluation.
