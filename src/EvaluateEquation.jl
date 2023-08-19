@@ -447,49 +447,6 @@ function deg2_eval_constant(
 end
 
 """
-    differentiable_eval_tree_array(tree::Node, cX::AbstractMatrix, operators::OperatorEnum)
-
-Evaluate an expression tree in a way that can be auto-differentiated.
-"""
-function differentiable_eval_tree_array(
-    tree::Node{T1}, cX::AbstractMatrix{T}, operators::OperatorEnum
-)::Tuple{AbstractVector{T},Bool} where {T<:Number,T1}
-    if tree.degree == 0
-        if tree.constant
-            return (fill_similar(one(T), cX, axes(cX, 2)) .* tree.val, true)
-        else
-            return (cX[tree.feature, :], true)
-        end
-    elseif tree.degree == 1
-        return deg1_diff_eval(tree, cX, operators.unaops[tree.op], operators)
-    else
-        return deg2_diff_eval(tree, cX, operators.binops[tree.op], operators)
-    end
-end
-
-function deg1_diff_eval(
-    tree::Node{T1}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum
-)::Tuple{AbstractVector{T},Bool} where {T<:Number,F,T1}
-    (left, complete) = differentiable_eval_tree_array(tree.l, cX, operators)
-    @return_on_false complete left
-    out = op.(left)
-    no_nans = !any(x -> (!isfinite(x)), out)
-    return (out, no_nans)
-end
-
-function deg2_diff_eval(
-    tree::Node{T1}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum
-)::Tuple{AbstractVector{T},Bool} where {T<:Number,F,T1}
-    (left, complete) = differentiable_eval_tree_array(tree.l, cX, operators)
-    @return_on_false complete left
-    (right, complete2) = differentiable_eval_tree_array(tree.r, cX, operators)
-    @return_on_false complete2 left
-    out = op.(left, right)
-    no_nans = !any(x -> (!isfinite(x)), out)
-    return (out, no_nans)
-end
-
-"""
     eval_tree_array(tree::Node, cX::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)
 
 Evaluate a generic binary tree (equation) over a given input data,

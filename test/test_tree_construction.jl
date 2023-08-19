@@ -1,6 +1,5 @@
 using DynamicExpressions
 using Random
-using ForwardDiff
 using Test
 using SpecialFunctions
 include("test_params.jl")
@@ -70,22 +69,10 @@ for unaop in [cos, exp, safe_log, safe_log2, safe_log10, safe_sqrt, relu, gamma,
 
             y = T.(f_true.(X[1, :]))
             test_y, complete = eval_tree_array(tree, X, make_operators())
-            test_y2, complete2 = differentiable_eval_tree_array(tree, X, make_operators())
 
             # Test Evaluation
             @test complete == true
             @test all(abs.(test_y .- y) / N .< zero_tolerance)
-            @test complete2 == true
-            @test all(abs.(test_y2 .- y) / N .< zero_tolerance)
-
-            # Test gradients:
-            df_true = x -> ForwardDiff.derivative(f_true, x)
-            dy = T.(df_true.(X[1, :]))
-            test_dy = ForwardDiff.gradient(
-                _x -> sum(differentiable_eval_tree_array(tree, _x, make_operators())[1]), X
-            )
-            test_dy = test_dy[1, 1:end]
-            @test all(abs.(test_dy .- dy) / N .< zero_tolerance)
         end
     end
 end
