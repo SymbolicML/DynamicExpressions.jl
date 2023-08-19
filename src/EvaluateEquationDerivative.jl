@@ -4,7 +4,7 @@ import ..EquationModule: Node
 import ..OperatorEnumModule: OperatorEnum
 import ..UtilsModule: is_bad_array, fill_similar
 import ..EquationUtilsModule: count_constants, index_constants, NodeIndex
-import ..EvaluateEquationModule: deg0_eval
+import ..EvaluateEquationModule: deg0_eval, get_nuna, get_nbin
 
 struct ResultOk2{A<:AbstractArray,B<:AbstractArray}
     x::A
@@ -63,40 +63,36 @@ function eval_diff_tree_array(
     return eval_diff_tree_array(tree, cX, operators, direction; turbo=turbo)
 end
 
-function _eval_diff_tree_array(
+@generated function _eval_diff_tree_array(
     tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Integer
 )::ResultOk2 where {T<:Number}
-    result = if tree.degree == 0
-        diff_deg0_eval(tree, cX, direction)
-    elseif tree.degree == 1
-        op_idx = tree.op
-        nuna = length(operators.unaops)
-        Base.Cartesian.@nif(
-            16,
-            i -> i == op_idx,
-            i ->
-                let op = operators.unaops[min((i < 16) || (nuna < 16) ? i : op_idx, nuna)]
-                    @assert i <= nuna
-                    diff_deg1_eval(tree, cX, op, operators, direction)
-                end
-        )
-    else
-        op_idx = tree.op
-        nbin = length(operators.binops)
-        Base.Cartesian.@nif(
-            16,
-            i -> i == op_idx,
-            i ->
-                let op = operators.binops[min((i < 16) || (nbin < 16) ? i : op_idx, nbin)]
-                    @assert i <= nbin
-                    diff_deg2_eval(tree, cX, op, operators, direction)
-                end
+    nuna = get_nuna(operators)
+    nbin = get_nbin(operators)
+    quote
+        result = if tree.degree == 0
+            diff_deg0_eval(tree, cX, direction)
+        elseif tree.degree == 1
+            op_idx = tree.op
+            Base.Cartesian.@nif(
+                $nuna,
+                i -> i == op_idx,
+                i ->
+                    diff_deg1_eval(tree, cX, operators.unaops[i], operators, direction)
+            )
+        else
+            op_idx = tree.op
+            Base.Cartesian.@nif(
+                $nbin,
+                i -> i == op_idx,
+                i ->
+                    diff_deg2_eval(tree, cX, operators.binops[i], operators, direction)
+            )
+        end
+        !result.ok && return result
+        return ResultOk2(
+            result.x, result.dx, !(is_bad_array(result.x) || is_bad_array(result.dx))
         )
     end
-    !result.ok && return result
-    return ResultOk2(
-        result.x, result.dx, !(is_bad_array(result.x) || is_bad_array(result.dx))
-    )
 end
 
 function diff_deg0_eval(
@@ -172,7 +168,8 @@ to every constant in the expression.
 - `operators::OperatorEnum`: The operators used to create the `tree`.
 - `variable::Bool`: Whether to take derivatives with respect to features (i.e., `cX` - with `variable=true`),
     or with respect to every constant in the expression (`variable=false`).
-- `turbo::Bool`: Use `LoopVectorization.@turbo` for faster evaluation.
+- `turbo::Bool`: Use `LoopVectorization.@turbo` for faster evaluation. Currently this does not have
+    any effect.
 
 # Returns
 
@@ -241,7 +238,7 @@ function eval_grad_tree_array(
     )
 end
 
-function _eval_grad_tree_array(
+@generated function _eval_grad_tree_array(
     tree::Node{T},
     n_gradients,
     index_tree::NodeIndex,
@@ -249,34 +246,42 @@ function _eval_grad_tree_array(
     operators::OperatorEnum,
     ::Val{variable},
 )::ResultOk2 where {T<:Number,variable}
-    if tree.degree == 0
-        grad_deg0_eval(tree, n_gradients, index_tree, cX, Val(variable))
-    elseif tree.degree == 1
-        op_idx = tree.op
-        nuna = length(operators.unaops)
-        Base.Cartesian.@nif(
-            16,
-            i -> i == op_idx,
-            i -> let op = operators.unaops[min((i < 16) || (nuna < 16) ? i : op_idx, nuna)]
-                @assert i <= nuna
-                grad_deg1_eval(
-                    tree, n_gradients, index_tree, cX, op, operators, Val(variable)
+    nuna = get_nuna(operators)
+    nbin = get_nbin(operators)
+    quote
+        if tree.degree == 0
+            grad_deg0_eval(tree, n_gradients, index_tree, cX, Val(variable))
+        elseif tree.degree == 1
+            op_idx = tree.op
+            Base.Cartesian.@nif(
+                $nuna,
+                i -> i == op_idx,
+                i -> grad_deg1_eval(
+                    tree,
+                    n_gradients,
+                    index_tree,
+                    cX,
+                    operators.unaops[i],
+                    operators,
+                    Val(variable),
                 )
-            end
-        )
-    else
-        op_idx = tree.op
-        nbin = length(operators.binops)
-        Base.Cartesian.@nif(
-            16,
-            i -> i == op_idx,
-            i -> let op = operators.binops[min((i < 16) || (nbin < 16) ? i : op_idx, nbin)]
-                @assert i <= nbin
-                grad_deg2_eval(
-                    tree, n_gradients, index_tree, cX, op, operators, Val(variable)
+            )
+        else
+            op_idx = tree.op
+            Base.Cartesian.@nif(
+                $nbin,
+                i -> i == op_idx,
+                i -> grad_deg2_eval(
+                    tree,
+                    n_gradients,
+                    index_tree,
+                    cX,
+                    operators.binops[i],
+                    operators,
+                    Val(variable),
                 )
-            end
-        )
+            )
+        end
     end
 end
 

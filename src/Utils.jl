@@ -162,4 +162,6 @@ function deprecate_varmap(variable_names, varMap, func_name)
     return variable_names
 end
 
+counttuple(::Type{<:NTuple{N,Any}}) where {N} = N
+
 end

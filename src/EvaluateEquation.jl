@@ -3,7 +3,7 @@ module EvaluateEquationModule
 import LoopVectorization: @turbo
 import ..EquationModule: Node, string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
-import ..UtilsModule: @maybe_turbo, is_bad_array, fill_similar
+import ..UtilsModule: @maybe_turbo, is_bad_array, fill_similar, counttuple
 import ..EquationUtilsModule: is_constant
 
 struct ResultOk{A<:AbstractArray}
@@ -89,104 +89,96 @@ function eval_tree_array(
     return eval_tree_array(tree, cX, operators; kws...)
 end
 
-function _eval_tree_array(
+get_nuna(::Type{<:OperatorEnum{B,U}}) where {B,U} = counttuple(U)
+get_nbin(::Type{<:OperatorEnum{B}}) where {B} = counttuple(B)
+
+@generated function _eval_tree_array(
     tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, ::Val{turbo}
 )::ResultOk where {T<:Number,turbo}
-    # First, we see if there are only constants in the tree - meaning
-    # we can just return the constant result.
-    if tree.degree == 0
-        return deg0_eval(tree, cX)
-    elseif is_constant(tree)
-        # Speed hack for constant trees.
-        const_result = _eval_constant_tree(tree, operators)::ResultOk{Vector{T}}
-        !const_result.ok && return ResultOk(similar(cX, axes(cX, 2)), false)
-        return ResultOk(fill_similar(const_result.x[], cX, axes(cX, 2)), true)
-    elseif tree.degree == 1
-        op_idx = tree.op
-        # This @nif lets us generate an if statement over choice of operator,
-        # which means the compiler will be able to completely avoid type inference on operators
-        # We only go up to 16; past that point we fall back to regular type inference.
-        # Thus, if you use more than 16 unary or binary operators, there may be type instability.
-        nuna = length(operators.unaops)
-        nbin = length(operators.binops)
-        return Base.Cartesian.@nif(
-            16,
-            i -> i == op_idx,
-            i -> let op = operators.unaops[min((i < 16) || (nuna < 16) ? i : op_idx, nuna)]
-                @assert i <= nuna
-                if tree.l.degree == 2 && tree.l.l.degree == 0 && tree.l.r.degree == 0
-                    # op(op2(x, y)), where x, y, z are constants or variables.
-                    l_op_idx = tree.l.op
-                    Base.Cartesian.@nif(
-                        16,
-                        j -> j == l_op_idx,
-                        j ->
-                            let op_l = operators.binops[min(
-                                    (j < 16) || (nbin < 16) ? j : l_op_idx, nbin
-                                )]
-                                @assert j <= nbin
+    nuna = get_nuna(operators)
+    nbin = get_nbin(operators)
+    quote
+        # First, we see if there are only constants in the tree - meaning
+        # we can just return the constant result.
+        if tree.degree == 0
+            return deg0_eval(tree, cX)
+        elseif is_constant(tree)
+            # Speed hack for constant trees.
+            const_result = _eval_constant_tree(tree, operators)::ResultOk{Vector{T}}
+            !const_result.ok && return ResultOk(similar(cX, axes(cX, 2)), false)
+            return ResultOk(fill_similar(const_result.x[], cX, axes(cX, 2)), true)
+        elseif tree.degree == 1
+            op_idx = tree.op
+            # This @nif lets us generate an if statement over choice of operator,
+            # which means the compiler will be able to completely avoid type inference on operators.
+            return Base.Cartesian.@nif(
+                $nuna,
+                i -> i == op_idx,
+                i -> let op = operators.unaops[i]
+                    if tree.l.degree == 2 && tree.l.l.degree == 0 && tree.l.r.degree == 0
+                        # op(op2(x, y)), where x, y, z are constants or variables.
+                        l_op_idx = tree.l.op
+                        Base.Cartesian.@nif(
+                            $nbin,
+                            j -> j == l_op_idx,
+                            j -> let op_l = operators.binops[j]
                                 deg1_l2_ll0_lr0_eval(tree, cX, op, op_l, Val(turbo))
                             end,
-                    )
-                elseif tree.l.degree == 1 && tree.l.l.degree == 0
-                    # op(op2(x)), where x is a constant or variable.
-                    l_op_idx = tree.l.op
-                    Base.Cartesian.@nif(
-                        16,
-                        j -> j == l_op_idx,
-                        j ->
-                            let op_l = operators.unaops[min(
-                                    (j < 16) || (nuna < 16) ? j : l_op_idx, nuna
-                                )]
-                                @assert j <= nuna
+                        )
+                    elseif tree.l.degree == 1 && tree.l.l.degree == 0
+                        # op(op2(x)), where x is a constant or variable.
+                        l_op_idx = tree.l.op
+                        Base.Cartesian.@nif(
+                            $nuna,
+                            j -> j == l_op_idx,
+                            j -> let op_l = operators.unaops[j]
                                 deg1_l1_ll0_eval(tree, cX, op, op_l, Val(turbo))
                             end,
-                    )
-                else
-                    # op(x), for any x.
-                    result = _eval_tree_array(tree.l, cX, operators, Val(turbo))
-                    !result.ok && return result
-                    @return_on_nonfinite_array result.x
-                    deg1_eval(result.x, op, Val(turbo))
+                        )
+                    else
+                        # op(x), for any x.
+                        result = _eval_tree_array(tree.l, cX, operators, Val(turbo))
+                        !result.ok && return result
+                        @return_on_nonfinite_array result.x
+                        deg1_eval(result.x, op, Val(turbo))
+                    end
                 end
-            end
-        )
-    else
-        # TODO - add op(op2(x, y), z) and op(x, op2(y, z))
-        # op(x, y), where x, y are constants or variables.
-        op_idx = tree.op
-        nbin = length(operators.binops)
-        return Base.Cartesian.@nif(
-            16,
-            i -> i == op_idx,
-            i -> let op = operators.binops[min((i < 16) || (nbin < 16) ? i : op_idx, nbin)]
-                @assert i <= nbin
-                if tree.l.degree == 0 && tree.r.degree == 0
-                    deg2_l0_r0_eval(tree, cX, op, Val(turbo))
-                elseif tree.r.degree == 0
-                    result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
-                    !result_l.ok && return result_l
-                    @return_on_nonfinite_array result_l.x
-                    # op(x, y), where y is a constant or variable but x is not.
-                    deg2_r0_eval(tree, result_l.x, cX, op, Val(turbo))
-                elseif tree.l.degree == 0
-                    result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
-                    !result_r.ok && return result_r
-                    @return_on_nonfinite_array result_r.x
-                    # op(x, y), where x is a constant or variable but y is not.
-                    deg2_l0_eval(tree, result_r.x, cX, op, Val(turbo))
-                else
-                    result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
-                    !result_l.ok && return result_l
-                    @return_on_nonfinite_array result_l.x
-                    result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
-                    !result_r.ok && return result_r
-                    @return_on_nonfinite_array result_r.x
-                    # op(x, y), for any x or y
-                    deg2_eval(result_l.x, result_r.x, op, Val(turbo))
+            )
+        else
+            # TODO - add op(op2(x, y), z) and op(x, op2(y, z))
+            # op(x, y), where x, y are constants or variables.
+            op_idx = tree.op
+            return Base.Cartesian.@nif(
+                $nbin,
+                i -> i == op_idx,
+                i -> let op = operators.binops[i]
+                    if tree.l.degree == 0 && tree.r.degree == 0
+                        deg2_l0_r0_eval(tree, cX, op, Val(turbo))
+                    elseif tree.r.degree == 0
+                        result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
+                        !result_l.ok && return result_l
+                        @return_on_nonfinite_array result_l.x
+                        # op(x, y), where y is a constant or variable but x is not.
+                        deg2_r0_eval(tree, result_l.x, cX, op, Val(turbo))
+                    elseif tree.l.degree == 0
+                        result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
+                        !result_r.ok && return result_r
+                        @return_on_nonfinite_array result_r.x
+                        # op(x, y), where x is a constant or variable but y is not.
+                        deg2_l0_eval(tree, result_r.x, cX, op, Val(turbo))
+                    else
+                        result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
+                        !result_l.ok && return result_l
+                        @return_on_nonfinite_array result_l.x
+                        result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
+                        !result_r.ok && return result_r
+                        @return_on_nonfinite_array result_r.x
+                        # op(x, y), for any x or y
+                        deg2_eval(result_l.x, result_r.x, op, Val(turbo))
+                    end
                 end
-            end
-        )
+            )
+        end
     end
 end
 
@@ -385,31 +377,33 @@ Evaluate a tree which is assumed to not contain any variable nodes. This
 gives better performance, as we do not need to perform computation
 over an entire array when the values are all the same.
 """
-function _eval_constant_tree(tree::Node{T}, operators::OperatorEnum) where {T<:Number}
-    if tree.degree == 0
-        return deg0_eval_constant(tree)::ResultOk{Vector{T}}
-    elseif tree.degree == 1
-        op_idx = tree.op
-        nuna = length(operators.unaops)
-        return Base.Cartesian.@nif(
-            16,
-            i -> i == op_idx,
-            i -> let op = operators.unaops[min((i < 16) || (nuna < 16) ? i : op_idx, nuna)]
-                @assert i <= nuna
-                deg1_eval_constant(tree, op, operators)::ResultOk{Vector{T}}
-            end
-        )
-    else
-        op_idx = tree.op
-        nbin = length(operators.binops)
-        return Base.Cartesian.@nif(
-            16,
-            i -> i == op_idx,
-            i -> let op = operators.binops[min((i < 16) || (nbin < 16) ? i : op_idx, nbin)]
-                @assert i <= nbin
-                deg2_eval_constant(tree, op, operators)::ResultOk{Vector{T}}
-            end
-        )
+@generated function _eval_constant_tree(
+    tree::Node{T}, operators::OperatorEnum
+) where {T<:Number}
+    nuna = get_nuna(operators)
+    nbin = get_nbin(operators)
+    quote
+        if tree.degree == 0
+            return deg0_eval_constant(tree)::ResultOk{Vector{T}}
+        elseif tree.degree == 1
+            op_idx = tree.op
+            return Base.Cartesian.@nif(
+                $nuna,
+                i -> i == op_idx,
+                i -> deg1_eval_constant(
+                    tree, operators.unaops[i], operators
+                )::ResultOk{Vector{T}}
+            )
+        else
+            op_idx = tree.op
+            return Base.Cartesian.@nif(
+                $nbin,
+                i -> i == op_idx,
+                i -> deg2_eval_constant(
+                    tree, operators.binops[i], operators
+                )::ResultOk{Vector{T}}
+            )
+        end
     end
 end
 
