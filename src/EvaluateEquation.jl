@@ -120,7 +120,7 @@ function _eval_tree_array(
         return Base.Cartesian.@nif(
             16,
             i -> i == op_idx,
-            i -> let op = operators.unaops[min(i < 16 ? i : op_idx, nuna)]
+            i -> let op = operators.unaops[min((i < 16) || (nuna < 16) ? i : op_idx, nuna)]
                 @assert i <= nuna
                 if tree.l.degree == 2 && tree.l.l.degree == 0 && tree.l.r.degree == 0
                     # op(op2(x, y)), where x, y, z are constants or variables.
@@ -129,7 +129,9 @@ function _eval_tree_array(
                         16,
                         j -> j == l_op_idx,
                         j ->
-                            let op_l = operators.binops[min(j < 16 ? j : l_op_idx, nbin)]
+                            let op_l = operators.binops[min(
+                                    (j < 16) || (nbin < 16) ? j : l_op_idx, nbin
+                                )]
                                 @assert j <= nbin
                                 deg1_l2_ll0_lr0_eval(tree, cX, op, op_l, Val(turbo))
                             end,
@@ -141,7 +143,9 @@ function _eval_tree_array(
                         16,
                         j -> j == l_op_idx,
                         j ->
-                            let op_l = operators.unaops[min(j < 16 ? j : l_op_idx, nuna)]
+                            let op_l = operators.unaops[min(
+                                    (j < 16) || (nuna < 16) ? j : l_op_idx, nuna
+                                )]
                                 @assert j <= nuna
                                 deg1_l1_ll0_eval(tree, cX, op, op_l, Val(turbo))
                             end,
@@ -163,7 +167,7 @@ function _eval_tree_array(
         return Base.Cartesian.@nif(
             16,
             i -> i == op_idx,
-            i -> let op = operators.binops[min(i < 16 ? i : op_idx, nbin)]
+            i -> let op = operators.binops[min((i < 16) || (nbin < 16) ? i : op_idx, nbin)]
                 @assert i <= nbin
                 if tree.l.degree == 0 && tree.r.degree == 0
                     deg2_l0_r0_eval(tree, cX, op, Val(turbo))
@@ -398,7 +402,7 @@ function _eval_constant_tree(tree::Node{T}, operators::OperatorEnum) where {T<:N
         return Base.Cartesian.@nif(
             16,
             i -> i == op_idx,
-            i -> let op = operators.unaops[min(i < 16 ? i : op_idx, nuna)]
+            i -> let op = operators.unaops[min((i < 16) || (nuna < 16) ? i : op_idx, nuna)]
                 @assert i <= nuna
                 deg1_eval_constant(tree, op, operators)::ResultOk{Vector{T}}
             end
@@ -409,7 +413,7 @@ function _eval_constant_tree(tree::Node{T}, operators::OperatorEnum) where {T<:N
         return Base.Cartesian.@nif(
             16,
             i -> i == op_idx,
-            i -> let op = operators.binops[min(i < 16 ? i : op_idx, nbin)]
+            i -> let op = operators.binops[min((i < 16) || (nbin < 16) ? i : op_idx, nbin)]
                 @assert i <= nbin
                 deg2_eval_constant(tree, op, operators)::ResultOk{Vector{T}}
             end

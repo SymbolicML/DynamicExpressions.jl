@@ -1,9 +1,8 @@
 module EvaluateEquationDerivativeModule
 
-import LoopVectorization: indices, @turbo
 import ..EquationModule: Node
 import ..OperatorEnumModule: OperatorEnum
-import ..UtilsModule: @maybe_turbo, is_bad_array, fill_similar
+import ..UtilsModule: is_bad_array, fill_similar
 import ..EquationUtilsModule: count_constants, index_constants, NodeIndex
 import ..EvaluateEquationModule: deg0_eval
 
@@ -45,9 +44,9 @@ function eval_diff_tree_array(
 ) where {T<:Number}
     # TODO: Implement quick check for whether the variable is actually used
     # in this tree. Otherwise, return zero.
-    result = _eval_diff_tree_array(
-        tree, cX, operators, direction, (turbo ? Val(true) : Val(false))
-    )
+
+    # TODO: `turbo` slows performance. Need to fix.
+    result = _eval_diff_tree_array(tree, cX, operators, direction)
     return (result.x, result.dx, result.ok)
 end
 function eval_diff_tree_array(
@@ -65,12 +64,8 @@ function eval_diff_tree_array(
 end
 
 function _eval_diff_tree_array(
-    tree::Node{T},
-    cX::AbstractMatrix{T},
-    operators::OperatorEnum,
-    direction::Integer,
-    ::Val{turbo},
-)::ResultOk2 where {T<:Number,turbo}
+    tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Integer
+)::ResultOk2 where {T<:Number}
     result = if tree.degree == 0
         diff_deg0_eval(tree, cX, direction)
     elseif tree.degree == 1
@@ -79,10 +74,11 @@ function _eval_diff_tree_array(
         Base.Cartesian.@nif(
             16,
             i -> i == op_idx,
-            i -> let op = operators.unaops[min(i < 16 ? i : op_idx, nuna)]
-                @assert i <= nuna
-                diff_deg1_eval(tree, cX, op, operators, direction, Val(turbo))
-            end
+            i ->
+                let op = operators.unaops[min((i < 16) || (nuna < 16) ? i : op_idx, nuna)]
+                    @assert i <= nuna
+                    diff_deg1_eval(tree, cX, op, operators, direction)
+                end
         )
     else
         op_idx = tree.op
@@ -90,10 +86,11 @@ function _eval_diff_tree_array(
         Base.Cartesian.@nif(
             16,
             i -> i == op_idx,
-            i -> let op = operators.binops[min(i < 16 ? i : op_idx, nbin)]
-                @assert i <= nbin
-                diff_deg2_eval(tree, cX, op, operators, direction, Val(turbo))
-            end
+            i ->
+                let op = operators.binops[min((i < 16) || (nbin < 16) ? i : op_idx, nbin)]
+                    @assert i <= nbin
+                    diff_deg2_eval(tree, cX, op, operators, direction)
+                end
         )
     end
     !result.ok && return result
@@ -115,21 +112,16 @@ function diff_deg0_eval(
 end
 
 function diff_deg1_eval(
-    tree::Node{T},
-    cX::AbstractMatrix{T},
-    op::F,
-    operators::OperatorEnum,
-    direction::Integer,
-    ::Val{turbo},
-) where {T<:Number,F,turbo}
-    result = _eval_diff_tree_array(tree.l, cX, operators, direction, Val(turbo))
+    tree::Node{T}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum, direction::Integer
+) where {T<:Number,F}
+    result = _eval_diff_tree_array(tree.l, cX, operators, direction)
     !result.ok && return result
 
     # TODO - add type assertions to get better speed:
     cumulator = result.x
     dcumulator = result.dx
-    diff_op = _zygote_gradient(op, Val(1), Val(turbo))
-    @maybe_turbo turbo for j in eachindex(cumulator)
+    diff_op = _zygote_gradient(op, Val(1))
+    @inbounds @simd for j in eachindex(cumulator)
         x = op(cumulator[j])::T
         dx = diff_op(cumulator[j])::T * dcumulator[j]
 
@@ -140,25 +132,20 @@ function diff_deg1_eval(
 end
 
 function diff_deg2_eval(
-    tree::Node{T},
-    cX::AbstractMatrix{T},
-    op::F,
-    operators::OperatorEnum,
-    direction::Integer,
-    ::Val{turbo},
-) where {T<:Number,F,turbo}
-    result_l = _eval_diff_tree_array(tree.l, cX, operators, direction, Val(turbo))
+    tree::Node{T}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum, direction::Integer
+) where {T<:Number,F}
+    result_l = _eval_diff_tree_array(tree.l, cX, operators, direction)
     !result_l.ok && return result_l
-    result_r = _eval_diff_tree_array(tree.r, cX, operators, direction, Val(turbo))
+    result_r = _eval_diff_tree_array(tree.r, cX, operators, direction)
     !result_r.ok && return result_r
 
     ar_l = result_l.x
     d_ar_l = result_l.dx
     ar_r = result_r.x
     d_ar_r = result_r.dx
-    diff_op = _zygote_gradient(op, Val(2), Val(turbo))
+    diff_op = _zygote_gradient(op, Val(2))
 
-    @maybe_turbo turbo for j in eachindex(ar_l)
+    @inbounds @simd for j in eachindex(ar_l)
         x = op(ar_l[j], ar_r[j])::T
 
         first, second = diff_op(ar_l[j], ar_r[j])::Tuple{T,T}
@@ -216,11 +203,6 @@ function eval_grad_tree_array(
         else
             variable ? Val(true) : Val(false)
         end,
-        if isa(turbo, Val)
-            turbo
-        else
-            turbo ? Val(true) : Val(false)
-        end,
     )
     return (result.x, result.dx, result.ok)
 end
@@ -232,10 +214,9 @@ function eval_grad_tree_array(
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     ::Val{variable},
-    ::Val{turbo},
-)::ResultOk2 where {T<:Number,variable,turbo}
+)::ResultOk2 where {T<:Number,variable}
     result = _eval_grad_tree_array(
-        tree, n_gradients, index_tree, cX, operators, Val(variable), Val(turbo)
+        tree, n_gradients, index_tree, cX, operators, Val(variable)
     )
     !result.ok && return result
     return ResultOk2(
@@ -247,8 +228,8 @@ function eval_grad_tree_array(
     tree::Node{T1},
     cX::AbstractMatrix{T2},
     operators::OperatorEnum;
-    variable::Bool=false,
-    turbo::Bool=false,
+    variable::Union{Val,Bool}=Val{false}(),
+    turbo::Union{Val,Bool}=Val{false}(),
 ) where {T1<:Number,T2<:Number}
     T = promote_type(T1, T2)
     return eval_grad_tree_array(
@@ -267,8 +248,7 @@ function _eval_grad_tree_array(
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     ::Val{variable},
-    ::Val{turbo},
-)::ResultOk2 where {T<:Number,variable,turbo}
+)::ResultOk2 where {T<:Number,variable}
     if tree.degree == 0
         grad_deg0_eval(tree, n_gradients, index_tree, cX, Val(variable))
     elseif tree.degree == 1
@@ -277,17 +257,10 @@ function _eval_grad_tree_array(
         Base.Cartesian.@nif(
             16,
             i -> i == op_idx,
-            i -> let op = operators.unaops[min(i < 16 ? i : op_idx, nuna)]
+            i -> let op = operators.unaops[min((i < 16) || (nuna < 16) ? i : op_idx, nuna)]
                 @assert i <= nuna
                 grad_deg1_eval(
-                    tree,
-                    n_gradients,
-                    index_tree,
-                    cX,
-                    op,
-                    operators,
-                    Val(variable),
-                    Val(turbo),
+                    tree, n_gradients, index_tree, cX, op, operators, Val(variable)
                 )
             end
         )
@@ -297,17 +270,10 @@ function _eval_grad_tree_array(
         Base.Cartesian.@nif(
             16,
             i -> i == op_idx,
-            i -> let op = operators.binops[min(i < 16 ? i : op_idx, nbin)]
+            i -> let op = operators.binops[min((i < 16) || (nbin < 16) ? i : op_idx, nbin)]
                 @assert i <= nbin
                 grad_deg2_eval(
-                    tree,
-                    n_gradients,
-                    index_tree,
-                    cX,
-                    op,
-                    operators,
-                    Val(variable),
-                    Val(turbo),
+                    tree, n_gradients, index_tree, cX, op, operators, Val(variable)
                 )
             end
         )
@@ -350,17 +316,16 @@ function grad_deg1_eval(
     op::F,
     operators::OperatorEnum,
     ::Val{variable},
-    ::Val{turbo},
-)::ResultOk2 where {T<:Number,F,variable,turbo}
+)::ResultOk2 where {T<:Number,F,variable}
     result = eval_grad_tree_array(
-        tree.l, n_gradients, index_tree.l, cX, operators, Val(variable), Val(turbo)
+        tree.l, n_gradients, index_tree.l, cX, operators, Val(variable)
     )
     !result.ok && return result
 
     cumulator = result.x
     dcumulator = result.dx
-    diff_op = _zygote_gradient(op, Val(1), Val(turbo))
-    @maybe_turbo turbo for j in axes(dcumulator, 2)
+    diff_op = _zygote_gradient(op, Val(1))
+    @inbounds @simd for j in axes(dcumulator, 2)
         x = op(cumulator[j])::T
         dx = diff_op(cumulator[j])::T
 
@@ -380,14 +345,13 @@ function grad_deg2_eval(
     op::F,
     operators::OperatorEnum,
     ::Val{variable},
-    ::Val{turbo},
-)::ResultOk2 where {T<:Number,F,variable,turbo}
+)::ResultOk2 where {T<:Number,F,variable}
     result_l = eval_grad_tree_array(
-        tree.l, n_gradients, index_tree.l, cX, operators, Val(variable), Val(turbo)
+        tree.l, n_gradients, index_tree.l, cX, operators, Val(variable)
     )
     !result_l.ok && return result_l
     result_r = eval_grad_tree_array(
-        tree.r, n_gradients, index_tree.r, cX, operators, Val(variable), Val(turbo)
+        tree.r, n_gradients, index_tree.r, cX, operators, Val(variable)
     )
     !result_r.ok && return result_r
 
@@ -395,8 +359,8 @@ function grad_deg2_eval(
     dcumulator_l = result_l.dx
     cumulator_r = result_r.x
     dcumulator_r = result_r.dx
-    diff_op = _zygote_gradient(op, Val(2), Val(turbo))
-    @maybe_turbo turbo for j in axes(dcumulator_l, 2)
+    diff_op = _zygote_gradient(op, Val(2))
+    @inbounds @simd for j in axes(dcumulator_l, 2)
         c1 = cumulator_l[j]
         c2 = cumulator_r[j]
         x = op(c1, c2)::T
