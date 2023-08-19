@@ -312,8 +312,12 @@ function grad_deg0_eval(
     if variable == tree.constant
         return ResultOk2(const_part, zero_mat, true)
     else
-        index = variable ? tree.feature : index_tree.constant_index
-        zero_mat[index, :] .= one(T)
+        if variable
+            zero_mat[tree.feature, :] .= one(T)
+        else
+            zero_mat[index_tree.constant_index, :] .= one(T)
+        end
+
         return ResultOk2(const_part, zero_mat, true)
     end
 end
