@@ -1,6 +1,6 @@
 module EvaluateEquationModule
 
-import LoopVectorization: @turbo, indices
+import LoopVectorization: @turbo
 import ..EquationModule: Node, string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: @maybe_turbo, is_bad_array, fill_similar
@@ -193,7 +193,7 @@ end
 function deg2_eval(
     cumulator_l::AbstractVector{T}, cumulator_r::AbstractVector{T}, op::F, ::Val{turbo}
 )::ResultOk where {T<:Number,F,turbo}
-    @maybe_turbo turbo for j in indices(cumulator_l)
+    @maybe_turbo turbo for j in eachindex(cumulator_l)
         x = op(cumulator_l[j], cumulator_r[j])::T
         cumulator_l[j] = x
     end
@@ -203,7 +203,7 @@ end
 function deg1_eval(
     cumulator::AbstractVector{T}, op::F, ::Val{turbo}
 )::ResultOk where {T<:Number,F,turbo}
-    @maybe_turbo turbo for j in indices(cumulator)
+    @maybe_turbo turbo for j in eachindex(cumulator)
         x = op(cumulator[j])::T
         cumulator[j] = x
     end
@@ -236,7 +236,7 @@ function deg1_l2_ll0_lr0_eval(
         @return_on_check val_ll cX
         feature_lr = tree.l.r.feature
         cumulator = similar(cX, axes(cX, 2))
-        @maybe_turbo turbo for j in indices((cX, cumulator), (2, 1))
+        @maybe_turbo turbo for j in axes(cX, 2)
             x_l = op_l(val_ll, cX[feature_lr, j])::T
             x = isfinite(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
@@ -247,7 +247,7 @@ function deg1_l2_ll0_lr0_eval(
         val_lr = tree.l.r.val::T
         @return_on_check val_lr cX
         cumulator = similar(cX, axes(cX, 2))
-        @maybe_turbo turbo for j in indices((cX, cumulator), (2, 1))
+        @maybe_turbo turbo for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j], val_lr)::T
             x = isfinite(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
@@ -257,7 +257,7 @@ function deg1_l2_ll0_lr0_eval(
         feature_ll = tree.l.l.feature
         feature_lr = tree.l.r.feature
         cumulator = similar(cX, axes(cX, 2))
-        @maybe_turbo turbo for j in indices((cX, cumulator), (2, 1))
+        @maybe_turbo turbo for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])::T
             x = isfinite(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
@@ -281,7 +281,7 @@ function deg1_l1_ll0_eval(
     else
         feature_ll = tree.l.l.feature
         cumulator = similar(cX, axes(cX, 2))
-        @maybe_turbo turbo for j in indices((cX, cumulator), (2, 1))
+        @maybe_turbo turbo for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j])::T
             x = isfinite(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
@@ -307,7 +307,7 @@ function deg2_l0_r0_eval(
         val_l = tree.l.val::T
         @return_on_check val_l cX
         feature_r = tree.r.feature
-        @maybe_turbo turbo for j in indices((cX, cumulator), (2, 1))
+        @maybe_turbo turbo for j in axes(cX, 2)
             x = op(val_l, cX[feature_r, j])::T
             cumulator[j] = x
         end
@@ -317,7 +317,7 @@ function deg2_l0_r0_eval(
         feature_l = tree.l.feature
         val_r = tree.r.val::T
         @return_on_check val_r cX
-        @maybe_turbo turbo for j in indices((cX, cumulator), (2, 1))
+        @maybe_turbo turbo for j in axes(cX, 2)
             x = op(cX[feature_l, j], val_r)::T
             cumulator[j] = x
         end
@@ -326,7 +326,7 @@ function deg2_l0_r0_eval(
         cumulator = similar(cX, axes(cX, 2))
         feature_l = tree.l.feature
         feature_r = tree.r.feature
-        @maybe_turbo turbo for j in indices((cX, cumulator), (2, 1))
+        @maybe_turbo turbo for j in axes(cX, 2)
             x = op(cX[feature_l, j], cX[feature_r, j])::T
             cumulator[j] = x
         end
@@ -341,14 +341,14 @@ function deg2_l0_eval(
     if tree.l.constant
         val = tree.l.val::T
         @return_on_check val cX
-        @maybe_turbo turbo for j in indices(cumulator)
+        @maybe_turbo turbo for j in eachindex(cumulator)
             x = op(val, cumulator[j])::T
             cumulator[j] = x
         end
         return ResultOk(cumulator, true)
     else
         feature = tree.l.feature
-        @maybe_turbo turbo for j in indices((cX, cumulator), (2, 1))
+        @maybe_turbo turbo for j in eachindex(cumulator)
             x = op(cX[feature, j], cumulator[j])::T
             cumulator[j] = x
         end
@@ -363,14 +363,14 @@ function deg2_r0_eval(
     if tree.r.constant
         val = tree.r.val::T
         @return_on_check val cX
-        @maybe_turbo turbo for j in indices(cumulator)
+        @maybe_turbo turbo for j in eachindex(cumulator)
             x = op(cumulator[j], val)::T
             cumulator[j] = x
         end
         return ResultOk(cumulator, true)
     else
         feature = tree.r.feature
-        @maybe_turbo turbo for j in indices((cX, cumulator), (2, 1))
+        @maybe_turbo turbo for j in eachindex(cumulator)
             x = op(cumulator[j], cX[feature, j])::T
             cumulator[j] = x
         end
