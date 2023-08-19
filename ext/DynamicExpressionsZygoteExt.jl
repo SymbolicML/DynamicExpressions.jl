@@ -10,7 +10,7 @@ function _zygote_gradient(op::F, ::Val{1}) where {F}
     end
 end
 function _zygote_gradient(op::F, ::Val{2}) where {F}
-    return function (x, y)
+    function (x, y)
         (∂x, ∂y) = gradient(op, x, y)
         return (∂x === nothing ? zero(x) : ∂x, ∂y === nothing ? zero(y) : ∂y)
     end
