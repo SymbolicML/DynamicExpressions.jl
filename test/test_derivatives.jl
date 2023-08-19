@@ -138,6 +138,7 @@ for type in [Float16, Float32, Float64], turbo in [true, false]
     predicted_grad = eval_grad_tree_array(tree, X, operators; variable=false, turbo=turbo)[2]
 
     @test array_test(predicted_grad, true_grad)
+    @inferred eval_grad_tree_array(tree, X, operators; variable=false, turbo=turbo)
     println("Done.")
 end
 

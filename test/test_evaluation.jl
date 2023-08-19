@@ -62,6 +62,8 @@ for turbo in [false, true], T in [Float16, Float32, Float64, ComplexF32, Complex
             true_y = realfnc.(X[1, :], X[2, :], X[3, :])
             !all(isfinite.(true_y)) && continue
 
+            @inferred eval_tree_array(tree, X, operators; turbo=turbo)
+
             test_y = eval_tree_array(tree, X, operators; turbo=turbo)[1]
 
             zero_tolerance = (T <: Union{Float16,Complex} ? 1e-4 : 1e-6)
