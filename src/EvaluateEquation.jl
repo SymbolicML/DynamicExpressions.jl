@@ -11,14 +11,6 @@ struct ResultOk{A<:AbstractArray}
     ok::Bool
 end
 
-macro return_on_false(flag, retval)
-    :(
-        if !$(esc(flag))
-            return $(ResultOk)($(esc(retval)), false)
-        end
-    )
-end
-
 macro return_on_check(val, X)
     :(
         if !isfinite($(esc(val)))
@@ -153,7 +145,7 @@ function _eval_tree_array(
                 else
                     # op(x), for any x.
                     result = _eval_tree_array(tree.l, cX, operators, Val(turbo))
-                    @return_on_false result.ok result.x
+                    !result.ok && return result
                     @return_on_nonfinite_array result.x
                     deg1_eval(result.x, op, Val(turbo))
                 end
@@ -173,22 +165,22 @@ function _eval_tree_array(
                     deg2_l0_r0_eval(tree, cX, op, Val(turbo))
                 elseif tree.r.degree == 0
                     result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
-                    @return_on_false result_l.ok result_l.x
+                    !result_l.ok && return result_l
                     @return_on_nonfinite_array result_l.x
                     # op(x, y), where y is a constant or variable but x is not.
                     deg2_r0_eval(tree, result_l.x, cX, op, Val(turbo))
                 elseif tree.l.degree == 0
                     result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
-                    @return_on_false result_r.ok result_r.x
+                    !result_r.ok && return result_r
                     @return_on_nonfinite_array result_r.x
                     # op(x, y), where x is a constant or variable but y is not.
                     deg2_l0_eval(tree, result_r.x, cX, op, Val(turbo))
                 else
                     result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
-                    @return_on_false result_l.ok result_l.x
+                    !result_l.ok && return result_l
                     @return_on_nonfinite_array result_l.x
                     result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
-                    @return_on_false result_r.ok result_r.x
+                    !result_r.ok && return result_r
                     @return_on_nonfinite_array result_r.x
                     # op(x, y), for any x or y
                     deg2_eval(result_l.x, result_r.x, op, Val(turbo))
