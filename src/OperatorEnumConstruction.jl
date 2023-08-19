@@ -295,7 +295,7 @@ end
 
 """
     OperatorEnum(; binary_operators=[], unary_operators=[],
-                   enable_autodiff::Bool=false, define_helper_functions::Bool=true,
+                   define_helper_functions::Bool=true,
                    empty_old_operators::Bool=true)
 
 Construct an `OperatorEnum` object, defining the possible expressions. This will also
@@ -307,7 +307,6 @@ It will automatically compute derivatives with `Zygote.jl`.
   operator.
 - `unary_operators::Vector{Function}`: A vector of functions, each of which is a unary
   operator.
-- `enable_autodiff::Union{Bool,Val}=false`: Whether to enable automatic differentiation.
 - `define_helper_functions::Bool=true`: Whether to define helper functions for creating
    and evaluating node types. Turn this off when doing precompilation. Note that these
    are *not* needed for the package to work; they are purely for convenience.
@@ -316,28 +315,12 @@ It will automatically compute derivatives with `Zygote.jl`.
 function OperatorEnum(;
     binary_operators=Function[],
     unary_operators=Function[],
-    enable_autodiff::Union{Bool,Val}=Val(false),
     define_helper_functions::Bool=true,
     empty_old_operators::Bool=true,
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
 
-    (diff_binary_operators, diff_unary_operators) =
-        if enable_autodiff === Val(true) || (isa(enable_autodiff, Bool) && enable_autodiff)
-            (
-                Function[_zygote_gradient(op, Val(2)) for op in binary_operators],
-                Function[_zygote_gradient(op, Val(1)) for op in unary_operators],
-            )
-        else
-            (Function[], Function[])
-        end
-
-    operators = OperatorEnum(
-        Tuple(binary_operators),
-        Tuple(unary_operators),
-        Tuple(diff_binary_operators),
-        Tuple(diff_unary_operators),
-    )
+    operators = OperatorEnum(Tuple(binary_operators), Tuple(unary_operators))
 
     if define_helper_functions
         @extend_operators_base operators empty_old_operators = empty_old_operators

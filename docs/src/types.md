@@ -13,7 +13,7 @@ OperatorEnum
 Construct this operator specification as follows:
 
 ```@docs
-OperatorEnum(; binary_operators=[], unary_operators=[], enable_autodiff::Bool=false, define_helper_functions::Bool=true)
+OperatorEnum(; binary_operators=[], unary_operators=[], define_helper_functions::Bool=true)
 ```
 
 This is just for scalar operators. However, you can use
