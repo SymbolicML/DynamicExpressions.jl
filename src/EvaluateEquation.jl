@@ -105,8 +105,8 @@ function _eval_tree_array(
         op_idx = tree.op
         # This @nif lets us generate an if statement over choice of operator,
         # which means the compiler will be able to completely avoid type inference on operators
-        # (so long as you have created the OperatorEnum with specialize ∈ (true, Val(true)))
         # We only go up to 16; past that point we fall back to regular type inference.
+        # Thus, if you use more than 16 unary or binary operators, there may be type instability.
         nuna = length(operators.unaops)
         nbin = length(operators.binops)
         return Base.Cartesian.@nif(
