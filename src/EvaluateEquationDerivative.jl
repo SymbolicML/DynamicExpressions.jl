@@ -84,24 +84,28 @@ function _eval_diff_tree_array(
     result = if tree.degree == 0
         diff_deg0_eval(tree, cX, direction)
     elseif tree.degree == 1
-        diff_deg1_eval(
-            tree,
-            cX,
-            operators.unaops[tree.op],
-            operators.diff_unaops[tree.op],
-            operators,
-            direction,
-            Val(turbo),
+        op_idx = tree.op
+        Base.Cartesian.@nif(
+            16,
+            i -> i == op_idx,
+            i ->
+                let op = operators.unaops[i < 16 ? i : op_idx],
+                    d_op = operators.diff_unaops[i < 16 ? i : op_idx]
+
+                    diff_deg1_eval(tree, cX, op, d_op, operators, direction, Val(turbo))
+                end
         )
     else
-        diff_deg2_eval(
-            tree,
-            cX,
-            operators.binops[tree.op],
-            operators.diff_binops[tree.op],
-            operators,
-            direction,
-            Val(turbo),
+        op_idx = tree.op
+        Base.Cartesian.@nif(
+            16,
+            i -> i == op_idx,
+            i ->
+                let op = operators.binops[i < 16 ? i : op_idx],
+                    d_op = operators.diff_binops[i < 16 ? i : op_idx]
+
+                    diff_deg2_eval(tree, cX, op, d_op, operators, direction, Val(turbo))
+                end
         )
     end
     !result.ok && return result
