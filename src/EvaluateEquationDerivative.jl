@@ -75,19 +75,23 @@ function _eval_diff_tree_array(
         diff_deg0_eval(tree, cX, direction)
     elseif tree.degree == 1
         op_idx = tree.op
+        nuna = length(operators.unaops)
         Base.Cartesian.@nif(
             16,
             i -> i == op_idx,
-            i -> let op = operators.unaops[i < 16 ? i : op_idx]
+            i -> let op = operators.unaops[min(i < 16 ? i : op_idx, nuna)]
+                @assert i <= nuna
                 diff_deg1_eval(tree, cX, op, operators, direction, Val(turbo))
             end
         )
     else
         op_idx = tree.op
+        nbin = length(operators.binops)
         Base.Cartesian.@nif(
             16,
             i -> i == op_idx,
-            i -> let op = operators.binops[i < 16 ? i : op_idx]
+            i -> let op = operators.binops[min(i < 16 ? i : op_idx, nbin)]
+                @assert i <= nbin
                 diff_deg2_eval(tree, cX, op, operators, direction, Val(turbo))
             end
         )
@@ -124,7 +128,7 @@ function diff_deg1_eval(
     # TODO - add type assertions to get better speed:
     cumulator = result.x
     dcumulator = result.dx
-    diff_op = _zygote_gradient(op, Val(1))
+    diff_op = _zygote_gradient(op, Val(1), Val(turbo))
     @maybe_turbo turbo for j in eachindex(cumulator)
         x = op(cumulator[j])::T
         dx = diff_op(cumulator[j])::T * dcumulator[j]
@@ -152,7 +156,7 @@ function diff_deg2_eval(
     d_ar_l = result_l.dx
     ar_r = result_r.x
     d_ar_r = result_r.dx
-    diff_op = _zygote_gradient(op, Val(2))
+    diff_op = _zygote_gradient(op, Val(2), Val(turbo))
 
     @maybe_turbo turbo for j in eachindex(ar_l)
         x = op(ar_l[j], ar_r[j])::T
@@ -192,34 +196,46 @@ function eval_grad_tree_array(
     tree::Node{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
-    variable::Bool=false,
-    turbo::Bool=false,
+    variable::Union{Val,Bool}=Val{false}(),
+    turbo::Union{Val,Bool}=Val{false}(),
 ) where {T<:Number}
-    n_gradients = variable ? size(cX, 1) : count_constants(tree)
+    n_gradients = if isa(variable, Val{true}) || (isa(variable, Bool) && variable)
+        size(cX, 1)::Int
+    else
+        count_constants(tree)::Int
+    end
     index_tree = index_constants(tree, UInt16(0))
     result = eval_grad_tree_array(
         tree,
-        Val(n_gradients),
+        n_gradients,
         index_tree,
         cX,
         operators,
-        (variable ? Val(true) : Val(false)),
-        (turbo ? Val(true) : Val(false)),
+        if isa(variable, Val)
+            variable
+        else
+            variable ? Val(true) : Val(false)
+        end,
+        if isa(turbo, Val)
+            turbo
+        else
+            turbo ? Val(true) : Val(false)
+        end,
     )
     return (result.x, result.dx, result.ok)
 end
 
 function eval_grad_tree_array(
     tree::Node{T},
-    ::Val{n_gradients},
+    n_gradients,
     index_tree::NodeIndex,
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     ::Val{variable},
     ::Val{turbo},
-)::ResultOk2 where {T<:Number,variable,turbo,n_gradients}
+)::ResultOk2 where {T<:Number,variable,turbo}
     result = _eval_grad_tree_array(
-        tree, Val(n_gradients), index_tree, cX, operators, Val(variable), Val(turbo)
+        tree, n_gradients, index_tree, cX, operators, Val(variable), Val(turbo)
     )
     !result.ok && return result
     return ResultOk2(
@@ -246,24 +262,26 @@ end
 
 function _eval_grad_tree_array(
     tree::Node{T},
-    ::Val{n_gradients},
+    n_gradients,
     index_tree::NodeIndex,
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     ::Val{variable},
     ::Val{turbo},
-)::ResultOk2 where {T<:Number,variable,turbo,n_gradients}
+)::ResultOk2 where {T<:Number,variable,turbo}
     if tree.degree == 0
-        grad_deg0_eval(tree, Val(n_gradients), index_tree, cX, Val(variable))
+        grad_deg0_eval(tree, n_gradients, index_tree, cX, Val(variable))
     elseif tree.degree == 1
         op_idx = tree.op
+        nuna = length(operators.unaops)
         Base.Cartesian.@nif(
             16,
             i -> i == op_idx,
-            i -> let op = operators.unaops[i < 16 ? i : op_idx]
+            i -> let op = operators.unaops[min(i < 16 ? i : op_idx, nuna)]
+                @assert i <= nuna
                 grad_deg1_eval(
                     tree,
-                    Val(n_gradients),
+                    n_gradients,
                     index_tree,
                     cX,
                     op,
@@ -275,13 +293,15 @@ function _eval_grad_tree_array(
         )
     else
         op_idx = tree.op
+        nbin = length(operators.binops)
         Base.Cartesian.@nif(
             16,
             i -> i == op_idx,
-            i -> let op = operators.binops[i < 16 ? i : op_idx]
+            i -> let op = operators.binops[min(i < 16 ? i : op_idx, nbin)]
+                @assert i <= nbin
                 grad_deg2_eval(
                     tree,
-                    Val(n_gradients),
+                    n_gradients,
                     index_tree,
                     cX,
                     op,
@@ -296,17 +316,17 @@ end
 
 function grad_deg0_eval(
     tree::Node{T},
-    ::Val{n_gradients},
+    n_gradients,
     index_tree::NodeIndex,
     cX::AbstractMatrix{T},
     ::Val{variable},
-)::ResultOk2 where {T<:Number,variable,n_gradients}
+)::ResultOk2 where {T<:Number,variable}
     const_part = deg0_eval(tree, cX).x
 
-    zero_mat = if typeof(cX) <: Array
-        zeros(T, n_gradients, size(cX, 2))
+    zero_mat = if isa(cX, Array)
+        fill_similar(zero(T), cX, n_gradients, axes(cX, 2))
     else
-        hcat(ntuple(_ -> fill_similar(zero(T), cX, axes(cX, 2)), Val(n_gradients))...)'
+        hcat([fill_similar(zero(T), cX, axes(cX, 2)) for _ in 1:n_gradients]...)'
     end
 
     if variable == tree.constant
@@ -324,22 +344,22 @@ end
 
 function grad_deg1_eval(
     tree::Node{T},
-    ::Val{n_gradients},
+    n_gradients,
     index_tree::NodeIndex,
     cX::AbstractMatrix{T},
     op::F,
     operators::OperatorEnum,
     ::Val{variable},
     ::Val{turbo},
-)::ResultOk2 where {T<:Number,F,variable,turbo,n_gradients}
+)::ResultOk2 where {T<:Number,F,variable,turbo}
     result = eval_grad_tree_array(
-        tree.l, Val(n_gradients), index_tree.l, cX, operators, Val(variable), Val(turbo)
+        tree.l, n_gradients, index_tree.l, cX, operators, Val(variable), Val(turbo)
     )
     !result.ok && return result
 
     cumulator = result.x
     dcumulator = result.dx
-    diff_op = _zygote_gradient(op, Val(1))
+    diff_op = _zygote_gradient(op, Val(1), Val(turbo))
     @maybe_turbo turbo for j in axes(dcumulator, 2)
         x = op(cumulator[j])::T
         dx = diff_op(cumulator[j])::T
@@ -354,20 +374,20 @@ end
 
 function grad_deg2_eval(
     tree::Node{T},
-    ::Val{n_gradients},
+    n_gradients,
     index_tree::NodeIndex,
     cX::AbstractMatrix{T},
     op::F,
     operators::OperatorEnum,
     ::Val{variable},
     ::Val{turbo},
-)::ResultOk2 where {T<:Number,F,variable,turbo,n_gradients}
+)::ResultOk2 where {T<:Number,F,variable,turbo}
     result_l = eval_grad_tree_array(
-        tree.l, Val(n_gradients), index_tree.l, cX, operators, Val(variable), Val(turbo)
+        tree.l, n_gradients, index_tree.l, cX, operators, Val(variable), Val(turbo)
     )
     !result_l.ok && return result_l
     result_r = eval_grad_tree_array(
-        tree.r, Val(n_gradients), index_tree.r, cX, operators, Val(variable), Val(turbo)
+        tree.r, n_gradients, index_tree.r, cX, operators, Val(variable), Val(turbo)
     )
     !result_r.ok && return result_r
 
@@ -375,7 +395,7 @@ function grad_deg2_eval(
     dcumulator_l = result_l.dx
     cumulator_r = result_r.x
     dcumulator_r = result_r.dx
-    diff_op = _zygote_gradient(op, Val(2))
+    diff_op = _zygote_gradient(op, Val(2), Val(turbo))
     @maybe_turbo turbo for j in axes(dcumulator_l, 2)
         c1 = cumulator_l[j]
         c2 = cumulator_r[j]

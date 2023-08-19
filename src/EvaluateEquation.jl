@@ -115,23 +115,24 @@ function _eval_tree_array(
         # which means the compiler will be able to completely avoid type inference on operators
         # (so long as you have created the OperatorEnum with specialize ∈ (true, Val(true)))
         # We only go up to 16; past that point we fall back to regular type inference.
+        nuna = length(operators.unaops)
+        nbin = length(operators.binops)
         return Base.Cartesian.@nif(
             16,
             i -> i == op_idx,
-            i -> let op = operators.unaops[i < 16 ? i : op_idx]
+            i -> let op = operators.unaops[min(i < 16 ? i : op_idx, nuna)]
+                @assert i <= nuna
                 if tree.l.degree == 2 && tree.l.l.degree == 0 && tree.l.r.degree == 0
                     # op(op2(x, y)), where x, y, z are constants or variables.
                     l_op_idx = tree.l.op
                     Base.Cartesian.@nif(
                         16,
                         j -> j == l_op_idx,
-                        j -> deg1_l2_ll0_lr0_eval(
-                            tree,
-                            cX,
-                            op,
-                            operators.binops[j < 16 ? j : l_op_idx],
-                            Val(turbo),
-                        ),
+                        j ->
+                            let op_l = operators.binops[min(j < 16 ? j : l_op_idx, nbin)]
+                                @assert j <= nbin
+                                deg1_l2_ll0_lr0_eval(tree, cX, op, op_l, Val(turbo))
+                            end,
                     )
                 elseif tree.l.degree == 1 && tree.l.l.degree == 0
                     # op(op2(x)), where x is a constant or variable.
@@ -139,13 +140,11 @@ function _eval_tree_array(
                     Base.Cartesian.@nif(
                         16,
                         j -> j == l_op_idx,
-                        j -> deg1_l1_ll0_eval(
-                            tree,
-                            cX,
-                            op,
-                            operators.unaops[j < 16 ? j : l_op_idx],
-                            Val(turbo),
-                        ),
+                        j ->
+                            let op_l = operators.unaops[min(j < 16 ? j : l_op_idx, nuna)]
+                                @assert j <= nuna
+                                deg1_l1_ll0_eval(tree, cX, op, op_l, Val(turbo))
+                            end,
                     )
                 else
                     # op(x), for any x.
@@ -160,10 +159,12 @@ function _eval_tree_array(
         # TODO - add op(op2(x, y), z) and op(x, op2(y, z))
         # op(x, y), where x, y are constants or variables.
         op_idx = tree.op
+        nbin = length(operators.binops)
         return Base.Cartesian.@nif(
             16,
             i -> i == op_idx,
-            i -> let op = operators.binops[i < 16 ? i : op_idx]
+            i -> let op = operators.binops[min(i < 16 ? i : op_idx, nbin)]
+                @assert i <= nbin
                 if tree.l.degree == 0 && tree.r.degree == 0
                     deg2_l0_r0_eval(tree, cX, op, Val(turbo))
                 elseif tree.r.degree == 0
@@ -393,19 +394,23 @@ function _eval_constant_tree(tree::Node{T}, operators::OperatorEnum) where {T<:N
         return deg0_eval_constant(tree)::ResultOk{Vector{T}}
     elseif tree.degree == 1
         op_idx = tree.op
+        nuna = length(operators.unaops)
         return Base.Cartesian.@nif(
             16,
             i -> i == op_idx,
-            i -> let op = operators.unaops[i < 16 ? i : op_idx]
+            i -> let op = operators.unaops[min(i < 16 ? i : op_idx, nuna)]
+                @assert i <= nuna
                 deg1_eval_constant(tree, op, operators)::ResultOk{Vector{T}}
             end
         )
     else
         op_idx = tree.op
+        nbin = length(operators.binops)
         return Base.Cartesian.@nif(
             16,
             i -> i == op_idx,
-            i -> let op = operators.binops[i < 16 ? i : op_idx]
+            i -> let op = operators.binops[min(i < 16 ? i : op_idx, nbin)]
+                @assert i <= nbin
                 deg2_eval_constant(tree, op, operators)::ResultOk{Vector{T}}
             end
         )
