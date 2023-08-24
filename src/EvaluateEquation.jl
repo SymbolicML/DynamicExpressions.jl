@@ -52,7 +52,10 @@ which speed up evaluation significantly.
 - `tree::Node`: The root node of the tree to evaluate.
 - `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
 - `operators::OperatorEnum`: The operators used in the tree.
-- `turbo::Union{Bool,Val}`: Use `LoopVectorization.@turbo` for faster evaluation.
+- `turbo::Union{Bool,Val}`: Use `LoopVectorization.@turbo` for faster evaluation. To use Enzyme.jl,
+   you will need to fix this to `Val(false)`.
+- `fuse_level::Val`: Either `Val(1)` for no fusing of operators, or `Val(2)` for fusing two at most.
+   To use Enzyme.jl, you will need to fix this to `Val(1)`.
 
 # Returns
 - `(output, complete)::Tuple{AbstractVector{T}, Bool}`: the result,
@@ -66,6 +69,7 @@ function eval_tree_array(
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
     turbo::Union{Bool,Val}=Val(false),
+    fuse_level::Val=Val(2),
 ) where {T<:Number}
     v_turbo = if isa(turbo, Val)
         turbo
@@ -76,7 +80,7 @@ function eval_tree_array(
         @assert T in (Float32, Float64)
     end
 
-    result = _eval_tree_array(tree, cX, operators, v_turbo)
+    result = _eval_tree_array(tree, cX, operators, v_turbo, fuse_level)
     return (result.x, result.ok && !is_bad_array(result.x))
 end
 function eval_tree_array(
@@ -93,8 +97,12 @@ get_nuna(::Type{<:OperatorEnum{B,U}}) where {B,U} = counttuple(U)
 get_nbin(::Type{<:OperatorEnum{B}}) where {B} = counttuple(B)
 
 @generated function _eval_tree_array(
-    tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, ::Val{turbo}
-)::ResultOk where {T<:Number,turbo}
+    tree::Node{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum,
+    ::Val{turbo},
+    ::Val{fuse_level},
+)::ResultOk where {T<:Number,turbo,fuse_level}
     nuna = get_nuna(operators)
     nbin = get_nbin(operators)
     quote
@@ -115,7 +123,10 @@ get_nbin(::Type{<:OperatorEnum{B}}) where {B} = counttuple(B)
                 $nuna,
                 i -> i == op_idx,
                 i -> let op = operators.unaops[i]
-                    if tree.l.degree == 2 && tree.l.l.degree == 0 && tree.l.r.degree == 0
+                    if fuse_level > 1 &&
+                        tree.l.degree == 2 &&
+                        tree.l.l.degree == 0 &&
+                        tree.l.r.degree == 0
                         # op(op2(x, y)), where x, y, z are constants or variables.
                         l_op_idx = tree.l.op
                         Base.Cartesian.@nif(
@@ -125,7 +136,7 @@ get_nbin(::Type{<:OperatorEnum{B}}) where {B} = counttuple(B)
                                 deg1_l2_ll0_lr0_eval(tree, cX, op, op_l, Val(turbo))
                             end,
                         )
-                    elseif tree.l.degree == 1 && tree.l.l.degree == 0
+                    elseif fuse_level > 1 && tree.l.degree == 1 && tree.l.l.degree == 0
                         # op(op2(x)), where x is a constant or variable.
                         l_op_idx = tree.l.op
                         Base.Cartesian.@nif(
@@ -137,7 +148,9 @@ get_nbin(::Type{<:OperatorEnum{B}}) where {B} = counttuple(B)
                         )
                     else
                         # op(x), for any x.
-                        result = _eval_tree_array(tree.l, cX, operators, Val(turbo))
+                        result = _eval_tree_array(
+                            tree.l, cX, operators, Val(turbo), Val(fuse_level)
+                        )
                         !result.ok && return result
                         @return_on_nonfinite_array result.x
                         deg1_eval(result.x, op, Val(turbo))
@@ -155,22 +168,30 @@ get_nbin(::Type{<:OperatorEnum{B}}) where {B} = counttuple(B)
                     if tree.l.degree == 0 && tree.r.degree == 0
                         deg2_l0_r0_eval(tree, cX, op, Val(turbo))
                     elseif tree.r.degree == 0
-                        result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
+                        result_l = _eval_tree_array(
+                            tree.l, cX, operators, Val(turbo), Val(fuse_level)
+                        )
                         !result_l.ok && return result_l
                         @return_on_nonfinite_array result_l.x
                         # op(x, y), where y is a constant or variable but x is not.
                         deg2_r0_eval(tree, result_l.x, cX, op, Val(turbo))
                     elseif tree.l.degree == 0
-                        result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
+                        result_r = _eval_tree_array(
+                            tree.r, cX, operators, Val(turbo), Val(fuse_level)
+                        )
                         !result_r.ok && return result_r
                         @return_on_nonfinite_array result_r.x
                         # op(x, y), where x is a constant or variable but y is not.
                         deg2_l0_eval(tree, result_r.x, cX, op, Val(turbo))
                     else
-                        result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
+                        result_l = _eval_tree_array(
+                            tree.l, cX, operators, Val(turbo), Val(fuse_level)
+                        )
                         !result_l.ok && return result_l
                         @return_on_nonfinite_array result_l.x
-                        result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
+                        result_r = _eval_tree_array(
+                            tree.r, cX, operators, Val(turbo), Val(fuse_level)
+                        )
                         !result_r.ok && return result_r
                         @return_on_nonfinite_array result_r.x
                         # op(x, y), for any x or y
