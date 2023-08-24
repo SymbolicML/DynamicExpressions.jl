@@ -24,6 +24,10 @@ end
     include("test_undefined_derivatives.jl")
 end
 
+@safetestset "Test enzyme derivatives" begin
+    include("test_enzyme.jl")
+end
+
 @safetestset "Test simplification" begin
     include("test_simplification.jl")
 end
