@@ -454,6 +454,68 @@ function deg2_eval_constant(
 end
 
 """
+    differentiable_eval_tree_array(tree::Node, cX::AbstractMatrix, operators::OperatorEnum)
+
+Evaluate an expression tree in a way that can be auto-differentiated.
+"""
+function differentiable_eval_tree_array(
+    tree::Node{T1}, cX::AbstractMatrix{T}, operators::OperatorEnum
+) where {T<:Number,T1}
+    result = _differentiable_eval_tree_array(tree, cX, operators)
+    return (result.x, result.ok)
+end
+
+@generated function _differentiable_eval_tree_array(
+    tree::Node{T1}, cX::AbstractMatrix{T}, operators::OperatorEnum
+)::ResultOk where {T<:Number,T1}
+    nuna = get_nuna(operators)
+    nbin = get_nbin(operators)
+    quote
+        if tree.degree == 0
+            if tree.constant
+                ResultOk(fill_similar(one(T), cX, axes(cX, 2)) .* tree.val, true)
+            else
+                ResultOk(cX[tree.feature, :], true)
+            end
+        elseif tree.degree == 1
+            op_idx = tree.op
+            Base.Cartesian.@nif(
+                $nuna,
+                i -> i == op_idx,
+                i -> deg1_diff_eval(tree, cX, operators.unaops[i], operators)
+            )
+        else
+            op_idx = tree.op
+            Base.Cartesian.@nif(
+                $nbin,
+                i -> i == op_idx,
+                i -> deg2_diff_eval(tree, cX, operators.binops[i], operators)
+            )
+        end
+    end
+end
+
+function deg1_diff_eval(
+    tree::Node{T1}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum
+)::ResultOk where {T<:Number,F,T1}
+    left = _differentiable_eval_tree_array(tree.l, cX, operators)
+    !left.ok && return left
+    out = op.(left.x)
+    return ResultOk(out, all(isfinite, out))
+end
+
+function deg2_diff_eval(
+    tree::Node{T1}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum
+)::ResultOk where {T<:Number,F,T1}
+    left = _differentiable_eval_tree_array(tree.l, cX, operators)
+    !left.ok && return left
+    right = _differentiable_eval_tree_array(tree.r, cX, operators)
+    !right.ok && return right
+    out = op.(left.x, right.x)
+    return ResultOk(out, all(isfinite, out))
+end
+
+"""
     eval_tree_array(tree::Node, cX::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)
 
 Evaluate a generic binary tree (equation) over a given input data,

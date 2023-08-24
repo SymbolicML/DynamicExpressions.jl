@@ -37,6 +37,7 @@ julia = "1.6"
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
@@ -45,4 +46,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [targets]
-test = ["Test", "SafeTestsets", "Aqua", "Enzyme", "SpecialFunctions", "StaticArrays", "SymbolicUtils", "Zygote"]
+test = ["Test", "SafeTestsets", "Aqua", "Enzyme", "ForwardDiff", "SpecialFunctions", "StaticArrays", "SymbolicUtils", "Zygote"]

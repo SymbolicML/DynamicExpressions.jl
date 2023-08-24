@@ -118,6 +118,13 @@ to every constant in the expression.
     the gradient, and whether the evaluation completed as normal (or encountered a nan or inf).
 ```
 
+Alternatively, you can compute higher-order derivatives by using `ForwardDiff` on
+the function `differentiable_eval_tree_array`, although this will be slower.
+
+```@docs
+differentiable_eval_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum) where {T<:Number}
+```
+
 ## Printing
 
 You can also print a tree as follows:
