@@ -91,3 +91,7 @@ end
 @safetestset "Test helpers break upon redefining" begin
     include("test_safe_helpers.jl")
 end
+
+@safetestset "Test custom node type" begin
+    include("test_custom_node_type.jl")
+end

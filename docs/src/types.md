@@ -83,3 +83,9 @@ You can create a copy of a node with `copy_node`:
 ```@docs
 copy_node(tree::Node)
 ```
+
+There is also an abstract type `AbstractNode` which is a supertype of `Node`:
+
+```@docs
+AbstractNode
+```
