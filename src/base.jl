@@ -26,8 +26,8 @@ import Compat: @inline, Returns
 import ..UtilsModule: @memoize_on, @with_memoize
 
 """
-    tree_mapreduce(f::Function, op::Function, tree::Node, result_type::Type=Nothing)
-    tree_mapreduce(f_leaf::Function, f_branch::Function, op::Function, tree::Node, result_type::Type=Nothing)
+    tree_mapreduce(f::Function, op::Function, tree::AbstractNode, result_type::Type=Nothing)
+    tree_mapreduce(f_leaf::Function, f_branch::Function, op::Function, tree::AbstractNode, result_type::Type=Nothing)
 
 Map a function over a tree and aggregate the result using an operator `op`.
 `op` should be defined with inputs `(parent, child...) ->` so that it can aggregate
@@ -66,23 +66,27 @@ end  # Get list of constants. (regular mapreduce also works)
 ```
 """
 function tree_mapreduce(
-    f::F, op::G, tree::N, result_type::Type{RT}=Nothing; preserve_sharing::Bool=false
-) where {T,N<:Node{T},F<:Function,G<:Function,RT}
+    f::F,
+    op::G,
+    tree::AbstractNode,
+    result_type::Type{RT}=Nothing;
+    preserve_sharing::Bool=false,
+) where {F<:Function,G<:Function,RT}
     return tree_mapreduce(f, f, op, tree, result_type; preserve_sharing)
 end
 function tree_mapreduce(
     f_leaf::F1,
     f_branch::F2,
     op::G,
-    tree::N,
+    tree::AbstractNode,
     result_type::Type{RT}=Nothing;
     preserve_sharing::Bool=false,
-) where {T,N<:Node{T},F1<:Function,F2<:Function,G<:Function,RT}
+) where {F1<:Function,F2<:Function,G<:Function,RT}
 
     # Trick taken from here:
     # https://discourse.julialang.org/t/recursive-inner-functions-a-thousand-times-slower/85604/5
     # to speed up recursive closure
-    @memoize_on t function inner(inner, t::Node)
+    @memoize_on t function inner(inner, t)
         if t.degree == 0
             return @inline(f_leaf(t))
         elseif t.degree == 1
@@ -97,19 +101,19 @@ function tree_mapreduce(
         throw(ArgumentError("Need to specify `result_type` if you use `preserve_sharing`."))
 
     if preserve_sharing && RT != Nothing
-        return @with_memoize inner(inner, tree) IdDict{N,RT}()
+        return @with_memoize inner(inner, tree) IdDict{typeof(tree),RT}()
     else
         return inner(inner, tree)
     end
 end
 
 """
-    any(f::Function, tree::Node)
+    any(f::Function, tree::AbstractNode)
 
 Reduce a flag function over a tree, returning `true` if the function returns `true` for any node.
 By using this instead of tree_mapreduce, we can take advantage of early exits.
 """
-function any(f::F, tree::Node) where {F<:Function}
+function any(f::F, tree::AbstractNode) where {F<:Function}
     if tree.degree == 0
         return @inline(f(tree))::Bool
     elseif tree.degree == 1
@@ -119,19 +123,25 @@ function any(f::F, tree::Node) where {F<:Function}
     end
 end
 
-function Base.:(==)(a::Node{T1}, b::Node{T2})::Bool where {T1,T2}
+function Base.:(==)(a::AbstractNode, b::AbstractNode)::Bool
     (degree = a.degree) != b.degree && return false
     if degree == 0
-        (constant = a.constant) != b.constant && return false
-        if constant
-            return a.val::T1 == b.val::T2
-        else
-            return a.feature == b.feature
-        end
+        return isequal_deg0(a, b)
     elseif degree == 1
-        return a.op == b.op && a.l == b.l
+        return isequal_deg1(a, b) && a.l == b.l
     else
-        return a.op == b.op && a.l == b.l && a.r == b.r
+        return isequal_deg2(a, b) && a.l == b.l && a.r == b.r
+    end
+end
+
+@inline isequal_deg1(a::Node, b::Node) = a.op == b.op
+@inline isequal_deg2(a::Node, b::Node) = a.op == b.op
+@inline function isequal_deg0(a::Node{T1}, b::Node{T2}) where {T1,T2}
+    (constant = a.constant) != b.constant && return false
+    if constant
+        return a.val::T1 == b.val::T2
+    else
+        return a.feature == b.feature
     end
 end
 
@@ -144,12 +154,12 @@ end
 
 Apply a function to each node in a tree.
 """
-function foreach(f::Function, tree::Node)
+function foreach(f::Function, tree::AbstractNode)
     return tree_mapreduce(t -> (@inline(f(t)); nothing), Returns(nothing), tree)
 end
 
 """
-    filter_map(filter_fnc::Function, map_fnc::Function, tree::Node, result_type::Type)
+    filter_map(filter_fnc::Function, map_fnc::Function, tree::AbstractNode, result_type::Type)
 
 A faster equivalent to `map(map_fnc, filter(filter_fnc, tree))`
 that avoids the intermediate allocation. However, using this requires
@@ -157,7 +167,7 @@ specifying the `result_type` of `map_fnc` so the resultant array can
 be preallocated.
 """
 function filter_map(
-    filter_fnc::F, map_fnc::G, tree::Node, result_type::Type{GT}
+    filter_fnc::F, map_fnc::G, tree::AbstractNode, result_type::Type{GT}
 ) where {F<:Function,G<:Function,GT}
     stack = Array{GT}(undef, count(filter_fnc, tree))
     filter_map!(filter_fnc, map_fnc, stack, tree)
@@ -165,12 +175,12 @@ function filter_map(
 end
 
 """
-    filter_map!(filter_fnc::Function, map_fnc::Function, stack::Vector{GT}, tree::Node)
+    filter_map!(filter_fnc::Function, map_fnc::Function, stack::Vector{GT}, tree::AbstractNode)
 
 Equivalent to `filter_map`, but stores the results in a preallocated array.
 """
 function filter_map!(
-    filter_fnc::Function, map_fnc::Function, destination::Vector{GT}, tree::Node
+    filter_fnc::Function, map_fnc::Function, destination::Vector{GT}, tree::AbstractNode
 ) where {GT}
     pointer = Ref(0)
     foreach(tree) do t
@@ -183,23 +193,23 @@ function filter_map!(
 end
 
 """
-    filter(f::Function, tree::Node)
+    filter(f::Function, tree::AbstractNode)
 
 Filter nodes of a tree, returning a flat array of the nodes for which the function returns `true`.
 """
-function filter(f::F, tree::Node{T}) where {F<:Function,T}
-    return filter_map(f, identity, tree, Node{T})
+function filter(f::F, tree::AbstractNode) where {F<:Function}
+    return filter_map(f, identity, tree, typeof(tree))
 end
 
-collect(tree::Node) = filter(Returns(true), tree)
+collect(tree::AbstractNode) = filter(Returns(true), tree)
 
 """
-    map(f::Function, tree::Node, result_type::Type{RT}=Nothing)
+    map(f::Function, tree::AbstractNode, result_type::Type{RT}=Nothing)
 
 Map a function over a tree and return a flat array of the results in depth-first order.
 Pre-specifying the `result_type` of the function can be used to avoid extra allocations,
 """
-function map(f::F, tree::Node, result_type::Type{RT}=Nothing) where {F<:Function,RT}
+function map(f::F, tree::AbstractNode, result_type::Type{RT}=Nothing) where {F<:Function,RT}
     if RT == Nothing
         return f.(collect(tree))
     else
@@ -207,25 +217,25 @@ function map(f::F, tree::Node, result_type::Type{RT}=Nothing) where {F<:Function
     end
 end
 
-function count(f::F, tree::Node; init=0) where {F<:Function}
+function count(f::F, tree::AbstractNode; init=0) where {F<:Function}
     return tree_mapreduce(t -> @inline(f(t)) ? 1 : 0, +, tree) + init
 end
 
-function sum(f::F, tree::Node; init=0) where {F<:Function}
+function sum(f::F, tree::AbstractNode; init=0) where {F<:Function}
     return tree_mapreduce(f, +, tree) + init
 end
 
-all(f::F, tree::Node) where {F<:Function} = !any(t -> !@inline(f(t)), tree)
+all(f::F, tree::AbstractNode) where {F<:Function} = !any(t -> !@inline(f(t)), tree)
 
-function mapreduce(f::F, op::G, tree::Node) where {F<:Function,G<:Function}
+function mapreduce(f::F, op::G, tree::AbstractNode) where {F<:Function,G<:Function}
     return tree_mapreduce(f, (n...) -> reduce(op, n), tree)
 end
 
-isempty(::Node) = false
-iterate(root::Node) = (root, collect(root)[(begin + 1):end])
-iterate(::Node, stack) = isempty(stack) ? nothing : (popfirst!(stack), stack)
-in(item, tree::Node) = any(t -> t == item, tree)
-length(tree::Node) = sum(Returns(1), tree)
+isempty(::AbstractNode) = false
+iterate(root::AbstractNode) = (root, collect(root)[(begin + 1):end])
+iterate(::AbstractNode, stack) = isempty(stack) ? nothing : (popfirst!(stack), stack)
+in(item, tree::AbstractNode) = any(t -> t == item, tree)
+length(tree::AbstractNode) = sum(Returns(1), tree)
 function hash(tree::Node{T}) where {T}
     return tree_mapreduce(
         t -> t.constant ? hash((0, t.val::T)) : hash((1, t.feature)),
@@ -299,11 +309,11 @@ end
 
 for func in (:reduce, :foldl, :foldr, :mapfoldl, :mapfoldr)
     @eval begin
-        function $func(f, tree::Node; kws...)
+        function $func(f, tree::AbstractNode; kws...)
             throw(
                 error(
                     string($func) *
-                    " not implemented for Node. Use `tree_mapreduce` instead.",
+                    " not implemented for AbstractNode. Use `tree_mapreduce` instead.",
                 ),
             )
         end

@@ -5,6 +5,24 @@ import ..UtilsModule: @memoize_on, @with_memoize, deprecate_varmap
 
 const DEFAULT_NODE_TYPE = Float32
 
+"""
+    AbstractNode
+
+Abstract type for binary trees. Must have the following fields:
+
+- `degree::Integer`: Degree of the node. Either 0, 1, or 2. If 1,
+    then `l` needs to be defined as the left child. If 2,
+    then `r` also needs to be defined as the right child.
+- `l::AbstractNode`: Left child of the current node. Should only be
+    defined if `degree >= 1`; otherwise, leave it undefined (see the
+    the constructors of `Node{T}` for an example).
+    Don't use `nothing` to represent an undefined value
+    as it will incur a large performance penalty.
+- `r::AbstractNode`: Right child of the current node. Should only
+    be defined if `degree == 2`.
+"""
+abstract type AbstractNode end
+
 #! format: off
 """
     Node{T}
@@ -36,7 +54,7 @@ nodes, you can evaluate or print a given expression.
     Same type as the parent node. This is to be passed as the right
     argument to the binary operator.
 """
-mutable struct Node{T}
+mutable struct Node{T} <: AbstractNode
     degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     constant::Bool  # false if variable
     val::Union{T,Nothing}  # If is a constant, this stores the actual value

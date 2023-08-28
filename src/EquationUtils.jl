@@ -1,22 +1,22 @@
 module EquationUtilsModule
 
 import Compat: Returns
-import ..EquationModule: Node, copy_node, tree_mapreduce, any, filter_map
+import ..EquationModule: AbstractNode, Node, copy_node, tree_mapreduce, any, filter_map
 
 """
-    count_nodes(tree::Node{T})::Int where {T}
+    count_nodes(tree::AbstractNode)::Int
 
 Count the number of nodes in the tree.
 """
-count_nodes(tree::Node) = tree_mapreduce(_ -> 1, +, tree)
+count_nodes(tree::AbstractNode) = tree_mapreduce(_ -> 1, +, tree)
 # This code is given as an example. Normally we could just use sum(Returns(1), tree).
 
 """
-    count_depth(tree::Node{T})::Int where {T}
+    count_depth(tree::AbstractNode)::Int
 
 Compute the max depth of the tree.
 """
-function count_depth(tree::Node)
+function count_depth(tree::AbstractNode)
     return tree_mapreduce(Returns(1), (p, child...) -> p + max(child...), tree)
 end
 
