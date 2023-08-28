@@ -14,7 +14,14 @@ include("ExtensionInterface.jl")
 import PackageExtensionCompat: @require_extensions
 import Reexport: @reexport
 @reexport import .EquationModule:
-    Node, string_tree, print_tree, copy_node, set_node!, tree_mapreduce, filter_map
+    AbstractNode,
+    Node,
+    string_tree,
+    print_tree,
+    copy_node,
+    set_node!,
+    tree_mapreduce,
+    filter_map
 @reexport import .EquationUtilsModule:
     count_nodes,
     count_constants,
