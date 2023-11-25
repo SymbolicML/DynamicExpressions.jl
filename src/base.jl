@@ -234,23 +234,28 @@ end
 
 Filter nodes of a tree, returning a flat array of the nodes for which the function returns `true`.
 """
-function filter(f::F, tree::AbstractNode) where {F<:Function}
-    return filter_map(f, identity, tree, typeof(tree))
+function filter(f::F, tree::AbstractNode; preserve_sharing=false) where {F<:Function}
+    return filter_map(f, identity, tree, typeof(tree); preserve_sharing)
 end
 
-collect(tree::AbstractNode) = filter(Returns(true), tree)
+function collect(tree::AbstractNode; preserve_sharing=false)
+    return filter(Returns(true), tree; preserve_sharing)
+end
 
 """
     map(f::Function, tree::AbstractNode, result_type::Type{RT}=Nothing)
 
 Map a function over a tree and return a flat array of the results in depth-first order.
-Pre-specifying the `result_type` of the function can be used to avoid extra allocations,
+Pre-specifying the `result_type` of the function can be used to avoid extra allocations.
+If you wish to only map over unique nodes, use `preserve_sharing=true`.
 """
-function map(f::F, tree::AbstractNode, result_type::Type{RT}=Nothing) where {F<:Function,RT}
+function map(
+    f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; preserve_sharing=false
+) where {F<:Function,RT}
     if RT == Nothing
-        return f.(collect(tree))
+        return f.(collect(tree; preserve_sharing))
     else
-        return filter_map(Returns(true), f, tree, result_type)
+        return filter_map(Returns(true), f, tree, result_type; preserve_sharing)
     end
 end
 
@@ -301,13 +306,20 @@ isempty(::AbstractNode) = false
 iterate(root::AbstractNode) = (root, collect(root)[(begin + 1):end])
 iterate(::AbstractNode, stack) = isempty(stack) ? nothing : (popfirst!(stack), stack)
 in(item, tree::AbstractNode) = any(t -> t == item, tree)
-length(tree::AbstractNode) = sum(Returns(1), tree)
-function hash(tree::Node{T}) where {T}
+function length(tree::AbstractNode; preserve_sharing=false)
+    return sum(Returns(1), tree; return_type=Int64, preserve_sharing=preserve_sharing)
+end
+
+function hash(tree::Node{T}; preserve_sharing=false) where {T}
     return tree_mapreduce(
         t -> t.constant ? hash((0, t.val::T)) : hash((1, t.feature)),
         t -> hash((t.degree + 1, t.op)),
         (n...) -> hash(n),
         tree,
+        UInt64;
+        preserve_sharing,
+        f_on_shared=(cur_hash, is_shared) ->
+            is_shared ? hash((:shared, cur_hash)) : cur_hash,
     )
 end
 
@@ -339,7 +351,7 @@ function copy_node(tree::N; preserve_sharing::Bool=false) where {T,N<:Node{T}}
     )
 end
 
-copy(tree::Node; kws...) = copy_node(tree; kws...)
+copy(tree::Node; preserve_sharing=false) = copy_node(tree; preserve_sharing)
 
 """
     convert(::Type{Node{T1}}, n::Node{T2}) where {T1,T2}
@@ -371,7 +383,9 @@ function convert(
         preserve_sharing,
     )
 end
-(::Type{Node{T}})(tree::Node; kws...) where {T} = convert(Node{T}, tree; kws...)
+function (::Type{Node{T}})(tree::Node; preserve_sharing=false) where {T}
+    return convert(Node{T}, tree; preserve_sharing)
+end
 
 for func in (:reduce, :foldl, :foldr, :mapfoldl, :mapfoldr)
     @eval begin
