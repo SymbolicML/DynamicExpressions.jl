@@ -58,60 +58,49 @@ include("test_params.jl")
     @test float32_tree.l.l === float32_tree.r
 end
 
-# We also do tests of the macros related to generating functions that preserve
-# sharing:
-expr_eql(x::LineNumberNode, y::LineNumberNode) = true  # Ignore line numbers
-expr_eql(x::QuoteNode, y::QuoteNode) = x == y
-expr_eql(x::Number, y::Number) = x == y
-expr_eql(x::Symbol, y::Symbol) = x == y
-function expr_eql(x::Expr, y::Expr)
-    # Remove line numbers from the arguments:
-    x.args = filter(c -> !isa(c, LineNumberNode), x.args)
-    y.args = filter(c -> !isa(c, LineNumberNode), y.args)
+@testset "Macro tests" begin
+    # We also do tests of the macros related to generating functions that preserve
+    # sharing:
+    @eval begin
+        expr_eql(x::LineNumberNode, y::LineNumberNode) = true  # Ignore line numbers
+        expr_eql(x::QuoteNode, y::QuoteNode) = x == y
+        expr_eql(x::Number, y::Number) = x == y
+        expr_eql(x::Symbol, y::Symbol) = x == y
+        function expr_eql(x::Expr, y::Expr)
+            # Remove line numbers from the arguments:
+            x.args = filter(c -> !isa(c, LineNumberNode), x.args)
+            y.args = filter(c -> !isa(c, LineNumberNode), y.args)
 
-    return expr_eql(x.head, y.head) &&
-           length(x.args) == length(y.args) &&
-           all(expr_eql.(x.args, y.args))
-end
-expr_eql(x, y) = error("Unexpected type: $(typeof(x)) or $(typeof(y))")
-
-@testset "Macro testing utils" begin
-    # First, assert this test actually works:
-    @test !expr_eql(
-        :(_convert(Node{T1}, tree)),
-        :(_convert(Node{T1}, tree, IdDict{Node{T2},Node{T1}}())),
-    )
-end
-
-@testset "@with_memoize" begin
-    ex = @macroexpand DynamicExpressions.UtilsModule.@with_memoize(
-        _convert(Node{T1}, tree), IdDict{Node{T2},Node{T1}}()
-    )
-    true_ex = quote
-        _convert(Node{T1}, tree, IdDict{Node{T2},Node{T1}}())
-    end
-
-    @test expr_eql(ex, true_ex)
-end
-
-@testset "@memoize_on" begin
-    ex = @macroexpand DynamicExpressions.UtilsModule.@memoize_on tree function _copy_node(
-        tree::Node{T}
-    )::Node{T} where {T}
-        if tree.degree == 0
-            if tree.constant
-                Node(; val=copy(tree.val::T))
-            else
-                Node(T; feature=copy(tree.feature))
-            end
-        elseif tree.degree == 1
-            Node(copy(tree.op), _copy_node(tree.l))
-        else
-            Node(copy(tree.op), _copy_node(tree.l), _copy_node(tree.r))
+            return expr_eql(x.head, y.head) &&
+                length(x.args) == length(y.args) &&
+                all(expr_eql.(x.args, y.args))
         end
+        expr_eql(x, y) = error("Unexpected type: $(typeof(x)) or $(typeof(y))")
     end
-    true_ex = quote
-        function _copy_node(tree::Node{T})::Node{T} where {T}
+
+    @testset "Macro testing utils" begin
+        # First, assert this test actually works:
+        @test !expr_eql(
+            :(_convert(Node{T1}, tree)),
+            :(_convert(Node{T1}, tree, IdDict{Node{T2},Node{T1}}())),
+        )
+    end
+
+    @testset "@with_memoize" begin
+        ex = @macroexpand DynamicExpressions.UtilsModule.@with_memoize(
+            _convert(Node{T1}, tree), IdDict{Node{T2},Node{T1}}()
+        )
+        true_ex = quote
+            _convert(Node{T1}, tree, IdDict{Node{T2},Node{T1}}())
+        end
+
+        @test expr_eql(ex, true_ex)
+    end
+
+    @testset "@memoize_on" begin
+        ex = @macroexpand DynamicExpressions.UtilsModule.@memoize_on tree function _copy_node(
+            tree::Node{T}
+        )::Node{T} where {T}
             if tree.degree == 0
                 if tree.constant
                     Node(; val=copy(tree.val::T))
@@ -124,27 +113,42 @@ end
                 Node(copy(tree.op), _copy_node(tree.l), _copy_node(tree.r))
             end
         end
-        function _copy_node(tree::Node{T}, id_map::IdDict;)::Node{T} where {T}
-            get!(id_map, tree) do
-                begin
-                    if tree.degree == 0
-                        if tree.constant
-                            Node(; val=copy(tree.val::T))
-                        else
-                            Node(T; feature=copy(tree.feature))
-                        end
-                    elseif tree.degree == 1
-                        Node(copy(tree.op), _copy_node(tree.l, id_map))
+        true_ex = quote
+            function _copy_node(tree::Node{T})::Node{T} where {T}
+                if tree.degree == 0
+                    if tree.constant
+                        Node(; val=copy(tree.val::T))
                     else
-                        Node(
-                            copy(tree.op),
-                            _copy_node(tree.l, id_map),
-                            _copy_node(tree.r, id_map),
-                        )
+                        Node(T; feature=copy(tree.feature))
+                    end
+                elseif tree.degree == 1
+                    Node(copy(tree.op), _copy_node(tree.l))
+                else
+                    Node(copy(tree.op), _copy_node(tree.l), _copy_node(tree.r))
+                end
+            end
+            function _copy_node(tree::Node{T}, id_map::IdDict;)::Node{T} where {T}
+                get!(id_map, tree) do
+                    begin
+                        if tree.degree == 0
+                            if tree.constant
+                                Node(; val=copy(tree.val::T))
+                            else
+                                Node(T; feature=copy(tree.feature))
+                            end
+                        elseif tree.degree == 1
+                            Node(copy(tree.op), _copy_node(tree.l, id_map))
+                        else
+                            Node(
+                                copy(tree.op),
+                                _copy_node(tree.l, id_map),
+                                _copy_node(tree.r, id_map),
+                            )
+                        end
                     end
                 end
             end
         end
+        @test expr_eql(ex, true_ex)
     end
-    @test expr_eql(ex, true_ex)
 end
