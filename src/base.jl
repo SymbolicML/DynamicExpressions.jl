@@ -26,8 +26,22 @@ import Compat: @inline, Returns
 import ..UtilsModule: @memoize_on, @with_memoize
 
 """
-    tree_mapreduce(f::Function, op::Function, tree::AbstractNode, result_type::Type=Nothing)
-    tree_mapreduce(f_leaf::Function, f_branch::Function, op::Function, tree::AbstractNode, result_type::Type=Nothing)
+    Undefined
+
+Just a type like `Nothing` to differentiate from a literal `Nothing`.
+"""
+struct Undefined end
+
+"""
+    tree_mapreduce(
+        f::Function,
+        [f_branch::Function,]
+        op::Function,
+        tree::AbstractNode,
+        result_type::Type=Nothing;
+        preserve_sharing::Bool=false,
+        f_on_shared::Function=(result, is_shared) -> result
+    )
 
 Map a function over a tree and aggregate the result using an operator `op`.
 `op` should be defined with inputs `(parent, child...) ->` so that it can aggregate
@@ -69,24 +83,26 @@ function tree_mapreduce(
     f::F,
     op::G,
     tree::AbstractNode,
-    result_type::Type{RT}=Nothing;
+    result_type::Type=Undefined;
     preserve_sharing::Bool=false,
-) where {F<:Function,G<:Function,RT}
-    return tree_mapreduce(f, f, op, tree, result_type; preserve_sharing)
+    f_on_shared::H=(result, is_shared) -> result,
+) where {F<:Function,G<:Function,H<:Function}
+    return tree_mapreduce(f, f, op, tree, result_type; preserve_sharing, f_on_shared)
 end
 function tree_mapreduce(
     f_leaf::F1,
     f_branch::F2,
     op::G,
     tree::AbstractNode,
-    result_type::Type{RT}=Nothing;
+    result_type::Type{RT}=Undefined;
     preserve_sharing::Bool=false,
-) where {F1<:Function,F2<:Function,G<:Function,RT}
+    f_on_shared::H=(result, is_shared) -> result,
+) where {F1<:Function,F2<:Function,G<:Function,H<:Function,RT}
 
     # Trick taken from here:
     # https://discourse.julialang.org/t/recursive-inner-functions-a-thousand-times-slower/85604/5
     # to speed up recursive closure
-    @memoize_on t function inner(inner, t)
+    @memoize_on t f_on_shared function inner(inner, t)
         if t.degree == 0
             return @inline(f_leaf(t))
         elseif t.degree == 1
@@ -96,16 +112,20 @@ function tree_mapreduce(
         end
     end
 
-    RT == Nothing &&
+    RT == Undefined &&
         preserve_sharing &&
         throw(ArgumentError("Need to specify `result_type` if you use `preserve_sharing`."))
 
-    if preserve_sharing && RT != Nothing
-        return @with_memoize inner(inner, tree) IdDict{typeof(tree),RT}()
+    if preserve_sharing && RT != Undefined
+        return @with_memoize inner(inner, tree) Dict{UInt,RT}()
     else
         return inner(inner, tree)
     end
 end
+
+# TODO: Raise Julia issue for this.
+# Surprisingly Dict{UInt,RT} is faster than IdDict{Node{T},RT} here!
+# I think it's because `setindex!` is declared with `@nospecialize` in IdDict.
 
 """
     any(f::Function, tree::AbstractNode)
@@ -150,16 +170,21 @@ end
 ###############################################################################
 
 """
-    foreach(f::Function, tree::Node)
+    foreach(f::Function, tree::Node; preserve_sharing::Bool=false)
 
-Apply a function to each node in a tree.
+Apply a function to each node in a tree. When `preserve_sharing` is true,
+this will only apply the function to the first of a unique node, skipping
+ones that have already been visited.
 """
-function foreach(f::Function, tree::AbstractNode)
-    return tree_mapreduce(t -> (@inline(f(t)); nothing), Returns(nothing), tree)
+function foreach(f::Function, tree::AbstractNode; preserve_sharing=false)
+    tree_mapreduce(
+        t -> (@inline(f(t)); nothing), Returns(nothing), tree, Nothing; preserve_sharing
+    )
+    return nothing
 end
 
 """
-    filter_map(filter_fnc::Function, map_fnc::Function, tree::AbstractNode, result_type::Type)
+    filter_map(filter_fnc::Function, map_fnc::Function, tree::AbstractNode, result_type::Type; preserve_sharing=false)
 
 A faster equivalent to `map(map_fnc, filter(filter_fnc, tree))`
 that avoids the intermediate allocation. However, using this requires
@@ -167,23 +192,35 @@ specifying the `result_type` of `map_fnc` so the resultant array can
 be preallocated.
 """
 function filter_map(
-    filter_fnc::F, map_fnc::G, tree::AbstractNode, result_type::Type{GT}
+    filter_fnc::F,
+    map_fnc::G,
+    tree::AbstractNode,
+    result_type::Type{GT};
+    preserve_sharing=false,
 ) where {F<:Function,G<:Function,GT}
-    stack = Array{GT}(undef, count(filter_fnc, tree))
-    filter_map!(filter_fnc, map_fnc, stack, tree)
+    stack = Array{GT}(
+        undef, count(filter_fnc, tree; init=0, preserve_sharing=preserve_sharing)
+    )
+    filter_map!(filter_fnc, map_fnc, stack, tree; preserve_sharing)
     return stack::Vector{GT}
 end
 
 """
-    filter_map!(filter_fnc::Function, map_fnc::Function, stack::Vector{GT}, tree::AbstractNode)
+    filter_map!(filter_fnc::Function, map_fnc::Function, stack::Vector{GT}, tree::AbstractNode; preserve_sharing=false)
 
 Equivalent to `filter_map`, but stores the results in a preallocated array.
+If `preserve_sharing` is true, this will only get the first of each unique node,
+skipping ones that have already been visited.
 """
 function filter_map!(
-    filter_fnc::Function, map_fnc::Function, destination::Vector{GT}, tree::AbstractNode
+    filter_fnc::Function,
+    map_fnc::Function,
+    destination::Vector{GT},
+    tree::AbstractNode;
+    preserve_sharing=false,
 ) where {GT}
     pointer = Ref(0)
-    foreach(tree) do t
+    foreach(tree; preserve_sharing) do t
         if @inline(filter_fnc(t))
             map_result = @inline(map_fnc(t))::GT
             @inbounds destination[pointer.x += 1] = map_result
@@ -217,18 +254,47 @@ function map(f::F, tree::AbstractNode, result_type::Type{RT}=Nothing) where {F<:
     end
 end
 
-function count(f::F, tree::AbstractNode; init=0) where {F<:Function}
-    return tree_mapreduce(t -> @inline(f(t)) ? 1 : 0, +, tree) + init
+function count(f::F, tree::AbstractNode; init=0, preserve_sharing=false) where {F<:Function}
+    return tree_mapreduce(
+        t -> @inline(f(t)) ? 1 : 0,
+        +,
+        tree,
+        Int64;
+        preserve_sharing=preserve_sharing,
+        f_on_shared=(c, is_shared) -> is_shared ? 0 : c,
+    ) + init
 end
 
-function sum(f::F, tree::AbstractNode; init=0) where {F<:Function}
-    return tree_mapreduce(f, +, tree) + init
+function sum(
+    f::F,
+    tree::AbstractNode;
+    init=0,
+    return_type=Undefined,
+    f_on_shared=(c, is_shared) -> is_shared ? (false * c) : c,
+    preserve_sharing=false,
+) where {F<:Function}
+    if preserve_sharing
+        @assert typeof(return_type) !== Undefined "Must specify `return_type` as a keyword argument to `sum` if `preserve_sharing` is true."
+    end
+    return tree_mapreduce(f, +, tree, return_type; preserve_sharing, f_on_shared) + init
 end
 
 all(f::F, tree::AbstractNode) where {F<:Function} = !any(t -> !@inline(f(t)), tree)
 
-function mapreduce(f::F, op::G, tree::AbstractNode) where {F<:Function,G<:Function}
-    return tree_mapreduce(f, (n...) -> reduce(op, n), tree)
+function mapreduce(
+    f::F,
+    op::G,
+    tree::AbstractNode;
+    return_type=Undefined,
+    f_on_shared=(c, is_shared) -> is_shared ? (false * c) : c,
+    preserve_sharing=false,
+) where {F<:Function,G<:Function}
+    if preserve_sharing
+        @assert typeof(return_type) !== Undefined "Must specify `return_type` as a keyword argument to `mapreduce` if `preserve_sharing` is true."
+    end
+    return tree_mapreduce(
+        f, (n...) -> reduce(op, n), tree, return_type; preserve_sharing, f_on_shared
+    )
 end
 
 isempty(::AbstractNode) = false

@@ -63,17 +63,40 @@ end
     # sharing:
     @eval begin
         expr_eql(x::LineNumberNode, y::LineNumberNode) = true  # Ignore line numbers
-        expr_eql(x::QuoteNode, y::QuoteNode) = x == y
-        expr_eql(x::Number, y::Number) = x == y
-        expr_eql(x::Symbol, y::Symbol) = x == y
+        expr_eql(x::QuoteNode, y::QuoteNode) =
+            x == y ? true : (println(x, " and ", y, " are not equal"); false)
+        expr_eql(x::Number, y::Number) =
+            x == y ? true : (println(x, " and ", y, " are not equal"); false)
+        function expr_eql(x::Symbol, y::Symbol)
+            if x == y
+                return true
+            else
+                sx = string(x)
+                sy = string(y)
+                result = if startswith(sx, r"##")
+                    occursin(sy, sx)
+                elseif startswith(sy, r"##")
+                    occursin(sx, sy)
+                else
+                    false
+                end
+                !result && println(x, " and ", y, " are not equal")
+                return result
+            end
+        end
         function expr_eql(x::Expr, y::Expr)
             # Remove line numbers from the arguments:
             x.args = filter(c -> !isa(c, LineNumberNode), x.args)
             y.args = filter(c -> !isa(c, LineNumberNode), y.args)
 
-            return expr_eql(x.head, y.head) &&
+            if expr_eql(x.head, y.head) &&
                 length(x.args) == length(y.args) &&
                 all(expr_eql.(x.args, y.args))
+                return true
+            else
+                println(x, " and ", y, " are not equal")
+                return false
+            end
         end
         expr_eql(x, y) = error("Unexpected type: $(typeof(x)) or $(typeof(y))")
     end
@@ -98,7 +121,7 @@ end
     end
 
     @testset "@memoize_on" begin
-        ex = @macroexpand DynamicExpressions.UtilsModule.@memoize_on tree function _copy_node(
+        ex = @macroexpand DynamicExpressions.UtilsModule.@memoize_on tree ((x, _) -> x) function _copy_node(
             tree::Node{T}
         )::Node{T} where {T}
             if tree.degree == 0
@@ -127,8 +150,10 @@ end
                     Node(copy(tree.op), _copy_node(tree.l), _copy_node(tree.r))
                 end
             end
-            function _copy_node(tree::Node{T}, id_map::IdDict;)::Node{T} where {T}
-                get!(id_map, tree) do
+            function _copy_node(tree::Node{T}, id_map::AbstractDict;)::Node{T} where {T}
+                key = objectid(tree)
+                is_memoized = haskey(id_map, key)
+                result = get!(id_map, key) do
                     begin
                         if tree.degree == 0
                             if tree.constant
@@ -147,6 +172,9 @@ end
                         end
                     end
                 end
+                return (((x, _) -> begin
+                    x
+                end)(result, is_memoized))
             end
         end
         @test expr_eql(ex, true_ex)
