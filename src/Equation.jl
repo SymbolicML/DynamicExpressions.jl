@@ -205,7 +205,15 @@ const OP_NAMES = Dict(
     "safe_pow" => "^",
 )
 
-get_op_name(op::String) = op
+dispatch_op_name(::Val{2}, ::Nothing, idx) = "binary_operator[" * string(idx) * ']'
+dispatch_op_name(::Val{1}, ::Nothing, idx) = "unary_operator[" * string(idx) * ']'
+function dispatch_op_name(::Val{2}, operators::AbstractOperatorEnum, idx)
+    return get_op_name(operators.binops[idx])
+end
+function dispatch_op_name(::Val{1}, operators::AbstractOperatorEnum, idx)
+    return get_op_name(operators.unaops[idx])
+end
+
 @generated function get_op_name(op::F) where {F}
     try
         # Bit faster to just cache the name of the operator:
@@ -221,39 +229,27 @@ get_op_name(op::String) = op
     end
 end
 
-function string_op(
-    ::Val{2}, op::F, tree::Node, args...; bracketed, kws...
-)::String where {F}
-    op_name = get_op_name(op)
-    if op_name in ["+", "-", "*", "/", "^", "×"]
-        l = string_tree(tree.l, args...; bracketed=false, kws...)
-        r = string_tree(tree.r, args...; bracketed=false, kws...)
-        if bracketed
-            return l * " " * op_name * " " * r
-        else
-            return "(" * l * " " * op_name * " " * r * ")"
-        end
+@inline function strip_brackets(s)
+    if startswith(s, '(') && endswith(s, ')')
+        start_cut = nextind(s, firstindex(s))
+        end_cut = prevind(s, lastindex(s))
+        return s[start_cut:end_cut]
     else
-        l = string_tree(tree.l, args...; bracketed=true, kws...)
-        r = string_tree(tree.r, args...; bracketed=true, kws...)
-        # return "$op_name($l, $r)"
-        return op_name * "(" * l * ", " * r * ")"
+        return s
     end
 end
-function string_op(
-    ::Val{1}, op::F, tree::Node, args...; bracketed, kws...
-)::String where {F}
-    op_name = get_op_name(op)
-    l = string_tree(tree.l, args...; bracketed=true, kws...)
-    return op_name * "(" * l * ")"
-end
 
-function string_constant(val, bracketed::Bool)
-    does_not_need_brackets = (typeof(val) <: Union{Real,AbstractArray})
-    if does_not_need_brackets || bracketed
-        string(val)
-    else
+# Can overload these for custom behavior:
+needs_brackets(val::Real) = false
+needs_brackets(val::AbstractArray) = false
+needs_brackets(val::Complex) = true
+needs_brackets(val) = true
+
+function string_constant(val)
+    if needs_brackets(val)
         "(" * string(val) * ")"
+    else
+        string(val)
     end
 end
 
@@ -275,59 +271,45 @@ Convert an equation to a string.
 - `operators`: the operators used to define the tree
 
 # Keyword Arguments
-- `bracketed`: (optional) whether to put brackets around the outside.
-- `f_variable`: (optional) function to convert a variable to a string, of the form `(feature::UInt8, variable_names)`.
-- `f_constant`: (optional) function to convert a constant to a string, of the form `(val, bracketed::Bool)`
+- `f_variable`: (optional) function to convert a variable to a string, with arguments `(feature::UInt8, variable_names)`.
+- `f_constant`: (optional) function to convert a constant to a string, with arguments `(val,)`
 - `variable_names::Union{Array{String, 1}, Nothing}=nothing`: (optional) what variables to print for each feature.
 """
 function string_tree(
     tree::Node{T},
     operators::Union{AbstractOperatorEnum,Nothing}=nothing;
-    bracketed::Bool=false,
     f_variable::F1=string_variable,
     f_constant::F2=string_constant,
     variable_names::Union{Array{String,1},Nothing}=nothing,
+    preserve_sharing=false,
     # Deprecated
     varMap=nothing,
 )::String where {T,F1<:Function,F2<:Function}
     variable_names = deprecate_varmap(variable_names, varMap, :string_tree)
-    if tree.degree == 0
-        if !tree.constant
-            return f_variable(tree.feature, variable_names)
+    raw_output = tree_mapreduce(
+        leaf -> if leaf.constant
+            f_constant(leaf.val::T)
         else
-            return f_constant(tree.val::T, bracketed)
-        end
-    elseif tree.degree == 1
-        return string_op(
-            Val(1),
-            if operators === nothing
-                "unary_operator[" * string(tree.op) * "]"
+            f_variable(leaf.feature, variable_names)
+        end,
+        branch -> if branch.degree == 1
+            dispatch_op_name(Val(1), operators, branch.op)
+        else
+            dispatch_op_name(Val(2), operators, branch.op)
+        end,
+        (parent, children...) ->
+            if length(children) > 1 && parent in ("+", "-", "*", "/", "^")
+                '(' * join(children, ' ' * parent * ' ') * ')'
             else
-                operators.unaops[tree.op]
+                children = map(strip_brackets, children)
+                parent * '(' * join(children, ", ") * ')'
             end,
-            tree,
-            operators;
-            bracketed,
-            f_variable,
-            f_constant,
-            variable_names,
-        )
-    else
-        return string_op(
-            Val(2),
-            if operators === nothing
-                "binary_operator[" * string(tree.op) * "]"
-            else
-                operators.binops[tree.op]
-            end,
-            tree,
-            operators;
-            bracketed,
-            f_variable,
-            f_constant,
-            variable_names,
-        )
-    end
+        tree,
+        String;
+        preserve_sharing,
+        f_on_shared=(c, is_shared) -> is_shared ? '{' * c * '}' : c,
+    )
+    return strip_brackets(raw_output)
 end
 
 # Print an equation
