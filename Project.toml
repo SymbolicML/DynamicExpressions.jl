@@ -24,6 +24,7 @@ DynamicExpressionsSymbolicUtilsExt = "SymbolicUtils"
 DynamicExpressionsZygoteExt = "Zygote"
 
 [compat]
+Aqua = "0.7"
 Compat = "3.37, 4"
 LoopVectorization = "0.12"
 MacroTools = "0.4, 0.5"
