@@ -99,7 +99,7 @@ tree2 = exp(Node(; feature=2) / 3.2) + Node(; feature=1) * 2.0
 io = IOBuffer()
 print(io, tree2)
 s = String(take!(io))
-@test s == "(exp(x2 / 3.2) + (x1 * 2.0))"
+@test s == "exp(x2 / 3.2) + (x1 * 2.0)"
 
 set_node!(tree, tree2)
 @test tree !== tree2

@@ -34,7 +34,7 @@ set_constants!(tree, [1.0])
 tree = x1 + Node(; val=0.0) - sin(x2 - Node(; val=0.5))
 @test get_constants(tree) == [0.0, 0.5]
 set_constants!(tree, [1.0, 2.0])
-@test repr(tree) == "((x1 + 1.0) - sin(x2 - 2.0))"
+@test repr(tree) == "(x1 + 1.0) - sin(x2 - 2.0)"
 
 # Ensure that fill_similar is type stable
 x = randn(Float32, 3, 10)

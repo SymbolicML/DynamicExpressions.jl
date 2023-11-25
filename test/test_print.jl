@@ -14,14 +14,14 @@ f = (x1, x2, x3) -> (sin(cos(sin(cos(x1) * x3) * 3.0) * -0.5) + 2.0) * 5.0
 tree = f(Node("x1"), Node("x2"), Node("x3"))
 
 s = repr(tree)
-true_s = "((sin(cos(sin(cos(x1) * x3) * 3.0) * -0.5) + 2.0) * 5.0)"
+true_s = "(sin(cos(sin(cos(x1) * x3) * 3.0) * -0.5) + 2.0) * 5.0"
 
 @test s == true_s
 
 # TODO: Next, we test that custom varMaps work:
 
 s = string_tree(tree, operators; variable_names=["v1", "v2", "v3"])
-true_s = "((sin(cos(sin(cos(v1) * v3) * 3.0) * -0.5) + 2.0) * 5.0)"
+true_s = "(sin(cos(sin(cos(v1) * v3) * 3.0) * -0.5) + 2.0) * 5.0"
 @test s == true_s
 
 for unaop in [safe_log, safe_log2, safe_log10, safe_log1p, safe_sqrt, safe_acosh]
@@ -39,7 +39,7 @@ for binop in [safe_pow, ^]
         default_params..., binary_operators=(+, *, /, -, binop), unary_operators=(cos,)
     )
     minitree = Node(5, Node("x1"), Node("x2"))
-    @test string_tree(minitree, opts) == "(x1 ^ x2)"
+    @test string_tree(minitree, opts) == "x1 ^ x2"
 end
 
 @testset "Test print_tree function" begin
@@ -56,7 +56,7 @@ end
         end
         close(pipe.in)
         s = read(pipe.out, String)
-        @test s == "((x1 * x1) + 0.5)\n"
+        @test s == "(x1 * x1) + 0.5\n"
     end
 end
 
@@ -84,19 +84,19 @@ end
     @extend_operators operators
     x1, x2, x3 = [Node(Float64; feature=i) for i in 1:3]
     tree = x1 * x1 + 0.5
-    @test string_tree(tree, operators; f_constant=Returns("TEST")) == "((x1 * x1) + TEST)"
+    @test string_tree(tree, operators; f_constant=Returns("TEST")) == "(x1 * x1) + TEST"
     @test string_tree(tree, operators; f_variable=Returns("TEST")) ==
-        "((TEST * TEST) + 0.5)"
+        "(TEST * TEST) + 0.5"
     @test string_tree(
         tree, operators; f_variable=Returns("TEST"), f_constant=Returns("TEST2")
-    ) == "((TEST * TEST) + TEST2)"
+    ) == "(TEST * TEST) + TEST2"
 
     # Try printing with a precision:
     tree = x1 * x1 + π
     f_constant(val::Float64, args...) = string(round(val; digits=2))
-    @test string_tree(tree, operators; f_constant=f_constant) == "((x1 * x1) + 3.14)"
+    @test string_tree(tree, operators; f_constant=f_constant) == "(x1 * x1) + 3.14"
     f_constant(val::Float64, args...) = string(round(val; digits=4))
-    @test string_tree(tree, operators; f_constant=f_constant) == "((x1 * x1) + 3.1416)"
+    @test string_tree(tree, operators; f_constant=f_constant) == "(x1 * x1) + 3.1416"
 end
 
 @testset "Test variable names" begin
@@ -107,11 +107,11 @@ end
         "k1", "k2", "k3"
     ]
     tree = x1 * x2 + x3
-    @test string(tree) == "((k1 * k2) + k3)"
+    @test string(tree) == "(k1 * k2) + k3"
     empty!(DynamicExpressions.OperatorEnumConstructionModule.LATEST_VARIABLE_NAMES.x)
-    @test string(tree) == "((x1 * x2) + x3)"
+    @test string(tree) == "(x1 * x2) + x3"
     # Check if we can pass the wrong number of variable names:
     set_default_variable_names!(["k1"])
-    @test string(tree) == "((k1 * x2) + x3)"
+    @test string(tree) == "(k1 * x2) + x3"
     empty!(DynamicExpressions.OperatorEnumConstructionModule.LATEST_VARIABLE_NAMES.x)
 end

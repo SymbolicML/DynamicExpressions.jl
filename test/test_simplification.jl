@@ -1,10 +1,13 @@
 include("test_params.jl")
 using DynamicExpressions, Test
+using DynamicExpressions.EquationModule: strip_brackets
 import SymbolicUtils: simplify, Symbolic
 import Random: MersenneTwister
 import Base: ≈
 
 function Base.:≈(a::String, b::String)
+    a = strip_brackets(a)
+    b = strip_brackets(b)
     a = replace(a, r"\s+" => "")
     b = replace(b, r"\s+" => "")
     return a == b
