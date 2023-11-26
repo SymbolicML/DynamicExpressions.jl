@@ -15,7 +15,7 @@ function Base.:≈(a::String, b::String)
     return a == b
 end
 
-simplify_tree = DynamicExpressions.SimplifyEquationModule.simplify_tree
+simplify_tree! = DynamicExpressions.SimplifyEquationModule.simplify_tree!
 combine_operators = DynamicExpressions.SimplifyEquationModule.combine_operators
 
 binary_operators = (+, -, /, *)
@@ -87,7 +87,7 @@ output3, flag3 = eval_tree_array(tree_copy2, X, operators)
 @test isapprox(output1, output3, atol=1e-2 * sqrt(N))
 
 ###############################################################################
-## Hit other parts of `simplify_tree` and `combine_operators` to increase
+## Hit other parts of `simplify_tree!` and `combine_operators` to increase
 ## code coverage:
 operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(cos, sin))
 x1, x2, x3 = [Node(; feature=i) for i in 1:3]
@@ -95,12 +95,12 @@ x1, x2, x3 = [Node(; feature=i) for i in 1:3]
 # unary operator applied to constant => constant:
 tree = Node(1, Node(; val=0.0))
 @test repr(tree) ≈ "cos(0.0)"
-@test repr(simplify_tree(tree, operators)) ≈ "1.0"
+@test repr(simplify_tree!(tree, operators)) ≈ "1.0"
 
 # except when the result is a NaN, then we don't change it:
 tree = Node(1, Node(; val=NaN))
 @test repr(tree) ≈ "cos(NaN)"
-@test repr(simplify_tree(tree, operators)) ≈ "cos(NaN)"
+@test repr(simplify_tree!(tree, operators)) ≈ "cos(NaN)"
 
 # the same as above, but inside a binary tree.
 tree =

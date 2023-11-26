@@ -1,15 +1,27 @@
 module SimplifyEquationModule
 
-import ..EquationModule: Node, copy_node
+import ..EquationModule: Node, copy_node, set_node!
+import ..EquationUtilsModule: tree_mapreduce, is_node_constant
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..UtilsModule: isbad, isgood
 
 _una_op_kernel(f::F, l::T) where {F,T} = f(l)
 _bin_op_kernel(f::F, l::T, r::T) where {F,T} = f(l, r)
 
+is_commutative(::typeof(*)) = true
+is_commutative(::typeof(+)) = true
+is_commutative(_) = false
+
+is_subtraction(::typeof(-)) = true
+is_subtraction(_) = false
+
 # Simplify tree
-function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
-    # NOTE: (const (+*-) const) already accounted for. Call simplify_tree before.
+function combine_operators(
+    tree::Node{T}, operators::AbstractOperatorEnum; preserve_sharing=false
+) where {T}
+    @assert !preserve_sharing "Cannot preserve sharing when rearranging tree, please avoid calling this function."
+
+    # NOTE: (const (+*-) const) already accounted for. Call simplify_tree! before.
     # ((const + var) + const) => (const + var)
     # ((const * var) * const) => (const * var)
     # ((const - var) - const) => (const - var)
@@ -25,12 +37,8 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
     end
 
     top_level_constant = tree.degree == 2 && (tree.l.constant || tree.r.constant)
-    if tree.degree == 2 &&
-        (operators.binops[tree.op] == (*) || operators.binops[tree.op] == (+)) &&
-        top_level_constant
-
+    if tree.degree == 2 && is_commutative(operators.binops[tree.op]) && top_level_constant
         # TODO: Does this break SymbolicRegression.jl due to the different names of operators?
-
         op = tree.op
         # Put the constant in r. Need to assume var in left for simplification assumption.
         if tree.l.constant
@@ -56,16 +64,17 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
         end
     end
 
-    if tree.degree == 2 && operators.binops[tree.op] == (-) && top_level_constant
+    if tree.degree == 2 && is_subtraction(operators.binops[tree.op]) && top_level_constant
+
         # Currently just simplifies subtraction. (can't assume both plus and sub are operators)
         # Not commutative, so use different op.
         if tree.l.constant
-            if tree.r.degree == 2 && operators.binops[tree.r.op] == (-)
+            if tree.r.degree == 2 && tree.op == tree.r.op
                 if tree.r.l.constant
                     #(const - (const - var)) => (var - const)
                     l = tree.l
                     r = tree.r
-                    simplified_const = -(l.val::T - r.l.val::T) #neg(sub(l.val, r.l.val))
+                    simplified_const = (r.l.val::T - l.val::T) #neg(sub(l.val, r.l.val))
                     tree.l = tree.r.r
                     tree.r = l
                     tree.r.val = simplified_const
@@ -79,7 +88,7 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
                 end
             end
         else #tree.r.constant is true
-            if tree.l.degree == 2 && operators.binops[tree.l.op] == (-)
+            if tree.l.degree == 2 && tree.op == tree.l.op
                 if tree.l.l.constant
                     #((const - var) - const) => (const - var)
                     l = tree.l
@@ -102,43 +111,32 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
     return tree
 end
 
-# Simplify tree
-# TODO: This will get much more powerful with the tree-map functions.
-function simplify_tree(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
-    if tree.degree == 1
-        tree.l = simplify_tree(tree.l, operators)
-        if tree.l.degree == 0 && tree.l.constant
-            l = tree.l.val::T
-            if isgood(l)
-                out = _una_op_kernel(operators.unaops[tree.op], l)
-                if isbad(out)
-                    return tree
-                end
-                return Node(T; val=convert(T, out))
-            end
-        end
-    elseif tree.degree == 2
-        tree.l = simplify_tree(tree.l, operators)
-        tree.r = simplify_tree(tree.r, operators)
-        constantsBelow = (
-            tree.l.degree == 0 && tree.l.constant && tree.r.degree == 0 && tree.r.constant
-        )
-        if constantsBelow
-            # NaN checks:
-            l = tree.l.val::T
-            r = tree.r.val::T
-            if isbad(l) || isbad(r)
-                return tree
-            end
-
-            # Actually compute:
-            out = _bin_op_kernel(operators.binops[tree.op], l, r)
-            if isbad(out)
-                return tree
-            end
-            return Node(T; val=convert(T, out))
-        end
+function combine_children!(operators, p::Node{T}, c::Node{T}...) where {T}
+    all(is_node_constant, c) || return p
+    vals = map(n -> n.val::T, c)
+    all(isgood, vals) || return p
+    out = if length(c) == 1
+        _una_op_kernel(operators.unaops[p.op], vals...)
+    else
+        _bin_op_kernel(operators.binops[p.op], vals...)
     end
+    isgood(out) || return p
+    new_node = Node(T; val=convert(T, out))
+    set_node!(p, new_node)
+    return p
+end
+
+# Simplify tree
+function simplify_tree!(
+    tree::Node{T}, operators::AbstractOperatorEnum; preserve_sharing=false
+) where {T}
+    tree = tree_mapreduce(
+        identity,
+        (p, c...) -> combine_children!(operators, p, c...),
+        tree,
+        Node{T};
+        preserve_sharing,
+    )
     return tree
 end
 
