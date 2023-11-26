@@ -85,8 +85,7 @@ end
     x1, x2, x3 = [Node(Float64; feature=i) for i in 1:3]
     tree = x1 * x1 + 0.5
     @test string_tree(tree, operators; f_constant=Returns("TEST")) == "(x1 * x1) + TEST"
-    @test string_tree(tree, operators; f_variable=Returns("TEST")) ==
-        "(TEST * TEST) + 0.5"
+    @test string_tree(tree, operators; f_variable=Returns("TEST")) == "(TEST * TEST) + 0.5"
     @test string_tree(
         tree, operators; f_variable=Returns("TEST"), f_constant=Returns("TEST2")
     ) == "(TEST * TEST) + TEST2"
