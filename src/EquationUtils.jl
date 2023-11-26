@@ -112,43 +112,25 @@ end
 ## Assign index to nodes of a tree
 # This will mirror a Node struct, rather
 # than adding a new attribute to Node.
-mutable struct NodeIndex
-    constant_index::UInt16  # Index of this constant (if a constant exists here)
-    l::NodeIndex
-    r::NodeIndex
+const NodeIndex = Node{UInt16}
 
-    NodeIndex() = new()
-end
-
-function index_constants(tree::Node)::NodeIndex
-    return index_constants(tree, UInt16(0))
-end
-
-function index_constants(tree::Node, left_index)::NodeIndex
-    index_tree = NodeIndex()
-    index_constants!(tree, index_tree, left_index)
-    return index_tree
-end
-
-# Count how many constants to the left of this node, and put them in a tree
-function index_constants!(tree::Node, index_tree::NodeIndex, left_index)
-    if tree.degree == 0
-        if tree.constant
-            index_tree.constant_index = left_index + 1
-        end
-    elseif tree.degree == 1
-        index_tree.constant_index = count_constants(tree.l)
-        index_tree.l = NodeIndex()
-        index_constants!(tree.l, index_tree.l, left_index)
-    else
-        index_tree.l = NodeIndex()
-        index_tree.r = NodeIndex()
-        index_constants!(tree.l, index_tree.l, left_index)
-        index_tree.constant_index = count_constants(tree.l)
-        left_index_here = left_index + index_tree.constant_index
-        index_constants!(tree.r, index_tree.r, left_index_here)
-    end
-    return nothing
+function index_constants(tree::Node; preserve_sharing=false)
+    # Essentially we copy the tree, replacing the values
+    # with indices
+    T = UInt16
+    constant_index = Ref(T(0))
+    return tree_mapreduce(
+        t -> if t.constant
+            Node(T; val=(constant_index[] += T(1)))
+        else
+            Node(T; feature=t.feature)
+        end,
+        t -> t.op,
+        (op, c...) -> Node(op, c...),
+        tree,
+        NodeIndex;
+        preserve_sharing,
+    )
 end
 
 end

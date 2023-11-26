@@ -200,22 +200,34 @@ function eval_grad_tree_array(
 )::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Number}
     assert_autodiff_enabled(operators)
     n_gradients = variable ? size(cX, 1) : count_constants(tree)
-    index_tree = index_constants(tree, UInt16(0))
-    return eval_grad_tree_array(
-        tree,
-        Val(n_gradients),
-        index_tree,
-        cX,
-        operators,
-        (variable ? Val(true) : Val(false)),
-        (turbo ? Val(true) : Val(false)),
-    )
+    if variable
+        return eval_grad_tree_array(
+            tree,
+            Val(n_gradients),
+            nothing,
+            cX,
+            operators,
+            Val(true),
+            (turbo ? Val(true) : Val(false)),
+        )
+    else
+        index_tree = index_constants(tree)
+        return eval_grad_tree_array(
+            tree,
+            Val(n_gradients),
+            index_tree,
+            cX,
+            operators,
+            Val(false),
+            (turbo ? Val(true) : Val(false)),
+        )
+    end
 end
 
 function eval_grad_tree_array(
     tree::Node{T},
     ::Val{n_gradients},
-    index_tree::NodeIndex,
+    index_tree::Union{NodeIndex,Nothing},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     ::Val{variable},
@@ -250,7 +262,7 @@ end
 function _eval_grad_tree_array(
     tree::Node{T},
     ::Val{n_gradients},
-    index_tree::NodeIndex,
+    index_tree::Union{NodeIndex,Nothing},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     ::Val{variable},
@@ -290,7 +302,7 @@ end
 function grad_deg0_eval(
     tree::Node{T},
     ::Val{n_gradients},
-    index_tree::NodeIndex,
+    index_tree::Union{NodeIndex,Nothing},
     cX::AbstractMatrix{T},
     ::Val{variable},
 )::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Number,variable,n_gradients}
@@ -306,7 +318,11 @@ function grad_deg0_eval(
         return (const_part, zero_mat, true)
     end
 
-    index = variable ? tree.feature : index_tree.constant_index
+    index = if variable
+        tree.feature
+    else
+        (index_tree === nothing ? zero(UInt16) : index_tree.val::UInt16)
+    end
     derivative_part = zero_mat
     derivative_part[index, :] .= one(T)
     return (const_part, derivative_part, true)
@@ -315,7 +331,7 @@ end
 function grad_deg1_eval(
     tree::Node{T},
     ::Val{n_gradients},
-    index_tree::NodeIndex,
+    index_tree::Union{NodeIndex,Nothing},
     cX::AbstractMatrix{T},
     op::F,
     diff_op::dF,
@@ -326,7 +342,13 @@ function grad_deg1_eval(
     AbstractVector{T},AbstractMatrix{T},Bool
 } where {T<:Number,F,dF,variable,turbo,n_gradients}
     (cumulator, dcumulator, complete) = eval_grad_tree_array(
-        tree.l, Val(n_gradients), index_tree.l, cX, operators, Val(variable), Val(turbo)
+        tree.l,
+        Val(n_gradients),
+        (index_tree === nothing ? index_tree : index_tree.l),
+        cX,
+        operators,
+        Val(variable),
+        Val(turbo),
     )
     @return_on_false2 complete cumulator dcumulator
 
@@ -345,7 +367,7 @@ end
 function grad_deg2_eval(
     tree::Node{T},
     ::Val{n_gradients},
-    index_tree::NodeIndex,
+    index_tree::Union{NodeIndex,Nothing},
     cX::AbstractMatrix{T},
     op::F,
     diff_op::dF,
@@ -356,11 +378,23 @@ function grad_deg2_eval(
     AbstractVector{T},AbstractMatrix{T},Bool
 } where {T<:Number,F,dF,variable,turbo,n_gradients}
     (cumulator1, dcumulator1, complete) = eval_grad_tree_array(
-        tree.l, Val(n_gradients), index_tree.l, cX, operators, Val(variable), Val(turbo)
+        tree.l,
+        Val(n_gradients),
+        (index_tree === nothing ? index_tree : index_tree.l),
+        cX,
+        operators,
+        Val(variable),
+        Val(turbo),
     )
     @return_on_false2 complete cumulator1 dcumulator1
     (cumulator2, dcumulator2, complete2) = eval_grad_tree_array(
-        tree.r, Val(n_gradients), index_tree.r, cX, operators, Val(variable), Val(turbo)
+        tree.r,
+        Val(n_gradients),
+        (index_tree === nothing ? index_tree : index_tree.r),
+        cX,
+        operators,
+        Val(variable),
+        Val(turbo),
     )
     @return_on_false2 complete2 cumulator1 dcumulator1
 
