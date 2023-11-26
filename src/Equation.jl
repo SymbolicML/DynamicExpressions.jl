@@ -195,7 +195,7 @@ function set_node!(tree::Node{T}, new_tree::Node{T}) where {T}
     return nothing
 end
 
-const OP_NAMES = Dict(
+const OP_NAMES = Base.ImmutableDict(
     "safe_log" => "log",
     "safe_log2" => "log2",
     "safe_log10" => "log10",
@@ -205,35 +205,37 @@ const OP_NAMES = Dict(
     "safe_pow" => "^",
 )
 
-dispatch_op_name(::Val{2}, ::Nothing, idx) = "binary_operator[" * string(idx) * ']'
-dispatch_op_name(::Val{1}, ::Nothing, idx) = "unary_operator[" * string(idx) * ']'
-function dispatch_op_name(::Val{2}, operators::AbstractOperatorEnum, idx)
+function dispatch_op_name(::Val{2}, ::Nothing, idx)::Vector{Char}
+    return vcat(collect("binary_operator["), collect(string(idx)), [']'])
+end
+function dispatch_op_name(::Val{1}, ::Nothing, idx)::Vector{Char}
+    return vcat(collect("unary_operator["), collect(string(idx)), [']'])
+end
+function dispatch_op_name(::Val{2}, operators::AbstractOperatorEnum, idx)::Vector{Char}
     return get_op_name(operators.binops[idx])
 end
-function dispatch_op_name(::Val{1}, operators::AbstractOperatorEnum, idx)
+function dispatch_op_name(::Val{1}, operators::AbstractOperatorEnum, idx)::Vector{Char}
     return get_op_name(operators.unaops[idx])
 end
 
-@generated function get_op_name(op::F) where {F}
+@generated function get_op_name(op::F)::Vector{Char} where {F}
     try
         # Bit faster to just cache the name of the operator:
         op_s = string(F.instance)
-        out = get(OP_NAMES, op_s, op_s)
+        out = collect(get(OP_NAMES, op_s, op_s))
         return :($out)
     catch
     end
     return quote
         op_s = string(op)
-        out = get(OP_NAMES, op_s, op_s)
+        out = collect(get(OP_NAMES, op_s, op_s))
         return out
     end
 end
 
-@inline function strip_brackets(s)
-    if startswith(s, '(') && endswith(s, ')')
-        start_cut = nextind(s, firstindex(s))
-        end_cut = prevind(s, lastindex(s))
-        return s[start_cut:end_cut]
+@inline function strip_brackets(s::Vector{Char})::Vector{Char}
+    if first(s) == '(' && last(s) == ')'
+        return s[(begin + 1):(end - 1)]
     else
         return s
     end
@@ -247,7 +249,7 @@ needs_brackets(val) = true
 
 function string_constant(val)
     if needs_brackets(val)
-        "(" * string(val) * ")"
+        '(' * string(val) * ')'
     else
         string(val)
     end
@@ -255,10 +257,42 @@ end
 
 function string_variable(feature, variable_names)
     if variable_names === nothing || feature > lastindex(variable_names)
-        return "x" * string(feature)
+        return 'x' * string(feature)
     else
         return variable_names[feature]
     end
+end
+
+# Vector of chars is faster than strings, so we use that.
+function combine_op_with_inputs(op, l, r)::Vector{Char}
+    if first(op) in ('+', '-', '*', '/', '^')
+        # "(l op r)"
+        out = ['(']
+        append!(out, l)
+        push!(out, ' ')
+        append!(out, op)
+        push!(out, ' ')
+        append!(out, r)
+        push!(out, ')')
+    else
+        # "op(l, r)"
+        out = copy(op)
+        push!(out, '(')
+        append!(out, strip_brackets(l))
+        push!(out, ',')
+        push!(out, ' ')
+        append!(out, strip_brackets(r))
+        push!(out, ')')
+        return out
+    end
+end
+function combine_op_with_inputs(op, l)
+    # "op(l)"
+    out = copy(op)
+    push!(out, '(')
+    append!(out, strip_brackets(l))
+    push!(out, ')')
+    return out
 end
 
 """
@@ -288,28 +322,29 @@ function string_tree(
     variable_names = deprecate_varmap(variable_names, varMap, :string_tree)
     raw_output = tree_mapreduce(
         leaf -> if leaf.constant
-            f_constant(leaf.val::T)
+            collect(f_constant(leaf.val::T))
         else
-            f_variable(leaf.feature, variable_names)
+            collect(f_variable(leaf.feature, variable_names))
         end,
         branch -> if branch.degree == 1
             dispatch_op_name(Val(1), operators, branch.op)
         else
             dispatch_op_name(Val(2), operators, branch.op)
         end,
-        (parent, children...) ->
-            if length(children) > 1 && parent in ("+", "-", "*", "/", "^")
-                '(' * join(children, ' ' * parent * ' ') * ')'
-            else
-                children = map(strip_brackets, children)
-                parent * '(' * join(children, ", ") * ')'
-            end,
+        combine_op_with_inputs,
         tree,
-        String;
+        Vector{Char};
         preserve_sharing,
-        f_on_shared=(c, is_shared) -> is_shared ? '{' * c * '}' : c,
+        f_on_shared=(c, is_shared) -> if is_shared
+            out = ['{']
+            append!(out, c)
+            push!(out, '}')
+            out
+        else
+            c
+        end,
     )
-    return strip_brackets(raw_output)
+    return String(strip_brackets(raw_output))
 end
 
 # Print an equation

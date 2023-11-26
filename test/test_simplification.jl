@@ -1,9 +1,11 @@
 include("test_params.jl")
 using DynamicExpressions, Test
-using DynamicExpressions.EquationModule: strip_brackets
+import DynamicExpressions.EquationModule: strip_brackets
 import SymbolicUtils: simplify, Symbolic
 import Random: MersenneTwister
 import Base: ≈
+
+strip_brackets(a::String) = String(strip_brackets(collect(a)))
 
 function Base.:≈(a::String, b::String)
     a = strip_brackets(a)
