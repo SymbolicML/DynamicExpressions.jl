@@ -171,12 +171,25 @@ function Node(var_string::String, variable_names::Array{String,1})
     )
 end
 
+function create_dummy_node(::Type{T}) where {T}
+    # TODO: Verify using this helps with garbage collection
+    return Node(T; feature=zero(UInt16))
+end
+
 """
     set_node!(tree::Node{T}, new_tree::Node{T}) where {T}
 
 Set every field of `tree` equal to the corresponding field of `new_tree`.
 """
 function set_node!(tree::Node{T}, new_tree::Node{T}) where {T}
+    # First, ensure we free some memory:
+    if new_tree.degree < 2 && tree.degree == 2
+        tree.r = create_dummy_node(T)
+    end
+    if new_tree.degree < 1 && tree.degree >= 1
+        tree.l = create_dummy_node(T)
+    end
+
     tree.degree = new_tree.degree
     if new_tree.degree == 0
         tree.constant = new_tree.constant
