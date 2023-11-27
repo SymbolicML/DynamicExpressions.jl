@@ -1,6 +1,11 @@
 using DynamicExpressions, BenchmarkTools, Random
 using DynamicExpressions.EquationUtilsModule: is_constant
 using Zygote
+if PACKAGE_VERSION < v"0.14.0"
+    @eval using DynamicExpressions: Node as GraphNode
+else
+    @eval using DynamicExpressions: GraphNode
+end
 
 include("benchmark_utils.jl")
 
@@ -66,13 +71,15 @@ end
 
 # These macros make the benchmarks work on older versions:
 #! format: off
-@generated function _convert(::Type{N}, t; preserve_sharing) where {N<:Node}
+@generated function _convert(::Type{N}, t; preserve_sharing) where {N}
     PACKAGE_VERSION < v"0.7.0" && return :(convert(N, t))
-    return :(convert(N, t; preserve_sharing=preserve_sharing))
+    PACKAGE_VERSION < v"0.14.0" && return :(convert(N, t; preserve_sharing=preserve_sharing))
+    return :(convert(N, t))  # Assume it is a GraphNode
 end
 @generated function _copy_node(t; preserve_sharing)
     PACKAGE_VERSION < v"0.7.0" && return :(copy_node(t; preserve_topology=preserve_sharing))
-    return :(copy_node(t; preserve_sharing=preserve_sharing))
+    PACKAGE_VERSION < v"0.14.0" && return :(copy_node(t; preserve_sharing=preserve_sharing))
+    return :(copy_node(t))  # Assume it is a GraphNode
 end
 @generated function get_set_constants!(tree)
     !(@isdefined set_constants!) && return :(set_constants(tree, get_constants(tree)))
@@ -108,6 +115,11 @@ function benchmark_utilities()
             for k in (:break_sharing, :preserve_sharing)
                 has_both_modes = func_k in (:copy, :convert)
                 k == :preserve_sharing && !has_both_modes && continue
+                postprocess = if k == :preserve_sharing
+                    node -> GraphNode(node)
+                else
+                    identity
+                end
 
                 f = if func_k == :copy
                     tree -> _copy_node(tree; preserve_sharing=(k == :preserve_sharing))
@@ -132,7 +144,7 @@ function benchmark_utilities()
                     setup=(
                         ntrees=100;
                         n=20;
-                        trees=[gen_random_tree_fixed_size(n, $operators, 5, Float32) for _ in 1:ntrees]
+                        trees=[$postprocess(gen_random_tree_fixed_size(n, $operators, 5, Float32)) for _ in 1:ntrees]
                     )
                 )
                 if !has_both_modes
