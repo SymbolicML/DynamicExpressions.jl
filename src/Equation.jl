@@ -361,31 +361,26 @@ function string_tree(
 end
 
 # Print an equation
-function print_tree(
-    io::IO,
-    tree::Node,
-    operators::AbstractOperatorEnum;
-    f_variable::F1=string_variable,
-    f_constant::F2=string_constant,
-    variable_names::Union{Array{String,1},Nothing}=nothing,
-    # Deprecated
-    varMap=nothing,
-) where {F1<:Function,F2<:Function}
-    variable_names = deprecate_varmap(variable_names, varMap, :print_tree)
-    return println(io, string_tree(tree, operators; f_variable, f_constant, variable_names))
-end
-
-function print_tree(
-    tree::Node,
-    operators::AbstractOperatorEnum;
-    f_variable::F1=string_variable,
-    f_constant::F2=string_constant,
-    variable_names::Union{Array{String,1},Nothing}=nothing,
-    # Deprecated
-    varMap=nothing,
-) where {F1<:Function,F2<:Function}
-    variable_names = deprecate_varmap(variable_names, varMap, :print_tree)
-    return println(string_tree(tree, operators; f_variable, f_constant, variable_names))
+for io in ((), (:(io::IO),))
+    @eval function print_tree(
+        $(io...),
+        tree::Node,
+        operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+        f_variable::F1=string_variable,
+        f_constant::F2=string_constant,
+        variable_names::Union{Array{String,1},Nothing}=nothing,
+        preserve_sharing=false,
+        # Deprecated
+        varMap=nothing,
+    ) where {F1<:Function,F2<:Function}
+        variable_names = deprecate_varmap(variable_names, varMap, :print_tree)
+        return println(
+            $(io...),
+            string_tree(
+                tree, operators; f_variable, f_constant, variable_names, preserve_sharing
+            ),
+        )
+    end
 end
 
 end
