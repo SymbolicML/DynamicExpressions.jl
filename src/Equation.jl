@@ -127,10 +127,12 @@ end
 ################################################################################
 #! format: on
 
+constructorof(::Type{N}) where {N<:AbstractNode} = Base.typename(N).wrapper
 constructorof(::Type{<:Node}) = Node
 constructorof(::Type{<:GraphNode}) = GraphNode
 
 """Trait declaring whether nodes share children or not."""
+preserve_sharing(::Type{<:AbstractNode}) = false
 preserve_sharing(::Type{<:Node}) = false
 preserve_sharing(::Type{<:GraphNode}) = true
 
