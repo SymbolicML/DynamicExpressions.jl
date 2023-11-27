@@ -28,21 +28,21 @@ const ALREADY_DEFINED_BINARY_OPERATORS = (;
     operator_enum=Dict{Function,Bool}(), generic_operator_enum=Dict{Function,Bool}()
 )
 const LATEST_VARIABLE_NAMES = Ref{Vector{String}}(String[])
+const LATEST_PRESERVE_SHARING = Ref{Bool}(false)
 
 function Base.show(io::IO, tree::Node)
     latest_operators_type = LATEST_OPERATORS_TYPE.x
+    kwargs = (
+        variable_names=LATEST_VARIABLE_NAMES.x, preserve_sharing=LATEST_PRESERVE_SHARING.x
+    )
     if latest_operators_type == IsNothing
-        return print(io, string_tree(tree; variable_names=LATEST_VARIABLE_NAMES.x))
+        return print(io, string_tree(tree; kwargs...))
     elseif latest_operators_type == IsOperatorEnum
         latest_operators = LATEST_OPERATORS.x::OperatorEnum
-        return print(
-            io, string_tree(tree, latest_operators; variable_names=LATEST_VARIABLE_NAMES.x)
-        )
+        return print(io, string_tree(tree, latest_operators; kwargs...))
     else
         latest_operators = LATEST_OPERATORS.x::GenericOperatorEnum
-        return print(
-            io, string_tree(tree, latest_operators; variable_names=LATEST_VARIABLE_NAMES.x)
-        )
+        return print(io, string_tree(tree, latest_operators; kwargs...))
     end
 end
 function (tree::Node)(X; kws...)
@@ -83,11 +83,17 @@ function set_default_variable_names!(variable_names::Vector{String})
     return LATEST_VARIABLE_NAMES.x = variable_names
 end
 
-function create_evaluation_helpers!(operators::OperatorEnum)
+function set_default_preserve_sharing!(preserve_sharing::Bool)
+    return LATEST_PRESERVE_SHARING.x = preserve_sharing
+end
+
+Base.@deprecate create_evaluation_helpers! set_default_operators!
+
+function set_default_operators!(operators::OperatorEnum)
     LATEST_OPERATORS.x = operators
     return LATEST_OPERATORS_TYPE.x = IsOperatorEnum
 end
-function create_evaluation_helpers!(operators::GenericOperatorEnum)
+function set_default_operators!(operators::GenericOperatorEnum)
     LATEST_OPERATORS.x = operators
     return LATEST_OPERATORS_TYPE.x = IsGenericOperatorEnum
 end
@@ -343,7 +349,7 @@ function OperatorEnum(;
 
     if define_helper_functions
         @extend_operators_base operators empty_old_operators = empty_old_operators
-        create_evaluation_helpers!(operators)
+        set_default_operators!(operators)
     end
 
     return operators
@@ -383,7 +389,7 @@ function GenericOperatorEnum(;
 
     if define_helper_functions
         @extend_operators_base operators empty_old_operators = empty_old_operators
-        create_evaluation_helpers!(operators)
+        set_default_operators!(operators)
     end
 
     return operators
