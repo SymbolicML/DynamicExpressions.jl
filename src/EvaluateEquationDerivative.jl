@@ -1,7 +1,7 @@
 module EvaluateEquationDerivativeModule
 
 import LoopVectorization: indices, @turbo
-import ..EquationModule: AbstractExpressionNode
+import ..EquationModule: AbstractExpressionNode, constructorof
 import ..OperatorEnumModule: OperatorEnum
 import ..UtilsModule: @return_on_false2, @maybe_turbo, is_bad_array, fill_similar
 import ..EquationUtilsModule: count_constants, index_constants, NodeIndex

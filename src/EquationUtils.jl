@@ -115,6 +115,7 @@ end
 # than adding a new attribute to Node.
 struct NodeIndex{T,N<:AbstractExpressionNode{T}} <: AbstractExpressionNode{T}
     data::N
+    NodeIndex(data::_N) where {_T,_N<:AbstractExpressionNode{_T}} = new{_T,_N}(data)
 end
 function Base.getproperty(n::NodeIndex, s::Symbol)
     if s == :l
