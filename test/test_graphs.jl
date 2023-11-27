@@ -2,11 +2,11 @@ using DynamicExpressions
 using Test
 include("test_params.jl")
 
-@testset "Trees with shared nodes" begin
+@testset "Constructing trees with shared nodes" begin
     operators = OperatorEnum(;
         binary_operators=(+, -, *, ^, /, greater), unary_operators=(cos, exp, sin)
     )
-    x1, x2, x3 = Node("x1"), Node("x2"), Node("x3")
+    x1, x2, x3 = [GraphNode(Float64, feature=i) for i=1:3]
 
     base_tree = cos(x1 - 3.2 * x2) - x1^3.2
     tree = sin(base_tree) + base_tree
@@ -27,11 +27,11 @@ include("test_params.jl")
     @test hash(tree.l.l) == hash(tree.r)
 
     # When we copy with the normal copy, the sharing breaks:
-    copy_without_sharing = copy_node(tree)
+    copy_without_sharing = copy_node(tree; break_sharing=Val(true))
     @test !(copy_without_sharing.l.l === copy_without_sharing.r)
 
     # But with the sharing preserved in the copy, it should be the same:
-    copy_with_sharing = copy_node(tree; preserve_sharing=true)
+    copy_with_sharing = copy_node(tree)
     @test copy_with_sharing.l.l === copy_with_sharing.r
 
     # We can also tweak the new tree, and the edits should be propagated:
@@ -52,7 +52,7 @@ include("test_params.jl")
     # The node type here should be Float64.
     @test typeof(tree).parameters[1] == Float64
     # Let's convert to Float32:
-    float32_tree = convert(Node{Float32}, tree; preserve_sharing=true)
+    float32_tree = convert(GraphNode{Float32}, tree)
     @test typeof(float32_tree).parameters[1] == Float32
     # The linkage should be kept:
     @test float32_tree.l.l === float32_tree.r
@@ -178,5 +178,59 @@ end
             end
         end
         @test expr_eql(ex, true_ex)
+    end
+end
+
+@testset "Operations on graphs" begin
+    operators = OperatorEnum(;
+        binary_operators=(+, -, *, ^, /), unary_operators=(cos, exp, sin)
+    )
+    function make_tree()
+        x1, x2 = GraphNode(Float64; feature=1), GraphNode(Float64; feature=2)
+        base_tree = cos(x1 - 3.2 * x2) - x1^3.5 + GraphNode(3, GraphNode(val=0.3), GraphNode(val=0.9))
+        tree = sin(base_tree) + base_tree
+        return base_tree, tree
+    end
+
+    @testset "Strings" begin
+        x1 = GraphNode(Float64; feature=1)
+        n = x1 + x1
+        @test string_tree(copy_node(n; break_sharing=Val(true)), operators) == "x1 + x1"
+        @test string_tree(n, operators) == "x1 + {x1}"
+
+        # Copying the node explicitly changes the behavior:
+        x1 = GraphNode(Float64; feature=1)
+        n = x1 + copy(x1)
+        @test string_tree(n, operators) == "x1 + x1"
+
+        # But, note that if we do a type conversion, the connection is also lost:
+        x1 = GraphNode(Float64; feature=1)
+        n = x1 + 3.5 * x1
+        @test_skip string_tree(n, operators) == "x1 + (3.5 * {x1})"
+        # TODO: Try to fix this if we can
+
+
+        base_tree, tree = make_tree()
+
+        s = string_tree(copy_node(base_tree; break_sharing=Val(true)), operators)
+        @test s == "(cos(x1 - (3.2 * x2)) - (x1 ^ 3.5)) + (0.3 * 0.9)"
+        s = string_tree(base_tree, operators)
+        @test s == "(cos(x1 - (3.2 * x2)) - ({x1} ^ 3.5)) + (0.3 * 0.9)"
+        s = string_tree(tree, operators)
+        @test s == "sin((cos(x1 - (3.2 * x2)) - ({x1} ^ 3.5)) + (0.3 * 0.9)) + {((cos(x1 - (3.2 * x2)) - ({x1} ^ 3.5)) + (0.3 * 0.9))}"
+        # ^ Note the {} indicating shared subexpression
+    end
+
+    @testset "Counting nodes" begin
+        base_tree, tree = make_tree()
+
+        @test count_nodes(base_tree; break_sharing=Val(true)) == 14
+        @test count_nodes(tree; break_sharing=Val(true)) == 30
+
+        # One shared node, so -1:
+        @test count_nodes(base_tree) == 13
+
+        # sin and the +, so +2 from above:
+        @test count_nodes(tree) == 15
     end
 end

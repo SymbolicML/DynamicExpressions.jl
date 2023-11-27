@@ -93,7 +93,7 @@ end
 # We also test whether we can set a node equal to another node:
 operators = OperatorEnum(; default_params...)
 tree = Node(Float64; feature=1)
-tree2 = exp(Node(; feature=2) / 3.2) + Node(; feature=1) * 2.0
+tree2 = exp(Node(Float64; feature=2) / 3.2) + Node(Float64; feature=1) * 2.0
 
 # Test printing works:
 io = IOBuffer()

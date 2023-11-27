@@ -38,9 +38,8 @@ struct Undefined end
         [f_branch::Function,]
         op::Function,
         tree::AbstractNode,
-        result_type::Type=Nothing;
-        preserve_sharing::Bool=false,
-        f_on_shared::Function=(result, is_shared) -> result
+        f_on_shared::Function=(result, is_shared) -> result,
+        break_sharing::Val=Val(false),
     )
 
 Map a function over a tree and aggregate the result using an operator `op`.
@@ -49,6 +48,7 @@ both unary and binary operators. `op` will not be called for leafs of the tree.
 This differs from a normal `mapreduce` in that it allows different treatment
 for parent nodes than children nodes. If this is not necessary, you may
 use the regular `mapreduce` instead.
+The argument `break_sharing` can be used to break connections in a `GraphNode`.
 
 You can also provide separate functions for leaf (variable/constant) nodes
 and branch (operator) nodes.
@@ -84,10 +84,10 @@ function tree_mapreduce(
     op::G,
     tree::AbstractNode,
     result_type::Type=Undefined;
-    preserve_sharing::Bool=false,
     f_on_shared::H=(result, is_shared) -> result,
+    break_sharing=Val(false),
 ) where {F<:Function,G<:Function,H<:Function}
-    return tree_mapreduce(f, f, op, tree, result_type; preserve_sharing, f_on_shared)
+    return tree_mapreduce(f, f, op, tree, result_type; f_on_shared, break_sharing)
 end
 function tree_mapreduce(
     f_leaf::F1,
@@ -95,8 +95,8 @@ function tree_mapreduce(
     op::G,
     tree::AbstractNode,
     result_type::Type{RT}=Undefined;
-    preserve_sharing::Bool=false,
     f_on_shared::H=(result, is_shared) -> result,
+    break_sharing::Val=Val(false),
 ) where {F1<:Function,F2<:Function,G<:Function,H<:Function,RT}
 
     # Trick taken from here:
@@ -112,11 +112,13 @@ function tree_mapreduce(
         end
     end
 
-    RT == Undefined &&
-        preserve_sharing &&
-        throw(ArgumentError("Need to specify `result_type` if you use `preserve_sharing`."))
+    sharing = preserve_sharing(typeof(tree)) && break_sharing === Val(false)
 
-    if preserve_sharing && RT != Undefined
+    RT == Undefined &&
+        sharing &&
+        throw(ArgumentError("Need to specify `result_type` if nodes are shared.."))
+
+    if sharing && RT != Undefined
         return @with_memoize inner(inner, tree) Dict{UInt,RT}()
     else
         return inner(inner, tree)
@@ -143,20 +145,63 @@ function any(f::F, tree::AbstractNode) where {F<:Function}
     end
 end
 
-function Base.:(==)(a::AbstractNode, b::AbstractNode)::Bool
+function Base.:(==)(a::AbstractExpressionNode, b::AbstractExpressionNode)::Bool
+    if constructorof(typeof(a)) !== constructorof(typeof(b))
+        return false
+    end
+    if preserve_sharing(typeof(a)) || preserve_sharing(typeof(b))
+        return inner_is_equal_shared(a, b, Dict{UInt,Nothing}(), Dict{UInt,Nothing}())
+    else
+        return inner_is_equal(a, b)
+    end
+end
+function inner_is_equal(a, b)
     (degree = a.degree) != b.degree && return false
     if degree == 0
         return isequal_deg0(a, b)
     elseif degree == 1
-        return isequal_deg1(a, b) && a.l == b.l
+        return isequal_deg1(a, b) && inner_is_equal(a.l, b.l)
     else
-        return isequal_deg2(a, b) && a.l == b.l && a.r == b.r
+        return isequal_deg2(a, b) && inner_is_equal(a.l, b.l) && inner_is_equal(a.r, b.r)
     end
 end
+function inner_is_equal_shared(a, b, id_map_a, id_map_b)
+    id_a = objectid(a)
+    id_b = objectid(b)
+    has_a = haskey(id_map_a, id_a)
+    has_b = haskey(id_map_b, id_b)
 
-@inline isequal_deg1(a::Node, b::Node) = a.op == b.op
-@inline isequal_deg2(a::Node, b::Node) = a.op == b.op
-@inline function isequal_deg0(a::Node{T1}, b::Node{T2}) where {T1,T2}
+    if has_a && has_b
+        return true
+    elseif has_a ⊻ has_b
+        return false
+    end
+
+    (degree = a.degree) != b.degree && return false
+    
+    result = if degree == 0
+        isequal_deg0(a, b)
+    elseif degree == 1
+        isequal_deg1(a, b) &&
+            inner_is_equal_shared(a.l, b.l, id_map_a, id_map_b)
+    else
+        isequal_deg2(a, b) &&
+            inner_is_equal_shared(a.l, b.l, id_map_a, id_map_b) &&
+            inner_is_equal_shared(a.r, b.r, id_map_a, id_map_b)
+    end
+
+    id_map_a[id_a] = nothing
+    id_map_b[id_b] = nothing
+
+    return result
+end
+
+
+@inline isequal_deg1(a::AbstractExpressionNode, b::AbstractExpressionNode) = a.op == b.op
+@inline isequal_deg2(a::AbstractExpressionNode, b::AbstractExpressionNode) = a.op == b.op
+@inline function isequal_deg0(
+    a::AbstractExpressionNode{T1}, b::AbstractExpressionNode{T2}
+) where {T1,T2}
     (constant = a.constant) != b.constant && return false
     if constant
         return a.val::T1 == b.val::T2
@@ -170,21 +215,17 @@ end
 ###############################################################################
 
 """
-    foreach(f::Function, tree::Node; preserve_sharing::Bool=false)
+    foreach(f::Function, tree::AbstractNode)
 
-Apply a function to each node in a tree. When `preserve_sharing` is true,
-this will only apply the function to the first of a unique node, skipping
-ones that have already been visited.
+Apply a function to each node in a tree.
 """
-function foreach(f::Function, tree::AbstractNode; preserve_sharing=false)
-    tree_mapreduce(
-        t -> (@inline(f(t)); nothing), Returns(nothing), tree, Nothing; preserve_sharing
-    )
+function foreach(f::Function, tree::AbstractNode)
+    tree_mapreduce(t -> (@inline(f(t)); nothing), Returns(nothing), tree, Nothing)
     return nothing
 end
 
 """
-    filter_map(filter_fnc::Function, map_fnc::Function, tree::AbstractNode, result_type::Type; preserve_sharing=false)
+    filter_map(filter_fnc::Function, map_fnc::Function, tree::AbstractNode, result_type::Type)
 
 A faster equivalent to `map(map_fnc, filter(filter_fnc, tree))`
 that avoids the intermediate allocation. However, using this requires
@@ -192,35 +233,23 @@ specifying the `result_type` of `map_fnc` so the resultant array can
 be preallocated.
 """
 function filter_map(
-    filter_fnc::F,
-    map_fnc::G,
-    tree::AbstractNode,
-    result_type::Type{GT};
-    preserve_sharing=false,
+    filter_fnc::F, map_fnc::G, tree::AbstractNode, result_type::Type{GT}
 ) where {F<:Function,G<:Function,GT}
-    stack = Array{GT}(
-        undef, count(filter_fnc, tree; init=0, preserve_sharing=preserve_sharing)
-    )
-    filter_map!(filter_fnc, map_fnc, stack, tree; preserve_sharing)
+    stack = Array{GT}(undef, count(filter_fnc, tree; init=0))
+    filter_map!(filter_fnc, map_fnc, stack, tree)
     return stack::Vector{GT}
 end
 
 """
-    filter_map!(filter_fnc::Function, map_fnc::Function, stack::Vector{GT}, tree::AbstractNode; preserve_sharing=false)
+    filter_map!(filter_fnc::Function, map_fnc::Function, stack::Vector{GT}, tree::AbstractNode)
 
 Equivalent to `filter_map`, but stores the results in a preallocated array.
-If `preserve_sharing` is true, this will only get the first of each unique node,
-skipping ones that have already been visited.
 """
 function filter_map!(
-    filter_fnc::Function,
-    map_fnc::Function,
-    destination::Vector{GT},
-    tree::AbstractNode;
-    preserve_sharing=false,
+    filter_fnc::Function, map_fnc::Function, destination::Vector{GT}, tree::AbstractNode
 ) where {GT}
     pointer = Ref(0)
-    foreach(tree; preserve_sharing) do t
+    foreach(tree) do t
         if @inline(filter_fnc(t))
             map_result = @inline(map_fnc(t))::GT
             @inbounds destination[pointer.x += 1] = map_result
@@ -234,12 +263,12 @@ end
 
 Filter nodes of a tree, returning a flat array of the nodes for which the function returns `true`.
 """
-function filter(f::F, tree::AbstractNode; preserve_sharing=false) where {F<:Function}
-    return filter_map(f, identity, tree, typeof(tree); preserve_sharing)
+function filter(f::F, tree::AbstractNode) where {F<:Function}
+    return filter_map(f, identity, tree, typeof(tree))
 end
 
-function collect(tree::AbstractNode; preserve_sharing=false)
-    return filter(Returns(true), tree; preserve_sharing)
+function collect(tree::AbstractNode)
+    return filter(Returns(true), tree)
 end
 
 """
@@ -247,25 +276,21 @@ end
 
 Map a function over a tree and return a flat array of the results in depth-first order.
 Pre-specifying the `result_type` of the function can be used to avoid extra allocations.
-If you wish to only map over unique nodes, use `preserve_sharing=true`.
 """
-function map(
-    f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; preserve_sharing=false
-) where {F<:Function,RT}
+function map(f::F, tree::AbstractNode, result_type::Type{RT}=Nothing) where {F<:Function,RT}
     if RT == Nothing
-        return f.(collect(tree; preserve_sharing))
+        return f.(collect(tree))
     else
-        return filter_map(Returns(true), f, tree, result_type; preserve_sharing)
+        return filter_map(Returns(true), f, tree, result_type)
     end
 end
 
-function count(f::F, tree::AbstractNode; init=0, preserve_sharing=false) where {F<:Function}
+function count(f::F, tree::AbstractNode; init=0) where {F<:Function}
     return tree_mapreduce(
         t -> @inline(f(t)) ? 1 : 0,
         +,
         tree,
         Int64;
-        preserve_sharing=preserve_sharing,
         f_on_shared=(c, is_shared) -> is_shared ? 0 : c,
     ) + init
 end
@@ -276,12 +301,11 @@ function sum(
     init=0,
     return_type=Undefined,
     f_on_shared=(c, is_shared) -> is_shared ? (false * c) : c,
-    preserve_sharing=false,
 ) where {F<:Function}
-    if preserve_sharing
+    if preserve_sharing(typeof(tree))
         @assert typeof(return_type) !== Undefined "Must specify `return_type` as a keyword argument to `sum` if `preserve_sharing` is true."
     end
-    return tree_mapreduce(f, +, tree, return_type; preserve_sharing, f_on_shared) + init
+    return tree_mapreduce(f, +, tree, return_type; f_on_shared) + init
 end
 
 all(f::F, tree::AbstractNode) where {F<:Function} = !any(t -> !@inline(f(t)), tree)
@@ -292,99 +316,95 @@ function mapreduce(
     tree::AbstractNode;
     return_type=Undefined,
     f_on_shared=(c, is_shared) -> is_shared ? (false * c) : c,
-    preserve_sharing=false,
 ) where {F<:Function,G<:Function}
-    if preserve_sharing
+    if preserve_sharing(typeof(tree))
         @assert typeof(return_type) !== Undefined "Must specify `return_type` as a keyword argument to `mapreduce` if `preserve_sharing` is true."
     end
-    return tree_mapreduce(
-        f, (n...) -> reduce(op, n), tree, return_type; preserve_sharing, f_on_shared
-    )
+    return tree_mapreduce(f, (n...) -> reduce(op, n), tree, return_type; f_on_shared)
 end
 
 isempty(::AbstractNode) = false
 iterate(root::AbstractNode) = (root, collect(root)[(begin + 1):end])
 iterate(::AbstractNode, stack) = isempty(stack) ? nothing : (popfirst!(stack), stack)
 in(item, tree::AbstractNode) = any(t -> t == item, tree)
-function length(tree::AbstractNode; preserve_sharing=false)
-    return sum(Returns(1), tree; return_type=Int64, preserve_sharing=preserve_sharing)
+function length(tree::AbstractNode)
+    return sum(Returns(1), tree; return_type=Int64)
 end
 
-function hash(tree::Node{T}; preserve_sharing=false) where {T}
+function hash(tree::AbstractExpressionNode{T}) where {T}
     return tree_mapreduce(
         t -> t.constant ? hash((0, t.val::T)) : hash((1, t.feature)),
         t -> hash((t.degree + 1, t.op)),
         (n...) -> hash(n),
         tree,
         UInt64;
-        preserve_sharing,
         f_on_shared=(cur_hash, is_shared) ->
             is_shared ? hash((:shared, cur_hash)) : cur_hash,
     )
 end
 
 """
-    copy_node(tree::Node; preserve_sharing::Bool=false)
+    copy_node(tree::AbstractExpressionNode)
 
 Copy a node, recursively copying all children nodes.
 This is more efficient than the built-in copy.
-With `preserve_sharing=true`, this will also
-preserve linkage between a node and
-multiple parents, whereas without, this would create
-duplicate child node copies.
 
 id_map is a map from `objectid(tree)` to `copy(tree)`.
 We check against the map before making a new copy; otherwise
 we can simply reference the existing copy.
 [Thanks to Ted Hopp.](https://stackoverflow.com/questions/49285475/how-to-copy-a-full-non-binary-tree-including-loops)
-
-Note that this will *not* preserve loops in graphs.
 """
-function copy_node(tree::N; preserve_sharing::Bool=false) where {T,N<:Node{T}}
+function copy_node(tree::N; break_sharing=Val(false)) where {T,N<:AbstractExpressionNode{T}}
     return tree_mapreduce(
-        t -> t.constant ? Node(; val=t.val::T) : Node(T; feature=t.feature),
+        t -> if t.constant
+            constructorof(N)(; val=t.val::T)
+        else
+            constructorof(N)(T; feature=t.feature)
+        end,
         identity,
-        (p, c...) -> Node(p.op, c...),
+        (p, c...) -> constructorof(N)(p.op, c...),
         tree,
         N;
-        preserve_sharing,
+        break_sharing,
     )
 end
 
-copy(tree::Node; preserve_sharing=false) = copy_node(tree; preserve_sharing)
+copy(tree::AbstractExpressionNode) = copy_node(tree)
 
 """
-    convert(::Type{Node{T1}}, n::Node{T2}) where {T1,T2}
+    convert(::Type{AbstractExpressionNode{T1}}, n::AbstractExpressionNode{T2}) where {T1,T2}
 
-Convert a `Node{T2}` to a `Node{T1}`.
-This will recursively convert all children nodes to `Node{T1}`,
+Convert a `AbstractExpressionNode{T2}` to a `AbstractExpressionNode{T1}`.
+This will recursively convert all children nodes to `AbstractExpressionNode{T1}`,
 using `convert(T1, tree.val)` at constant nodes.
 
 # Arguments
-- `::Type{Node{T1}}`: Type to convert to.
-- `tree::Node{T2}`: Node to convert.
+- `::Type{AbstractExpressionNode{T1}}`: Type to convert to.
+- `tree::AbstractExpressionNode{T2}`: AbstractExpressionNode to convert.
 """
 function convert(
-    ::Type{Node{T1}}, tree::Node{T2}; preserve_sharing::Bool=false
-) where {T1,T2}
-    if T1 == T2
+    ::Type{N1}, tree::N2
+) where {T1,T2,N1<:AbstractExpressionNode{T1},N2<:AbstractExpressionNode{T2}}
+    if N1 === N2
         return tree
     end
     return tree_mapreduce(
         t -> if t.constant
-            Node(T1, 0, true, convert(T1, t.val::T2))
+            constructorof(N1)(T1, 0, true, convert(T1, t.val::T2))
         else
-            Node(T1, 0, false, nothing, t.feature)
+            constructorof(N1)(T1, 0, false, nothing, t.feature)
         end,
         identity,
-        (p, c...) -> Node(p.degree, false, nothing, 0, p.op, c...),
+        (p, c...) -> constructorof(N1)(p.degree, false, nothing, 0, p.op, c...),
         tree,
-        Node{T1};
-        preserve_sharing,
+        N1,
     )
 end
-function (::Type{Node{T}})(tree::Node; preserve_sharing=false) where {T}
-    return convert(Node{T}, tree; preserve_sharing)
+function convert(::Type{N1}, tree::N2) where {T2,N1<:AbstractExpressionNode,N2<:AbstractExpressionNode{T2}}
+    return convert(constructorof(N1){T2}, tree)
+end
+function (::Type{N})(tree::AbstractExpressionNode) where {N<:AbstractExpressionNode}
+    return convert(N, tree)
 end
 
 for func in (:reduce, :foldl, :foldr, :mapfoldl, :mapfoldr)

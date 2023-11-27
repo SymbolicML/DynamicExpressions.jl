@@ -111,10 +111,8 @@ function test_functions_on_trees(::Type{T}, operators) where {T}
         tree = Node(i_bin, a8, a7)
     end
     tree = convert(Node{T}, tree)
-    for preserve_sharing in [true, false]
-        tree = copy_node(tree; preserve_sharing)
-        set_node!(tree, copy_node(tree; preserve_sharing))
-    end
+    tree = copy_node(tree)
+    set_node!(tree, tree)
 
     string_tree(tree, operators)
     count_nodes(tree)

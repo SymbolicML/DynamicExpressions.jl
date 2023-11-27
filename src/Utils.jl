@@ -81,7 +81,7 @@ isgood(x) = true
 isbad(x) = !isgood(x)
 
 """
-    @memoize_on tree [postprocess] function my_function_on_tree(tree::Node)
+    @memoize_on tree [postprocess] function my_function_on_tree(tree::AbstractExpressionNode)
         ...
     end
 

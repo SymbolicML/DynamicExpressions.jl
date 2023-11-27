@@ -71,6 +71,7 @@ end
     x1, x2, x3 = [Node(; feature=i) for i in 1:3]
     tree = sin(x1 * 1.0)
     @test string_tree(tree, operators) == "sin(x1 * 1.0)"
+    x1 = convert(Node{ComplexF64}, x1)
     tree = sin(x1 * (1.0 + 2.0im))
     @test string_tree(tree, operators) == "sin(x1 * (1.0 + 2.0im))"
     tree = my_custom_op(x1, 1.0 + 2.0im)

@@ -1,6 +1,6 @@
 module SimplifyEquationModule
 
-import ..EquationModule: Node, copy_node, set_node!
+import ..EquationModule: AbstractExpressionNode, constructorof, Node, copy_node, set_node!
 import ..EquationUtilsModule: tree_mapreduce, is_node_constant
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..UtilsModule: isbad, isgood
@@ -15,12 +15,9 @@ is_commutative(_) = false
 is_subtraction(::typeof(-)) = true
 is_subtraction(_) = false
 
-# Simplify tree
-function combine_operators(
-    tree::Node{T}, operators::AbstractOperatorEnum; preserve_sharing=false
-) where {T}
-    @assert !preserve_sharing "Cannot preserve sharing when rearranging tree, please avoid calling this function."
-
+# This is only defined for `Node` as it is not possible for
+# `GraphNode`.
+function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
     # NOTE: (const (+*-) const) already accounted for. Call simplify_tree! before.
     # ((const + var) + const) => (const + var)
     # ((const * var) * const) => (const * var)
@@ -111,7 +108,7 @@ function combine_operators(
     return tree
 end
 
-function combine_children!(operators, p::Node{T}, c::Node{T}...) where {T}
+function combine_children!(operators, p::N, c::N...) where {T,N<:AbstractExpressionNode{T}}
     all(is_node_constant, c) || return p
     vals = map(n -> n.val::T, c)
     all(isgood, vals) || return p
@@ -121,21 +118,18 @@ function combine_children!(operators, p::Node{T}, c::Node{T}...) where {T}
         _bin_op_kernel(operators.binops[p.op], vals...)
     end
     isgood(out) || return p
-    new_node = Node(T; val=convert(T, out))
+    new_node = constructorof(N)(T; val=convert(T, out))
     set_node!(p, new_node)
     return p
 end
 
 # Simplify tree
-function simplify_tree!(
-    tree::Node{T}, operators::AbstractOperatorEnum; preserve_sharing=false
-) where {T}
+function simplify_tree!(tree::AbstractExpressionNode, operators::AbstractOperatorEnum)
     tree = tree_mapreduce(
         identity,
         (p, c...) -> combine_children!(operators, p, c...),
         tree,
-        Node{T};
-        preserve_sharing,
+        constructorof(typeof(tree));
     )
     return tree
 end

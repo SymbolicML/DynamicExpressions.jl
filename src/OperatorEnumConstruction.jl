@@ -1,7 +1,7 @@
 module OperatorEnumConstructionModule
 
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
-import ..EquationModule: string_tree, Node
+import ..EquationModule: string_tree, Node, GraphNode, AbstractExpressionNode, constructorof
 import ..EvaluateEquationModule: eval_tree_array
 import ..EvaluateEquationDerivativeModule: eval_grad_tree_array, _zygote_gradient
 import ..EvaluationHelpersModule: _grad_evaluator
@@ -28,13 +28,10 @@ const ALREADY_DEFINED_BINARY_OPERATORS = (;
     operator_enum=Dict{Function,Bool}(), generic_operator_enum=Dict{Function,Bool}()
 )
 const LATEST_VARIABLE_NAMES = Ref{Vector{String}}(String[])
-const LATEST_PRESERVE_SHARING = Ref{Bool}(false)
 
-function Base.show(io::IO, tree::Node)
+function Base.show(io::IO, tree::AbstractExpressionNode)
     latest_operators_type = LATEST_OPERATORS_TYPE.x
-    kwargs = (
-        variable_names=LATEST_VARIABLE_NAMES.x, preserve_sharing=LATEST_PRESERVE_SHARING.x
-    )
+    kwargs = (variable_names = LATEST_VARIABLE_NAMES.x,)
     if latest_operators_type == IsNothing
         return print(io, string_tree(tree; kwargs...))
     elseif latest_operators_type == IsOperatorEnum
@@ -45,10 +42,10 @@ function Base.show(io::IO, tree::Node)
         return print(io, string_tree(tree, latest_operators; kwargs...))
     end
 end
-function (tree::Node)(X; kws...)
+function (tree::AbstractExpressionNode)(X; kws...)
     Base.depwarn(
         "The `tree(X; kws...)` syntax is deprecated. Use `tree(X, operators; kws...)` instead.",
-        :Node,
+        :AbstractExpressionNode,
     )
     latest_operators_type = LATEST_OPERATORS_TYPE.x
     if latest_operators_type == IsNothing
@@ -62,10 +59,10 @@ function (tree::Node)(X; kws...)
     end
 end
 
-function _grad_evaluator(tree::Node, X; kws...)
+function _grad_evaluator(tree::AbstractExpressionNode, X; kws...)
     Base.depwarn(
         "The `tree'(X; kws...)` syntax is deprecated. Use `tree'(X, operators; kws...)` instead.",
-        :Node,
+        :AbstractExpressionNode,
     )
     latest_operators_type = LATEST_OPERATORS_TYPE.x
     # return _grad_evaluator(tree, X, $operators; kws...)
@@ -83,10 +80,6 @@ function set_default_variable_names!(variable_names::Vector{String})
     return LATEST_VARIABLE_NAMES.x = copy(variable_names)
 end
 
-function set_default_preserve_sharing!(preserve_sharing::Bool)
-    return LATEST_PRESERVE_SHARING.x = preserve_sharing
-end
-
 Base.@deprecate create_evaluation_helpers! set_default_operators!
 
 function set_default_operators!(operators::OperatorEnum)
@@ -102,7 +95,7 @@ function lookup_op(@nospecialize(f), ::Val{degree}) where {degree}
     mapping = degree == 1 ? LATEST_UNARY_OPERATOR_MAPPING : LATEST_BINARY_OPERATOR_MAPPING
     if !haskey(mapping, f)
         error(
-            "Convenience constructor for `Node` using operator `$(f)` is out-of-date. " *
+            "Convenience constructor using operator `$(f)` is out-of-date. " *
             "Please create an `OperatorEnum` (or `GenericOperatorEnum`) with " *
             "`define_helper_functions=true` and pass `$(f)`.",
         )
@@ -112,13 +105,20 @@ end
 
 function _extend_unary_operator(f::Symbol, type_requirements)
     quote
+        @gensym _constructorof _AbstractExpressionNode
         quote
-            function $($f)(l::Node{T})::Node{T} where {T<:$($type_requirements)}
+            using DynamicExpressions:
+                constructorof as $_constructorof,
+                AbstractExpressionNode as $_AbstractExpressionNode
+
+            function $($f)(
+                l::N
+            ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
                 return if (l.degree == 0 && l.constant)
-                    Node(T; val=$($f)(l.val::T))
+                    $_constructorof(N)(T; val=$($f)(l.val::T))
                 else
                     latest_op_idx = $($lookup_op)($($f), Val(1))
-                    Node(latest_op_idx, l)
+                    $_constructorof(N)(latest_op_idx, l)
                 end
             end
         end
@@ -127,56 +127,62 @@ end
 
 function _extend_binary_operator(f::Symbol, type_requirements, build_converters)
     quote
+        @gensym _constructorof _AbstractExpressionNode
         quote
-            function $($f)(l::Node{T}, r::Node{T}) where {T<:$($type_requirements)}
+            using DynamicExpressions:
+                constructorof as $_constructorof,
+                AbstractExpressionNode as $_AbstractExpressionNode
+
+            function $($f)(
+                l::N, r::N
+            ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
                 if (l.degree == 0 && l.constant && r.degree == 0 && r.constant)
-                    Node(T; val=$($f)(l.val::T, r.val::T))
+                    $_constructorof(N)(T; val=$($f)(l.val::T, r.val::T))
                 else
                     latest_op_idx = $($lookup_op)($($f), Val(2))
-                    Node(latest_op_idx, l, r)
+                    $_constructorof(N)(latest_op_idx, l, r)
                 end
             end
-            function $($f)(l::Node{T}, r::T) where {T<:$($type_requirements)}
+            function $($f)(
+                l::N, r::T
+            ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
                 if l.degree == 0 && l.constant
-                    Node(T; val=$($f)(l.val::T, r))
+                    $_constructorof(N)(T; val=$($f)(l.val::T, r))
                 else
                     latest_op_idx = $($lookup_op)($($f), Val(2))
-                    Node(latest_op_idx, l, Node(T; val=r))
+                    $_constructorof(N)(latest_op_idx, l, $_constructorof(N)(T; val=r))
                 end
             end
-            function $($f)(l::T, r::Node{T}) where {T<:$($type_requirements)}
+            function $($f)(
+                l::T, r::N
+            ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
                 if r.degree == 0 && r.constant
-                    Node(T; val=$($f)(l, r.val::T))
+                    $_constructorof(N)(T; val=$($f)(l, r.val::T))
                 else
                     latest_op_idx = $($lookup_op)($($f), Val(2))
-                    Node(latest_op_idx, Node(T; val=l), r)
+                    $_constructorof(N)(latest_op_idx, $_constructorof(N)(T; val=l), r)
                 end
             end
             if $($build_converters)
                 # Converters:
-                function $($f)(
-                    l::Node{T1}, r::Node{T2}
-                ) where {T1<:$($type_requirements),T2<:$($type_requirements)}
-                    T = promote_type(T1, T2)
-                    l = convert(Node{T}, l)
-                    r = convert(Node{T}, r)
-                    return $($f)(l, r)
+                function $($f)(l::$_AbstractExpressionNode, r::$_AbstractExpressionNode)
+                    if l isa GraphNode || r isa GraphNode
+                        error(
+                            "Refusing to promote `GraphNode` as it would break the graph structure. " *
+                            "Please convert to a common type first.",
+                        )
+                    end
+                    return $($f)(promote(l, r)...)
                 end
                 function $($f)(
-                    l::Node{T1}, r::T2
+                    l::$_AbstractExpressionNode{T1}, r::T2
                 ) where {T1<:$($type_requirements),T2<:$($type_requirements)}
-                    T = promote_type(T1, T2)
-                    l = convert(Node{T}, l)
-                    r = convert(T, r)
-                    return $($f)(l, r)
+                    return $($f)(l, convert(T1, r))
                 end
                 function $($f)(
-                    l::T1, r::Node{T2}
+                    l::T1, r::$_AbstractExpressionNode{T2}
                 ) where {T1<:$($type_requirements),T2<:$($type_requirements)}
-                    T = promote_type(T1, T2)
-                    l = convert(T, l)
-                    r = convert(Node{T}, r)
-                    return $($f)(l, r)
+                    return $($f)(convert(T2, l), r)
                 end
             end
         end
@@ -305,8 +311,8 @@ end
                    empty_old_operators::Bool=true)
 
 Construct an `OperatorEnum` object, defining the possible expressions. This will also
-redefine operators for `Node` types, as well as `show`, `print`, and `(::Node)(X)`.
-It will automatically compute derivatives with `Zygote.jl`.
+redefine operators for `AbstractExpressionNode` types, as well as `show`, `print`, and
+`(::AbstractExpressionNode)(X)`. It will automatically compute derivatives with `Zygote.jl`.
 
 # Arguments
 - `binary_operators::Vector{Function}`: A vector of functions, each of which is a binary
@@ -361,8 +367,8 @@ end
 
 Construct a `GenericOperatorEnum` object, defining possible expressions.
 Unlike `OperatorEnum`, this enum one will work arbitrary operators and data types.
-This will also redefine operators for `Node` types, as well as `show`, `print`,
-and `(::Node)(X)`.
+This will also redefine operators for `AbstractExpressionNode` types, as well as `show`, `print`,
+and `(::AbstractExpressionNode)(X)`.
 
 # Arguments
 - `binary_operators::Vector{Function}`: A vector of functions, each of which is a binary

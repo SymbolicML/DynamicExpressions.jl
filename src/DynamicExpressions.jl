@@ -15,6 +15,8 @@ import PackageExtensionCompat: @require_extensions
 import Reexport: @reexport
 @reexport import .EquationModule:
     AbstractNode,
+    AbstractExpressionNode,
+    GraphNode,
     Node,
     string_tree,
     print_tree,
@@ -22,6 +24,7 @@ import Reexport: @reexport
     set_node!,
     tree_mapreduce,
     filter_map
+import .EquationModule: constructorof
 @reexport import .EquationUtilsModule:
     count_nodes,
     count_constants,

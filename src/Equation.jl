@@ -23,9 +23,31 @@ Abstract type for binary trees. Must have the following fields:
 """
 abstract type AbstractNode end
 
+"""
+    AbstractExpressionNode{T} <: AbstractNode
+
+Abstract type for nodes that represent an expression.
+This additionally must have fields for:
+
+- `constant::Bool`: Whether the node is a constant.
+- `val::T`: Value of the node. If `degree==0`, and `constant==true`,
+    this is the value of the constant. It has a type specified by the
+    overall type of the `Node` (e.g., `Float64`).
+- `feature::UInt16`: Index of the feature to use in the
+    case of a feature node. Only used if `degree==0` and `constant==false`. 
+    Only defined if `degree == 0 && constant == false`.
+- `op::UInt8`: If `degree==1`, this is the index of the operator
+    in `operators.unaops`. If `degree==2`, this is the index of the
+    operator in `operators.binops`. In other words, this is an enum
+    of the operators, and is dependent on the specific `OperatorEnum`
+    object. Only defined if `degree >= 1`
+```
+"""
+abstract type AbstractExpressionNode{T} <: AbstractNode end
+
 #! format: off
 """
-    Node{T}
+    Node{T} <: AbstractExpressionNode{T}
 
 Node defines a symbolic expression stored in a binary tree.
 A single `Node` instance is one "node" of this tree, and
@@ -54,7 +76,7 @@ nodes, you can evaluate or print a given expression.
     Same type as the parent node. This is to be passed as the right
     argument to the binary operator.
 """
-mutable struct Node{T} <: AbstractNode
+mutable struct Node{T} <: AbstractExpressionNode{T}
     degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     constant::Bool  # false if variable
     val::Union{T,Nothing}  # If is a constant, this stores the actual value
@@ -74,8 +96,43 @@ mutable struct Node{T} <: AbstractNode
     Node(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::Node{_T}, r::Node{_T}) where {_T} = new{_T}(UInt8(d), c, v, UInt16(f), UInt8(o), l, r)
 
 end
+
+"""
+    GraphNode{T} <: AbstractExpressionNode{T}
+
+Exactly the same as `Node{T}`, but with the assumption that some
+nodes will be shared. All copies of this graph-like structure will
+be performed with this assumption, to preserve structure of the graph.
+"""
+mutable struct GraphNode{T} <: AbstractExpressionNode{T}
+    degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
+    constant::Bool  # false if variable
+    val::Union{T,Nothing}  # If is a constant, this stores the actual value
+    # ------------------- (possibly undefined below)
+    feature::UInt16  # If is a variable (e.g., x in cos(x)), this stores the feature index.
+    op::UInt8  # If operator, this is the index of the operator in operators.binops, or operators.unaops
+    l::GraphNode{T}  # Left child node. Only defined for degree=1 or degree=2.
+    r::GraphNode{T}  # Right child node. Only defined for degree=2. 
+
+    #################
+    ## Constructors:
+    #################
+    GraphNode(d::Integer, c::Bool, v::_T) where {_T} = new{_T}(UInt8(d), c, v)
+    GraphNode(::Type{_T}, d::Integer, c::Bool, v::_T) where {_T} = new{_T}(UInt8(d), c, v)
+    GraphNode(::Type{_T}, d::Integer, c::Bool, v::Nothing, f::Integer) where {_T} = new{_T}(UInt8(d), c, v, UInt16(f))
+    GraphNode(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::GraphNode{_T}) where {_T} = new{_T}(UInt8(d), c, v, UInt16(f), UInt8(o), l)
+    GraphNode(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::GraphNode{_T}, r::GraphNode{_T}) where {_T} = new{_T}(UInt8(d), c, v, UInt16(f), UInt8(o), l, r)
+end
+
 ################################################################################
 #! format: on
+
+constructorof(::Type{<:Node}) = Node
+constructorof(::Type{<:GraphNode}) = GraphNode
+
+"""Trait declaring whether nodes share children or not."""
+preserve_sharing(::Type{<:Node}) = false
+preserve_sharing(::Type{<:GraphNode}) = true
 
 include("base.jl")
 
@@ -94,9 +151,9 @@ Create a leaf node: either a constant, or a variable.
 - `feature::Integer`, if you are specifying a variable,
     pass the index of the variable here.
 """
-function Node(;
+function (::Type{N})(;
     val::T1=nothing, feature::T2=nothing
-)::Node where {T1,T2<:Union{Integer,Nothing}}
+) where {T1,T2<:Union{Integer,Nothing},N<:AbstractExpressionNode}
     if T1 <: Nothing && T2 <: Nothing
         error("You must specify either `val` or `feature` when creating a leaf node.")
     elseif !(T1 <: Nothing || T2 <: Nothing)
@@ -104,14 +161,14 @@ function Node(;
             "You must specify either `val` or `feature` when creating a leaf node, not both.",
         )
     elseif T2 <: Nothing
-        return Node(0, true, val)
+        return constructorof(N)(0, true, val)
     else
-        return Node(DEFAULT_NODE_TYPE, 0, false, nothing, feature)
+        return constructorof(N)(DEFAULT_NODE_TYPE, 0, false, nothing, feature)
     end
 end
-function Node(
+function (::Type{N})(
     ::Type{T}; val::T1=nothing, feature::T2=nothing
-)::Node{T} where {T,T1,T2<:Union{Integer,Nothing}}
+) where {T,T1,T2<:Union{Integer,Nothing},N<:AbstractExpressionNode}
     if T1 <: Nothing && T2 <: Nothing
         error("You must specify either `val` or `feature` when creating a leaf node.")
     elseif !(T1 <: Nothing || T2 <: Nothing)
@@ -123,9 +180,9 @@ function Node(
             # Only convert if not already in the type union.
             val = convert(T, val)
         end
-        return Node(T, 0, true, val)
+        return constructorof(N)(T, 0, true, val)
     else
-        return Node(T, 0, false, nothing, feature)
+        return constructorof(N)(T, 0, false, nothing, feature)
     end
 end
 
@@ -134,21 +191,30 @@ end
 
 Apply unary operator `op` (enumerating over the order given) to `Node` `l`
 """
-Node(op::Integer, l::Node{T}) where {T} = Node(1, false, nothing, 0, op, l)
+function (::Type{N})(
+    op::Integer, l::AbstractExpressionNode{T}
+) where {T,N<:AbstractExpressionNode}
+    @assert l isa N
+    return constructorof(N)(1, false, nothing, 0, op, l)
+end
 
 """
     Node(op::Integer, l::Node, r::Node)
 
 Apply binary operator `op` (enumerating over the order given) to `Node`s `l` and `r`
 """
-function Node(op::Integer, l::Node{T1}, r::Node{T2}) where {T1,T2}
+function (::Type{N})(
+    op::Integer, l::AbstractExpressionNode{T1}, r::AbstractExpressionNode{T2}
+) where {T1,T2,N<:AbstractExpressionNode}
+    @assert l isa N && r isa N
     # Get highest type:
     if T1 != T2
         T = promote_type(T1, T2)
-        l = convert(Node{T}, l)
-        r = convert(Node{T}, r)
+        # TODO: This might slow things down
+        l = convert(N{T}, l)
+        r = convert(N{T}, r)
     end
-    return Node(2, false, nothing, 0, op, l, r)
+    return constructorof(N)(2, false, nothing, 0, op, l, r)
 end
 
 """
@@ -156,45 +222,63 @@ end
 
 Create a variable node, using the format `"x1"` to mean feature 1
 """
-Node(var_string::String) = Node(; feature=parse(UInt16, var_string[2:end]))
+function (::Type{N})(var_string::String) where {N<:AbstractExpressionNode}
+    return constructorof(N)(; feature=parse(UInt16, var_string[2:end]))
+end
+
+# TODO: Include helpful check if in the wrong format!
 
 """
     Node(var_string::String, variable_names::Array{String, 1})
 
 Create a variable node, using a user-passed format
 """
-function Node(var_string::String, variable_names::Array{String,1})
-    return Node(;
+function (::Type{N})(
+    var_string::String, variable_names::Array{String,1}
+) where {N<:AbstractExpressionNode}
+    return constructorof(N)(;
         feature=[
             i for (i, _variable) in enumerate(variable_names) if _variable == var_string
         ][1]::Int,
     )
 end
 
-function create_dummy_node(::Type{T}) where {T}
+function Base.promote_rule(::Type{Node{T1}}, ::Type{Node{T2}}) where {T1,T2}
+    return Node{promote_type(T1, T2)}
+end
+function Base.promote_rule(::Type{GraphNode{T1}}, ::Type{Node{T2}}) where {T1,T2}
+    return GraphNode{promote_type(T1, T2)}
+end
+function Base.promote_rule(::Type{GraphNode{T1}}, ::Type{GraphNode{T2}}) where {T1,T2}
+    return GraphNode{promote_type(T1, T2)}
+end
+Base.eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = T
+Base.eltype(::AbstractExpressionNode{T}) where {T} = T
+
+function create_dummy_node(::Type{N}) where {T,N<:AbstractExpressionNode{T}}
     # TODO: Verify using this helps with garbage collection
-    return Node(T; feature=zero(UInt16))
+    return constructorof(N)(T; feature=zero(UInt16))
 end
 
 """
-    set_node!(tree::Node{T}, new_tree::Node{T}) where {T}
+    set_node!(tree::AbstractExpressionNode{T}, new_tree::AbstractExpressionNode{T}) where {T}
 
 Set every field of `tree` equal to the corresponding field of `new_tree`.
 """
-function set_node!(tree::Node{T}, new_tree::Node{T}) where {T}
+function set_node!(tree::AbstractExpressionNode, new_tree::AbstractExpressionNode)
     # First, ensure we free some memory:
     if new_tree.degree < 2 && tree.degree == 2
-        tree.r = create_dummy_node(T)
+        tree.r = create_dummy_node(typeof(tree))
     end
     if new_tree.degree < 1 && tree.degree >= 1
-        tree.l = create_dummy_node(T)
+        tree.l = create_dummy_node(typeof(tree))
     end
 
     tree.degree = new_tree.degree
     if new_tree.degree == 0
         tree.constant = new_tree.constant
         if new_tree.constant
-            tree.val = new_tree.val::T
+            tree.val = new_tree.val::eltype(new_tree)
         else
             tree.feature = new_tree.feature
         end
@@ -309,7 +393,15 @@ function combine_op_with_inputs(op, l)
 end
 
 """
-    string_tree(tree::Node, operators::AbstractOperatorEnum[; bracketed, variable_names, f_variable, f_constant])
+    string_tree(
+        tree::AbstractExpressionNode{T},
+        operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+        f_variable::F1=string_variable,
+        f_constant::F2=string_constant,
+        variable_names::Union{Array{String,1},Nothing}=nothing,
+        # Deprecated
+        varMap=nothing,
+    )::String where {T,F1<:Function,F2<:Function}
 
 Convert an equation to a string.
 
@@ -323,12 +415,11 @@ Convert an equation to a string.
 - `variable_names::Union{Array{String, 1}, Nothing}=nothing`: (optional) what variables to print for each feature.
 """
 function string_tree(
-    tree::Node{T},
+    tree::AbstractExpressionNode{T},
     operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     f_variable::F1=string_variable,
     f_constant::F2=string_constant,
     variable_names::Union{Array{String,1},Nothing}=nothing,
-    preserve_sharing=false,
     # Deprecated
     varMap=nothing,
 )::String where {T,F1<:Function,F2<:Function}
@@ -347,7 +438,6 @@ function string_tree(
         combine_op_with_inputs,
         tree,
         Vector{Char};
-        preserve_sharing,
         f_on_shared=(c, is_shared) -> if is_shared
             out = ['{']
             append!(out, c)
@@ -364,21 +454,17 @@ end
 for io in ((), (:(io::IO),))
     @eval function print_tree(
         $(io...),
-        tree::Node,
+        tree::AbstractExpressionNode,
         operators::Union{AbstractOperatorEnum,Nothing}=nothing;
         f_variable::F1=string_variable,
         f_constant::F2=string_constant,
         variable_names::Union{Array{String,1},Nothing}=nothing,
-        preserve_sharing=false,
         # Deprecated
         varMap=nothing,
     ) where {F1<:Function,F2<:Function}
         variable_names = deprecate_varmap(variable_names, varMap, :print_tree)
         return println(
-            $(io...),
-            string_tree(
-                tree, operators; f_variable, f_constant, variable_names, preserve_sharing
-            ),
+            $(io...), string_tree(tree, operators; f_variable, f_constant, variable_names)
         )
     end
 end

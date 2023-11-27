@@ -14,11 +14,21 @@ tree = x1 + x2 * x3 - log(x2 * 3.2) + 1.5 * cos(x2 / x1)
 same_tree = x1 + x2 * x3 - log(x2 * 3.2) + 1.5 * cos(x2 / x1)
 @test tree == same_tree
 
-copied_tree = copy_node(tree; preserve_sharing=true)
+x1 = GraphNode(; feature=1)
+x2 = GraphNode(; feature=2)
+x3 = GraphNode(; feature=3)
+tree = x1 + x2 * x3 - log(x2 * 3.2) + 1.5 * cos(x2 / x1)
+copied_tree = copy_node(tree)
 @test tree == copied_tree
 
-copied_tree2 = copy_node(tree; preserve_sharing=false)
-@test tree == copied_tree2
+copied_tree2 = copy_node(tree; break_sharing=Val(true))
+@test tree != copied_tree2
+
+# Another way to break shared nodes is by converting
+# to `Node` and back:
+copied_tree3 = GraphNode(Node(tree))
+@test copied_tree2 == copied_tree3
+@test tree != copied_tree3
 
 modifed_tree = x1 + x2 * x1 - log(x2 * 3.2) + 1.5 * cos(x2 / x1)
 @test tree != modifed_tree
@@ -33,12 +43,14 @@ modified_tree4 = x1 + x2 * x3 - log(x2 * 3.2) + 1.5 * cos(x2 * x1)
 modified_tree5 = 1.5 * cos(x2 * x1) + x1 + x2 * x3 - log(x2 * 3.2)
 @test tree != modified_tree5
 
-# Type should not matter if equivalent in the promoted type:
-f64_tree = x1 + x2 * x3 - log(x2 * 3.0) + 1.5 * cos(x2 / x1)
-f32_tree = x1 + x2 * x3 - log(x2 * 3.0f0) + 1.5f0 * cos(x2 / x1)
-@test typeof(f64_tree) == Node{Float64}
-@test typeof(f32_tree) == Node{Float32}
+f64_tree = GraphNode{Float64}(x1 + x2 * x3 - log(x2 * 3.0) + 1.5 * cos(x2 / x1))
+f32_tree = GraphNode{Float32}(x1 + x2 * x3 - log(x2 * 3.0) + 1.5 * cos(x2 / x1))
+@test typeof(f64_tree) == GraphNode{Float64}
+@test typeof(f32_tree) == GraphNode{Float32}
 
-@test convert(Node{Float64}, f32_tree) == f64_tree
+@test convert(GraphNode{Float64}, f32_tree) == f64_tree
 
 @test f64_tree == f32_tree
+
+@test Node(f64_tree) == Node(f32_tree)
+
