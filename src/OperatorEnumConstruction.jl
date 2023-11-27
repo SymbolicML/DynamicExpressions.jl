@@ -80,7 +80,7 @@ function _grad_evaluator(tree::Node, X; kws...)
 end
 
 function set_default_variable_names!(variable_names::Vector{String})
-    return LATEST_VARIABLE_NAMES.x = variable_names
+    return LATEST_VARIABLE_NAMES.x = copy(variable_names)
 end
 
 function set_default_preserve_sharing!(preserve_sharing::Bool)
