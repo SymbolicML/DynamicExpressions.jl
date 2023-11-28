@@ -31,7 +31,7 @@ const LATEST_VARIABLE_NAMES = Ref{Vector{String}}(String[])
 
 function Base.show(io::IO, tree::AbstractExpressionNode)
     latest_operators_type = LATEST_OPERATORS_TYPE.x
-    kwargs = (variable_names = LATEST_VARIABLE_NAMES.x,)
+    kwargs = (variable_names=LATEST_VARIABLE_NAMES.x,)
     if latest_operators_type == IsNothing
         return print(io, string_tree(tree; kwargs...))
     elseif latest_operators_type == IsOperatorEnum

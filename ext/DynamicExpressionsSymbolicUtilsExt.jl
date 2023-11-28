@@ -1,7 +1,8 @@
 module DynamicExpressionsSymbolicUtilsExt
 
 using SymbolicUtils
-import DynamicExpressions.EquationModule: AbstractExpressionNode, Node, constructorof, DEFAULT_NODE_TYPE
+import DynamicExpressions.EquationModule:
+    AbstractExpressionNode, Node, constructorof, DEFAULT_NODE_TYPE
 import DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
 import DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false, deprecate_varmap
 import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
@@ -19,7 +20,9 @@ end
 subs_bad(x) = isgood(x) ? x : Inf
 
 function parse_tree_to_eqs(
-    tree::AbstractExpressionNode{T}, operators::AbstractOperatorEnum, index_functions::Bool=false
+    tree::AbstractExpressionNode{T},
+    operators::AbstractOperatorEnum,
+    index_functions::Bool=false,
 ) where {T}
     if tree.degree == 0
         # Return constant if needed
@@ -111,7 +114,9 @@ function Base.convert(
     )
 end
 
-function Base.convert(::Type{N}, x::Number, operators::AbstractOperatorEnum; kws...) where {N<:AbstractExpressionNode}
+function Base.convert(
+    ::Type{N}, x::Number, operators::AbstractOperatorEnum; kws...
+) where {N<:AbstractExpressionNode}
     return constructorof(N)(; val=DEFAULT_NODE_TYPE(x))
 end
 
@@ -136,7 +141,8 @@ function Base.convert(
     op = convert_to_function(SymbolicUtils.operation(expr), operators)
     args = SymbolicUtils.arguments(expr)
 
-    length(args) > 2 && return split_eq(op, args, operators, N; variable_names=variable_names)
+    length(args) > 2 &&
+        return split_eq(op, args, operators, N; variable_names=variable_names)
     ind = if length(args) == 2
         findoperation(op, operators.binops)
     else

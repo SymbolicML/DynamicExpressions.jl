@@ -108,10 +108,7 @@ function benchmark_utilities()
         :index_constants,
         :string_tree,
     )
-    has_both_modes = [
-        :copy,
-        :convert
-    ]
+    has_both_modes = [:copy, :convert]
     if VERSION >= v"0.14.0"
         append!(
             has_both_modes,
@@ -122,14 +119,20 @@ function benchmark_utilities()
                 :get_set_constants!,
                 :index_constants,
                 :string_tree,
-            ]
+            ],
         )
     end
 
     operators = OperatorEnum(; binary_operators=[+, -, /, *], unary_operators=[cos, exp])
     for func_k in all_funcs
         suite[func_k] = let s = BenchmarkGroup()
-            for k in (func_k in has_both_modes ? [:break_sharing, :preserve_sharing] : [:break_sharing])
+            for k in (
+                if func_k in has_both_modes
+                    [:break_sharing, :preserve_sharing]
+                else
+                    [:break_sharing]
+                end
+            )
                 preprocess = if k == :preserve_sharing
                     node -> GraphNode(node)
                 else

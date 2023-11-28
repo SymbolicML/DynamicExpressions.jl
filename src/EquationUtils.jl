@@ -8,6 +8,7 @@ import ..EquationModule:
     preserve_sharing,
     constructorof,
     copy_node,
+    count_nodes,
     tree_mapreduce,
     any,
     filter_map
@@ -17,16 +18,7 @@ import ..EquationModule:
 
 Count the number of nodes in the tree.
 """
-function count_nodes(tree::AbstractNode; break_sharing=Val(false))
-    return tree_mapreduce(
-        _ -> 1,
-        +,
-        tree,
-        Int64;
-        break_sharing,
-        f_on_shared=(c, is_shared) -> is_shared ? 0 : c,
-    )
-end
+count_nodes
 
 """
     count_depth(tree::AbstractNode)::Int

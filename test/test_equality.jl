@@ -53,4 +53,3 @@ f32_tree = GraphNode{Float32}(x1 + x2 * x3 - log(x2 * 3.0) + 1.5 * cos(x2 / x1))
 @test f64_tree == f32_tree
 
 @test Node(f64_tree) == Node(f32_tree)
-

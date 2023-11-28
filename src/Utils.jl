@@ -130,12 +130,17 @@ function _memoize_on(tree::Symbol, postprocess, def)
     end
 
     # Wrap the function body in a get!(id_map, tree) do ... end block:
-    @gensym key is_memoized result
+    @gensym key is_memoized result body
     sdef[:body] = quote
         $key = objectid($tree)
         $is_memoized = haskey(id_map, $key)
-        $result = get!(id_map, $key) do
-            $(sdef[:body])
+        function $body()
+            return $(sdef[:body])
+        end
+        $result = if $is_memoized
+            @inbounds(id_map[$key])
+        else
+            id_map[$key] = $body()
         end
         return $postprocess($result, $is_memoized)
     end
@@ -167,7 +172,7 @@ macro with_memoize(def, id_map)
     end
 end
 
-function _add_idmap_to_call(def::Expr, id_map::Expr)
+function _add_idmap_to_call(def::Expr, id_map::Union{Symbol,Expr})
     @assert def.head == :call
     return Expr(:call, def.args[1], def.args[2:end]..., id_map)
 end

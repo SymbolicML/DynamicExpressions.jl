@@ -119,10 +119,18 @@ function tree_mapreduce(
         throw(ArgumentError("Need to specify `result_type` if nodes are shared.."))
 
     if sharing && RT != Undefined
-        return @with_memoize inner(inner, tree) Dict{UInt,RT}()
+        d = allocate_id_map(tree, RT)
+        return @with_memoize inner(inner, tree) d
     else
         return inner(inner, tree)
     end
+end
+function allocate_id_map(tree::AbstractNode, ::Type{RT}) where {RT}
+    d = Dict{UInt,RT}()
+    # Preallocate maximum storage (counting with duplicates is fast)
+    N = count_nodes(tree; break_sharing=Val(true))
+    sizehint!(d, N)
+    return d
 end
 
 # TODO: Raise Julia issue for this.
@@ -178,12 +186,11 @@ function inner_is_equal_shared(a, b, id_map_a, id_map_b)
     end
 
     (degree = a.degree) != b.degree && return false
-    
+
     result = if degree == 0
         isequal_deg0(a, b)
     elseif degree == 1
-        isequal_deg1(a, b) &&
-            inner_is_equal_shared(a.l, b.l, id_map_a, id_map_b)
+        isequal_deg1(a, b) && inner_is_equal_shared(a.l, b.l, id_map_a, id_map_b)
     else
         isequal_deg2(a, b) &&
             inner_is_equal_shared(a.l, b.l, id_map_a, id_map_b) &&
@@ -195,7 +202,6 @@ function inner_is_equal_shared(a, b, id_map_a, id_map_b)
 
     return result
 end
-
 
 @inline isequal_deg1(a::AbstractExpressionNode, b::AbstractExpressionNode) = a.op == b.op
 @inline isequal_deg2(a::AbstractExpressionNode, b::AbstractExpressionNode) = a.op == b.op
@@ -295,6 +301,17 @@ function count(f::F, tree::AbstractNode; init=0) where {F<:Function}
     ) + init
 end
 
+function count_nodes(tree::AbstractNode; break_sharing=Val(false))
+    return tree_mapreduce(
+        _ -> 1,
+        +,
+        tree,
+        Int64;
+        break_sharing,
+        f_on_shared=(c, is_shared) -> is_shared ? 0 : c,
+    )
+end
+
 function sum(
     f::F,
     tree::AbstractNode;
@@ -328,7 +345,7 @@ iterate(root::AbstractNode) = (root, collect(root)[(begin + 1):end])
 iterate(::AbstractNode, stack) = isempty(stack) ? nothing : (popfirst!(stack), stack)
 in(item, tree::AbstractNode) = any(t -> t == item, tree)
 function length(tree::AbstractNode)
-    return sum(Returns(1), tree; return_type=Int64)
+    return count_nodes(tree)
 end
 
 function hash(tree::AbstractExpressionNode{T}) where {T}
@@ -400,7 +417,9 @@ function convert(
         N1,
     )
 end
-function convert(::Type{N1}, tree::N2) where {T2,N1<:AbstractExpressionNode,N2<:AbstractExpressionNode{T2}}
+function convert(
+    ::Type{N1}, tree::N2
+) where {T2,N1<:AbstractExpressionNode,N2<:AbstractExpressionNode{T2}}
     return convert(constructorof(N1){T2}, tree)
 end
 function (::Type{N})(tree::AbstractExpressionNode) where {N<:AbstractExpressionNode}

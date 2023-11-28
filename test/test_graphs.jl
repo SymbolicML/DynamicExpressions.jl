@@ -6,7 +6,7 @@ include("test_params.jl")
     operators = OperatorEnum(;
         binary_operators=(+, -, *, ^, /, greater), unary_operators=(cos, exp, sin)
     )
-    x1, x2, x3 = [GraphNode(Float64, feature=i) for i=1:3]
+    x1, x2, x3 = [GraphNode(Float64; feature=i) for i in 1:3]
 
     base_tree = cos(x1 - 3.2 * x2) - x1^3.2
     tree = sin(base_tree) + base_tree
@@ -187,7 +187,9 @@ end
     )
     function make_tree()
         x1, x2 = GraphNode(Float64; feature=1), GraphNode(Float64; feature=2)
-        base_tree = cos(x1 - 3.2 * x2) - x1^3.5 + GraphNode(3, GraphNode(val=0.3), GraphNode(val=0.9))
+        base_tree =
+            cos(x1 - 3.2 * x2) - x1^3.5 +
+            GraphNode(3, GraphNode(; val=0.3), GraphNode(; val=0.9))
         tree = sin(base_tree) + base_tree
         return base_tree, tree
     end
@@ -209,7 +211,6 @@ end
         @test_skip string_tree(n, operators) == "x1 + (3.5 * {x1})"
         # TODO: Try to fix this if we can
 
-
         base_tree, tree = make_tree()
 
         s = string_tree(copy_node(base_tree; break_sharing=Val(true)), operators)
@@ -217,7 +218,8 @@ end
         s = string_tree(base_tree, operators)
         @test s == "(cos(x1 - (3.2 * x2)) - ({x1} ^ 3.5)) + (0.3 * 0.9)"
         s = string_tree(tree, operators)
-        @test s == "sin((cos(x1 - (3.2 * x2)) - ({x1} ^ 3.5)) + (0.3 * 0.9)) + {((cos(x1 - (3.2 * x2)) - ({x1} ^ 3.5)) + (0.3 * 0.9))}"
+        @test s ==
+            "sin((cos(x1 - (3.2 * x2)) - ({x1} ^ 3.5)) + (0.3 * 0.9)) + {((cos(x1 - (3.2 * x2)) - ({x1} ^ 3.5)) + (0.3 * 0.9))}"
         # ^ Note the {} indicating shared subexpression
     end
 

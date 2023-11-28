@@ -57,7 +57,10 @@ which speed up evaluation significantly.
     to the equation.
 """
 function eval_tree_array(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum; turbo::Bool=false
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum;
+    turbo::Bool=false,
 )::Tuple{AbstractVector{T},Bool} where {T<:Number}
     if turbo
         @assert T in (Float32, Float64)
@@ -70,7 +73,10 @@ function eval_tree_array(
     return result, finished
 end
 function eval_tree_array(
-    tree::AbstractExpressionNode{T1}, cX::AbstractMatrix{T2}, operators::OperatorEnum; turbo::Bool=false
+    tree::AbstractExpressionNode{T1},
+    cX::AbstractMatrix{T2},
+    operators::OperatorEnum;
+    turbo::Bool=false,
 ) where {T1<:Number,T2<:Number}
     T = promote_type(T1, T2)
     @warn "Warning: eval_tree_array received mixed types: tree=$(T1) and data=$(T2)."
@@ -80,7 +86,10 @@ function eval_tree_array(
 end
 
 function _eval_tree_array(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, ::Val{turbo}
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum,
+    ::Val{turbo},
 )::Tuple{AbstractVector{T},Bool} where {T<:Number,turbo}
     # First, we see if there are only constants in the tree - meaning
     # we can just return the constant result.
@@ -285,7 +294,11 @@ end
 
 # op(x, y) for x variable/constant, y arbitrary
 function deg2_l0_eval(
-    tree::AbstractExpressionNode{T}, cumulator::AbstractVector{T}, cX::AbstractArray{T}, op::F, ::Val{turbo}
+    tree::AbstractExpressionNode{T},
+    cumulator::AbstractVector{T},
+    cX::AbstractArray{T},
+    op::F,
+    ::Val{turbo},
 )::Tuple{AbstractVector{T},Bool} where {T<:Number,F,turbo}
     if tree.l.constant
         val = tree.l.val::T
@@ -306,7 +319,11 @@ end
 
 # op(x, y) for x arbitrary, y variable/constant
 function deg2_r0_eval(
-    tree::AbstractExpressionNode{T}, cumulator::AbstractVector{T}, cX::AbstractArray{T}, op::F, ::Val{turbo}
+    tree::AbstractExpressionNode{T},
+    cumulator::AbstractVector{T},
+    cX::AbstractArray{T},
+    op::F,
+    ::Val{turbo},
 )::Tuple{AbstractVector{T},Bool} where {T<:Number,F,turbo}
     if tree.r.constant
         val = tree.r.val::T
@@ -344,7 +361,9 @@ function _eval_constant_tree(
     end
 end
 
-@inline function deg0_eval_constant(tree::AbstractExpressionNode{T})::Tuple{T,Bool} where {T<:Number}
+@inline function deg0_eval_constant(
+    tree::AbstractExpressionNode{T}
+)::Tuple{T,Bool} where {T<:Number}
     return tree.val::T, true
 end
 
@@ -460,7 +479,10 @@ function eval(current_node)
     that it was not defined for.
 """
 function eval_tree_array(
-    tree::AbstractExpressionNode, cX::AbstractArray, operators::GenericOperatorEnum; throw_errors::Bool=true
+    tree::AbstractExpressionNode,
+    cX::AbstractArray,
+    operators::GenericOperatorEnum;
+    throw_errors::Bool=true,
 )
     !throw_errors && return _eval_tree_array_generic(tree, cX, operators, Val(false))
     try
