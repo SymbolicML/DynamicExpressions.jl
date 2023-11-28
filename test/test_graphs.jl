@@ -73,9 +73,9 @@ end
             else
                 sx = string(x)
                 sy = string(y)
-                result = if startswith(sx, r"##")
+                result = if startswith(sx, r"#")
                     occursin(sy, sx)
-                elseif startswith(sy, r"##")
+                elseif startswith(sy, r"#")
                     occursin(sx, sy)
                 else
                     false
@@ -153,8 +153,8 @@ end
             function _copy_node(tree::Node{T}, id_map::AbstractDict;)::Node{T} where {T}
                 key = objectid(tree)
                 is_memoized = haskey(id_map, key)
-                result = get!(id_map, key) do
-                    begin
+                function body()
+                    return begin
                         if tree.degree == 0
                             if tree.constant
                                 Node(; val=copy(tree.val::T))
@@ -171,6 +171,16 @@ end
                             )
                         end
                     end
+                end
+                result = if is_memoized
+                    begin
+                        $(Expr(:inbounds, true))
+                        local val = id_map[key]
+                        $(Expr(:inbounds, :pop))
+                        val
+                    end
+                else
+                    id_map[key] = body()
                 end
                 return (((x, _) -> begin
                     x
