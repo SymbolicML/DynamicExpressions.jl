@@ -109,7 +109,7 @@ function benchmark_utilities()
         :string_tree,
     )
     has_both_modes = [:copy, :convert]
-    if VERSION >= v"0.14.0"
+    if PACKAGE_VERSION >= v"0.14.0"
         append!(
             has_both_modes,
             [
@@ -133,7 +133,7 @@ function benchmark_utilities()
                     [:break_sharing]
                 end
             )
-                preprocess = if k == :preserve_sharing && VERSION >= v"0.14.0"
+                preprocess = if k == :preserve_sharing && PACKAGE_VERSION >= v"0.14.0"
                     tree -> GraphNode(tree)
                 else
                     identity
