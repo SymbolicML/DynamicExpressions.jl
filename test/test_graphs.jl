@@ -218,8 +218,9 @@ end
         # But, note that if we do a type conversion, the connection is also lost:
         x1 = GraphNode(Float64; feature=1)
         n = x1 + 3.5 * x1
-        @test_skip string_tree(n, operators) == "x1 + (3.5 * {x1})"
-        # TODO: Try to fix this if we can
+        @test string_tree(n, operators) == "x1 + (3.5 * {x1})"
+        @test string_tree(copy_node(n; break_sharing=Val(true)), operators) ==
+            "x1 + (3.5 * x1)"
 
         base_tree, tree = make_tree()
 
@@ -244,5 +245,16 @@ end
 
         # sin and the +, so +2 from above:
         @test count_nodes(tree) == 15
+
+        @test count_depth(tree) == 8
+        @test count_depth(base_tree) == 6
+    end
+
+    @testset "Simplification" begin
+        base_tree, tree = make_tree()
+        simplify_tree!(base_tree, operators)
+        # Simplifies both sides without error:
+        @test string_tree(tree, operators) ==
+            "sin((cos(x1 - (3.2 * x2)) - ({x1} ^ 3.5)) + 0.27) + {((cos(x1 - (3.2 * x2)) - ({x1} ^ 3.5)) + 0.27)}"
     end
 end
