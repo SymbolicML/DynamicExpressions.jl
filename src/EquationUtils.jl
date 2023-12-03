@@ -107,33 +107,45 @@ end
 ## Assign index to nodes of a tree
 # This will mirror a Node struct, rather
 # than adding a new attribute to Node.
-struct NodeIndex{T,N<:AbstractExpressionNode{T}} <: AbstractExpressionNode{T}
-    data::N
-    NodeIndex(data::_N) where {_T,_N<:AbstractExpressionNode{_T}} = new{_T,_N}(data)
-end
-function Base.getproperty(n::NodeIndex, s::Symbol)
-    return getproperty(getfield(n, :data), s)
-end
-preserve_sharing(::Type{<:NodeIndex{T,N}}) where {T,N} = preserve_sharing(N)
+struct NodeIndex{T} <: AbstractNode
+    degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
+    val::T  # If is a constant, this stores the actual value
+    # ------------------- (possibly undefined below)
+    l::NodeIndex{T}  # Left child node. Only defined for degree=1 or degree=2.
+    r::NodeIndex{T}  # Right child node. Only defined for degree=2. 
 
-function index_constants(tree::N) where {N<:AbstractExpressionNode}
+    NodeIndex(::Type{_T}) where {_T} = new{_T}(0, zero(_T))
+    NodeIndex(::Type{_T}, val) where {_T} = new{_T}(0, convert(_T, val))
+    NodeIndex(::Type{_T}, l::NodeIndex) where {_T} = new{_T}(1, zero(_T), l)
+    NodeIndex(::Type{_T}, l::NodeIndex, r::NodeIndex) where {_T} = new{_T}(2, zero(_T), l, r)
+end
+# Sharing is never needed for NodeIndex,
+# as we trace over the node we are indexing on.
+preserve_sharing(::Type{<:NodeIndex}) = false
+function Base.copy(node::NodeIndex{T}) where {T}
+    return tree_mapreduce(
+        t -> NodeIndex(T, t.val),
+        (_, c...) -> NodeIndex(T, c...),
+        node,
+        NodeIndex{T};
+    )
+end
+
+function index_constants(tree::AbstractExpressionNode, ::Type{T}=UInt16) where {T}
     # Essentially we copy the tree, replacing the values
     # with indices
-    T = UInt16
-    output_N = constructorof(N){T}
     constant_index = Ref(T(0))
-    raw_output = tree_mapreduce(
+    return tree_mapreduce(
         t -> if t.constant
-            constructorof(N)(T; val=(constant_index[] += T(1)))::output_N
+            NodeIndex(T, (constant_index[] += T(1)))
         else
-            constructorof(N)(T; feature=t.feature)::output_N
+            NodeIndex(T)
         end,
-        t -> t.op,
-        (op, c...) -> constructorof(N)(op, c...)::output_N,
+        t -> nothing,
+        (_, c...) -> NodeIndex(T, c...),
         tree,
-        output_N;
-    )::output_N
-    return NodeIndex(raw_output)::NodeIndex{T,output_N}
+        NodeIndex{T};
+    )
 end
 
 end
