@@ -26,7 +26,9 @@ count_nodes
 Compute the max depth of the tree.
 """
 function count_depth(tree::AbstractNode)
-    return tree_mapreduce(Returns(1), (p, child...) -> p + max(child...), tree)
+    return tree_mapreduce(
+        Returns(1), (p, child...) -> p + max(child...), tree, Int64; break_sharing=Val(true)
+    )
 end
 
 """
