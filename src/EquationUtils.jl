@@ -112,13 +112,7 @@ struct NodeIndex{T,N<:AbstractExpressionNode{T}} <: AbstractExpressionNode{T}
     NodeIndex(data::_N) where {_T,_N<:AbstractExpressionNode{_T}} = new{_T,_N}(data)
 end
 function Base.getproperty(n::NodeIndex, s::Symbol)
-    if s == :l
-        return NodeIndex(getfield(n, :data).l)
-    elseif s == :r
-        return NodeIndex(getfield(n, :data).r)
-    else
-        return getproperty(getfield(n, :data), s)
-    end
+    return getproperty(getfield(n, :data), s)
 end
 preserve_sharing(::Type{<:NodeIndex{T,N}}) where {T,N} = preserve_sharing(N)
 
@@ -130,12 +124,12 @@ function index_constants(tree::N) where {N<:AbstractExpressionNode}
     constant_index = Ref(T(0))
     raw_output = tree_mapreduce(
         t -> if t.constant
-            constructorof(N)(T; val=(constant_index[] += T(1)))
+            constructorof(N)(T; val=(constant_index[] += T(1)))::output_N
         else
-            constructorof(N)(T; feature=t.feature)
+            constructorof(N)(T; feature=t.feature)::output_N
         end,
         t -> t.op,
-        (op, c...) -> constructorof(N)(op, c...),
+        (op, c...) -> constructorof(N)(op, c...)::output_N,
         tree,
         output_N;
     )::output_N
