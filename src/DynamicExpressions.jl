@@ -24,7 +24,7 @@ import Reexport: @reexport
     set_node!,
     tree_mapreduce,
     filter_map
-import .EquationModule: constructorof, preserve_sharing
+import .EquationModule: constructorof, with_type_parameters, preserve_sharing
 @reexport import .EquationUtilsModule:
     count_nodes,
     count_constants,

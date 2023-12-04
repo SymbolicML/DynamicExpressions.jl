@@ -131,6 +131,10 @@ constructorof(::Type{N}) where {N<:AbstractNode} = Base.typename(N).wrapper
 constructorof(::Type{<:Node}) = Node
 constructorof(::Type{<:GraphNode}) = GraphNode
 
+with_type_parameters(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNode,T} = constructorof(N){T}
+with_type_parameters(::Type{<:Node}, ::Type{T}) where {T} = Node{T}
+with_type_parameters(::Type{<:GraphNode}, ::Type{T}) where {T} = GraphNode{T}
+
 """Trait declaring whether nodes share children or not."""
 preserve_sharing(::Type{<:AbstractNode}) = false
 preserve_sharing(::Type{<:Node}) = false
