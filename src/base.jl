@@ -227,11 +227,7 @@ Apply a function to each node in a tree.
 """
 function foreach(f::Function, tree::AbstractNode; break_sharing::Val=Val(false))
     tree_mapreduce(
-        t -> (@inline(f(t)); nothing),
-        Returns(nothing),
-        tree,
-        Nothing;
-        break_sharing,
+        t -> (@inline(f(t)); nothing), Returns(nothing), tree, Nothing; break_sharing
     )
     return nothing
 end
@@ -245,8 +241,11 @@ specifying the `result_type` of `map_fnc` so the resultant array can
 be preallocated.
 """
 function filter_map(
-    filter_fnc::F, map_fnc::G, tree::AbstractNode, result_type::Type{GT};
-    break_sharing::Val=Val(false)
+    filter_fnc::F,
+    map_fnc::G,
+    tree::AbstractNode,
+    result_type::Type{GT};
+    break_sharing::Val=Val(false),
 ) where {F<:Function,G<:Function,GT}
     stack = Array{GT}(undef, count(filter_fnc, tree; init=0, break_sharing))
     filter_map!(filter_fnc, map_fnc, stack, tree; break_sharing)
@@ -259,8 +258,11 @@ end
 Equivalent to `filter_map`, but stores the results in a preallocated array.
 """
 function filter_map!(
-    filter_fnc::Function, map_fnc::Function, destination::Vector{GT}, tree::AbstractNode;
-    break_sharing::Val=Val(false)
+    filter_fnc::Function,
+    map_fnc::Function,
+    destination::Vector{GT},
+    tree::AbstractNode;
+    break_sharing::Val=Val(false),
 ) where {GT}
     pointer = Ref(0)
     foreach(tree; break_sharing) do t
@@ -291,7 +293,9 @@ end
 Map a function over a tree and return a flat array of the results in depth-first order.
 Pre-specifying the `result_type` of the function can be used to avoid extra allocations.
 """
-function map(f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; break_sharing::Val=Val(false)) where {F<:Function,RT}
+function map(
+    f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; break_sharing::Val=Val(false)
+) where {F<:Function,RT}
     if RT == Nothing
         return f.(collect(tree; break_sharing))
     else
@@ -299,7 +303,9 @@ function map(f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; break_shar
     end
 end
 
-function count(f::F, tree::AbstractNode; init=0, break_sharing::Val=Val(false)) where {F<:Function}
+function count(
+    f::F, tree::AbstractNode; init=0, break_sharing::Val=Val(false)
+) where {F<:Function}
     return tree_mapreduce(
         t -> @inline(f(t)) ? 1 : 0,
         +,
@@ -348,11 +354,15 @@ function mapreduce(
     if preserve_sharing(typeof(tree))
         @assert typeof(return_type) !== Undefined "Must specify `return_type` as a keyword argument to `mapreduce` if `preserve_sharing` is true."
     end
-    return tree_mapreduce(f, (n...) -> reduce(op, n), tree, return_type; f_on_shared, break_sharing)
+    return tree_mapreduce(
+        f, (n...) -> reduce(op, n), tree, return_type; f_on_shared, break_sharing
+    )
 end
 
 isempty(::AbstractNode) = false
-iterate(root::AbstractNode) = (root, collect(root; break_sharing=Val(true))[(begin + 1):end])
+function iterate(root::AbstractNode)
+    return (root, collect(root; break_sharing=Val(true))[(begin + 1):end])
+end
 iterate(::AbstractNode, stack) = isempty(stack) ? nothing : (popfirst!(stack), stack)
 in(item, tree::AbstractNode) = any(t -> t == item, tree)
 function length(tree::AbstractNode; break_sharing::Val=Val(false))

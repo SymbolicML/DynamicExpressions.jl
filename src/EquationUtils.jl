@@ -117,17 +117,16 @@ struct NodeIndex{T} <: AbstractNode
     NodeIndex(::Type{_T}) where {_T} = new{_T}(0, zero(_T))
     NodeIndex(::Type{_T}, val) where {_T} = new{_T}(0, convert(_T, val))
     NodeIndex(::Type{_T}, l::NodeIndex) where {_T} = new{_T}(1, zero(_T), l)
-    NodeIndex(::Type{_T}, l::NodeIndex, r::NodeIndex) where {_T} = new{_T}(2, zero(_T), l, r)
+    function NodeIndex(::Type{_T}, l::NodeIndex, r::NodeIndex) where {_T}
+        return new{_T}(2, zero(_T), l, r)
+    end
 end
 # Sharing is never needed for NodeIndex,
 # as we trace over the node we are indexing on.
 preserve_sharing(::Type{<:NodeIndex}) = false
 function Base.copy(node::NodeIndex{T}) where {T}
     return tree_mapreduce(
-        t -> NodeIndex(T, t.val),
-        (_, c...) -> NodeIndex(T, c...),
-        node,
-        NodeIndex{T};
+        t -> NodeIndex(T, t.val), (_, c...) -> NodeIndex(T, c...), node, NodeIndex{T};
     )
 end
 

@@ -131,7 +131,9 @@ constructorof(::Type{N}) where {N<:AbstractNode} = Base.typename(N).wrapper
 constructorof(::Type{<:Node}) = Node
 constructorof(::Type{<:GraphNode}) = GraphNode
 
-with_type_parameters(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNode,T} = constructorof(N){T}
+function with_type_parameters(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNode,T}
+    return constructorof(N){T}
+end
 with_type_parameters(::Type{<:Node}, ::Type{T}) where {T} = Node{T}
 with_type_parameters(::Type{<:GraphNode}, ::Type{T}) where {T} = GraphNode{T}
 

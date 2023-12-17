@@ -260,13 +260,14 @@ end
     end
 
     @testset "Hashing" begin
-        x = GraphNode(feature=1)
-        x2 = GraphNode(feature=1)
+        x = GraphNode(; feature=1)
+        x2 = GraphNode(; feature=1)
         tree = GraphNode(1, x, x)
         tree2 = GraphNode(1, x2, x2)
         @test hash(tree) == hash(tree2)
         @test hash(tree) != hash(copy_node(tree; break_sharing=Val(true)))
-        @test hash(copy_node(tree; break_sharing=Val(true))) == hash(copy_node(tree; break_sharing=Val(true)))
+        @test hash(copy_node(tree; break_sharing=Val(true))) ==
+            hash(copy_node(tree; break_sharing=Val(true)))
         @test hash(Node(tree)) == hash(copy_node(tree; break_sharing=Val(true)))
     end
 
@@ -309,7 +310,7 @@ end
     end
 
     @testset "Various base utils" begin
-        x = GraphNode(feature=1)
+        x = GraphNode(; feature=1)
         tree = GraphNode(1, x, x)
         @test collect(tree) == [tree, x]
         @test collect(tree; break_sharing=Val(true)) == [tree, x, x]
