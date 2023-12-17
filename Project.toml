@@ -16,10 +16,12 @@ Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [weakdeps]
+RecursiveArrayTools = "731186ca-8d62-57ce-b412-fbd966d074cd"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [extensions]
+DynamicExpressionsRecursiveArrayToolsExt = "RecursiveArrayTools"
 DynamicExpressionsSymbolicUtilsExt = "SymbolicUtils"
 DynamicExpressionsZygoteExt = "Zygote"
 
@@ -30,6 +32,7 @@ LoopVectorization = "0.12"
 MacroTools = "0.4, 0.5"
 PackageExtensionCompat = "1"
 PrecompileTools = "1"
+RecursiveArrayTools = "2"
 Reexport = "1"
 SymbolicUtils = "0.19, ^1.0.5"
 Zygote = "0.6"
@@ -38,6 +41,7 @@ julia = "1.6"
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+RecursiveArrayTools = "731186ca-8d62-57ce-b412-fbd966d074cd"
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
@@ -46,4 +50,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [targets]
-test = ["Test", "SafeTestsets", "Aqua", "SpecialFunctions", "ForwardDiff", "StaticArrays", "SymbolicUtils", "Zygote"]
+test = ["Test", "SafeTestsets", "Aqua", "SpecialFunctions", "ForwardDiff", "StaticArrays", "SymbolicUtils", "RecursiveArrayTools", "Zygote"]
