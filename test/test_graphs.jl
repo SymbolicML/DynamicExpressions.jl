@@ -344,4 +344,24 @@ end
         @test sum(t -> t.degree == 0 ? 1 : 0, tree; return_type=Int) == 1
         @test sum(t -> t.degree == 0 ? 1 : 0, tree; break_sharing=Val(true)) == 2
     end
+
+    @testset "(lack of) automatic conversion" begin
+        operators = OperatorEnum(; binary_operators=[+, -, *], unary_operators=[cos, exp])
+        x = GraphNode(Float32; feature=1)
+        tree = x + 1.0
+        @test tree.l === x
+        @test typeof(tree) === GraphNode{Float32}
+
+        # Detect error from Float32(1im)
+        @test_throws InexactError x + 1im
+        @test x + 0im isa GraphNode{Float32}
+
+        # Detect error from Int(1.5)
+        x = GraphNode(Int; feature=1)
+        @test_throws InexactError x + 1.5
+
+        x = GraphNode(ComplexF64; feature=1)
+        @test hash(x + 1) == hash(GraphNode(1, x, GraphNode(; val=1.0 + 0.0im)))
+        @test (x + 1).l === x
+    end
 end
