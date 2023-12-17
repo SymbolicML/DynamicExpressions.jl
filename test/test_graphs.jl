@@ -343,6 +343,8 @@ end
         @test mapreduce(t -> t.degree == 0 ? 1 : 0, +, tree; break_sharing=Val(true)) == 2
         @test sum(t -> t.degree == 0 ? 1 : 0, tree; return_type=Int) == 1
         @test sum(t -> t.degree == 0 ? 1 : 0, tree; break_sharing=Val(true)) == 2
+        @test filter_map(t -> t.degree == 0, t -> 1, tree, Int) == [1]
+        @test filter_map(t -> t.degree == 0, t -> 1, tree, Int; break_sharing=Val(true)) == [1, 1]
     end
 
     @testset "(lack of) automatic conversion" begin
