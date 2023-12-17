@@ -308,22 +308,39 @@ end
         @test node_index.r.l.l.l.r.l.val == 1
     end
 
-    ## Left to test
-    # collect,
-    # count,
-    # filter,
-    # foreach,
-    # iterate,
-    # length,
-    # map,
-    # mapreduce,
-    # reduce,
-    # sum
-
     @testset "Various base utils" begin
         x = GraphNode(feature=1)
         tree = GraphNode(1, x, x)
         @test collect(tree) == [tree, x]
         @test collect(tree; break_sharing=Val(true)) == [tree, x, x]
+        @test filter(node -> node.degree == 0, tree) == [x]
+        @test filter(node -> node.degree == 0, tree; break_sharing=Val(true)) == [x, x]
+        @test count(_ -> true, tree) == 2
+        @test count(_ -> true, tree; break_sharing=Val(true)) == 3
+        c = typeof(x)[]
+        foreach(tree) do n
+            push!(c, n)
+        end
+        @test c == [tree, x]
+        c = typeof(x)[]
+        foreach(tree; break_sharing=Val(true)) do n
+            push!(c, n)
+        end
+        @test c == [tree, x, x]
+
+        # Note that iterate always turns on `break_sharing`!
+        c = typeof(x)[]
+        for n in tree
+            push!(c, n)
+        end
+        @test c == [tree, x, x]
+        @test length(tree) == 2
+        @test length(tree; break_sharing=Val(true)) == 3
+        @test map(t -> t.degree == 0 ? 1 : 0, tree) == [0, 1]
+        @test map(t -> t.degree == 0 ? 1 : 0, tree; break_sharing=Val(true)) == [0, 1, 1]
+        @test mapreduce(t -> t.degree == 0 ? 1 : 0, +, tree; return_type=Int) == 1
+        @test mapreduce(t -> t.degree == 0 ? 1 : 0, +, tree; break_sharing=Val(true)) == 2
+        @test sum(t -> t.degree == 0 ? 1 : 0, tree; return_type=Int) == 1
+        @test sum(t -> t.degree == 0 ? 1 : 0, tree; break_sharing=Val(true)) == 2
     end
 end

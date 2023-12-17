@@ -291,11 +291,11 @@ end
 Map a function over a tree and return a flat array of the results in depth-first order.
 Pre-specifying the `result_type` of the function can be used to avoid extra allocations.
 """
-function map(f::F, tree::AbstractNode, result_type::Type{RT}=Nothing) where {F<:Function,RT}
+function map(f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; break_sharing::Val=Val(false)) where {F<:Function,RT}
     if RT == Nothing
-        return f.(collect(tree))
+        return f.(collect(tree; break_sharing))
     else
-        return filter_map(Returns(true), f, tree, result_type)
+        return filter_map(Returns(true), f, tree, result_type; break_sharing)
     end
 end
 
@@ -327,11 +327,12 @@ function sum(
     init=0,
     return_type=Undefined,
     f_on_shared=(c, is_shared) -> is_shared ? (false * c) : c,
+    break_sharing::Val=Val(false),
 ) where {F<:Function}
     if preserve_sharing(typeof(tree))
         @assert typeof(return_type) !== Undefined "Must specify `return_type` as a keyword argument to `sum` if `preserve_sharing` is true."
     end
-    return tree_mapreduce(f, +, tree, return_type; f_on_shared) + init
+    return tree_mapreduce(f, +, tree, return_type; f_on_shared, break_sharing) + init
 end
 
 all(f::F, tree::AbstractNode) where {F<:Function} = !any(t -> !@inline(f(t)), tree)
@@ -342,19 +343,20 @@ function mapreduce(
     tree::AbstractNode;
     return_type=Undefined,
     f_on_shared=(c, is_shared) -> is_shared ? (false * c) : c,
+    break_sharing::Val=Val(false),
 ) where {F<:Function,G<:Function}
     if preserve_sharing(typeof(tree))
         @assert typeof(return_type) !== Undefined "Must specify `return_type` as a keyword argument to `mapreduce` if `preserve_sharing` is true."
     end
-    return tree_mapreduce(f, (n...) -> reduce(op, n), tree, return_type; f_on_shared)
+    return tree_mapreduce(f, (n...) -> reduce(op, n), tree, return_type; f_on_shared, break_sharing)
 end
 
 isempty(::AbstractNode) = false
-iterate(root::AbstractNode) = (root, collect(root)[(begin + 1):end])
+iterate(root::AbstractNode) = (root, collect(root; break_sharing=Val(true))[(begin + 1):end])
 iterate(::AbstractNode, stack) = isempty(stack) ? nothing : (popfirst!(stack), stack)
 in(item, tree::AbstractNode) = any(t -> t == item, tree)
-function length(tree::AbstractNode)
-    return count_nodes(tree)
+function length(tree::AbstractNode; break_sharing::Val=Val(false))
+    return count_nodes(tree; break_sharing)
 end
 
 function hash(tree::AbstractExpressionNode{T}) where {T}
