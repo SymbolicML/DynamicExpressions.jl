@@ -307,4 +307,23 @@ end
         @test tree.r.l.l.l.r.l == GraphNode(Float64; val=3.2)
         @test node_index.r.l.l.l.r.l.val == 1
     end
+
+    ## Left to test
+    # collect,
+    # count,
+    # filter,
+    # foreach,
+    # iterate,
+    # length,
+    # map,
+    # mapreduce,
+    # reduce,
+    # sum
+
+    @testset "Various base utils" begin
+        x = GraphNode(feature=1)
+        tree = GraphNode(1, x, x)
+        @test collect(tree) == [tree, x]
+        @test collect(tree; break_sharing=Val(true)) == [tree, x, x]
+    end
 end

@@ -225,8 +225,14 @@ end
 
 Apply a function to each node in a tree.
 """
-function foreach(f::Function, tree::AbstractNode)
-    tree_mapreduce(t -> (@inline(f(t)); nothing), Returns(nothing), tree, Nothing)
+function foreach(f::Function, tree::AbstractNode; break_sharing::Val=Val(false))
+    tree_mapreduce(
+        t -> (@inline(f(t)); nothing),
+        Returns(nothing),
+        tree,
+        Nothing;
+        break_sharing,
+    )
     return nothing
 end
 
@@ -239,10 +245,11 @@ specifying the `result_type` of `map_fnc` so the resultant array can
 be preallocated.
 """
 function filter_map(
-    filter_fnc::F, map_fnc::G, tree::AbstractNode, result_type::Type{GT}
+    filter_fnc::F, map_fnc::G, tree::AbstractNode, result_type::Type{GT};
+    break_sharing::Val=Val(false)
 ) where {F<:Function,G<:Function,GT}
-    stack = Array{GT}(undef, count(filter_fnc, tree; init=0))
-    filter_map!(filter_fnc, map_fnc, stack, tree)
+    stack = Array{GT}(undef, count(filter_fnc, tree; init=0, break_sharing))
+    filter_map!(filter_fnc, map_fnc, stack, tree; break_sharing)
     return stack::Vector{GT}
 end
 
@@ -252,10 +259,11 @@ end
 Equivalent to `filter_map`, but stores the results in a preallocated array.
 """
 function filter_map!(
-    filter_fnc::Function, map_fnc::Function, destination::Vector{GT}, tree::AbstractNode
+    filter_fnc::Function, map_fnc::Function, destination::Vector{GT}, tree::AbstractNode;
+    break_sharing::Val=Val(false)
 ) where {GT}
     pointer = Ref(0)
-    foreach(tree) do t
+    foreach(tree; break_sharing) do t
         if @inline(filter_fnc(t))
             map_result = @inline(map_fnc(t))::GT
             @inbounds destination[pointer.x += 1] = map_result
@@ -269,12 +277,12 @@ end
 
 Filter nodes of a tree, returning a flat array of the nodes for which the function returns `true`.
 """
-function filter(f::F, tree::AbstractNode) where {F<:Function}
-    return filter_map(f, identity, tree, typeof(tree))
+function filter(f::F, tree::AbstractNode; break_sharing::Val=Val(false)) where {F<:Function}
+    return filter_map(f, identity, tree, typeof(tree); break_sharing)
 end
 
-function collect(tree::AbstractNode)
-    return filter(Returns(true), tree)
+function collect(tree::AbstractNode; break_sharing::Val=Val(false))
+    return filter(Returns(true), tree; break_sharing)
 end
 
 """
@@ -291,13 +299,14 @@ function map(f::F, tree::AbstractNode, result_type::Type{RT}=Nothing) where {F<:
     end
 end
 
-function count(f::F, tree::AbstractNode; init=0) where {F<:Function}
+function count(f::F, tree::AbstractNode; init=0, break_sharing::Val=Val(false)) where {F<:Function}
     return tree_mapreduce(
         t -> @inline(f(t)) ? 1 : 0,
         +,
         tree,
         Int64;
         f_on_shared=(c, is_shared) -> is_shared ? 0 : c,
+        break_sharing,
     ) + init
 end
 
@@ -307,8 +316,8 @@ function count_nodes(tree::AbstractNode; break_sharing=Val(false))
         +,
         tree,
         Int64;
-        break_sharing,
         f_on_shared=(c, is_shared) -> is_shared ? 0 : c,
+        break_sharing,
     )
 end
 
