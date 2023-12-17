@@ -259,6 +259,17 @@ end
             "sin((cos(x1 - (3.2 * x2)) - ({x1} ^ 3.5)) + 0.27) + {((cos(x1 - (3.2 * x2)) - ({x1} ^ 3.5)) + 0.27)}"
     end
 
+    @testset "Hashing" begin
+        x = GraphNode(feature=1)
+        x2 = GraphNode(feature=1)
+        tree = GraphNode(1, x, x)
+        tree2 = GraphNode(1, x2, x2)
+        @test hash(tree) == hash(tree2)
+        @test hash(tree) != hash(copy_node(tree; break_sharing=Val(true)))
+        @test hash(copy_node(tree; break_sharing=Val(true))) == hash(copy_node(tree; break_sharing=Val(true)))
+        @test hash(Node(tree)) == hash(copy_node(tree; break_sharing=Val(true)))
+    end
+
     @testset "Constants" begin
         base_tree, tree = make_tree()
         @test count_constants(tree) == 4
