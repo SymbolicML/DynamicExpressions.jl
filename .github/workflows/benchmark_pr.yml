@@ -46,7 +46,7 @@ jobs:
                 echo '' >> body.md
                 echo '' >> body.md
                 cat table.md >> body.md
-
+                echo '' >> body.md
             - name: Find Comment
               uses: peter-evans/find-comment@v2
               id: fcbenchmark
