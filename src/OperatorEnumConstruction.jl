@@ -48,9 +48,11 @@ function (tree::AbstractExpressionNode)(X; kws...)
         :AbstractExpressionNode,
     )
     latest_operators_type = LATEST_OPERATORS_TYPE.x
-    if latest_operators_type == IsNothing
+
+    latest_operators_type == IsNothing &&
         error("Please use the `tree(X, operators; kws...)` syntax instead.")
-    elseif latest_operators_type == IsOperatorEnum
+
+    if latest_operators_type == IsOperatorEnum
         latest_operators = LATEST_OPERATORS.x::OperatorEnum
         return tree(X, latest_operators; kws...)
     else
@@ -66,14 +68,13 @@ function _grad_evaluator(tree::AbstractExpressionNode, X; kws...)
     )
     latest_operators_type = LATEST_OPERATORS_TYPE.x
     # return _grad_evaluator(tree, X, $operators; kws...)
-    if latest_operators_type == IsNothing
+    latest_operators_type == IsNothing &&
         error("Please use the `tree'(X, operators; kws...)` syntax instead.")
-    elseif latest_operators_type == IsOperatorEnum
-        latest_operators = LATEST_OPERATORS.x::OperatorEnum
-        return _grad_evaluator(tree, X, latest_operators; kws...)
-    else
+    latest_operators_type == IsGenericOperatorEnum &&
         error("Gradients are not implemented for `GenericOperatorEnum`.")
-    end
+
+    latest_operators = LATEST_OPERATORS.x::OperatorEnum
+    return _grad_evaluator(tree, X, latest_operators; kws...)
 end
 
 function set_default_variable_names!(variable_names::Vector{String})
@@ -194,11 +195,10 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
         if length(kws) == 1 && :empty_old_operators in map(x -> x.args[1], kws)
             @assert kws[1].head == :(=)
             kws[1].args[2]
-        elseif length(kws) > 0
-            error(
+        else
+            length(kws) > 0 && error(
                 "You passed the keywords $(kws), but only `empty_old_operators` is supported.",
             )
-        else
             true
         end
     @gensym f skip type_requirements build_converters binary_exists unary_exists
