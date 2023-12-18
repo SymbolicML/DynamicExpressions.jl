@@ -225,7 +225,9 @@ end
 
 Apply a function to each node in a tree.
 """
-function foreach(f::Function, tree::AbstractNode; break_sharing::Val=Val(false))
+function foreach(
+    f::F, tree::AbstractNode; break_sharing::Val=Val(false)
+) where {F<:Function}
     tree_mapreduce(
         t -> (@inline(f(t)); nothing), Returns(nothing), tree, Nothing; break_sharing
     )
@@ -258,12 +260,12 @@ end
 Equivalent to `filter_map`, but stores the results in a preallocated array.
 """
 function filter_map!(
-    filter_fnc::Function,
-    map_fnc::Function,
+    filter_fnc::F,
+    map_fnc::G,
     destination::Vector{GT},
     tree::AbstractNode;
     break_sharing::Val=Val(false),
-) where {GT}
+) where {GT,F<:Function,G<:Function}
     pointer = Ref(0)
     foreach(tree; break_sharing) do t
         if @inline(filter_fnc(t))
