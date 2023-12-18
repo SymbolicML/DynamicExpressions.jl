@@ -74,12 +74,12 @@ end
 @generated function _convert(::Type{N}, t; preserve_sharing) where {N}
     PACKAGE_VERSION < v"0.7.0" && return :(convert(N, t))
     PACKAGE_VERSION < v"0.14.0" && return :(convert(N, t; preserve_sharing=preserve_sharing))
-    return :(convert(N, t))  # Assume it is a GraphNode
+    return :(convert(N, t))  # Assume type used to infer sharing
 end
 @generated function _copy_node(t; preserve_sharing)
     PACKAGE_VERSION < v"0.7.0" && return :(copy_node(t; preserve_topology=preserve_sharing))
     PACKAGE_VERSION < v"0.14.0" && return :(copy_node(t; preserve_sharing=preserve_sharing))
-    return :(copy_node(t))  # Assume it is a GraphNode
+    return :(copy_node(t))  # Assume type used to infer sharing
 end
 @generated function get_set_constants!(tree)
     !(@isdefined set_constants!) && return :(set_constants(tree, get_constants(tree)))
