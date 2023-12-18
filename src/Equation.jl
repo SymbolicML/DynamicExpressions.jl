@@ -27,7 +27,8 @@ abstract type AbstractNode end
     AbstractExpressionNode{T} <: AbstractNode
 
 Abstract type for nodes that represent an expression.
-This additionally must have fields for:
+Along with the fields required for `AbstractNode`,
+this additionally must have fields for:
 
 - `constant::Bool`: Whether the node is a constant.
 - `val::T`: Value of the node. If `degree==0`, and `constant==true`,
@@ -103,6 +104,25 @@ end
 Exactly the same as `Node{T}`, but with the assumption that some
 nodes will be shared. All copies of this graph-like structure will
 be performed with this assumption, to preserve structure of the graph.
+For example:
+
+```julia
+julia> operators = OperatorEnum(;
+           binary_operators=[+, -, *], unary_operators=[cos, sin]
+       );
+
+julia> x = GraphNode(feature=1)
+x1
+
+julia> y = sin(x) + x
+sin(x1) + {x1}
+
+julia> cos(y) * y
+cos(sin(x1) + {x1}) * {(sin(x1) + {x1})}
+```
+
+Note how the `{}` indicates a node is shared, and this
+is the same node as seen earlier in the string.
 """
 mutable struct GraphNode{T} <: AbstractExpressionNode{T}
     degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
@@ -130,12 +150,6 @@ end
 constructorof(::Type{N}) where {N<:AbstractNode} = Base.typename(N).wrapper
 constructorof(::Type{<:Node}) = Node
 constructorof(::Type{<:GraphNode}) = GraphNode
-
-function with_type_parameters(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNode,T}
-    return constructorof(N){T}
-end
-with_type_parameters(::Type{<:Node}, ::Type{T}) where {T} = Node{T}
-with_type_parameters(::Type{<:GraphNode}, ::Type{T}) where {T} = GraphNode{T}
 
 """Trait declaring whether nodes share children or not."""
 preserve_sharing(::Type{<:AbstractNode}) = false
