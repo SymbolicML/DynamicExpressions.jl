@@ -104,10 +104,11 @@ Set the constants in a tree, in depth-first order. The function
 function set_constants!(
     tree::AbstractExpressionNode{T}, constants::AbstractVector{T}
 ) where {T}
-    _constants = copy(constants)
+    Base.require_one_based_indexing(constants)
+    i = Ref(0)
     foreach(tree) do node
         if node.degree == 0 && node.constant
-            node.val = popfirst!(_constants)
+            @inbounds node.val = constants[i[] += 1]
         end
     end
     return nothing
