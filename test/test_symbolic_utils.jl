@@ -1,7 +1,6 @@
 using SymbolicUtils
 using DynamicExpressions
 using Test
-using RecursiveArrayTools: RecursiveArrayTools
 include("test_params.jl")
 
 _inv(x) = 1 / x
