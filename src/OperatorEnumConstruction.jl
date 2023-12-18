@@ -201,23 +201,24 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
         else
             true
         end
-    binary_ex = _extend_binary_operator(:f, :type_requirements, :build_converters)
-    unary_ex = _extend_unary_operator(:f, :type_requirements)
+    @gensym f skip type_requirements build_converters binary_exists unary_exists
+    binary_ex = _extend_binary_operator(f, type_requirements, build_converters)
+    unary_ex = _extend_unary_operator(f, type_requirements)
     return quote
-        local type_requirements
-        local build_converters
-        local binary_exists
-        local unary_exists
+        local $type_requirements
+        local $build_converters
+        local $binary_exists
+        local $unary_exists
         if isa($operators, $OperatorEnum)
-            type_requirements = Number
-            build_converters = true
-            binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum
-            unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum
+            $type_requirements = Number
+            $build_converters = true
+            $binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum
+            $unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum
         else
-            type_requirements = Any
-            build_converters = false
-            binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum
-            unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum
+            $type_requirements = Any
+            $build_converters = false
+            $binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum
+            $unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum
         end
         if $(empty_old_operators)
             # Trigger errors if operators are not yet defined:
@@ -225,39 +226,39 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
             empty!($(LATEST_UNARY_OPERATOR_MAPPING))
         end
         for (op, func) in enumerate($(operators).binops)
-            local f = Symbol(func)
-            local skip = false
-            if isdefined(Base, f)
-                f = :(Base.$(f))
+            local $f = Symbol(func)
+            local $skip = false
+            if isdefined(Base, $f)
+                $f = :(Base.$($f))
             elseif $(skip_user_operators)
-                skip = true
+                $skip = true
             else
-                f = :($($__module__).$(f))
+                $f = :($($__module__).$($f))
             end
             $(LATEST_BINARY_OPERATOR_MAPPING)[func] = op
-            skip && continue
+            $skip && continue
             # Avoid redefining methods:
-            if !haskey(unary_exists, func)
+            if !haskey($unary_exists, func)
                 eval($binary_ex)
-                unary_exists[func] = true
+                $(unary_exists)[func] = true
             end
         end
         for (op, func) in enumerate($(operators).unaops)
-            local f = Symbol(func)
-            local skip = false
-            if isdefined(Base, f)
-                f = :(Base.$(f))
+            local $f = Symbol(func)
+            local $skip = false
+            if isdefined(Base, $f)
+                $f = :(Base.$($f))
             elseif $(skip_user_operators)
-                skip = true
+                $skip = true
             else
-                f = :($($__module__).$(f))
+                $f = :($($__module__).$($f))
             end
             $(LATEST_UNARY_OPERATOR_MAPPING)[func] = op
-            skip && continue
+            $skip && continue
             # Avoid redefining methods:
-            if !haskey(binary_exists, func)
+            if !haskey($binary_exists, func)
                 eval($unary_ex)
-                binary_exists[func] = true
+                $(binary_exists)[func] = true
             end
         end
     end
