@@ -165,9 +165,6 @@ function benchmark_utilities()
                         trees=[$preprocess(gen_random_tree_fixed_size(n, $operators, 5, Float32)) for _ in 1:ntrees]
                     )
                 )
-                if !(func_k in has_both_modes)
-                    s = s[k]
-                end
                 #! format: on
             end
             s
