@@ -153,11 +153,11 @@ function any(f::F, tree::AbstractNode) where {F<:Function}
     end
 end
 
-function Base.:(==)(a::AbstractExpressionNode, b::AbstractExpressionNode)::Bool
-    if constructorof(typeof(a)) !== constructorof(typeof(b))
-        return false
-    end
-    if preserve_sharing(typeof(a)) || preserve_sharing(typeof(b))
+function Base.:(==)(a::AbstractExpressionNode, b::AbstractExpressionNode)
+    return Base.:(==)(promote(a, b)...)
+end
+function Base.:(==)(a::N, b::N)::Bool where {N<:AbstractExpressionNode}
+    if preserve_sharing(N)
         return inner_is_equal_shared(a, b, Dict{UInt,Nothing}(), Dict{UInt,Nothing}())
     else
         return inner_is_equal(a, b)

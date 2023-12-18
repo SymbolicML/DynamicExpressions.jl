@@ -368,3 +368,29 @@ end
         @test (x + 1).l === x
     end
 end
+
+@testset "Joint operations" begin
+    operators = OperatorEnum(;
+        binary_operators=(+, -, *, ^, /), unary_operators=(cos, exp, sin)
+    )
+    x = GraphNode(Float64; feature=1)
+    y = Node(Float64; feature=1)
+
+    @test x == y
+
+    @test promote(x, y) isa Tuple{typeof(x),typeof(x)}
+
+    # Node with GraphNode - will convert both
+    tree1 = sin(x) * x
+    tree2 = sin(y) * y
+    @test tree1 != tree2
+
+    # GraphNode against GraphNode
+    tree1 = sin(x) * x
+    tree2 = sin(x) * x
+    @test tree1 == tree2
+
+    # Is aware of different shared structure
+    tree2 = sin(x) * GraphNode(Float64; feature=1)
+    @test tree1 != tree2
+end
