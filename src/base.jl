@@ -394,7 +394,9 @@ We check against the map before making a new copy; otherwise
 we can simply reference the existing copy.
 [Thanks to Ted Hopp.](https://stackoverflow.com/questions/49285475/how-to-copy-a-full-non-binary-tree-including-loops)
 """
-function copy_node(tree::N; break_sharing=Val(false)) where {T,N<:AbstractExpressionNode{T}}
+function copy_node(
+    tree::N; break_sharing::Val=Val(false)
+) where {T,N<:AbstractExpressionNode{T}}
     return tree_mapreduce(
         t -> if t.constant
             constructorof(N)(; val=t.val::T)
@@ -409,7 +411,9 @@ function copy_node(tree::N; break_sharing=Val(false)) where {T,N<:AbstractExpres
     )
 end
 
-copy(tree::AbstractExpressionNode) = copy_node(tree)
+function copy(tree::AbstractExpressionNode; break_sharing::Val=Val(false))
+    return copy_node(tree; break_sharing)
+end
 
 """
     convert(::Type{AbstractExpressionNode{T1}}, n::AbstractExpressionNode{T2}) where {T1,T2}
