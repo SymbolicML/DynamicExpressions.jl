@@ -124,11 +124,6 @@ end
 # Sharing is never needed for NodeIndex,
 # as we trace over the node we are indexing on.
 preserve_sharing(::Type{<:NodeIndex}) = false
-function Base.copy(node::NodeIndex{T}) where {T}
-    return tree_mapreduce(
-        t -> NodeIndex(T, t.val), (_, c...) -> NodeIndex(T, c...), node, NodeIndex{T};
-    )
-end
 
 function index_constants(tree::AbstractExpressionNode, ::Type{T}=UInt16) where {T}
     # Essentially we copy the tree, replacing the values
