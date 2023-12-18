@@ -128,7 +128,7 @@ end
 function allocate_id_map(tree::AbstractNode, ::Type{RT}) where {RT}
     d = Dict{UInt,RT}()
     # Preallocate maximum storage (counting with duplicates is fast)
-    N = count_nodes(tree; break_sharing=Val(true))
+    N = length(tree; break_sharing=Val(true))
     sizehint!(d, N)
     return d
 end
@@ -316,17 +316,6 @@ function count(
         f_on_shared=(c, is_shared) -> is_shared ? 0 : c,
         break_sharing,
     ) + init
-end
-
-function count_nodes(tree::AbstractNode; break_sharing=Val(false))
-    return tree_mapreduce(
-        _ -> 1,
-        +,
-        tree,
-        Int64;
-        f_on_shared=(c, is_shared) -> is_shared ? 0 : c,
-        break_sharing,
-    )
 end
 
 function sum(
