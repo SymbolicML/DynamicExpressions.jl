@@ -49,7 +49,7 @@ end
 end
 
 @safetestset "Test sharing-preserving copy" begin
-    include("test_preserve_multiple_parents.jl")
+    include("test_graphs.jl")
 end
 
 @safetestset "Test equation utils" begin
