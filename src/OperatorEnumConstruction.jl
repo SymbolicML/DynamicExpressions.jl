@@ -96,21 +96,26 @@ function lookup_op(@nospecialize(f), ::Val{degree}) where {degree}
     mapping = degree == 1 ? LATEST_UNARY_OPERATOR_MAPPING : LATEST_BINARY_OPERATOR_MAPPING
     if !haskey(mapping, f)
         error(
-            "Convenience constructor using operator `$(f)` is out-of-date. " *
-            "Please create an `OperatorEnum` (or `GenericOperatorEnum`) with " *
-            "`define_helper_functions=true` and pass `$(f)`.",
+            "Convenience constructor for operator `$(f)` is out-of-date. " *
+            "Please create an `OperatorEnum` (or `GenericOperatorEnum`) containing " *
+            "the operator `$(f)` which will define the `$(f)` -> `Int` mapping.",
         )
     end
     return mapping[f]
 end
 
-function _extend_unary_operator(f::Symbol, type_requirements)
+function _extend_unary_operator(f::Symbol, type_requirements, internal)
     quote
         @gensym _constructorof _AbstractExpressionNode
         quote
-            using DynamicExpressions:
-                constructorof as $_constructorof,
-                AbstractExpressionNode as $_AbstractExpressionNode
+            if $$internal
+                import ..EquationModule.constructorof as $_constructorof
+                import ..EquationModule.AbstractExpressionNode as $_AbstractExpressionNode
+            else
+                using DynamicExpressions:
+                    constructorof as $_constructorof,
+                    AbstractExpressionNode as $_AbstractExpressionNode
+            end
 
             function $($f)(
                 l::N
@@ -126,13 +131,18 @@ function _extend_unary_operator(f::Symbol, type_requirements)
     end
 end
 
-function _extend_binary_operator(f::Symbol, type_requirements, build_converters)
+function _extend_binary_operator(f::Symbol, type_requirements, build_converters, internal)
     quote
         @gensym _constructorof _AbstractExpressionNode
         quote
-            using DynamicExpressions:
-                constructorof as $_constructorof,
-                AbstractExpressionNode as $_AbstractExpressionNode
+            if $$internal
+                import ..EquationModule.constructorof as $_constructorof
+                import ..EquationModule.AbstractExpressionNode as $_AbstractExpressionNode
+            else
+                using DynamicExpressions:
+                    constructorof as $_constructorof,
+                    AbstractExpressionNode as $_AbstractExpressionNode
+            end
 
             function $($f)(
                 l::N, r::N
@@ -191,19 +201,32 @@ function _extend_binary_operator(f::Symbol, type_requirements, build_converters)
 end
 
 function _extend_operators(operators, skip_user_operators, kws, __module__::Module)
-    empty_old_operators =
-        if length(kws) == 1 && :empty_old_operators in map(x -> x.args[1], kws)
-            @assert kws[1].head == :(=)
-            kws[1].args[2]
-        else
-            length(kws) > 0 && error(
-                "You passed the keywords $(kws), but only `empty_old_operators` is supported.",
-            )
-            true
-        end
+    if !all(x -> first(x.args) ∈ (:empty_old_operators, :internal), kws)
+        error(
+            "You passed the keywords $(kws), but only `empty_old_operators`, `internal` are supported.",
+        )
+    end
+
+    empty_old_operators_idx = findfirst(x -> first(x.args) == :empty_old_operators, kws)
+    internal_idx = findfirst(x -> first(x.args) == :internal, kws)
+
+    empty_old_operators = if empty_old_operators_idx !== nothing
+        @assert kws[empty_old_operators_idx].head == :(=)
+        kws[empty_old_operators_idx].args[2]
+    else
+        true
+    end
+
+    internal = if internal_idx !== nothing
+        @assert kws[internal_idx].head == :(=)
+        kws[internal_idx].args[2]::Bool
+    else
+        false
+    end
+
     @gensym f skip type_requirements build_converters binary_exists unary_exists
-    binary_ex = _extend_binary_operator(f, type_requirements, build_converters)
-    unary_ex = _extend_unary_operator(f, type_requirements)
+    binary_ex = _extend_binary_operator(f, type_requirements, build_converters, internal)
+    unary_ex = _extend_unary_operator(f, type_requirements, internal)
     return quote
         local $type_requirements
         local $build_converters
@@ -292,6 +315,8 @@ end
 
 Similar to `@extend_operators`, but only extends operators already
 defined in `Base`.
+`kws` can include `empty_old_operators` which is default `true`,
+and `internal` which is default `false`.
 """
 macro extend_operators_base(operators, kws...)
     ex = _extend_operators(operators, true, kws, __module__)
@@ -401,5 +426,26 @@ function GenericOperatorEnum(;
 
     return operators
 end
+
+# Predefine the most common operators so the errors
+# are more informative
+function _overload_common_operators()
+    #! format: off
+    operators = OperatorEnum(
+        Function[+, -, *, /, ^, max, min, mod],
+        Function[
+            sin, cos, tan, exp, log, log1p, log2, log10, sqrt, cbrt, abs, sinh,
+            cosh, tanh, atan, asinh, acosh, round, sign, floor, ceil,
+        ],
+        Function[],
+        Function[],
+    )
+    #! format: on
+    @extend_operators(operators, empty_old_operators = false, internal = true)
+    empty!(LATEST_UNARY_OPERATOR_MAPPING)
+    empty!(LATEST_BINARY_OPERATOR_MAPPING)
+    return nothing
+end
+_overload_common_operators()
 
 end
