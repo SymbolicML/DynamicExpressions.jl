@@ -221,6 +221,22 @@ end
 ###############################################################################
 
 """
+    count_nodes(tree::AbstractNode)::Int
+
+Count the number of nodes in the tree.
+"""
+function count_nodes(tree::AbstractNode; break_sharing=Val(false))
+    return tree_mapreduce(
+        _ -> 1,
+        +,
+        tree,
+        Int64;
+        f_on_shared=(c, is_shared) -> is_shared ? 0 : c,
+        break_sharing,
+    )
+end
+
+"""
     foreach(f::Function, tree::AbstractNode)
 
 Apply a function to each node in a tree.

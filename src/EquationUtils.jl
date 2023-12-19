@@ -14,22 +14,6 @@ import ..EquationModule:
     filter_map
 
 """
-    count_nodes(tree::AbstractNode)::Int
-
-Count the number of nodes in the tree.
-"""
-function count_nodes(tree::AbstractNode; break_sharing=Val(false))
-    return tree_mapreduce(
-        _ -> 1,
-        +,
-        tree,
-        Int64;
-        f_on_shared=(c, is_shared) -> is_shared ? 0 : c,
-        break_sharing,
-    )
-end
-
-"""
     count_depth(tree::AbstractNode)::Int
 
 Compute the max depth of the tree.
