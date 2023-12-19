@@ -226,18 +226,12 @@ function (::Type{N})(
     op::Integer, l::AbstractExpressionNode{T}
 ) where {T,N<:AbstractExpressionNode}
     @assert l isa N
-    if !(N isa UnionAll)
-        @warn "Ignoring specified type parameters in binary operator constructor."
-    end
     return constructorof(N)(1, false, nothing, 0, op, l)
 end
 function (::Type{N})(
     op::Integer, l::AbstractExpressionNode{T1}, r::AbstractExpressionNode{T2}
 ) where {T1,T2,N<:AbstractExpressionNode}
     @assert l isa N && r isa N
-    if !(N isa UnionAll)
-        @warn "Ignoring specified type parameters in binary operator constructor."
-    end
     # Get highest type:
     if T1 != T2
         T = promote_type(T1, T2)
