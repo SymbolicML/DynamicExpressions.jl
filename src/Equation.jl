@@ -192,6 +192,12 @@ constructorof(::Type{N}) where {N<:AbstractNode} = Base.typename(N).wrapper
 constructorof(::Type{<:Node}) = Node
 constructorof(::Type{<:GraphNode}) = GraphNode
 
+function with_type_parameters(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNode,T}
+    return constructorof(N){T}
+end
+with_type_parameters(::Type{<:Node}, ::Type{T}) where {T} = Node{T}
+with_type_parameters(::Type{<:GraphNode}, ::Type{T}) where {T} = GraphNode{T}
+
 """Trait declaring whether nodes share children or not."""
 preserve_sharing(::Type{<:AbstractNode}) = false
 preserve_sharing(::Type{<:Node}) = false
@@ -220,18 +226,24 @@ function (::Type{N})(
     op::Integer, l::AbstractExpressionNode{T}
 ) where {T,N<:AbstractExpressionNode}
     @assert l isa N
+    if !(N isa UnionAll)
+        @warn "Ignoring specified type parameters in binary operator constructor."
+    end
     return constructorof(N)(1, false, nothing, 0, op, l)
 end
 function (::Type{N})(
     op::Integer, l::AbstractExpressionNode{T1}, r::AbstractExpressionNode{T2}
 ) where {T1,T2,N<:AbstractExpressionNode}
     @assert l isa N && r isa N
+    if !(N isa UnionAll)
+        @warn "Ignoring specified type parameters in binary operator constructor."
+    end
     # Get highest type:
     if T1 != T2
         T = promote_type(T1, T2)
         # TODO: This might slow things down
-        l = convert(N{T}, l)
-        r = convert(N{T}, r)
+        l = convert(with_type_parameters(N, T), l)
+        r = convert(with_type_parameters(N, T), r)
     end
     return constructorof(N)(2, false, nothing, 0, op, l, r)
 end
