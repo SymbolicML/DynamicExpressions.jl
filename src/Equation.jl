@@ -1,7 +1,7 @@
 module EquationModule
 
 import ..OperatorEnumModule: AbstractOperatorEnum
-import ..UtilsModule: @memoize_on, @with_memoize, deprecate_varmap
+import ..UtilsModule: @memoize_on, @with_memoize, deprecate_varmap, Undefined
 
 const DEFAULT_NODE_TYPE = Float32
 
@@ -76,6 +76,42 @@ nodes, you can evaluate or print a given expression.
 - `r::Node{T}`: Right child of the node. Only defined if `degree == 2`.
     Same type as the parent node. This is to be passed as the right
     argument to the binary operator.
+
+# Constructors
+
+## Leafs
+
+    Node(; val=nothing, feature::Union{Integer,Nothing}=nothing)
+    Node{T}(; val=nothing, feature::Union{Integer,Nothing}=nothing) where {T}
+
+Create a leaf node: either a constant, or a variable.
+
+- `::Type{T}`, optionally specify the type of the
+    node, if not already given by the type of
+    `val`.
+- `val`, if you are specifying a constant, pass
+    the value of the constant here.
+- `feature::Integer`, if you are specifying a variable,
+    pass the index of the variable here.
+
+You can also create a leaf node from variable names:
+
+    Node(; var_string::String, variable_names::Array{String,1})
+    Node{T}(; var_string::String, variable_names::Array{String,1}) where {T}
+
+## Unary operator
+
+    Node(op::Integer, l::Node)
+
+Apply unary operator `op` (enumerating over the order given in `OperatorEnum`)
+to `Node` `l`.
+
+## Binary operator
+
+    Node(op::Integer, l::Node, r::Node)
+
+Apply binary operator `op` (enumerating over the order given in `OperatorEnum`)
+to `Node`s `l` and `r`.
 """
 mutable struct Node{T} <: AbstractExpressionNode{T}
     degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
@@ -104,7 +140,8 @@ end
 Exactly the same as `Node{T}`, but with the assumption that some
 nodes will be shared. All copies of this graph-like structure will
 be performed with this assumption, to preserve structure of the graph.
-For example:
+
+# Examples
 
 ```julia
 julia> operators = OperatorEnum(;
@@ -158,73 +195,29 @@ preserve_sharing(::Type{<:GraphNode}) = true
 
 include("base.jl")
 
-"""
-    Node([::Type{T}]; val=nothing, feature::Union{Integer,Nothing}=nothing) where {T}
-
-Create a leaf node: either a constant, or a variable.
-
-# Arguments:
-
-- `::Type{T}`, optionally specify the type of the
-    node, if not already given by the type of
-    `val`.
-- `val`, if you are specifying a constant, pass
-    the value of the constant here.
-- `feature::Integer`, if you are specifying a variable,
-    pass the index of the variable here.
-"""
-function (::Type{N})(;
-    val::T1=nothing, feature::T2=nothing
-) where {T1,T2<:Union{Integer,Nothing},N<:AbstractExpressionNode}
-    if T1 <: Nothing && T2 <: Nothing
-        error("You must specify either `val` or `feature` when creating a leaf node.")
-    elseif !(T1 <: Nothing || T2 <: Nothing)
-        error(
-            "You must specify either `val` or `feature` when creating a leaf node, not both.",
-        )
-    elseif T2 <: Nothing
-        return constructorof(N)(0, true, val)
-    else
-        return constructorof(N)(DEFAULT_NODE_TYPE, 0, false, nothing, feature)
-    end
-end
 function (::Type{N})(
-    ::Type{T}; val::T1=nothing, feature::T2=nothing
+    ::Type{T}=Undefined; val::T1=nothing, feature::T2=nothing
 ) where {T,T1,T2<:Union{Integer,Nothing},N<:AbstractExpressionNode}
-    if T1 <: Nothing && T2 <: Nothing
-        error("You must specify either `val` or `feature` when creating a leaf node.")
-    elseif !(T1 <: Nothing || T2 <: Nothing)
-        error(
-            "You must specify either `val` or `feature` when creating a leaf node, not both.",
-        )
-    elseif T2 <: Nothing
+    ((T1 <: Nothing) ⊻ (T2 <: Nothing)) || error(
+        "You must specify exactly one of `val` or `feature` when creating a leaf node."
+    )
+    Tout = compute_value_output_type(N, T, T1)
+    if T2 <: Nothing
         if !(T1 <: T)
             # Only convert if not already in the type union.
-            val = convert(T, val)
+            val = convert(Tout, val)
         end
-        return constructorof(N)(T, 0, true, val)
+        return constructorof(N)(Tout, 0, true, val)
     else
-        return constructorof(N)(T, 0, false, nothing, feature)
+        return constructorof(N)(Tout, 0, false, nothing, feature)
     end
 end
-
-"""
-    Node(op::Integer, l::Node)
-
-Apply unary operator `op` (enumerating over the order given) to `Node` `l`
-"""
 function (::Type{N})(
     op::Integer, l::AbstractExpressionNode{T}
 ) where {T,N<:AbstractExpressionNode}
     @assert l isa N
     return constructorof(N)(1, false, nothing, 0, op, l)
 end
-
-"""
-    Node(op::Integer, l::Node, r::Node)
-
-Apply binary operator `op` (enumerating over the order given) to `Node`s `l` and `r`
-"""
 function (::Type{N})(
     op::Integer, l::AbstractExpressionNode{T1}, r::AbstractExpressionNode{T2}
 ) where {T1,T2,N<:AbstractExpressionNode}
@@ -238,31 +231,40 @@ function (::Type{N})(
     end
     return constructorof(N)(2, false, nothing, 0, op, l, r)
 end
-
-"""
-    Node(var_string::String)
-
-Create a variable node, using the format `"x1"` to mean feature 1
-"""
 function (::Type{N})(var_string::String) where {N<:AbstractExpressionNode}
-    return constructorof(N)(; feature=parse(UInt16, var_string[2:end]))
+    Base.depwarn(
+        "Creating a node using a string is deprecated and will be removed in a future version.",
+        :string_tree,
+    )
+    return N(; feature=parse(UInt16, var_string[2:end]))
 end
-
-# TODO: Include helpful check if in the wrong format!
-
-"""
-    Node(var_string::String, variable_names::Array{String, 1})
-
-Create a variable node, using a user-passed format
-"""
 function (::Type{N})(
     var_string::String, variable_names::Array{String,1}
 ) where {N<:AbstractExpressionNode}
-    return constructorof(N)(;
-        feature=[
-            i for (i, _variable) in enumerate(variable_names) if _variable == var_string
-        ][1]::Int,
-    )
+    i = findfirst(==(var_string), variable_names)::Int
+    return N(; feature=i)
+end
+
+@inline function compute_value_output_type(
+    ::Type{N}, ::Type{T}, ::Type{T1}
+) where {N<:AbstractExpressionNode,T,T1}
+    !(N isa UnionAll) &&
+        T !== Undefined &&
+        error(
+            "Ambiguous type for node. Please either use `Node{T}(; val, feature)` or `Node(T; val, feature)`.",
+        )
+
+    if T === Undefined && N isa UnionAll
+        if T1 <: Nothing
+            return DEFAULT_NODE_TYPE
+        else
+            return T1
+        end
+    elseif T === Undefined
+        return eltype(N)
+    else
+        return T
+    end
 end
 
 function Base.promote_rule(::Type{Node{T1}}, ::Type{Node{T2}}) where {T1,T2}
@@ -277,10 +279,8 @@ end
 Base.eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = T
 Base.eltype(::AbstractExpressionNode{T}) where {T} = T
 
-function create_dummy_node(::Type{N}) where {T,N<:AbstractExpressionNode{T}}
-    # TODO: Verify using this helps with garbage collection
-    return constructorof(N)(T; feature=zero(UInt16))
-end
+# TODO: Verify using this helps with garbage collection
+create_dummy_node(::Type{N}) where {N<:AbstractExpressionNode} = N(; feature=zero(UInt16))
 
 """
     set_node!(tree::AbstractExpressionNode{T}, new_tree::AbstractExpressionNode{T}) where {T}

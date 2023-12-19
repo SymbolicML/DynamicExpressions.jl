@@ -23,14 +23,8 @@ import Base:
     reduce,
     sum
 import Compat: @inline, Returns
-import ..UtilsModule: @memoize_on, @with_memoize
+import ..UtilsModule: @memoize_on, @with_memoize, Undefined
 
-"""
-    Undefined
-
-Just a type like `Nothing` to differentiate from a literal `Nothing`.
-"""
-struct Undefined end
 
 """
     tree_mapreduce(

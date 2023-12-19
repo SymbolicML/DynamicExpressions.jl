@@ -192,4 +192,11 @@ function deprecate_varmap(variable_names, varMap, func_name)
     return variable_names
 end
 
+"""
+    Undefined
+
+Just a type like `Nothing` to differentiate from a literal `Nothing`.
+"""
+struct Undefined end
+
 end
