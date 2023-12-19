@@ -160,6 +160,10 @@ cos(sin(x1) + {x1}) * {(sin(x1) + {x1})}
 
 Note how the `{}` indicates a node is shared, and this
 is the same node as seen earlier in the string.
+
+This has the same constructors as `Node{T}`. Shared nodes
+are created simply by using the same node in multiple places
+when constructing or setting properties.
 """
 mutable struct GraphNode{T} <: AbstractExpressionNode{T}
     degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.

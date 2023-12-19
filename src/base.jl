@@ -25,7 +25,6 @@ import Base:
 import Compat: @inline, Returns
 import ..UtilsModule: @memoize_on, @with_memoize, Undefined
 
-
 """
     tree_mapreduce(
         f::Function,

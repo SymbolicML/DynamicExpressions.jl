@@ -48,16 +48,7 @@ Equations are specified as binary trees with the `Node` type, defined
 as follows:
 
 ```@docs
-Node{T}
-```
-
-There are a variety of constructors for `Node` objects, including:
-
-```@docs
-Node(::Type{T}; val=nothing, feature::Integer=nothing) where {T}
-Node(op::Integer, l::Node)
-Node(op::Integer, l::Node, r::Node)
-Node(var_string::String)
+Node
 ```
 
 When you create an `Options` object, the operators
@@ -69,19 +60,19 @@ When using these node constructors, types will automatically be promoted.
 You can convert the type of a node using `convert`:
 
 ```@docs
-convert(::Type{Node{T1}}, tree::Node{T2}) where {T1, T2}
+convert(::Type{AbstractExpressionNode{T1}}, tree::AbstractExpressionNode{T2}) where {T1, T2}
 ```
 
 You can set a `tree` (in-place) with `set_node!`:
 
 ```@docs
-set_node!(tree::Node{T}, new_tree::Node{T}) where {T}
+set_node!
 ```
 
 You can create a copy of a node with `copy_node`:
 
 ```@docs
-copy_node(tree::Node)
+copy_node
 ```
 
 ## Graph-Like Equations
