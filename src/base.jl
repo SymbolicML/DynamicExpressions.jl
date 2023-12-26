@@ -294,6 +294,11 @@ function filter(f::F, tree::AbstractNode; break_sharing::Val=Val(false)) where {
     return filter_map(f, identity, tree, typeof(tree); break_sharing)
 end
 
+"""
+    collect(tree::AbstractNode; break_sharing::Val=Val(false))
+
+Collect all nodes in a tree into a flat array in depth-first order.
+"""
 function collect(tree::AbstractNode; break_sharing::Val=Val(false))
     return filter(Returns(true), tree; break_sharing)
 end
