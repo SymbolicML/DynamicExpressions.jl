@@ -78,9 +78,9 @@ function rand(rng::AbstractRNG, sampler::NodeSampler{N,F,W}) where {N,F,W<:Funct
     return out[]
 end
 function sample_idx(rng::AbstractRNG, weights)
-    normalization = sum(weights)
-    r = rand(rng, typeof(normalization)) * normalization
-    return findfirst(cumsum(weights) .> r)::Int
+    csum = cumsum(weights)
+    r = rand(rng, eltype(weights)) * csum[end]
+    return findfirst(ci -> ci > r, csum)::Int
 end
 
 end
