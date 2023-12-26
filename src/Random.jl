@@ -1,6 +1,6 @@
 module RandomModule
 
-import Compat: Returns
+import Compat: Returns, @inline
 import Random: AbstractRNG
 import Base: rand
 import ..EquationModule: AbstractNode, tree_mapreduce, filter_map
