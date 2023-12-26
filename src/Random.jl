@@ -75,6 +75,10 @@ function Base.rand(rng::AbstractRNG, sampler::NodeSampler{N,F,W}) where {N,F,W<:
     end
     return out[]
 end
-sample_idx(rng::AbstractRNG, weights) = findfirst(cumsum(weights) .> rand(rng))::Int
+function sample_idx(rng::AbstractRNG, weights)
+    normalization = sum(weights)
+    r = rand(rng, typeof(normalization)) * normalization
+    return findfirst(cumsum(weights) .> r)::Int
+end
 
 end
