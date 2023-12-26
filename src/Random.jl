@@ -52,32 +52,31 @@ Sample a node from a tree according to the sampler `sampler`.
 function rand(rng::AbstractRNG, sampler::NodeSampler{N,F,Nothing}) where {N,F}
     n = count(sampler.filter, sampler.tree; sampler.break_sharing)
     idx = rand(rng, 1:n)
-    i = Ref(0)
-    out = Ref(sampler.tree)
-    foreach(sampler.tree; sampler.break_sharing) do node
-        if @inline(sampler.filter(node)) && (i[] += 1) == idx
-            out[] = node
-        end
-        nothing
-    end
-    return out[]
+    return _get_node(sampler.tree, sampler.filter, idx, sampler.break_sharing)
 end
 function rand(rng::AbstractRNG, sampler::NodeSampler{N,F,W}) where {N,F,W<:Function}
     weights = filter_map(
         sampler.filter, sampler.weighting, sampler.tree, Float64; sampler.break_sharing
     )
-    idx = sample_idx(rng, weights)
+    idx = _sample_idx(rng, weights)
+    return _get_node(sampler.tree, sampler.filter, idx, sampler.break_sharing)
+end
+
+function _get_node(
+    tree, filter_f::F, idx::Int, ::Val{break_sharing}
+) where {F,break_sharing}
     i = Ref(0)
-    out = Ref(sampler.tree)
-    foreach(sampler.tree; sampler.break_sharing) do node
-        if @inline(sampler.filter(node)) && (i[] += 1) == idx
+    out = Ref(tree)
+    foreach(tree; break_sharing=Val(break_sharing)) do node
+        if @inline(filter_f(node)) && (i[] += 1) == idx
             out[] = node
         end
         nothing
     end
     return out[]
 end
-function sample_idx(rng::AbstractRNG, weights)
+
+function _sample_idx(rng::AbstractRNG, weights)
     csum = cumsum(weights)
     r = rand(rng, eltype(weights)) * csum[end]
     return findfirst(ci -> ci > r, csum)::Int
