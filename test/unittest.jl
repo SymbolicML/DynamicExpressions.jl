@@ -95,3 +95,7 @@ end
 @safetestset "Test custom node type" begin
     include("test_custom_node_type.jl")
 end
+
+@safetestset "Test random sampling" begin
+    include("test_random.jl")
+end
