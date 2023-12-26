@@ -23,18 +23,16 @@ atol = 200
     @test isapprox(num_cos, num_samples ÷ 3; atol)
 
     # Now, we sample without sharing
-    for break_sharing in (true, Val(true))
-        broken_sharing_samples = let rng = Random.MersenneTwister(0)
-            [rand(rng, NodeSampler(; tree, break_sharing)) for _ in 1:num_samples]
-        end
-        num_plus = count(Base.Fix1(===, tree), broken_sharing_samples)
-        num_x = count(Base.Fix1(===, x), broken_sharing_samples)
-        num_cos = count(Base.Fix1(===, tree.l), broken_sharing_samples)
-
-        @test isapprox(num_plus, num_samples ÷ 4; atol)
-        @test isapprox(num_x, num_samples ÷ 2; atol)
-        @test isapprox(num_cos, num_samples ÷ 4; atol)
+    broken_sharing_samples = let rng = Random.MersenneTwister(0)
+        [rand(rng, NodeSampler(; tree, break_sharing=Val(true))) for _ in 1:num_samples]
     end
+    num_plus = count(Base.Fix1(===, tree), broken_sharing_samples)
+    num_x = count(Base.Fix1(===, x), broken_sharing_samples)
+    num_cos = count(Base.Fix1(===, tree.l), broken_sharing_samples)
+
+    @test isapprox(num_plus, num_samples ÷ 4; atol)
+    @test isapprox(num_x, num_samples ÷ 2; atol)
+    @test isapprox(num_cos, num_samples ÷ 4; atol)
 end
 
 @testset "Weighted sampling" begin
@@ -68,19 +66,16 @@ end
             5.0
         end
     end
-    for break_sharing in (true, Val(true))
-        broken_sharing_weighted_samples = let rng = Random.MersenneTwister(0)
-            [
-                rand(rng, NodeSampler(; tree, weighting=weighting_2, break_sharing)) for
-                _ in 1:num_samples
-            ]
-        end
-        num_plus = count(Base.Fix1(===, tree), broken_sharing_weighted_samples)
-        num_x = count(Base.Fix1(===, x), broken_sharing_weighted_samples)
-        num_cos = count(Base.Fix1(===, tree.l), broken_sharing_weighted_samples)
-
-        @test isapprox(num_plus, num_samples * 5 ÷ 100; atol)
-        @test isapprox(num_x, num_samples * 20 ÷ 100; atol)
-        @test isapprox(num_cos, num_samples * 75 ÷ 100; atol)
+    broken_sharing_weighted_samples = let rng = Random.MersenneTwister(0)
+        [
+            rand(rng, NodeSampler(; tree, weighting=weighting_2, break_sharing=Val(true))) for _ in 1:num_samples
+        ]
     end
+    num_plus = count(Base.Fix1(===, tree), broken_sharing_weighted_samples)
+    num_x = count(Base.Fix1(===, x), broken_sharing_weighted_samples)
+    num_cos = count(Base.Fix1(===, tree.l), broken_sharing_weighted_samples)
+
+    @test isapprox(num_plus, num_samples * 5 ÷ 100; atol)
+    @test isapprox(num_x, num_samples * 20 ÷ 100; atol)
+    @test isapprox(num_cos, num_samples * 75 ÷ 100; atol)
 end
