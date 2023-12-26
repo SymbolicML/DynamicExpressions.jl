@@ -1,5 +1,6 @@
 using Documenter
 using DynamicExpressions
+using Random: AbstractRNG
 
 makedocs(;
     sitename="DynamicExpressions.jl",

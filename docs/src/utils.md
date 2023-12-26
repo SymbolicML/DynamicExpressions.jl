@@ -20,6 +20,16 @@ convert(::Type{<:AbstractExpressionNode{T1}}, n::AbstractExpressionNode{T2}) whe
 hash(tree::AbstractExpressionNode{T}, h::UInt; break_sharing::Val=Val(false)) where {T}
 ```
 
+## Sampling
+
+There are also methods for random sampling of nodes:
+
+```@docs
+NodeSampler
+rand(rng::AbstractRNG, tree::AbstractNode; break_sharing::Val=Val(false))
+rand(rng::AbstractRNG, sampler::NodeSampler{N,F,Nothing}) where {N,F}
+```
+
 ## Internal utilities
 
 Almost all node utilities are crafted using the `tree_mapreduce` function,
