@@ -17,7 +17,7 @@ nodes on which to sample.
   nodes are sampled uniformly. For a `GraphNode`, nodes are also
   sampled uniformly (e.g., in `sin(x) + {x}`, the `x` has equal
   probability of being sampled from the `sin` or the `+` node, because
-  it is shared), unless `break_sharing` is set to `true` or `Val(true)`.
+  it is shared), unless `break_sharing` is set to `Val(true)`.
 - `filter::Function`: A function that takes a node and returns a boolean
   indicating whether the node should be sampled. Defaults to `Returns(true)`.
 - `weighting::Union{Nothing,Function}`: A function that takes a node and
@@ -38,11 +38,11 @@ Base.@kwdef struct NodeSampler{
 end
 
 """
-    rand(rng::AbstractRNG, tree::AbstractNode; break_sharing::Val=Val(false))
+    rand(rng::AbstractRNG, tree::AbstractNode)
 
-Sample a node from a tree according to the default sampler `NodeSampler(; tree, break_sharing)`.
+Sample a node from a tree according to the default sampler `NodeSampler(; tree)`.
 """
-rand(rng::AbstractRNG, tree::AbstractNode; break_sharing::Val=Val(false)) = rand(rng, NodeSampler(; tree, break_sharing))
+rand(rng::AbstractRNG, tree::AbstractNode) = rand(rng, NodeSampler(; tree))
 
 """
     rand(rng::AbstractRNG, sampler::NodeSampler)

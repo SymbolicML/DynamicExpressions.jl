@@ -26,7 +26,7 @@ There are also methods for random sampling of nodes:
 
 ```@docs
 NodeSampler
-rand(rng::AbstractRNG, tree::AbstractNode; break_sharing::Val=Val(false))
+rand(rng::AbstractRNG, tree::AbstractNode)
 rand(rng::AbstractRNG, sampler::NodeSampler{N,F,Nothing}) where {N,F}
 ```
 
