@@ -50,6 +50,9 @@ Sample a node from a tree according to the sampler `sampler`.
 """
 function rand(rng::AbstractRNG, sampler::NodeSampler{N,F,Nothing}) where {N,F}
     n = count(sampler.filter, sampler.tree; sampler.break_sharing)
+    if n == 0
+        error("No nodes matching $(sampler.filter) were found in $(sampler.tree).")
+    end
     idx = rand(rng, 1:n)
     return _get_node(sampler.tree, sampler.filter, idx, sampler.break_sharing)
 end
@@ -57,6 +60,9 @@ function rand(rng::AbstractRNG, sampler::NodeSampler{N,F,W}) where {N,F,W<:Funct
     weights = filter_map(
         sampler.filter, sampler.weighting, sampler.tree, Float64; sampler.break_sharing
     )
+    if length(weights) == 0
+        error("No nodes matching $(sampler.filter) were found in $(sampler.tree).")
+    end
     idx = _sample_idx(rng, weights)
     return _get_node(sampler.tree, sampler.filter, idx, sampler.break_sharing)
 end
@@ -77,6 +83,9 @@ end
 
 function _sample_idx(rng::AbstractRNG, weights)
     csum = cumsum(weights)
+    if iszero(csum[end])
+        error("Cumulative weighting of nodes in tree is zero.")
+    end
     r = rand(rng, eltype(weights)) * csum[end]
     return findfirst(ci -> ci > r, csum)::Int
 end
