@@ -8,8 +8,7 @@ import ..EquationModule: AbstractNode, tree_mapreduce, filter_map
 """
     NodeSampler(; tree, filter::Function=Returns(true), weighting::Union{Nothing,Function}=nothing, break_sharing::Val=Val(false))
 
-Defines a sampler of nodes in a tree. `filter` can be used to pre-filter
-nodes on which to sample.
+Defines a sampler of nodes in a tree.
 
 # Arguments
 
