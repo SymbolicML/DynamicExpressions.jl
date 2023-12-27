@@ -230,9 +230,9 @@ function count_nodes(tree::AbstractNode; break_sharing=Val(false))
 end
 
 """
-    foreach(f::Function, tree::AbstractNode)
+    foreach(f::Function, tree::AbstractNode; break_sharing::Val=Val(false))
 
-Apply a function to each node in a tree.
+Apply a function to each node in a tree without returning the results.
 """
 function foreach(
     f::F, tree::AbstractNode; break_sharing::Val=Val(false)
@@ -244,7 +244,7 @@ function foreach(
 end
 
 """
-    filter_map(filter_fnc::Function, map_fnc::Function, tree::AbstractNode, result_type::Type)
+    filter_map(filter_fnc::Function, map_fnc::Function, tree::AbstractNode, result_type::Type, break_sharing::Val=Val(false))
 
 A faster equivalent to `map(map_fnc, filter(filter_fnc, tree))`
 that avoids the intermediate allocation. However, using this requires
@@ -286,7 +286,7 @@ function filter_map!(
 end
 
 """
-    filter(f::Function, tree::AbstractNode)
+    filter(f::Function, tree::AbstractNode; break_sharing::Val=Val(false))
 
 Filter nodes of a tree, returning a flat array of the nodes for which the function returns `true`.
 """
@@ -294,12 +294,17 @@ function filter(f::F, tree::AbstractNode; break_sharing::Val=Val(false)) where {
     return filter_map(f, identity, tree, typeof(tree); break_sharing)
 end
 
+"""
+    collect(tree::AbstractNode; break_sharing::Val=Val(false))
+
+Collect all nodes in a tree into a flat array in depth-first order.
+"""
 function collect(tree::AbstractNode; break_sharing::Val=Val(false))
     return filter(Returns(true), tree; break_sharing)
 end
 
 """
-    map(f::Function, tree::AbstractNode, result_type::Type{RT}=Nothing)
+    map(f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; break_sharing::Val=Val(false)) where {F<:Function,RT}
 
 Map a function over a tree and return a flat array of the results in depth-first order.
 Pre-specifying the `result_type` of the function can be used to avoid extra allocations.
@@ -314,6 +319,11 @@ function map(
     end
 end
 
+"""
+    count(f::F, tree::AbstractNode; init=0, break_sharing::Val=Val(false)) where {F<:Function}
+
+Count the number of nodes in a tree for which the function returns `true`.
+"""
 function count(
     f::F, tree::AbstractNode; init=0, break_sharing::Val=Val(false)
 ) where {F<:Function}
@@ -327,12 +337,20 @@ function count(
     ) + init
 end
 
+"""
+    sum(f::Function, tree::AbstractNode; init=0, return_type=Undefined, f_on_shared=_default_shared_aggregation, break_sharing::Val=Val(false)) where {F<:Function}
+
+Sum the results of a function over a tree. For graphs with shared nodes
+such as `GraphNode`, the function `f_on_shared` is called on the result
+of each shared node. This is used to avoid double-counting shared nodes (default
+behavior).
+"""
 function sum(
     f::F,
     tree::AbstractNode;
     init=0,
     return_type=Undefined,
-    f_on_shared=(c, is_shared) -> is_shared ? (false * c) : c,
+    f_on_shared=_default_shared_aggregation,
     break_sharing::Val=Val(false),
 ) where {F<:Function}
     if preserve_sharing(typeof(tree))
@@ -340,9 +358,23 @@ function sum(
     end
     return tree_mapreduce(f, +, tree, return_type; f_on_shared, break_sharing) + init
 end
+function _default_shared_aggregation(c, is_shared)
+    return is_shared ? (false * c) : c
+end
 
+"""
+    all(f::Function, tree::AbstractNode)
+
+Reduce a flag function over a tree, returning `true` if the
+function returns `true` for all nodes, `false` otherwise.
+"""
 all(f::F, tree::AbstractNode) where {F<:Function} = !any(t -> !@inline(f(t)), tree)
 
+"""
+    mapreduce(f::Function, op::Function, tree::AbstractNode; return_type, f_on_shared, break_sharing)
+
+Map a function over a tree and aggregate the result using an operator `op`.
+"""
 function mapreduce(
     f::F,
     op::G,
@@ -369,28 +401,34 @@ function length(tree::AbstractNode; break_sharing::Val=Val(false))
     return count_nodes(tree; break_sharing)
 end
 
-function hash(tree::AbstractExpressionNode{T}) where {T}
+"""
+    hash(tree::AbstractExpressionNode{T}[, h::UInt]; break_sharing::Val=Val(false)) where {T}
+
+Compute a hash of a tree. This will compute a hash differently
+if nodes are shared in a tree. This is ignored if `break_sharing` is set to `Val(true)`.
+"""
+function hash(
+    tree::AbstractExpressionNode{T}, h::UInt=zero(UInt); break_sharing::Val=Val(false)
+) where {T}
     return tree_mapreduce(
-        t -> t.constant ? hash((0, t.val::T)) : hash((1, t.feature)),
-        t -> hash((t.degree + 1, t.op)),
-        (n...) -> hash(n),
+        t -> t.constant ? hash((0, t.val::T), h) : hash((1, t.feature), h),
+        t -> hash((t.degree + 1, t.op), h),
+        (n...) -> hash(n, h),
         tree,
-        UInt64;
+        UInt;
         f_on_shared=(cur_hash, is_shared) ->
-            is_shared ? hash((:shared, cur_hash)) : cur_hash,
+            is_shared ? hash((:shared, cur_hash), h) : cur_hash,
+        break_sharing,
     )
 end
 
 """
-    copy_node(tree::AbstractExpressionNode)
+    copy_node(tree::AbstractExpressionNode; break_sharing::Val=Val(false))
 
 Copy a node, recursively copying all children nodes.
 This is more efficient than the built-in copy.
 
-id_map is a map from `objectid(tree)` to `copy(tree)`.
-We check against the map before making a new copy; otherwise
-we can simply reference the existing copy.
-[Thanks to Ted Hopp.](https://stackoverflow.com/questions/49285475/how-to-copy-a-full-non-binary-tree-including-loops)
+If `break_sharing` is set to `Val(true)`, sharing in a tree will be ignored.
 """
 function copy_node(
     tree::N; break_sharing::Val=Val(false)
@@ -409,12 +447,20 @@ function copy_node(
     )
 end
 
+"""
+    copy(tree::AbstractExpressionNode; break_sharing::Val=Val(false))
+
+Copy a node, recursively copying all children nodes.
+This is more efficient than the built-in copy.
+
+If `break_sharing` is set to `Val(true)`, sharing in a tree will be ignored.
+"""
 function copy(tree::AbstractExpressionNode; break_sharing::Val=Val(false))
     return copy_node(tree; break_sharing)
 end
 
 """
-    convert(::Type{AbstractExpressionNode{T1}}, n::AbstractExpressionNode{T2}) where {T1,T2}
+    convert(::Type{<:AbstractExpressionNode{T1}}, n::AbstractExpressionNode{T2}) where {T1,T2}
 
 Convert a `AbstractExpressionNode{T2}` to a `AbstractExpressionNode{T1}`.
 This will recursively convert all children nodes to `AbstractExpressionNode{T1}`,

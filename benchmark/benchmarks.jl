@@ -107,6 +107,7 @@ function benchmark_utilities()
         :get_set_constants!,
         :index_constants,
         :string_tree,
+        :hash,
     )
     has_both_modes = [:copy, :convert]
     if PACKAGE_VERSION >= v"0.14.0"
@@ -121,6 +122,9 @@ function benchmark_utilities()
                 :string_tree,
             ],
         )
+    end
+    if PACKAGE_VERSION >= v"0.14.1"
+        append!(has_both_modes, [:hash])
     end
 
     operators = OperatorEnum(; binary_operators=[+, -, /, *], unary_operators=[cos, exp])
