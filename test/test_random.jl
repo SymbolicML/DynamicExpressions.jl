@@ -79,3 +79,21 @@ end
     @test isapprox(num_x, num_samples * 20 ÷ 100; atol)
     @test isapprox(num_cos, num_samples * 75 ÷ 100; atol)
 end
+
+@testset "Error handling" begin
+    @test_throws ErrorException rand(NodeSampler(; tree, weighting=_ -> 0.0))
+    VERSION >= v"1.9" && @test_throws "Cumulative weighting of nodes" rand(
+        NodeSampler(; tree, weighting=_ -> 0.0)
+    )
+
+    @test_throws ErrorException rand(NodeSampler(; tree, filter=_ -> false))
+    VERSION >= v"1.9" &&
+        @test_throws "No nodes matching" rand(NodeSampler(; tree, filter=_ -> false))
+
+    @test_throws ErrorException rand(
+        NodeSampler(; tree, filter=_ -> false, weighting=_ -> 1.0)
+    )
+    VERSION >= v"1.9" && @test_throws "No nodes matching" rand(
+        NodeSampler(; tree, filter=_ -> false, weighting=_ -> 1.0)
+    )
+end
