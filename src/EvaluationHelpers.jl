@@ -2,13 +2,13 @@ module EvaluationHelpersModule
 
 import Base: adjoint
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
-import ..EquationModule: Node
+import ..EquationModule: AbstractExpressionNode
 import ..EvaluateEquationModule: eval_tree_array
 import ..EvaluateEquationDerivativeModule: eval_grad_tree_array
 
 # Evaluation:
 """
-    (tree::Node)(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Bool=false)
+    (tree::AbstractExpressionNode)(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Bool=false)
 
 Evaluate a binary tree (equation) over a given data matrix. The
 operators contain all of the operators used in the tree.
@@ -23,13 +23,13 @@ operators contain all of the operators used in the tree.
     Any NaN, Inf, or other failure during the evaluation will result in the entire
     output array being set to NaN.
 """
-function (tree::Node)(X, operators::OperatorEnum; kws...)
+function (tree::AbstractExpressionNode)(X, operators::OperatorEnum; kws...)
     out, did_finish = eval_tree_array(tree, X, operators; kws...)
     !did_finish && (out .= convert(eltype(out), NaN))
     return out
 end
 """
-    (tree::Node)(X::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)
+    (tree::AbstractExpressionNode)(X::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)
 
 # Arguments
 - `X::AbstractArray`: The input data to evaluate the tree on.
@@ -49,26 +49,30 @@ end
     that it was not defined for. You can change this behavior by
     setting `throw_errors=false`.
 """
-function (tree::Node)(X, operators::GenericOperatorEnum; kws...)
+function (tree::AbstractExpressionNode)(X, operators::GenericOperatorEnum; kws...)
     out, did_finish = eval_tree_array(tree, X, operators; kws...)
     !did_finish && return nothing
     return out
 end
 
 # Gradients:
-function _grad_evaluator(tree::Node, X, operators::OperatorEnum; variable=true, kws...)
+function _grad_evaluator(
+    tree::AbstractExpressionNode, X, operators::OperatorEnum; variable=true, kws...
+)
     _, grad, did_complete = eval_grad_tree_array(
         tree, X, operators; variable=variable, kws...
     )
     !did_complete && (grad .= convert(eltype(grad), NaN))
     return grad
 end
-function _grad_evaluator(tree::Node, X, operators::GenericOperatorEnum; kws...)
+function _grad_evaluator(
+    tree::AbstractExpressionNode, X, operators::GenericOperatorEnum; kws...
+)
     return error("Gradients are not implemented for `GenericOperatorEnum`.")
 end
 
 """
-    (tree::Node{T})'(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Bool=false, variable::Bool=true)
+    (tree::AbstractExpressionNode{T})'(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Bool=false, variable::Bool=true)
 
 Compute the forward-mode derivative of an expression, using a similar
 structure and optimization to eval_tree_array. `variable` specifies whether
@@ -87,6 +91,7 @@ to every constant in the expression.
 - `(evaluation, gradient, complete)::Tuple{AbstractVector{T}, AbstractMatrix{T}, Bool}`: the normal evaluation,
     the gradient, and whether the evaluation completed as normal (or encountered a nan or inf).
 """
-Base.adjoint(tree::Node) = ((args...; kws...) -> _grad_evaluator(tree, args...; kws...))
+Base.adjoint(tree::AbstractExpressionNode) =
+    ((args...; kws...) -> _grad_evaluator(tree, args...; kws...))
 
 end

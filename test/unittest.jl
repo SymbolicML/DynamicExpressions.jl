@@ -53,7 +53,7 @@ end
 end
 
 @safetestset "Test sharing-preserving copy" begin
-    include("test_preserve_multiple_parents.jl")
+    include("test_graphs.jl")
 end
 
 @safetestset "Test equation utils" begin
@@ -98,4 +98,8 @@ end
 
 @safetestset "Test custom node type" begin
     include("test_custom_node_type.jl")
+end
+
+@safetestset "Test random sampling" begin
+    include("test_random.jl")
 end

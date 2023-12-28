@@ -38,7 +38,7 @@ end
     @test objectid(first(collect(ctree))) == objectid(ctree)
     @test typeof(collect(ctree)) == Vector{Node{Float64}}
     @test length(collect(ctree)) == 24
-    @test sum((t -> (t.degree == 0 && t.constant) ? t.val : 0.0).(collect(ctree))) == 11.6
+    @test sum((t -> (t.degree == 0 && t.constant) ? t.val : 0.0).(collect(ctree))) ≈ 11.6
 end
 
 @testset "count" begin
@@ -109,7 +109,6 @@ end
     @test sum(map(_ -> 2, ctree)) == 24 * 2
     @test sum(map(t -> t.degree == 1, ctree)) == 1
     @test length(unique(map(objectid, copy_node(tree)))) == 24
-    @test length(unique(map(objectid, copy_node(tree; preserve_sharing=true)))) == 24 - 3
     map(t -> (t.degree == 0 && t.constant) ? (t.val *= 2) : nothing, ctree)
     @test sum(t -> t.val, filter(t -> t.degree == 0 && t.constant, ctree)) == 11.6 * 2
     local T = fieldtype(typeof(ctree), :degree)

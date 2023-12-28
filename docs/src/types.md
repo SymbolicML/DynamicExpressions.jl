@@ -48,16 +48,7 @@ Equations are specified as binary trees with the `Node` type, defined
 as follows:
 
 ```@docs
-Node{T}
-```
-
-There are a variety of constructors for `Node` objects, including:
-
-```@docs
-Node(::Type{T}; val=nothing, feature::Integer=nothing) where {T}
-Node(op::Integer, l::Node)
-Node(op::Integer, l::Node, r::Node)
-Node(var_string::String)
+Node
 ```
 
 When you create an `Options` object, the operators
@@ -69,23 +60,87 @@ When using these node constructors, types will automatically be promoted.
 You can convert the type of a node using `convert`:
 
 ```@docs
-convert(::Type{Node{T1}}, tree::Node{T2}) where {T1, T2}
+convert(::Type{AbstractExpressionNode{T1}}, tree::AbstractExpressionNode{T2}) where {T1, T2}
 ```
 
 You can set a `tree` (in-place) with `set_node!`:
 
 ```@docs
-set_node!(tree::Node{T}, new_tree::Node{T}) where {T}
+set_node!
 ```
 
 You can create a copy of a node with `copy_node`:
 
 ```@docs
-copy_node(tree::Node)
+copy_node
 ```
 
-There is also an abstract type `AbstractNode` which is a supertype of `Node`:
+## Graph-Like Equations
+
+You can describe an equation as a *graph* rather than a tree
+by using the `GraphNode` type:
 
 ```@docs
-AbstractNode
+GraphNode{T}
+```
+
+This makes it so you can have multiple parents for a given node,
+and share parts of an expression. For example:
+
+```julia
+julia> operators = OperatorEnum(;
+           binary_operators=[+, -, *], unary_operators=[cos, sin, exp]
+       );
+
+julia> x1, x2 = GraphNode(feature=1), GraphNode(feature=2)
+(x1, x2)
+
+julia> y = sin(x1) + 1.5
+sin(x1) + 1.5
+
+julia> z = exp(y) + y
+exp(sin(x1) + 1.5) + {(sin(x1) + 1.5)}
+```
+
+Here, the curly braces `{}` indicate that the node
+is shared by another (or more) parent node.
+
+This means that we only need to change it once
+to have changes propagate across the expression:
+
+```julia
+julia> y.r.val *= 0.9
+1.35
+
+julia> z
+exp(sin(x1) + 1.35) + {(sin(x1) + 1.35)}
+```
+
+This also means there are fewer nodes to describe an expression:
+
+```julia
+julia> length(z)
+6
+
+julia> length(convert(Node, z))
+10
+```
+
+where we have converted the `GraphNode` to a `Node` type,
+which breaks shared connections into separate nodes.
+
+## Abstract Types
+
+Both the `Node` and `GraphNode` types are subtypes of the abstract type:
+
+```@docs
+AbstractExpressionNode{T}
+```
+
+which can be used to create additional expression-like types.
+The supertype of this abstract type is the `AbstractNode` type,
+which is more generic but does not have all of the same methods:
+
+```@docs
+AbstractNode{T}
 ```

@@ -10,18 +10,23 @@ include("EvaluationHelpers.jl")
 include("SimplifyEquation.jl")
 include("OperatorEnumConstruction.jl")
 include("ExtensionInterface.jl")
+include("Random.jl")
 
 import PackageExtensionCompat: @require_extensions
 import Reexport: @reexport
 @reexport import .EquationModule:
     AbstractNode,
+    AbstractExpressionNode,
+    GraphNode,
     Node,
     string_tree,
     print_tree,
     copy_node,
     set_node!,
     tree_mapreduce,
-    filter_map
+    filter_map,
+    filter_map!
+import .EquationModule: constructorof, preserve_sharing
 @reexport import .EquationUtilsModule:
     count_nodes,
     count_constants,
@@ -38,9 +43,10 @@ import Reexport: @reexport
 @reexport import .EvaluateEquationModule: eval_tree_array, differentiable_eval_tree_array
 @reexport import .EvaluateEquationDerivativeModule:
     eval_diff_tree_array, eval_grad_tree_array
-@reexport import .SimplifyEquationModule: combine_operators, simplify_tree
+@reexport import .SimplifyEquationModule: combine_operators, simplify_tree!
 @reexport import .EvaluationHelpersModule
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
+@reexport import .RandomModule: NodeSampler
 
 function __init__()
     @require_extensions
