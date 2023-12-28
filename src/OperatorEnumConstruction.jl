@@ -1,7 +1,8 @@
 module OperatorEnumConstructionModule
 
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
-import ..EquationModule: string_tree, Node, GraphNode, AbstractExpressionNode, constructorof
+import ..EquationModule: Node, GraphNode, AbstractExpressionNode, constructorof
+import ..StringsModule: string_tree
 import ..EvaluateEquationModule: eval_tree_array
 import ..EvaluateEquationDerivativeModule: eval_grad_tree_array, _zygote_gradient
 import ..EvaluationHelpersModule: _grad_evaluator
