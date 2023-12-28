@@ -205,7 +205,12 @@ function pretty_string_graph(
     # We also want to print the final expression:
     push!(iter, (node=tree, index=length(iter) + 1))
 
-    for (; node, index) in iter
+    # TODO: Switch to this syntax when 1.6 is deprecated
+    # for (; node, index) in iter
+    for elem in iter
+        node = elem.node
+        index = elem.index
+
         raw_output, _ = tree_mapreduce(
             leaf -> _leaf_string_or_shared_variable(
                 index, leaf, shared_nodes; f_variable, f_constant, variable_names
