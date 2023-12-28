@@ -64,7 +64,10 @@ function eval_diff_tree_array(
 end
 
 @generated function _eval_diff_tree_array(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Integer
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum,
+    direction::Integer,
 )::ResultOk2 where {T<:Number}
     nuna = get_nuna(operators)
     nbin = get_nbin(operators)
@@ -108,7 +111,11 @@ function diff_deg0_eval(
 end
 
 function diff_deg1_eval(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum, direction::Integer
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    op::F,
+    operators::OperatorEnum,
+    direction::Integer,
 ) where {T<:Number,F}
     result = _eval_diff_tree_array(tree.l, cX, operators, direction)
     !result.ok && return result
@@ -128,7 +135,11 @@ function diff_deg1_eval(
 end
 
 function diff_deg2_eval(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum, direction::Integer
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    op::F,
+    operators::OperatorEnum,
+    direction::Integer,
 ) where {T<:Number,F}
     result_l = _eval_diff_tree_array(tree.l, cX, operators, direction)
     !result_l.ok && return result_l
@@ -188,19 +199,12 @@ function eval_grad_tree_array(
     else
         count_constants(tree)::Int
     end
-    index_tree = index_constants(tree, UInt16(0))
-    result = eval_grad_tree_array(
-        tree,
-        n_gradients,
-        index_tree,
-        cX,
-        operators,
-        if isa(variable, Val)
-            variable
-        else
-            variable ? Val(true) : Val(false)
-        end,
-    )
+    result = if isa(variable, Val{true}) || (variable isa Bool && variable)
+        eval_grad_tree_array(tree, n_gradients, nothing, cX, operators, Val(true))
+    else
+        index_tree = index_constants(tree)
+        eval_grad_tree_array(tree, n_gradients, index_tree, cX, operators, Val(false))
+    end
     return (result.x, result.dx, result.ok)
 end
 
@@ -302,15 +306,16 @@ function grad_deg0_eval(
 
     if variable == tree.constant
         return ResultOk2(const_part, zero_mat, true)
-    else
-        if variable
-            zero_mat[tree.feature, :] .= one(T)
-        else
-            zero_mat[index_tree.constant_index, :] .= one(T)
-        end
-
-        return ResultOk2(const_part, zero_mat, true)
     end
+
+    index = if variable
+        tree.feature
+    else
+        (index_tree === nothing ? zero(UInt16) : index_tree.val::UInt16)
+    end
+    derivative_part = zero_mat
+    derivative_part[index, :] .= one(T)
+    return ResultOk2(const_part, derivative_part, true)
 end
 
 function grad_deg1_eval(
@@ -323,7 +328,12 @@ function grad_deg1_eval(
     ::Val{variable},
 )::ResultOk2 where {T<:Number,F,variable}
     result = eval_grad_tree_array(
-        tree.l, n_gradients, index_tree === nothing ? index_tree : index_tree.l, cX, operators, Val(variable)
+        tree.l,
+        n_gradients,
+        index_tree === nothing ? index_tree : index_tree.l,
+        cX,
+        operators,
+        Val(variable),
     )
     !result.ok && return result
 
@@ -352,11 +362,21 @@ function grad_deg2_eval(
     ::Val{variable},
 )::ResultOk2 where {T<:Number,F,variable}
     result_l = eval_grad_tree_array(
-        tree.l, n_gradients, index_tree === nothing ? index_tree : index_tree.l, cX, operators, Val(variable)
+        tree.l,
+        n_gradients,
+        index_tree === nothing ? index_tree : index_tree.l,
+        cX,
+        operators,
+        Val(variable),
     )
     !result_l.ok && return result_l
     result_r = eval_grad_tree_array(
-        tree.r, n_gradients, index_tree === nothing ? index_tree : index_tree.r, cX, operators, Val(variable)
+        tree.r,
+        n_gradients,
+        index_tree === nothing ? index_tree : index_tree.r,
+        cX,
+        operators,
+        Val(variable),
     )
     !result_r.ok && return result_r
 

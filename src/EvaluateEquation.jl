@@ -226,7 +226,9 @@ function deg1_eval(
     return ResultOk(cumulator, true)
 end
 
-function deg0_eval(tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T})::ResultOk where {T<:Number}
+function deg0_eval(
+    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}
+)::ResultOk where {T<:Number}
     if tree.constant
         return ResultOk(fill_similar(tree.val::T, cX, axes(cX, 2)), true)
     else
@@ -439,9 +441,7 @@ over an entire array when the values are all the same.
     end
 end
 
-@inline function deg0_eval_constant(
-    tree::AbstractExpressionNode{T}
-) where {T<:Number}
+@inline function deg0_eval_constant(tree::AbstractExpressionNode{T}) where {T<:Number}
     output = tree.val::T
     return ResultOk([output], true)::ResultOk{Vector{T}}
 end

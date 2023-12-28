@@ -417,13 +417,11 @@ end
 function _overload_common_operators()
     #! format: off
     operators = OperatorEnum(
-        Function[+, -, *, /, ^, max, min, mod],
-        Function[
+        (+, -, *, /, ^, max, min, mod),
+        (
             sin, cos, tan, exp, log, log1p, log2, log10, sqrt, cbrt, abs, sinh,
             cosh, tanh, atan, asinh, acosh, round, sign, floor, ceil,
-        ],
-        Function[],
-        Function[],
+        ),
     )
     #! format: on
     @extend_operators(operators, empty_old_operators = false, internal = true)
