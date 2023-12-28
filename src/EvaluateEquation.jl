@@ -1,9 +1,10 @@
 module EvaluateEquationModule
 
 import LoopVectorization: @turbo, indices
-import ..EquationModule: AbstractExpressionNode, constructorof, string_tree
+import ..EquationModule: AbstractExpressionNode, constructorof
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: @return_on_false, @maybe_turbo, is_bad_array, fill_similar
+import ..StringsModule: string_tree
 import ..EquationUtilsModule: is_constant
 
 macro return_on_check(val, X)
