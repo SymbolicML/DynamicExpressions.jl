@@ -229,13 +229,13 @@ end
                     # op(op2(x, y)), where x, y, z are constants or variables.
                     l_op_idx = tree.l.op
                     dispatch_deg1_l2_ll0_lr0_eval(
-                        tree, cX, op, l_op_idx, operators, Val(turbo)
+                        tree, cX, op, l_op_idx, operators.binops, Val(turbo)
                     )
                 elseif fuse_level > 1 && tree.l.degree == 1 && tree.l.l.degree == 0
                     # op(op2(x)), where x is a constant or variable.
                     l_op_idx = tree.l.op
                     dispatch_deg1_l1_ll0_eval(
-                        tree, cX, op, l_op_idx, operators, Val(turbo)
+                        tree, cX, op, l_op_idx, operators.unaops, Val(turbo)
                     )
                 else
                     # op(x), for any x.
@@ -255,15 +255,15 @@ end
     cX::AbstractMatrix{T},
     op::F,
     l_op_idx::Integer,
-    operators::OperatorEnum,
+    binops,
     ::Val{turbo},
 ) where {T<:Number,F,turbo}
-    nbin = get_nbin(operators)
+    nbin = counttuple(binops)
     quote
         Base.Cartesian.@nif(
             $nbin,
             j -> j == l_op_idx,
-            j -> let op_l = operators.binops[j]
+            j -> let op_l = binops[j]
                 deg1_l2_ll0_lr0_eval(tree, cX, op, op_l, Val(turbo))
             end,
         )
@@ -274,15 +274,15 @@ end
     cX::AbstractMatrix{T},
     op::F,
     l_op_idx::Integer,
-    operators::OperatorEnum,
+    unaops,
     ::Val{turbo},
 )::ResultOk where {T<:Number,F,turbo}
-    nuna = get_nuna(operators)
+    nuna = counttuple(unaops)
     quote
         Base.Cartesian.@nif(
             $nuna,
             j -> j == l_op_idx,
-            j -> let op_l = operators.unaops[j]
+            j -> let op_l = unaops[j]
                 deg1_l1_ll0_eval(tree, cX, op, op_l, Val(turbo))
             end,
         )
