@@ -174,7 +174,7 @@ function inner_is_equal_shared(a, b, id_map_a, id_map_b)
 
     if has_a && has_b
         return true
-    elseif has_a ⊻ has_b
+    elseif has_a != has_b
         return false
     end
 
