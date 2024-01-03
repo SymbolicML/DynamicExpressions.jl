@@ -108,7 +108,9 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
     return tree
 end
 
-function combine_children!(operators, p::N, c::N...) where {T,N<:AbstractExpressionNode{T}}
+function combine_children!(
+    operators, p::N, c::Vararg{N,M}
+) where {T,N<:AbstractExpressionNode{T},M}
     all(is_node_constant, c) || return p
     vals = map(n -> n.val::T, c)
     all(isgood, vals) || return p
@@ -124,10 +126,12 @@ function combine_children!(operators, p::N, c::N...) where {T,N<:AbstractExpress
 end
 
 # Simplify tree
-function simplify_tree!(tree::AbstractExpressionNode, operators::AbstractOperatorEnum)
+function simplify_tree!(
+    tree::N, operators::AbstractOperatorEnum
+) where {N<:AbstractExpressionNode}
     tree = tree_mapreduce(
         identity,
-        (p, c...) -> combine_children!(operators, p, c...),
+        ((p, c::Vararg{N,M}) where {M}) -> combine_children!(operators, p, c...),
         tree,
         constructorof(typeof(tree));
     )

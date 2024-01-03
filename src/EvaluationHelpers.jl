@@ -93,6 +93,6 @@ to every constant in the expression.
     the gradient, and whether the evaluation completed as normal (or encountered a nan or inf).
 """
 Base.adjoint(tree::AbstractExpressionNode) =
-    ((args...; kws...) -> _grad_evaluator(tree, args...; kws...))
+    (((args::Vararg{Any,M}; kws...) where {M}) -> _grad_evaluator(tree, args...; kws...))
 
 end
