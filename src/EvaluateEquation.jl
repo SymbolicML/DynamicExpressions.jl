@@ -54,8 +54,6 @@ which speed up evaluation significantly.
 - `operators::OperatorEnum`: The operators used in the tree.
 - `turbo::Union{Bool,Val}`: Use `LoopVectorization.@turbo` for faster evaluation. To use Enzyme.jl,
    you will need to fix this to `Val(false)`.
-- `fuse_level::Val`: Either `Val(1)` for no fusing of operators, or `Val(2)` for fusing two at most.
-   To use Enzyme.jl, you will need to fix this to `Val(1)`.
 
 # Returns
 - `(output, complete)::Tuple{AbstractVector{T}, Bool}`: the result,
@@ -69,7 +67,6 @@ function eval_tree_array(
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
     turbo::Union{Bool,Val}=Val(false),
-    fuse_level::Val=Val(2),
 ) where {T<:Number}
     v_turbo = if isa(turbo, Val)
         turbo
@@ -80,7 +77,7 @@ function eval_tree_array(
         @assert T in (Float32, Float64)
     end
 
-    result = _eval_tree_array(tree, cX, operators, v_turbo, fuse_level)
+    result = _eval_tree_array(tree, cX, operators, v_turbo)
     return (result.x, result.ok && !is_bad_array(result.x))
 end
 function eval_tree_array(
@@ -104,8 +101,7 @@ function _eval_tree_array(
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     ::Val{turbo},
-    ::Val{fuse_level},
-)::ResultOk where {T<:Number,turbo,fuse_level}
+)::ResultOk where {T<:Number,turbo}
     # First, we see if there are only constants in the tree - meaning
     # we can just return the constant result.
     if tree.degree == 0
@@ -117,12 +113,12 @@ function _eval_tree_array(
         return ResultOk(fill_similar(const_result.x[], cX, axes(cX, 2)), true)
     elseif tree.degree == 1
         op_idx = tree.op
-        return dispatch_deg1_eval(tree, cX, op_idx, operators, Val(turbo), Val(fuse_level))
+        return dispatch_deg1_eval(tree, cX, op_idx, operators, Val(turbo))
     else
         # TODO - add op(op2(x, y), z) and op(x, op2(y, z))
         # op(x, y), where x, y are constants or variables.
         op_idx = tree.op
-        return dispatch_deg2_eval(tree, cX, op_idx, operators, Val(turbo), Val(fuse_level))
+        return dispatch_deg2_eval(tree, cX, op_idx, operators, Val(turbo))
     end
 end
 
@@ -162,8 +158,7 @@ end
     op_idx::Integer,
     operators::OperatorEnum,
     ::Val{turbo},
-    ::Val{fuse_level},
-) where {T<:Number,turbo,fuse_level}
+) where {T<:Number,turbo}
     nbin = get_nbin(operators)
     quote
         return Base.Cartesian.@nif(
@@ -173,30 +168,22 @@ end
                 if tree.l.degree == 0 && tree.r.degree == 0
                     deg2_l0_r0_eval(tree, cX, op, Val(turbo))
                 elseif tree.r.degree == 0
-                    result_l = _eval_tree_array(
-                        tree.l, cX, operators, Val(turbo), Val(fuse_level)
-                    )
+                    result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
                     !result_l.ok && return result_l
                     @return_on_nonfinite_array result_l.x
                     # op(x, y), where y is a constant or variable but x is not.
                     deg2_r0_eval(tree, result_l.x, cX, op, Val(turbo))
                 elseif tree.l.degree == 0
-                    result_r = _eval_tree_array(
-                        tree.r, cX, operators, Val(turbo), Val(fuse_level)
-                    )
+                    result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
                     !result_r.ok && return result_r
                     @return_on_nonfinite_array result_r.x
                     # op(x, y), where x is a constant or variable but y is not.
                     deg2_l0_eval(tree, result_r.x, cX, op, Val(turbo))
                 else
-                    result_l = _eval_tree_array(
-                        tree.l, cX, operators, Val(turbo), Val(fuse_level)
-                    )
+                    result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
                     !result_l.ok && return result_l
                     @return_on_nonfinite_array result_l.x
-                    result_r = _eval_tree_array(
-                        tree.r, cX, operators, Val(turbo), Val(fuse_level)
-                    )
+                    result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
                     !result_r.ok && return result_r
                     @return_on_nonfinite_array result_r.x
                     # op(x, y), for any x or y
@@ -212,8 +199,7 @@ end
     op_idx::Integer,
     operators::OperatorEnum,
     ::Val{turbo},
-    ::Val{fuse_level},
-) where {T<:Number,turbo,fuse_level}
+) where {T<:Number,turbo}
     nuna = get_nuna(operators)
     # This @nif lets us generate an if statement over choice of operator,
     # which means the compiler will be able to completely avoid type inference on operators.
@@ -222,16 +208,13 @@ end
             $nuna,
             i -> i == op_idx,
             i -> let op = operators.unaops[i]
-                if fuse_level > 1 &&
-                    tree.l.degree == 2 &&
-                    tree.l.l.degree == 0 &&
-                    tree.l.r.degree == 0
+                if tree.l.degree == 2 && tree.l.l.degree == 0 && tree.l.r.degree == 0
                     # op(op2(x, y)), where x, y, z are constants or variables.
                     l_op_idx = tree.l.op
                     dispatch_deg1_l2_ll0_lr0_eval(
                         tree, cX, op, l_op_idx, operators.binops, Val(turbo)
                     )
-                elseif fuse_level > 1 && tree.l.degree == 1 && tree.l.l.degree == 0
+                elseif tree.l.degree == 1 && tree.l.l.degree == 0
                     # op(op2(x)), where x is a constant or variable.
                     l_op_idx = tree.l.op
                     dispatch_deg1_l1_ll0_eval(
@@ -239,9 +222,7 @@ end
                     )
                 else
                     # op(x), for any x.
-                    result = _eval_tree_array(
-                        tree.l, cX, operators, Val(turbo), Val(fuse_level)
-                    )
+                    result = _eval_tree_array(tree.l, cX, operators, Val(turbo))
                     !result.ok && return result
                     @return_on_nonfinite_array result.x
                     deg1_eval(result.x, op, Val(turbo))

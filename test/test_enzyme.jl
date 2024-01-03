@@ -5,7 +5,7 @@ using DynamicExpressions
 operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(cos, sin))
 
 # These options are required for Enzyme to work:
-const eval_options = (turbo=Val(false), fuse_level=Val(1))
+const eval_options = (turbo=Val(false),)
 
 x1, x2, x3 = (i -> Node(Float64; feature=i)).(1:3)
 
