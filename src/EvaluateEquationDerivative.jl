@@ -311,7 +311,7 @@ function grad_deg0_eval(
     zero_mat = if typeof(cX) <: Array
         zeros(T, n_gradients, size(cX, 2))
     else
-        hcat((fill_similar(zero(T), cX, axes(cX, 2)) for _ in 1:n_gradients)...)'
+        hcat(ntuple(_ -> fill_similar(zero(T), cX, axes(cX, 2)), Val(n_gradients))...)'
     end
 
     if variable == tree.constant

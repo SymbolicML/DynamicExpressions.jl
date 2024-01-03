@@ -18,9 +18,13 @@ import ..EquationModule:
 
 Compute the max depth of the tree.
 """
-function count_depth(tree::AbstractNode)
+function count_depth(tree::N) where {N<:AbstractNode}
     return tree_mapreduce(
-        Returns(1), (p, child...) -> p + max(child...), tree, Int64; break_sharing=Val(true)
+        Returns(1),
+        ((p, child::Vararg{Int64,M}) where {M}) -> p + max(child...),
+        tree,
+        Int64;
+        break_sharing=Val(true),
     )
 end
 
@@ -119,7 +123,7 @@ end
 # as we trace over the node we are indexing on.
 preserve_sharing(::Type{<:NodeIndex}) = false
 
-function index_constants(tree::AbstractExpressionNode, ::Type{T}=UInt16) where {T}
+function index_constants(tree::N, ::Type{T}=UInt16) where {T,N<:AbstractExpressionNode}
     # Essentially we copy the tree, replacing the values
     # with indices
     constant_index = Ref(T(0))
@@ -130,7 +134,7 @@ function index_constants(tree::AbstractExpressionNode, ::Type{T}=UInt16) where {
             NodeIndex(T)
         end,
         t -> nothing,
-        (_, c...) -> NodeIndex(T, c...),
+        ((_, c::Vararg{NodeIndex{T},M}) where {M}) -> NodeIndex(T, c...),
         tree,
         NodeIndex{T};
     )

@@ -374,16 +374,21 @@ Map a function over a tree and aggregate the result using an operator `op`.
 function mapreduce(
     f::F,
     op::G,
-    tree::AbstractNode;
+    tree::N;
     return_type=Undefined,
     f_on_shared=(c, is_shared) -> is_shared ? (false * c) : c,
     break_sharing::Val=Val(false),
-) where {F,G}
+) where {F,G,N<:AbstractNode}
     if preserve_sharing(typeof(tree))
         @assert typeof(return_type) !== Undefined "Must specify `return_type` as a keyword argument to `mapreduce` if `preserve_sharing` is true."
     end
     return tree_mapreduce(
-        f, (n...) -> reduce(op, n), tree, return_type; f_on_shared, break_sharing
+        f,
+        ((n::Vararg{Any,M}) where {M}) -> reduce(op, n),
+        tree,
+        return_type;
+        f_on_shared,
+        break_sharing,
     )
 end
 
@@ -404,12 +409,12 @@ Compute a hash of a tree. This will compute a hash differently
 if nodes are shared in a tree. This is ignored if `break_sharing` is set to `Val(true)`.
 """
 function hash(
-    tree::AbstractExpressionNode{T}, h::UInt=zero(UInt); break_sharing::Val=Val(false)
-) where {T}
+    tree::N, h::UInt=zero(UInt); break_sharing::Val=Val(false)
+) where {T,N<:AbstractExpressionNode{T}}
     return tree_mapreduce(
         t -> t.constant ? hash((0, t.val::T), h) : hash((1, t.feature), h),
         t -> hash((t.degree + 1, t.op), h),
-        (n...) -> hash(n, h),
+        ((n::Vararg{UInt,M}) where {M}) -> hash(n, h),
         tree,
         UInt;
         f_on_shared=(cur_hash, is_shared) ->
@@ -436,11 +441,13 @@ function copy_node(
             constructorof(N)(T; feature=t.feature)
         end,
         identity,
-        (p, c...) -> constructorof(N)(p.op, c...),
+        ((p, c::Vararg{N,M}) where {M}) -> constructorof(N)(p.op, c...),
         tree,
         N;
         break_sharing,
     )
+    # Note that the Vararg{N,M} is used to induce type specialization
+    # See https://docs.julialang.org/en/v1/manual/performance-tips/#Be-aware-of-when-Julia-avoids-specializing
 end
 
 """
@@ -479,7 +486,8 @@ function convert(
             constructorof(N1)(T1, 0, false, nothing, t.feature)
         end,
         identity,
-        (p, c...) -> constructorof(N1)(p.degree, false, nothing, 0, p.op, c...),
+        ((p, c::Vararg{N1,M}) where {M}) ->
+            constructorof(N1)(p.degree, false, nothing, 0, p.op, c...),
         tree,
         N1,
     )
