@@ -79,7 +79,7 @@ function tree_mapreduce(
     result_type::Type=Undefined;
     f_on_shared::H=(result, is_shared) -> result,
     break_sharing=Val(false),
-) where {F<:Function,G<:Function,H<:Function}
+) where {F,G,H}
     return tree_mapreduce(f, f, op, tree, result_type; f_on_shared, break_sharing)
 end
 function tree_mapreduce(
@@ -90,7 +90,7 @@ function tree_mapreduce(
     result_type::Type{RT}=Undefined;
     f_on_shared::H=(result, is_shared) -> result,
     break_sharing::Val=Val(false),
-) where {F1<:Function,F2<:Function,G<:Function,H<:Function,RT}
+) where {F1,F2,G,H,RT}
 
     # Trick taken from here:
     # https://discourse.julialang.org/t/recursive-inner-functions-a-thousand-times-slower/85604/5
@@ -136,7 +136,7 @@ end
 Reduce a flag function over a tree, returning `true` if the function returns `true` for any node.
 By using this instead of tree_mapreduce, we can take advantage of early exits.
 """
-function any(f::F, tree::AbstractNode) where {F<:Function}
+function any(f::F, tree::AbstractNode) where {F}
     if tree.degree == 0
         return @inline(f(tree))::Bool
     elseif tree.degree == 1
@@ -234,9 +234,7 @@ end
 
 Apply a function to each node in a tree without returning the results.
 """
-function foreach(
-    f::F, tree::AbstractNode; break_sharing::Val=Val(false)
-) where {F<:Function}
+function foreach(f::F, tree::AbstractNode; break_sharing::Val=Val(false)) where {F}
     tree_mapreduce(
         t -> (@inline(f(t)); nothing), Returns(nothing), tree, Nothing; break_sharing
     )
@@ -257,7 +255,7 @@ function filter_map(
     tree::AbstractNode,
     result_type::Type{GT};
     break_sharing::Val=Val(false),
-) where {F<:Function,G<:Function,GT}
+) where {F,G,GT}
     stack = Array{GT}(undef, count(filter_fnc, tree; init=0, break_sharing))
     filter_map!(filter_fnc, map_fnc, stack, tree; break_sharing)
     return stack::Vector{GT}
@@ -274,7 +272,7 @@ function filter_map!(
     destination::Vector{GT},
     tree::AbstractNode;
     break_sharing::Val=Val(false),
-) where {GT,F<:Function,G<:Function}
+) where {GT,F,G}
     pointer = Ref(0)
     foreach(tree; break_sharing) do t
         if @inline(filter_fnc(t))
@@ -290,7 +288,7 @@ end
 
 Filter nodes of a tree, returning a flat array of the nodes for which the function returns `true`.
 """
-function filter(f::F, tree::AbstractNode; break_sharing::Val=Val(false)) where {F<:Function}
+function filter(f::F, tree::AbstractNode; break_sharing::Val=Val(false)) where {F}
     return filter_map(f, identity, tree, typeof(tree); break_sharing)
 end
 
@@ -304,14 +302,14 @@ function collect(tree::AbstractNode; break_sharing::Val=Val(false))
 end
 
 """
-    map(f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; break_sharing::Val=Val(false)) where {F<:Function,RT}
+    map(f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; break_sharing::Val=Val(false)) where {F,RT}
 
 Map a function over a tree and return a flat array of the results in depth-first order.
 Pre-specifying the `result_type` of the function can be used to avoid extra allocations.
 """
 function map(
     f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; break_sharing::Val=Val(false)
-) where {F<:Function,RT}
+) where {F,RT}
     if RT == Nothing
         return f.(collect(tree; break_sharing))
     else
@@ -320,13 +318,11 @@ function map(
 end
 
 """
-    count(f::F, tree::AbstractNode; init=0, break_sharing::Val=Val(false)) where {F<:Function}
+    count(f::F, tree::AbstractNode; init=0, break_sharing::Val=Val(false)) where {F}
 
 Count the number of nodes in a tree for which the function returns `true`.
 """
-function count(
-    f::F, tree::AbstractNode; init=0, break_sharing::Val=Val(false)
-) where {F<:Function}
+function count(f::F, tree::AbstractNode; init=0, break_sharing::Val=Val(false)) where {F}
     return tree_mapreduce(
         t -> @inline(f(t)) ? 1 : 0,
         +,
@@ -338,7 +334,7 @@ function count(
 end
 
 """
-    sum(f::Function, tree::AbstractNode; init=0, return_type=Undefined, f_on_shared=_default_shared_aggregation, break_sharing::Val=Val(false)) where {F<:Function}
+    sum(f::Function, tree::AbstractNode; init=0, return_type=Undefined, f_on_shared=_default_shared_aggregation, break_sharing::Val=Val(false)) where {F}
 
 Sum the results of a function over a tree. For graphs with shared nodes
 such as `GraphNode`, the function `f_on_shared` is called on the result
@@ -352,7 +348,7 @@ function sum(
     return_type=Undefined,
     f_on_shared=_default_shared_aggregation,
     break_sharing::Val=Val(false),
-) where {F<:Function}
+) where {F}
     if preserve_sharing(typeof(tree))
         @assert typeof(return_type) !== Undefined "Must specify `return_type` as a keyword argument to `sum` if `preserve_sharing` is true."
     end
@@ -368,7 +364,7 @@ end
 Reduce a flag function over a tree, returning `true` if the
 function returns `true` for all nodes, `false` otherwise.
 """
-all(f::F, tree::AbstractNode) where {F<:Function} = !any(t -> !@inline(f(t)), tree)
+all(f::F, tree::AbstractNode) where {F} = !any(t -> !@inline(f(t)), tree)
 
 """
     mapreduce(f::Function, op::Function, tree::AbstractNode; return_type, f_on_shared, break_sharing)
@@ -382,7 +378,7 @@ function mapreduce(
     return_type=Undefined,
     f_on_shared=(c, is_shared) -> is_shared ? (false * c) : c,
     break_sharing::Val=Val(false),
-) where {F<:Function,G<:Function}
+) where {F,G}
     if preserve_sharing(typeof(tree))
         @assert typeof(return_type) !== Undefined "Must specify `return_type` as a keyword argument to `mapreduce` if `preserve_sharing` is true."
     end
