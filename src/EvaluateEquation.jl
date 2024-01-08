@@ -82,13 +82,13 @@ function eval_tree_array(
     tree::AbstractExpressionNode{T1},
     cX::AbstractMatrix{T2},
     operators::OperatorEnum;
-    turbo::Bool=false,
+    kws...,
 ) where {T1<:Number,T2<:Number}
     T = promote_type(T1, T2)
     @warn "Warning: eval_tree_array received mixed types: tree=$(T1) and data=$(T2)."
     tree = convert(constructorof(typeof(tree)){T}, tree)
     cX = T.(cX)
-    return eval_tree_array(tree, cX, operators; turbo=turbo)
+    return eval_tree_array(tree, cX, operators; kws...)
 end
 
 function _eval_tree_array(
