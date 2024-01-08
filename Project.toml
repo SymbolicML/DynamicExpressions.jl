@@ -1,7 +1,7 @@
 name = "DynamicExpressions"
 uuid = "a40a106e-89c9-4ca8-8020-a735e8728b6b"
 authors = ["MilesCranmer <miles.cranmer@gmail.com>"]
-version = "0.14.1"
+version = "0.15.0"
 
 [deps]
 Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
