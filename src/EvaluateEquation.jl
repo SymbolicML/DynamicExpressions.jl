@@ -1,7 +1,10 @@
 module EvaluateEquationModule
 
-import LoopVectorization: @turbo, indices
-import ..EquationModule: AbstractExpressionNode, constructorof, string_tree
+using Bumper: @no_escape, alloc!, default_buffer, AllocBuffer
+using StrideArrays
+using LoopVectorization: @turbo, indices
+
+import ..EquationModule: AbstractExpressionNode, constructorof, string_tree, count_nodes
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: @return_on_false, @maybe_turbo, is_bad_array, fill_similar
 import ..EquationUtilsModule: is_constant
@@ -65,9 +68,21 @@ function eval_tree_array(
     if turbo
         @assert T in (Float32, Float64)
     end
-    result, finished = _eval_tree_array(
-        tree, cX, operators, (turbo ? Val(true) : Val(false))
-    )
+
+    # num_leafs = count(t -> t.degree == 0, tree; break_sharing=Val(true))
+    # max_allocation_size = num_leafs * size(cX, 2) * sizeof(T)
+    # buf = AllocBuffer(max_allocation_size)
+
+    result = similar(cX, axes(cX, 2))
+    # finished = @no_escape buf begin
+    finished = @no_escape begin
+        _result, _finished = _eval_tree_array(
+            tree, cX, operators, (turbo ? Val(true) : Val(false))
+        )
+        result .= _result
+        _finished
+    end
+
     @return_on_false finished result
     @return_on_nonfinite_array result
     return result, finished
@@ -98,8 +113,10 @@ function _eval_tree_array(
     elseif is_constant(tree)
         # Speed hack for constant trees.
         result, flag = _eval_constant_tree(tree, operators)
-        !flag && return similar(cX, axes(cX, 2)), false
-        return fill_similar(result, cX, axes(cX, 2)), true
+        cumulator = alloc!(default_buffer(), T, size(cX, 2))
+        !flag && return cumulator, false
+        cumulator .= result
+        return cumulator, true
     elseif tree.degree == 1
         op = operators.unaops[tree.op]
         if tree.l.degree == 2 && tree.l.l.degree == 0 && tree.l.r.degree == 0
@@ -171,16 +188,20 @@ end
 function deg0_eval(
     tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}
 )::Tuple{AbstractVector{T},Bool} where {T<:Number}
+    cumulator = alloc!(default_buffer(), T, size(cX, 2))
     if tree.constant
-        return (fill_similar(tree.val::T, cX, axes(cX, 2)), true)
+        cumulator .= tree.val::T
+        return (cumulator, true)
     else
-        return (cX[tree.feature, :], true)
+        cumulator .= view(cX, tree.feature, :)
+        return (cumulator, true)
     end
 end
 
 function deg1_l2_ll0_lr0_eval(
     tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::Val{turbo}
 )::Tuple{AbstractVector{T},Bool} where {T<:Number,F,F2,turbo}
+    cumulator = alloc!(default_buffer(), T, size(cX, 2))
     if tree.l.l.constant && tree.l.r.constant
         val_ll = tree.l.l.val::T
         val_lr = tree.l.r.val::T
@@ -190,12 +211,12 @@ function deg1_l2_ll0_lr0_eval(
         @return_on_check x_l cX
         x = op(x_l)::T
         @return_on_check x cX
-        return (fill_similar(x, cX, axes(cX, 2)), true)
+        cumulator .= x
+        return (cumulator, true)
     elseif tree.l.l.constant
         val_ll = tree.l.l.val::T
         @return_on_check val_ll cX
         feature_lr = tree.l.r.feature
-        cumulator = similar(cX, axes(cX, 2))
         @maybe_turbo turbo for j in indices((cX, cumulator), (2, 1))
             x_l = op_l(val_ll, cX[feature_lr, j])::T
             x = isfinite(x_l) ? op(x_l)::T : T(Inf)
@@ -206,7 +227,6 @@ function deg1_l2_ll0_lr0_eval(
         feature_ll = tree.l.l.feature
         val_lr = tree.l.r.val::T
         @return_on_check val_lr cX
-        cumulator = similar(cX, axes(cX, 2))
         @maybe_turbo turbo for j in indices((cX, cumulator), (2, 1))
             x_l = op_l(cX[feature_ll, j], val_lr)::T
             x = isfinite(x_l) ? op(x_l)::T : T(Inf)
@@ -216,7 +236,6 @@ function deg1_l2_ll0_lr0_eval(
     else
         feature_ll = tree.l.l.feature
         feature_lr = tree.l.r.feature
-        cumulator = similar(cX, axes(cX, 2))
         @maybe_turbo turbo for j in indices((cX, cumulator), (2, 1))
             x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])::T
             x = isfinite(x_l) ? op(x_l)::T : T(Inf)
@@ -230,6 +249,7 @@ end
 function deg1_l1_ll0_eval(
     tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::Val{turbo}
 )::Tuple{AbstractVector{T},Bool} where {T<:Number,F,F2,turbo}
+    cumulator = alloc!(default_buffer(), T, size(cX, 2))
     if tree.l.l.constant
         val_ll = tree.l.l.val::T
         @return_on_check val_ll cX
@@ -237,10 +257,10 @@ function deg1_l1_ll0_eval(
         @return_on_check x_l cX
         x = op(x_l)::T
         @return_on_check x cX
-        return (fill_similar(x, cX, axes(cX, 2)), true)
+        cumulator .= x
+        return (cumulator, true)
     else
         feature_ll = tree.l.l.feature
-        cumulator = similar(cX, axes(cX, 2))
         @maybe_turbo turbo for j in indices((cX, cumulator), (2, 1))
             x_l = op_l(cX[feature_ll, j])::T
             x = isfinite(x_l) ? op(x_l)::T : T(Inf)
@@ -254,6 +274,7 @@ end
 function deg2_l0_r0_eval(
     tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, ::Val{turbo}
 )::Tuple{AbstractVector{T},Bool} where {T<:Number,F,turbo}
+    cumulator = alloc!(default_buffer(), T, size(cX, 2))
     if tree.l.constant && tree.r.constant
         val_l = tree.l.val::T
         @return_on_check val_l cX
@@ -261,9 +282,9 @@ function deg2_l0_r0_eval(
         @return_on_check val_r cX
         x = op(val_l, val_r)::T
         @return_on_check x cX
-        return (fill_similar(x, cX, axes(cX, 2)), true)
+        cumulator .= x
+        return (cumulator, true)
     elseif tree.l.constant
-        cumulator = similar(cX, axes(cX, 2))
         val_l = tree.l.val::T
         @return_on_check val_l cX
         feature_r = tree.r.feature
@@ -272,7 +293,6 @@ function deg2_l0_r0_eval(
             cumulator[j] = x
         end
     elseif tree.r.constant
-        cumulator = similar(cX, axes(cX, 2))
         feature_l = tree.l.feature
         val_r = tree.r.val::T
         @return_on_check val_r cX
@@ -281,7 +301,6 @@ function deg2_l0_r0_eval(
             cumulator[j] = x
         end
     else
-        cumulator = similar(cX, axes(cX, 2))
         feature_l = tree.l.feature
         feature_r = tree.r.feature
         @maybe_turbo turbo for j in indices((cX, cumulator), (2, 1))
