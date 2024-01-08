@@ -43,7 +43,7 @@ function bumper_eval_tree_array(
             branch -> branch,
             # In the evaluation kernel, we combine the branch nodes
             # with the arrays created by the leaf nodes:
-            ((branch, cumulators::Vararg{<:ResultOk,M}) where {M}) -> begin
+            ((branch, cumulators::Vararg{Any,M}) where {M}) -> begin
                 if M == 1
                     if cumulators[1].ok
                         out = kern1!(operators.unaops[branch.op], cumulators[1].x)
