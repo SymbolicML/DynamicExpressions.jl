@@ -35,10 +35,14 @@ functions = [
     (x1, x2, x3) -> (sin(cos(sin(cos(x1) * x3) * 3.0) * -0.5) + 2.0) * 5.0,
 ]
 
-for turbo in [false, true], T in [Float16, Float32, Float64, ComplexF32, ComplexF64]
+for turbo in [false, true],
+    T in [Float16, Float32, Float64, ComplexF32, ComplexF64],
+    bumper in [false, true]
+
     # Float16 not implemented:
     turbo && !(T in (Float32, Float64)) && continue
-    @testset "Test evaluation of trees with turbo=$turbo, T=$T" begin
+    turbo && bumper && continue
+    @testset "Test evaluation of trees with turbo=$turbo, bumper=$bumper, T=$T" begin
         for (i_func, fnc) in enumerate(functions)
 
             # check if fnc is tuple
@@ -62,12 +66,12 @@ for turbo in [false, true], T in [Float16, Float32, Float64, ComplexF32, Complex
             true_y = realfnc.(X[1, :], X[2, :], X[3, :])
             !all(isfinite.(true_y)) && continue
 
-            test_y = eval_tree_array(tree, X, operators; turbo=turbo)[1]
+            test_y = eval_tree_array(tree, X, operators; turbo=turbo, bumper=Val(bumper))[1]
 
             zero_tolerance = (T <: Union{Float16,Complex} ? 1e-4 : 1e-6)
             @test all(abs.(test_y .- true_y) / N .< zero_tolerance)
 
-            test_y_helper = tree(X, operators; turbo=turbo)
+            test_y_helper = tree(X, operators; turbo=turbo, bumper=Val(bumper))[1]
             @test all(test_y .== test_y_helper)
         end
     end

@@ -4,6 +4,7 @@ authors = ["MilesCranmer <miles.cranmer@gmail.com>"]
 version = "0.14.1"
 
 [deps]
+Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
@@ -13,6 +14,7 @@ PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+StrideArrays = "d1fa6d79-ef01-42a6-86c9-f7c551f8593b"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [weakdeps]
@@ -25,12 +27,14 @@ DynamicExpressionsZygoteExt = "Zygote"
 
 [compat]
 Aqua = "0.7"
+Bumper = "0.6"
 Compat = "3.37, 4"
 LoopVectorization = "0.12"
 MacroTools = "0.4, 0.5"
 PackageExtensionCompat = "1"
 PrecompileTools = "1"
 Reexport = "1"
+StrideArrays = "0.1"
 SymbolicUtils = "0.19, ^1.0.5"
 Zygote = "0.6"
 julia = "1.6"

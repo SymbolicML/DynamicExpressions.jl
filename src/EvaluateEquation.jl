@@ -5,6 +5,7 @@ import ..EquationModule: AbstractExpressionNode, constructorof, string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: @return_on_false, @maybe_turbo, is_bad_array, fill_similar
 import ..EquationUtilsModule: is_constant
+import ..EvaluateEquationBumperModule: bumper_eval_tree_array
 
 macro return_on_check(val, X)
     :(
@@ -61,10 +62,15 @@ function eval_tree_array(
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
     turbo::Bool=false,
+    bumper::Val=Val(false),
 )::Tuple{AbstractVector{T},Bool} where {T<:Number}
     if turbo
         @assert T in (Float32, Float64)
     end
+    if bumper isa Val{true}
+        return bumper_eval_tree_array(tree, cX, operators)
+    end
+
     result, finished = _eval_tree_array(
         tree, cX, operators, (turbo ? Val(true) : Val(false))
     )
