@@ -33,7 +33,9 @@ function bumper_eval_tree_array(
                     v = leaf.val::T
                     ar .= v
                 else
-                    ar .= view(cX, leaf.feature, :)
+                    @inbounds @simd for j in eachindex(ar, axes(cX, 2))
+                        ar[j] = cX[leaf.feature, j]
+                    end
                 end
                 ResultOk(ar, true)
             end,
