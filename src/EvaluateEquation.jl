@@ -3,14 +3,9 @@ module EvaluateEquationModule
 import LoopVectorization: @turbo
 import ..EquationModule: AbstractExpressionNode, constructorof, string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
-import ..UtilsModule: @maybe_turbo, is_bad_array, fill_similar, counttuple
+import ..UtilsModule: @maybe_turbo, is_bad_array, fill_similar, counttuple, ResultOk
 import ..EquationUtilsModule: is_constant
 import ..EvaluateEquationBumperModule: bumper_eval_tree_array
-
-struct ResultOk{A<:AbstractArray}
-    x::A
-    ok::Bool
-end
 
 macro return_on_check(val, X)
     :(
@@ -81,7 +76,6 @@ function eval_tree_array(
     if bumper isa Val{true}
         return bumper_eval_tree_array(tree, cX, operators)
     end
-
 
     result = _eval_tree_array(tree, cX, operators, v_turbo)
     return (result.x, result.ok && !is_bad_array(result.x))

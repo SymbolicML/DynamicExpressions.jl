@@ -2,21 +2,9 @@ module EvaluateEquationBumperModule
 
 using Bumper: @no_escape, @alloc, AllocBuffer
 using StrideArrays
+import ..UtilsModule: ResultOk
 import ..OperatorEnumModule: OperatorEnum
 import ..EquationModule: AbstractExpressionNode, tree_mapreduce
-
-"""
-    ResultOk{A}
-
-Stores the result of an evaluation and whether
-any errors occured during the evaluation. This
-is used to quit early, so that we do not pass
-`Inf` to `cos` (for example).
-"""
-struct ResultOk{A}
-    x::A
-    ok::Bool
-end
 
 function bumper_eval_tree_array(
     tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum

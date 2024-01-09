@@ -193,4 +193,17 @@ Just a type like `Nothing` to differentiate from a literal `Nothing`.
 """
 struct Undefined end
 
+"""
+    ResultOk{A}
+
+Stores the result of an evaluation and whether
+any errors occured during the evaluation. This
+is used to quit early, so that we do not pass
+`Inf` to `cos` (for example).
+"""
+struct ResultOk{A}
+    x::A
+    ok::Bool
+end
+
 end
