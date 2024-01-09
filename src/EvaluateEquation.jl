@@ -70,7 +70,7 @@ function eval_tree_array(
     else
         turbo ? Val(true) : Val(false)
     end
-    if v_turbo === Val(true)
+    if v_turbo isa Val{true}
         @assert T in (Float32, Float64)
     end
     if bumper isa Val{true}
