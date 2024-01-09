@@ -1,7 +1,6 @@
 """Useful functions to be used throughout the library."""
 module UtilsModule
 
-using LoopVectorization: @turbo
 using MacroTools: postwalk, @capture, splitdef, combinedef
 
 """Remove all type assertions in an expression."""
@@ -29,32 +28,6 @@ function _remove_isfinite(ex::Expr)
     end
 end
 _remove_isfinite(ex) = ex
-
-"""
-    @maybe_turbo use_turbo expression
-
-Use @turbo if flag is true; otherwise @inbounds @simd.
-This will also remove all type assertions from the expression.
-"""
-macro maybe_turbo(turboflag, ex)
-    # Thanks @jlapeyre https://discourse.julialang.org/t/optional-macro-invocation/18588
-    clean_ex = _remove_type_assertions(ex)
-    clean_ex = _remove_isfinite(clean_ex)
-    turbo_ex = Expr(:macrocall, Symbol("@turbo"), LineNumberNode(@__LINE__), clean_ex)
-    simple_ex = Expr(
-        :macrocall,
-        Symbol("@inbounds"),
-        LineNumberNode(@__LINE__),
-        Expr(:macrocall, Symbol("@simd"), LineNumberNode(@__LINE__), ex),
-    )
-    quote
-        if $(esc(turboflag))
-            $(esc(turbo_ex))
-        else
-            $(esc(simple_ex))
-        end
-    end
-end
 
 # Returns two arrays
 macro return_on_false2(flag, retval, retval2)

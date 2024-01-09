@@ -1,9 +1,8 @@
 module EvaluateEquationModule
 
-import LoopVectorization: @turbo
 import ..EquationModule: AbstractExpressionNode, constructorof, string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
-import ..UtilsModule: @maybe_turbo, is_bad_array, fill_similar, counttuple, ResultOk
+import ..UtilsModule: is_bad_array, fill_similar, counttuple, ResultOk
 import ..EquationUtilsModule: is_constant
 import ..EvaluateEquationBumperModule: bumper_eval_tree_array
 
@@ -123,9 +122,9 @@ function _eval_tree_array(
 end
 
 function deg2_eval(
-    cumulator_l::AbstractVector{T}, cumulator_r::AbstractVector{T}, op::F, ::Val{turbo}
-)::ResultOk where {T<:Number,F,turbo}
-    @maybe_turbo turbo for j in eachindex(cumulator_l)
+    cumulator_l::AbstractVector{T}, cumulator_r::AbstractVector{T}, op::F, ::Val{false}
+)::ResultOk where {T<:Number,F}
+    @inline @simd for j in eachindex(cumulator_l)
         x = op(cumulator_l[j], cumulator_r[j])::T
         cumulator_l[j] = x
     end
@@ -133,9 +132,9 @@ function deg2_eval(
 end
 
 function deg1_eval(
-    cumulator::AbstractVector{T}, op::F, ::Val{turbo}
-)::ResultOk where {T<:Number,F,turbo}
-    @maybe_turbo turbo for j in eachindex(cumulator)
+    cumulator::AbstractVector{T}, op::F, ::Val{false}
+)::ResultOk where {T<:Number,F}
+    @inline @simd for j in eachindex(cumulator)
         x = op(cumulator[j])::T
         cumulator[j] = x
     end
@@ -271,8 +270,8 @@ end
 end
 
 function deg1_l2_ll0_lr0_eval(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::Val{turbo}
-) where {T<:Number,F,F2,turbo}
+    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::Val{false}
+) where {T<:Number,F,F2}
     if tree.l.l.constant && tree.l.r.constant
         val_ll = tree.l.l.val::T
         val_lr = tree.l.r.val::T
@@ -288,7 +287,7 @@ function deg1_l2_ll0_lr0_eval(
         @return_on_check val_ll cX
         feature_lr = tree.l.r.feature
         cumulator = similar(cX, axes(cX, 2))
-        @maybe_turbo turbo for j in axes(cX, 2)
+        @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(val_ll, cX[feature_lr, j])::T
             x = isfinite(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
@@ -299,7 +298,7 @@ function deg1_l2_ll0_lr0_eval(
         val_lr = tree.l.r.val::T
         @return_on_check val_lr cX
         cumulator = similar(cX, axes(cX, 2))
-        @maybe_turbo turbo for j in axes(cX, 2)
+        @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j], val_lr)::T
             x = isfinite(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
@@ -309,7 +308,7 @@ function deg1_l2_ll0_lr0_eval(
         feature_ll = tree.l.l.feature
         feature_lr = tree.l.r.feature
         cumulator = similar(cX, axes(cX, 2))
-        @maybe_turbo turbo for j in axes(cX, 2)
+        @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])::T
             x = isfinite(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
@@ -320,8 +319,8 @@ end
 
 # op(op2(x)) for x variable or constant
 function deg1_l1_ll0_eval(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::Val{turbo}
-) where {T<:Number,F,F2,turbo}
+    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::Val{false}
+) where {T<:Number,F,F2}
     if tree.l.l.constant
         val_ll = tree.l.l.val::T
         @return_on_check val_ll cX
@@ -333,7 +332,7 @@ function deg1_l1_ll0_eval(
     else
         feature_ll = tree.l.l.feature
         cumulator = similar(cX, axes(cX, 2))
-        @maybe_turbo turbo for j in axes(cX, 2)
+        @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j])::T
             x = isfinite(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
@@ -344,8 +343,8 @@ end
 
 # op(x, y) for x and y variable/constant
 function deg2_l0_r0_eval(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, ::Val{turbo}
-) where {T<:Number,F,turbo}
+    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, ::Val{false}
+) where {T<:Number,F}
     if tree.l.constant && tree.r.constant
         val_l = tree.l.val::T
         @return_on_check val_l cX
@@ -359,7 +358,7 @@ function deg2_l0_r0_eval(
         val_l = tree.l.val::T
         @return_on_check val_l cX
         feature_r = tree.r.feature
-        @maybe_turbo turbo for j in axes(cX, 2)
+        @inbounds @simd for j in axes(cX, 2)
             x = op(val_l, cX[feature_r, j])::T
             cumulator[j] = x
         end
@@ -369,7 +368,7 @@ function deg2_l0_r0_eval(
         feature_l = tree.l.feature
         val_r = tree.r.val::T
         @return_on_check val_r cX
-        @maybe_turbo turbo for j in axes(cX, 2)
+        @inbounds @simd for j in axes(cX, 2)
             x = op(cX[feature_l, j], val_r)::T
             cumulator[j] = x
         end
@@ -378,7 +377,7 @@ function deg2_l0_r0_eval(
         cumulator = similar(cX, axes(cX, 2))
         feature_l = tree.l.feature
         feature_r = tree.r.feature
-        @maybe_turbo turbo for j in axes(cX, 2)
+        @inbounds @simd for j in axes(cX, 2)
             x = op(cX[feature_l, j], cX[feature_r, j])::T
             cumulator[j] = x
         end
@@ -392,19 +391,19 @@ function deg2_l0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    ::Val{turbo},
-) where {T<:Number,F,turbo}
+    ::Val{false},
+) where {T<:Number,F}
     if tree.l.constant
         val = tree.l.val::T
         @return_on_check val cX
-        @maybe_turbo turbo for j in eachindex(cumulator)
+        @inbounds @simd for j in eachindex(cumulator)
             x = op(val, cumulator[j])::T
             cumulator[j] = x
         end
         return ResultOk(cumulator, true)
     else
         feature = tree.l.feature
-        @maybe_turbo turbo for j in eachindex(cumulator)
+        @inbounds @simd for j in eachindex(cumulator)
             x = op(cX[feature, j], cumulator[j])::T
             cumulator[j] = x
         end
@@ -418,19 +417,19 @@ function deg2_r0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    ::Val{turbo},
-) where {T<:Number,F,turbo}
+    ::Val{false},
+) where {T<:Number,F}
     if tree.r.constant
         val = tree.r.val::T
         @return_on_check val cX
-        @maybe_turbo turbo for j in eachindex(cumulator)
+        @inbounds @simd for j in eachindex(cumulator)
             x = op(cumulator[j], val)::T
             cumulator[j] = x
         end
         return ResultOk(cumulator, true)
     else
         feature = tree.r.feature
-        @maybe_turbo turbo for j in eachindex(cumulator)
+        @inbounds @simd for j in eachindex(cumulator)
             x = op(cumulator[j], cX[feature, j])::T
             cumulator[j] = x
         end
