@@ -4,11 +4,19 @@ using SymbolicUtils
 import DynamicExpressions.EquationModule:
     AbstractExpressionNode, Node, constructorof, DEFAULT_NODE_TYPE
 import DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
-import DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false, deprecate_varmap
+import DynamicExpressions.UtilsModule: isgood, isbad, deprecate_varmap
 import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 
 const SYMBOLIC_UTILS_TYPES = Union{<:Number,SymbolicUtils.Symbolic{<:Number}}
 const SUPPORTED_OPS = (cos, sin, exp, cot, tan, csc, sec, +, -, *, /)
+
+macro return_on_false(flag, retval)
+    :(
+        if !$(esc(flag))
+            return ($(esc(retval)), false)
+        end
+    )
+end
 
 function isgood(x::SymbolicUtils.Symbolic)
     return if SymbolicUtils.istree(x)

@@ -14,7 +14,9 @@ const SUITE = BenchmarkGroup()
 function benchmark_evaluation()
     suite = BenchmarkGroup()
     operators = OperatorEnum(;
-        binary_operators=[+, -, /, *], unary_operators=[cos, exp], enable_autodiff=true
+        binary_operators=[+, -, /, *],
+        unary_operators=[cos, exp],
+        (PACKAGE_VERSION >= v"0.15" ? () : (; enable_autodiff=true))...,
     )
     for T in (ComplexF32, ComplexF64, Float32, Float64)
         if !(T <: Real) && PACKAGE_VERSION < v"0.5.0" && PACKAGE_VERSION != v"0.0.0"

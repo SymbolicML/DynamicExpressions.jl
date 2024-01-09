@@ -19,11 +19,7 @@ end
 
 # Also test warnings:
 for constructor in (OperatorEnum, GenericOperatorEnum)
-    operators = constructor(;
-        binary_operators=[+, -, *, /],
-        unary_operators=[cos, sin],
-        (constructor == OperatorEnum ? (enable_autodiff=true,) : ())...,
-    )
+    operators = constructor(; binary_operators=[+, -, *, /], unary_operators=[cos, sin])
     tree([1.0 2.0]')
     # Can't test for this:
     # expected_warn_msg = "The `tree(X; kws...)` syntax is deprecated"

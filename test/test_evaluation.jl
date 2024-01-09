@@ -66,6 +66,8 @@ for turbo in [false, true],
             true_y = realfnc.(X[1, :], X[2, :], X[3, :])
             !all(isfinite.(true_y)) && continue
 
+            @inferred eval_tree_array(tree, X, operators; turbo=turbo)
+
             test_y = eval_tree_array(tree, X, operators; turbo=turbo, bumper=Val(bumper))[1]
 
             zero_tolerance = (T <: Union{Float16,Complex} ? 1e-4 : 1e-6)
@@ -90,27 +92,24 @@ end
         @test repr(tree) == "cos(cos(3.0))"
         tree = convert(Node{T}, tree)
         truth = cos(cos(T(3.0f0)))
-        @test DynamicExpressions.EvaluateEquationModule.deg1_l1_ll0_eval(
-            tree, [zero(T)]', cos, cos, Val(turbo)
-        )[1][1] ≈ truth
+        @test DynamicExpressions.EvaluateEquationModule.deg1_l1_ll0_eval(tree, [zero(T)]', cos, cos, Val(turbo)).x[1] ≈
+            truth
 
         # op(<constant>, <constant>)
         tree = Node(1, Node(; val=3.0f0), Node(; val=4.0f0))
         @test repr(tree) == "3.0 + 4.0"
         tree = convert(Node{T}, tree)
         truth = T(3.0f0) + T(4.0f0)
-        @test DynamicExpressions.EvaluateEquationModule.deg2_l0_r0_eval(
-            tree, [zero(T)]', (+), Val(turbo)
-        )[1][1] ≈ truth
+        @test DynamicExpressions.EvaluateEquationModule.deg2_l0_r0_eval(tree, [zero(T)]', (+), Val(turbo)).x[1] ≈
+            truth
 
         # op(op(<constant>, <constant>))
         tree = Node(1, Node(1, Node(; val=3.0f0), Node(; val=4.0f0)))
         @test repr(tree) == "cos(3.0 + 4.0)"
         tree = convert(Node{T}, tree)
         truth = cos(T(3.0f0) + T(4.0f0))
-        @test DynamicExpressions.EvaluateEquationModule.deg1_l2_ll0_lr0_eval(
-            tree, [zero(T)]', cos, (+), Val(turbo)
-        )[1][1] ≈ truth
+        @test DynamicExpressions.EvaluateEquationModule.deg1_l2_ll0_lr0_eval(tree, [zero(T)]', cos, (+), Val(turbo)).x[1] ≈
+            truth
 
         # Test for presence of NaNs:
         operators = OperatorEnum(;
