@@ -2,7 +2,7 @@ module DynamicExpressionsBumperExt
 
 using Bumper: @no_escape, @alloc
 using DynamicExpressions: OperatorEnum, AbstractExpressionNode, tree_mapreduce
-using DynamicExpressions.UtilsModule: ResultOk
+using DynamicExpressions.UtilsModule: ResultOk, counttuple
 
 import DynamicExpressions.EvaluateEquationModule: bumper_eval_tree_array, _is_bumper_loaded
 
@@ -23,9 +23,7 @@ function bumper_eval_tree_array(
                     v = leaf.val::T
                     ar .= v
                 else
-                    @inbounds @simd for j in eachindex(ar, axes(cX, 2))
-                        ar[j] = cX[leaf.feature, j]
-                    end
+                    ar .= view(cX, leaf.feature, :)
                 end
                 ResultOk(ar, true)
             end,
@@ -36,15 +34,16 @@ function bumper_eval_tree_array(
             ((branch, cumulators::Vararg{Any,M}) where {M}) -> begin
                 if M == 1
                     if cumulators[1].ok
-                        out = kern1!(operators.unaops[branch.op], cumulators[1].x)
+                        out = dispatch_kern1!(operators.unaops, branch.op, cumulators[1].x)
                         ResultOk(out, isfinite(sum(yi -> yi * zero(yi), out)))
                     else
                         cumulators[1]
                     end
                 else
                     if cumulators[1].ok && cumulators[2].ok
-                        out = kern2!(
-                            operators.binops[branch.op],
+                        out = dispatch_kern2!(
+                            operators.binops,
+                            branch.op,
                             cumulators[1].x,
                             cumulators[2].x,
                         )
@@ -64,6 +63,24 @@ function bumper_eval_tree_array(
         _result_ok.ok
     end
     return (result, ok)
+end
+@generated function dispatch_kern1!(unaops, op_idx, cumulator)
+    nuna = counttuple(unaops)
+    quote
+        Base.@nif($nuna, i -> i == op_idx, i -> let op = unaops[i]
+            return kern1!(op, cumulator)
+        end,)
+    end
+end
+@generated function dispatch_kern2!(binops, op_idx, cumulator1, cumulator2)
+    nbin = counttuple(binops)
+    quote
+        Base.@nif(
+            $nbin, i -> i == op_idx, i -> let op = binops[i]
+                return kern2!(op, cumulator1, cumulator2)
+            end,
+        )
+    end
 end
 function kern1!(op::F, cumulator) where {F}
     @. cumulator = op(cumulator)

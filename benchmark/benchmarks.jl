@@ -4,6 +4,7 @@ using DynamicExpressions.EquationUtilsModule: is_constant
 # Trigger extensions:
 using LoopVectorization
 using Bumper
+using StrideArrays
 using Zygote
 
 if PACKAGE_VERSION < v"0.14.0"
