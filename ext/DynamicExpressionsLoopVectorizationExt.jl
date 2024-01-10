@@ -26,8 +26,8 @@ end
 function deg1_eval(
     cumulator::AbstractVector{T}, op::F, ::Val{true}
 )::ResultOk where {T<:Number,F}
-    @inline @simd for j in eachindex(cumulator)
-        x = op(cumulator[j])::T
+    @turbo for j in eachindex(cumulator)
+        x = op(cumulator[j])
         cumulator[j] = x
     end
     return ResultOk(cumulator, true)
@@ -52,7 +52,7 @@ function deg1_l2_ll0_lr0_eval(
         feature_lr = tree.l.r.feature
         cumulator = similar(cX, axes(cX, 2))
         @turbo for j in axes(cX, 2)
-            x_l = op_l(val_ll, cX[feature_lr, j])::T
+            x_l = op_l(val_ll, cX[feature_lr, j])
             x = op(x_l)
             cumulator[j] = x
         end
@@ -73,7 +73,7 @@ function deg1_l2_ll0_lr0_eval(
         feature_lr = tree.l.r.feature
         cumulator = similar(cX, axes(cX, 2))
         @turbo for j in axes(cX, 2)
-            x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])::T
+            x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])
             x = op(x_l)
             cumulator[j] = x
         end
@@ -106,7 +106,7 @@ end
 
 function deg2_l0_r0_eval(
     tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, ::Val{true}
-) where {T<:Number,F,turbo}
+) where {T<:Number,F}
     if tree.l.constant && tree.r.constant
         val_l = tree.l.val::T
         @return_on_check val_l cX

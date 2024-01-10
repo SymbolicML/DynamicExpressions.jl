@@ -1,4 +1,5 @@
 using SafeTestsets
+using LoopVectorization  # To trigger extension
 
 VERSION >= v"1.9" && @safetestset "Test Aqua.jl" begin
     include("test_aqua.jl")
