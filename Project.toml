@@ -4,7 +4,6 @@ authors = ["MilesCranmer <miles.cranmer@gmail.com>"]
 version = "0.15.0"
 
 [deps]
-Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
@@ -13,15 +12,16 @@ PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
-StrideArrays = "d1fa6d79-ef01-42a6-86c9-f7c551f8593b"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [weakdeps]
+Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [extensions]
+DynamicExpressionsBumperExt = "Bumper"
 DynamicExpressionsLoopVectorizationExt = "LoopVectorization"
 DynamicExpressionsSymbolicUtilsExt = "SymbolicUtils"
 DynamicExpressionsZygoteExt = "Zygote"
@@ -36,13 +36,13 @@ MacroTools = "0.4, 0.5"
 PackageExtensionCompat = "1"
 PrecompileTools = "1"
 Reexport = "1"
-StrideArrays = "0.1"
 SymbolicUtils = "0.19, ^1.0.5"
 Zygote = "0.6"
 julia = "1.6"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
@@ -54,4 +54,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [targets]
-test = ["Test", "SafeTestsets", "Aqua", "Enzyme", "ForwardDiff", "LoopVectorization", "SpecialFunctions", "StaticArrays", "SymbolicUtils", "Zygote"]
+test = ["Test", "SafeTestsets", "Aqua", "Bumper", "Enzyme", "ForwardDiff", "LoopVectorization", "SpecialFunctions", "StaticArrays", "SymbolicUtils", "Zygote"]

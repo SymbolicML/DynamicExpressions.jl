@@ -1,7 +1,6 @@
 using DynamicExpressions
 using Random
 using Test
-using Infiltrator
 include("test_params.jl")
 
 # Test simple evaluations:
@@ -75,8 +74,7 @@ for turbo in [false, true],
             @test all(abs.(test_y .- true_y) / N .< zero_tolerance)
 
             test_y_helper = tree(X, operators; turbo=turbo, bumper=Val(bumper))
-            # @test all(test_y .== test_y_helper)
-            @infiltrate !all(test_y .== test_y_helper)
+            @test all(test_y .== test_y_helper)
         end
     end
 end

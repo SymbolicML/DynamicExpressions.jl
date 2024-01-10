@@ -1,10 +1,12 @@
-module EvaluateEquationBumperModule
+module DynamicExpressionsBumperExt
 
-using Bumper: @no_escape, @alloc, AllocBuffer
-using StrideArrays
-import ..UtilsModule: ResultOk
-import ..OperatorEnumModule: OperatorEnum
-import ..EquationModule: AbstractExpressionNode, tree_mapreduce
+using Bumper: @no_escape, @alloc
+using DynamicExpressions: OperatorEnum, AbstractExpressionNode, tree_mapreduce
+using DynamicExpressions.UtilsModule: ResultOk
+
+import DynamicExpressions.EvaluateEquationModule: bumper_eval_tree_array, _is_bumper_loaded
+
+_is_bumper_loaded(::Int) = true
 
 function bumper_eval_tree_array(
     tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum

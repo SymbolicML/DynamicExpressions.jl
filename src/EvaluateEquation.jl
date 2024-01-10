@@ -4,7 +4,6 @@ import ..EquationModule: AbstractExpressionNode, constructorof, string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: is_bad_array, fill_similar, counttuple, ResultOk
 import ..EquationUtilsModule: is_constant
-import ..EvaluateEquationBumperModule: bumper_eval_tree_array
 
 macro return_on_check(val, X)
     :(
@@ -73,7 +72,13 @@ function eval_tree_array(
         @assert T in (Float32, Float64)
     end
     if bumper isa Val{true}
+        _is_bumper_loaded(0) ||
+            error("Please load the Bumper.jl package to use this feature.")
         return bumper_eval_tree_array(tree, cX, operators)
+    end
+    if v_turbo isa Val{true}
+        _is_loopvectorization_loaded(0) ||
+            error("Please load the LoopVectorization.jl package to use this feature.")
     end
 
     result = _eval_tree_array(tree, cX, operators, v_turbo)
@@ -91,6 +96,11 @@ function eval_tree_array(
     cX = Base.Fix1(convert, T).(cX)
     return eval_tree_array(tree, cX, operators; kws...)
 end
+
+# These functions are overloaded by their respective extensions
+function bumper_eval_tree_array end
+_is_bumper_loaded(_) = false
+_is_loopvectorization_loaded(_) = false
 
 get_nuna(::Type{<:OperatorEnum{B,U}}) where {B,U} = counttuple(U)
 get_nbin(::Type{<:OperatorEnum{B}}) where {B} = counttuple(B)

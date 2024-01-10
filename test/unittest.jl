@@ -1,5 +1,7 @@
 using SafeTestsets
-using LoopVectorization  # To trigger extension
+# Trigger extensions:
+using LoopVectorization
+using Bumper
 
 VERSION >= v"1.9" && @safetestset "Test Aqua.jl" begin
     include("test_aqua.jl")
