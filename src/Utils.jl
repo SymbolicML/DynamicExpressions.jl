@@ -3,32 +3,6 @@ module UtilsModule
 
 using MacroTools: postwalk, @capture, splitdef, combinedef
 
-"""Remove all type assertions in an expression."""
-function _remove_type_assertions(ex::Expr)
-    if ex.head == :(::)
-        @assert length(ex.args) == 2
-        return _remove_type_assertions(ex.args[1])
-    else
-        return Expr(ex.head, map(_remove_type_assertions, ex.args)...)
-    end
-end
-_remove_type_assertions(ex) = ex
-
-"""Replace instances of (isfinite(x) ? op(x) : T(Inf)) with op(x)"""
-function _remove_isfinite(ex::Expr)
-    if (
-        ex.head == :if &&
-        length(ex.args) == 3 &&
-        ex.args[1].head == :call &&
-        ex.args[1].args[1] == :isfinite
-    )
-        return _remove_isfinite(ex.args[2])
-    else
-        return Expr(ex.head, map(_remove_isfinite, ex.args)...)
-    end
-end
-_remove_isfinite(ex) = ex
-
 # Returns two arrays
 macro return_on_false2(flag, retval, retval2)
     :(
