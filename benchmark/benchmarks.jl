@@ -1,6 +1,11 @@
 using DynamicExpressions, BenchmarkTools, Random
 using DynamicExpressions.EquationUtilsModule: is_constant
+
+# Trigger extensions:
+using LoopVectorization
+using Bumper
 using Zygote
+
 if PACKAGE_VERSION < v"0.14.0"
     @eval using DynamicExpressions: Node as GraphNode
 else
