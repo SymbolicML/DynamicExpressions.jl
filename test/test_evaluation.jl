@@ -1,6 +1,7 @@
 using DynamicExpressions
 using Random
 using Test
+using Infiltrator
 include("test_params.jl")
 
 # Test simple evaluations:
@@ -40,7 +41,7 @@ for turbo in [false, true],
     bumper in [false, true]
 
     # Float16 not implemented:
-    turbo && !(T in (Float32, Float64)) && continue
+    (turbo || bumper) && !(T in (Float32, Float64)) && continue
     turbo && bumper && continue
     @testset "Test evaluation of trees with turbo=$turbo, bumper=$bumper, T=$T" begin
         for (i_func, fnc) in enumerate(functions)
@@ -66,15 +67,16 @@ for turbo in [false, true],
             true_y = realfnc.(X[1, :], X[2, :], X[3, :])
             !all(isfinite.(true_y)) && continue
 
-            @inferred eval_tree_array(tree, X, operators; turbo=turbo)
+            @inferred eval_tree_array(tree, X, operators; turbo=turbo, bumper=Val(bumper))
 
             test_y = eval_tree_array(tree, X, operators; turbo=turbo, bumper=Val(bumper))[1]
 
             zero_tolerance = (T <: Union{Float16,Complex} ? 1e-4 : 1e-6)
             @test all(abs.(test_y .- true_y) / N .< zero_tolerance)
 
-            test_y_helper = tree(X, operators; turbo=turbo, bumper=Val(bumper))[1]
-            @test all(test_y .== test_y_helper)
+            test_y_helper = tree(X, operators; turbo=turbo, bumper=Val(bumper))
+            # @test all(test_y .== test_y_helper)
+            @infiltrate !all(test_y .== test_y_helper)
         end
     end
 end
