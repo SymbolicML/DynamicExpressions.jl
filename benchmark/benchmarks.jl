@@ -33,15 +33,11 @@ function benchmark_evaluation()
 
         #! format: off
         for turbo in (false, true), bumper in (false, true)
-            if turbo && !(T in (Float32, Float64))
-                continue
-            end
-            if turbo && bumper
-                continue
-            end
-            if bumper && PACKAGE_VERSION < v"0.15.0"
-                continue
-            end
+
+            (turbo || bumper) && !(T in (Float32, Float64)) && continue
+            turbo && bumper && continue
+            bumper && PACKAGE_VERSION < v"0.15.0" && continue
+
             extra_key = turbo ? "_turbo" : (bumper ? "_bumper" : "")
             extra_kws = bumper ? (; bumper=Val(true)) : ()
             eval_tree_array(
