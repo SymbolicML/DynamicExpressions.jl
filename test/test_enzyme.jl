@@ -3,6 +3,7 @@ using Enzyme
 using DynamicExpressions
 
 operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(cos, sin))
+# TODO: More operators will trigger a segfault in Enzyme
 
 # These options are required for Enzyme to work:
 const eval_options = (turbo=Val(false),)
