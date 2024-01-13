@@ -161,16 +161,26 @@ end
 @testset "Test many operators" begin
     # Since we use `@nif` in evaluating expressions,
     # we can see if there are any issues with LARGE numbers of operators.
+    num_ops = 20
     binary_operators = [@eval function (x, y)
         return x + y
-    end for i in 1:100]
+    end for i in 1:num_ops]
     unary_operators = [@eval function (x)
         return x^2
-    end for i in 1:100]
-    operators = OperatorEnum(; binary_operators, unary_operators)
-    tree = Node(1, Node(50, Node(; val=3.0), Node(; feature=2)))
+    end for i in 1:num_ops]
+    operators = if VERSION >= v"1.9"
+        @test_warn "You have passed over 15 binary" OperatorEnum(;
+            binary_operators, unary_operators
+        )
+    else
+        OperatorEnum(; binary_operators, unary_operators)
+    end
+    tree = Node(1, Node(num_ops ÷ 2, Node(; val=3.0), Node(; feature=2)))
     # = (3.0 + x2)^2
     X = randn(Float64, 2, 10)
     truth = @. (3.0 + X[2, :])^2
     @test all(truth .≈ tree(X, operators))
+
+    VERSION >= v"1.9" &&
+        @test_warn "You have passed over 15 unary" OperatorEnum(; unary_operators)
 end

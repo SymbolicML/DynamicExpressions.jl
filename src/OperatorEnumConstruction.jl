@@ -364,6 +364,16 @@ function OperatorEnum(;
         "Differential operators are now automatically computed within the gradient call.",
         :OperatorEnum,
     )
+    for (op, s) in ((binary_operators, "binary"), (unary_operators, "unary"))
+        if length(op) > 15
+            @warn(
+                "You have passed over 15 $(s) operators. " *
+                    "Note that this will result in very slow compilation times. " *
+                    "If this presents an issue, please open an issue on https://github.com/SymbolicML/DynamicExpressions.jl"
+            )
+            break
+        end
+    end
 
     operators = OperatorEnum(Tuple(binary_operators), Tuple(unary_operators))
 
