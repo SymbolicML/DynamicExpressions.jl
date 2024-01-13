@@ -108,7 +108,7 @@ function _eval_tree_array(
         return deg0_eval(tree, cX)
     elseif is_constant(tree)
         # Speed hack for constant trees.
-        const_result = _eval_constant_tree(tree, operators)::ResultOk{Vector{T}}
+        const_result = dispatch_constant_tree(tree, operators)::ResultOk{Vector{T}}
         !const_result.ok && return ResultOk(similar(cX, axes(cX, 2)), false)
         return ResultOk(fill_similar(const_result.x[], cX, axes(cX, 2)), true)
     elseif tree.degree == 1
@@ -439,13 +439,13 @@ function deg2_r0_eval(
 end
 
 """
-    _eval_constant_tree(tree::AbstractExpressionNode{T}, operators::OperatorEnum) where {T<:Number}
+    dispatch_constant_tree(tree::AbstractExpressionNode{T}, operators::OperatorEnum) where {T<:Number}
 
 Evaluate a tree which is assumed to not contain any variable nodes. This
 gives better performance, as we do not need to perform computation
 over an entire array when the values are all the same.
 """
-@generated function _eval_constant_tree(
+@generated function dispatch_constant_tree(
     tree::AbstractExpressionNode{T}, operators::OperatorEnum
 ) where {T<:Number}
     nuna = get_nuna(operators)
@@ -483,7 +483,7 @@ end
 function deg1_eval_constant(
     tree::AbstractExpressionNode{T}, op::F, operators::OperatorEnum
 ) where {T<:Number,F}
-    result = _eval_constant_tree(tree.l, operators)
+    result = dispatch_constant_tree(tree.l, operators)
     !result.ok && return result
     output = op(result.x[])::T
     return ResultOk([output], isfinite(output))::ResultOk{Vector{T}}
@@ -492,9 +492,9 @@ end
 function deg2_eval_constant(
     tree::AbstractExpressionNode{T}, op::F, operators::OperatorEnum
 ) where {T<:Number,F}
-    cumulator = _eval_constant_tree(tree.l, operators)
+    cumulator = dispatch_constant_tree(tree.l, operators)
     !cumulator.ok && return cumulator
-    result_r = _eval_constant_tree(tree.r, operators)
+    result_r = dispatch_constant_tree(tree.r, operators)
     !result_r.ok && return result_r
     output = op(cumulator.x[], result_r.x[])::T
     return ResultOk([output], isfinite(output))::ResultOk{Vector{T}}
