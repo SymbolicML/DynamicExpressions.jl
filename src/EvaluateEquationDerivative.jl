@@ -5,14 +5,13 @@ import ..OperatorEnumModule: OperatorEnum
 import ..UtilsModule: is_bad_array, fill_similar
 import ..EquationUtilsModule: count_constants, index_constants, NodeIndex
 import ..EvaluateEquationModule: deg0_eval, get_nuna, get_nbin
+import ..ExtensionInterfaceModule: _zygote_gradient
 
 struct ResultOk2{A<:AbstractArray,B<:AbstractArray}
     x::A
     dx::B
     ok::Bool
 end
-
-_zygote_gradient(args...) = error("Please load the Zygote.jl package.")
 
 """
     eval_diff_tree_array(tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Integer; turbo::Bool=false)

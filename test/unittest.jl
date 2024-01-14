@@ -8,6 +8,10 @@ end
     include("test_initial_errors.jl")
 end
 
+@safetestset "Test deprecations" begin
+    include("test_deprecations.jl")
+end
+
 @safetestset "Test tree construction and scoring" begin
     include("test_tree_construction.jl")
 end
