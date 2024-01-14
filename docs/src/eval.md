@@ -1,4 +1,6 @@
-# Evaluation
+# Evaluation & Derivatives
+
+## Evaluation
 
 Given an expression tree specified with a `Node` type, you may evaluate the expression
 over an array of data with the following command:
@@ -11,20 +13,25 @@ Assuming you are only using a single `OperatorEnum`, you can also use
 the following shorthand by using the expression as a function:
 
 ```
-    (tree::Node)(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Bool=false)
-
-Evaluate a binary tree (equation) over a given data matrix. The
-operators contain all of the operators used in the tree.
+    (tree::Node)(X::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)
 
 # Arguments
-- `X::AbstractMatrix{T}`: The input data to evaluate the tree on.
-- `operators::OperatorEnum`: The operators used in the tree.
-- `turbo::Bool`: Use `LoopVectorization.@turbo` for faster evaluation.
+- `X::AbstractArray`: The input data to evaluate the tree on.
+- `operators::GenericOperatorEnum`: The operators used in the tree.
+- `throw_errors::Bool=true`: Whether to throw errors
+    if they occur during evaluation. Otherwise,
+    MethodErrors will be caught before they happen and
+    evaluation will return `nothing`,
+    rather than throwing an error. This is useful in cases
+    where you are unsure if a particular tree is valid or not,
+    and would prefer to work with `nothing` as an output.
 
 # Returns
-- `output::AbstractVector{T}`: the result, which is a 1D array.
-    Any NaN, Inf, or other failure during the evaluation will result in the entire
-    output array being set to NaN.
+- `output`: the result of the evaluation.
+    If evaluation failed, `nothing` will be returned for the first argument.
+    A `false` complete means an operator was called on input types
+    that it was not defined for. You can change this behavior by
+    setting `throw_errors=false`.
 ```
 
 For example,
@@ -66,7 +73,7 @@ Likewise for the shorthand notation:
 - `operators::GenericOperatorEnum`: The operators used in the tree.
 - `throw_errors::Bool=true`: Whether to throw errors
     if they occur during evaluation. Otherwise,
-    MethodErrors will be caught before they happen and 
+    MethodErrors will be caught before they happen and
     evaluation will return `nothing`,
     rather than throwing an error. This is useful in cases
     where you are unsure if a particular tree is valid or not,
@@ -125,13 +132,92 @@ the function `differentiable_eval_tree_array`, although this will be slower.
 differentiable_eval_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum) where {T<:Number}
 ```
 
-## Printing
+### Enzyme
 
-You can also print a tree as follows:
+`DynamicExpressions.jl` also supports automatic differentiation with
+[`Enzyme.jl`](https://github.com/EnzymeAD/Enzyme.jl). Note that this is
+**extremely experimental**.
+You should expect to see occasional incorrect gradients.
+Be sure to explicitly verify gradients are correct for a particular
+space of operators (e.g., with finite differences).
 
-```@docs
-string_tree(tree::Node, operators::AbstractOperatorEnum)
+Let's look at an example. First, let's create a tree:
+
+```julia
+using DynamicExpressions
+
+operators = OperatorEnum(binary_operators=(+, -, *, /), unary_operators=(cos, sin))
+
+x1 = Node{Float64}(feature=1)
+x2 = Node{Float64}(feature=2)
+
+tree = 0.5 * x1 + cos(x2 - 0.2)
 ```
 
-When you define an `OperatorEnum`, the standard `show` and `print` methods
-will be overwritten to use `string_tree`.
+Now, say we want to take the derivative of this expression with respect to x1 and x2.
+First, let's evaluate it normally:
+```julia
+X = [1.0 2.0 3.0; 4.0 5.0 6.0]  # 2x3 matrix (2 features, 3 rows)
+
+tree(X, operators)
+```
+
+Now, let's use `Enzyme.jl` to compute the derivative of the outputs
+with respect to x1 and x2, using reverse-mode autodiff:
+
+```julia
+using Enzyme
+
+function my_loss_function(tree, X, operators)
+    # Get the outputs
+    y = tree(X, operators)
+    # Sum them (so we can take a gradient, rather than a jacobian)
+    return sum(y)
+end
+
+
+dX = begin
+    storage=zero(X)
+    autodiff(
+        Reverse,
+        my_loss_function,
+        Active,
+        ## Actual arguments to function:
+        Const(tree),
+        Duplicated(X, storage),
+        Const(operators),
+    )
+    storage
+end
+```
+
+This will get returned as
+
+```text
+ 2×3 Matrix{Float64}:
+  0.5       0.5       0.5
+  0.611858  0.996165  0.464602
+```
+
+which one can confirm is the correct gradient!
+
+This will take a while the first time you run it, as Enzyme needs to take the
+gradients of the actual LLVM IR code. Subsequent runs won't spend any time compiling
+and be much faster.
+
+Some general notes about this:
+
+1. We want to take a reverse-mode gradient, so we pass `Reverse` to `autodiff`.
+2. Since we want to take the gradient of the _output_ of `my_loss_function`,
+   we declare `Active` as the third argument.
+3. Following this, we pass our actual arguments to the function.
+    - Objects which we don't want to take gradients with respect to,
+       and also don't temporarily store any data during the computation
+       (such as `tree` and `operators` here) should be wrapped with `Const`.
+    - Objects which we wish to take derivatives with respect to, we need to use
+        `Duplicated`, and explicitly create a copy of it, with all numerical values
+        set to zero. Enzyme will then store the derivatives in this object.
+
+Note that you should never use anything other than `turbo=Val(false)` with Enzyme,
+as Enzyme and LoopVectorization are not compatible, and will cause a segfault.
+_Even using `turbo=false` will not work, because it would cause Enzyme to trace the (unused) LoopVectorization code!_

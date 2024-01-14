@@ -4,15 +4,15 @@ import ..EquationModule: AbstractExpressionNode, constructorof
 import ..OperatorEnumModule: OperatorEnum
 import ..UtilsModule: is_bad_array, fill_similar
 import ..EquationUtilsModule: count_constants, index_constants, NodeIndex
-import ..EvaluateEquationModule: deg0_eval, get_nuna, get_nbin
+import ..EvaluateEquationModule:
+    deg0_eval, get_nuna, get_nbin, OPERATOR_LIMIT_BEFORE_SLOWDOWN
+import ..ExtensionInterfaceModule: _zygote_gradient
 
 struct ResultOk2{A<:AbstractArray,B<:AbstractArray}
     x::A
     dx::B
     ok::Bool
 end
-
-_zygote_gradient(args...) = error("Please load the Zygote.jl package.")
 
 """
     eval_diff_tree_array(tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Integer; turbo::Bool=false)
@@ -28,7 +28,7 @@ respect to `x1`.
 - `cX::AbstractMatrix{T}`: The data matrix, with each column being a data point.
 - `operators::OperatorEnum`: The operators used to create the `tree`.
 - `direction::Integer`: The index of the variable to take the derivative with respect to.
-- `turbo::Bool`: Use `LoopVectorization.@turbo` for faster evaluation.
+- `turbo::Union{Val,Bool}`: Use `LoopVectorization.@turbo` for faster evaluation.
 
 # Returns
 
@@ -40,7 +40,7 @@ function eval_diff_tree_array(
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     direction::Integer;
-    turbo::Bool=false,
+    turbo::Union{Val,Bool}=Val(false),
 ) where {T<:Number}
     # TODO: Implement quick check for whether the variable is actually used
     # in this tree. Otherwise, return zero.
@@ -71,25 +71,41 @@ end
 )::ResultOk2 where {T<:Number}
     nuna = get_nuna(operators)
     nbin = get_nbin(operators)
-    quote
-        result = if tree.degree == 0
-            diff_deg0_eval(tree, cX, direction)
-        elseif tree.degree == 1
-            op_idx = tree.op
+    deg1_branch = if nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
+        quote
+            diff_deg1_eval(tree, cX, operators.unaops[op_idx], operators, direction)
+        end
+    else
+        quote
             Base.Cartesian.@nif(
                 $nuna,
                 i -> i == op_idx,
                 i ->
                     diff_deg1_eval(tree, cX, operators.unaops[i], operators, direction)
             )
-        else
-            op_idx = tree.op
+        end
+    end
+    deg2_branch = if nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
+        diff_deg2_eval(tree, cX, operators.binops[op_idx], operators, direction)
+    else
+        quote
             Base.Cartesian.@nif(
                 $nbin,
                 i -> i == op_idx,
                 i ->
                     diff_deg2_eval(tree, cX, operators.binops[i], operators, direction)
             )
+        end
+    end
+    quote
+        result = if tree.degree == 0
+            diff_deg0_eval(tree, cX, direction)
+        elseif tree.degree == 1
+            op_idx = tree.op
+            $deg1_branch
+        else
+            op_idx = tree.op
+            $deg2_branch
         end
         !result.ok && return result
         return ResultOk2(
@@ -252,39 +268,57 @@ end
 )::ResultOk2 where {T<:Number,variable}
     nuna = get_nuna(operators)
     nbin = get_nbin(operators)
+    deg1_branch_skeleton = quote
+        grad_deg1_eval(
+            tree,
+            n_gradients,
+            index_tree,
+            cX,
+            operators.unaops[i],
+            operators,
+            Val(variable),
+        )
+    end
+    deg2_branch_skeleton = quote
+        grad_deg2_eval(
+            tree,
+            n_gradients,
+            index_tree,
+            cX,
+            operators.binops[i],
+            operators,
+            Val(variable),
+        )
+    end
+    deg1_branch = if nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
+        quote
+            i = tree.op
+            $deg1_branch_skeleton
+        end
+    else
+        quote
+            op_idx = tree.op
+            Base.Cartesian.@nif($nuna, i -> i == op_idx, i -> $deg1_branch_skeleton)
+        end
+    end
+    deg2_branch = if nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
+        quote
+            i = tree.op
+            $deg2_branch_skeleton
+        end
+    else
+        quote
+            op_idx = tree.op
+            Base.Cartesian.@nif($nbin, i -> i == op_idx, i -> $deg2_branch_skeleton)
+        end
+    end
     quote
         if tree.degree == 0
             grad_deg0_eval(tree, n_gradients, index_tree, cX, Val(variable))
         elseif tree.degree == 1
-            op_idx = tree.op
-            Base.Cartesian.@nif(
-                $nuna,
-                i -> i == op_idx,
-                i -> grad_deg1_eval(
-                    tree,
-                    n_gradients,
-                    index_tree,
-                    cX,
-                    operators.unaops[i],
-                    operators,
-                    Val(variable),
-                )
-            )
+            $deg1_branch
         else
-            op_idx = tree.op
-            Base.Cartesian.@nif(
-                $nbin,
-                i -> i == op_idx,
-                i -> grad_deg2_eval(
-                    tree,
-                    n_gradients,
-                    index_tree,
-                    cX,
-                    operators.binops[i],
-                    operators,
-                    Val(variable),
-                )
-            )
+            $deg2_branch
         end
     end
 end

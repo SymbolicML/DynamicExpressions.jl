@@ -2,6 +2,7 @@ using DynamicExpressions
 using Random
 using Test
 include("test_params.jl")
+include("tree_gen_utils.jl")
 
 # Test simple evaluations:
 functions = [
@@ -35,13 +36,13 @@ functions = [
     (x1, x2, x3) -> (sin(cos(sin(cos(x1) * x3) * 3.0) * -0.5) + 2.0) * 5.0,
 ]
 
-for turbo in [false, true],
+for turbo in [Val(false), Val(true)],
     T in [Float16, Float32, Float64, ComplexF32, ComplexF64],
-    bumper in [false, true]
+    bumper in [Val(false), Val(true)]
 
     # Float16 not implemented:
-    (turbo || bumper) && !(T in (Float32, Float64)) && continue
-    turbo && bumper && continue
+    (turbo isa Val{true} || bumper isa Val{true}) && !(T in (Float32, Float64)) && continue
+    turbo isa Val{true} && bumper isa Val{true} && continue
     @testset "Test evaluation of trees with turbo=$turbo, bumper=$bumper, T=$T" begin
         for (i_func, fnc) in enumerate(functions)
 
@@ -159,5 +160,57 @@ if VERSION >= v"1.7"
         end
         @test length(stack) == 2
         @test stack[1].exception isa MethodError
+    end
+end
+
+@testset "Test many operators" begin
+    # Since we use `@nif` in evaluating expressions,
+    # we can see if there are any issues with LARGE numbers of operators.
+    num_ops = 100
+    binary_operators = [@eval function (x, y)
+        return x + y
+    end for i in 1:num_ops]
+    unary_operators = [@eval function (x)
+        return x^2
+    end for i in 1:num_ops]
+    operators = if VERSION >= v"1.9"
+        @test_logs (:warn, r"You have passed over 15 binary.*") OperatorEnum(;
+            binary_operators, unary_operators
+        )
+    else
+        OperatorEnum(; binary_operators, unary_operators)
+    end
+    tree = Node(1, Node(num_ops ÷ 2, Node(; val=3.0), Node(; feature=2)))
+    # = (3.0 + x2)^2
+    X = randn(Float64, 2, 10)
+    truth = @. (3.0 + X[2, :])^2
+    @test truth ≈ tree(X, operators)
+
+    VERSION >= v"1.9" &&
+        @test_logs (:warn, r"You have passed over 15 unary.*") OperatorEnum(;
+            unary_operators
+        )
+
+    # This OperatorEnum will trigger the fallback code for fast compilation.
+    many_ops_operators = OperatorEnum(;
+        binary_operators=cat([+, -, *, /], binary_operators; dims=1),
+        unary_operators=cat([sin, cos], unary_operators; dims=1),
+    )
+
+    # This OperatorEnum will go through the regular evaluation code.
+    only_basic_ops_operator = OperatorEnum(;
+        binary_operators=[+, -, *, /], unary_operators=[sin, cos]
+    )
+
+    # We want to compare them:
+    num_tests = 100
+    n_features = 3
+    for _ in 1:num_tests
+        tree = gen_random_tree_fixed_size(20, only_basic_ops_operator, n_features, Float64)
+        X = randn(Float64, n_features, 10)
+        basic_eval = tree(X, only_basic_ops_operator)
+        many_ops_eval = tree(X, many_ops_operators)
+        @test (all(isnan, basic_eval) && all(isnan, many_ops_eval)) ||
+            basic_eval ≈ many_ops_eval
     end
 end

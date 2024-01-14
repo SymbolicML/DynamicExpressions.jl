@@ -2,7 +2,7 @@ module OperatorEnumConstructionModule
 
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
 import ..EquationModule: string_tree, Node, GraphNode, AbstractExpressionNode, constructorof
-import ..EvaluateEquationModule: eval_tree_array
+import ..EvaluateEquationModule: eval_tree_array, OPERATOR_LIMIT_BEFORE_SLOWDOWN
 import ..EvaluateEquationDerivativeModule: eval_grad_tree_array, _zygote_gradient
 import ..EvaluationHelpersModule: _grad_evaluator
 
@@ -364,6 +364,16 @@ function OperatorEnum(;
         "Differential operators are now automatically computed within the gradient call.",
         :OperatorEnum,
     )
+    for (op, s) in ((binary_operators, "binary"), (unary_operators, "unary"))
+        if length(op) > OPERATOR_LIMIT_BEFORE_SLOWDOWN
+            @warn(
+                "You have passed over $(OPERATOR_LIMIT_BEFORE_SLOWDOWN) $(s) operators. " *
+                    "To prevent long compilation times, some optimizations will be disabled. " *
+                    "If this presents an issue, please open an issue on https://github.com/SymbolicML/DynamicExpressions.jl"
+            )
+            break
+        end
+    end
 
     operators = OperatorEnum(Tuple(binary_operators), Tuple(unary_operators))
 
@@ -415,16 +425,16 @@ end
 # Predefine the most common operators so the errors
 # are more informative
 function _overload_common_operators()
-    #! format: off
+    # Overload the operators in batches (so that we don't hit the warning
+    # about too many operators)
     operators = OperatorEnum(
         (+, -, *, /, ^, max, min, mod),
-        (
-            sin, cos, tan, exp, log, log1p, log2, log10, sqrt, cbrt, abs, sinh,
-            cosh, tanh, atan, asinh, acosh, round, sign, floor, ceil,
-        ),
+        (sin, cos, tan, exp, log, log1p, log2, log10, sqrt, cbrt, abs, sinh),
     )
-    #! format: on
     @extend_operators(operators, empty_old_operators = false, internal = true)
+    operators = OperatorEnum((), (cosh, tanh, atan, asinh, acosh, round, sign, floor, ceil))
+    @extend_operators(operators, empty_old_operators = true, internal = true)
+
     empty!(LATEST_UNARY_OPERATOR_MAPPING)
     empty!(LATEST_BINARY_OPERATOR_MAPPING)
     return nothing

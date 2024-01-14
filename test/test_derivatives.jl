@@ -5,6 +5,7 @@ using Random
 using Zygote
 using LinearAlgebra
 include("test_params.jl")
+include("tree_gen_utils.jl")
 
 seed = 0
 # SIMD doesn't like abs(x) ^ y for some reason.
@@ -36,8 +37,8 @@ function array_test(ar1, ar2; rtol=0.1)
     return isapprox(ar1, ar2; rtol=rtol)
 end
 
-for type in [Float16, Float32, Float64], turbo in [true, false]
-    type == Float16 && turbo && continue
+for type in [Float16, Float32, Float64], turbo in [Val(true), Val(false)]
+    type == Float16 && turbo isa Val{true} && continue
 
     println(
         "Testing derivatives with respect to variables, with type=$(type) and turbo=$(turbo).",
@@ -142,28 +143,63 @@ for type in [Float16, Float32, Float64], turbo in [true, false]
     println("Done.")
 end
 
-println("Testing NodeIndex.")
+@testset "NodeIndex" begin
+    @eval import DynamicExpressions: get_constants, NodeIndex, index_constants
 
-import DynamicExpressions: get_constants, NodeIndex, index_constants
+    operators = OperatorEnum(;
+        binary_operators=(+, *, -, /, pow_abs2), unary_operators=(custom_cos, exp, sin)
+    )
+    @extend_operators operators
+    tree = equation3(nx1, nx2, nx3)
 
-operators = OperatorEnum(;
-    binary_operators=(+, *, -, /, pow_abs2), unary_operators=(custom_cos, exp, sin)
-)
-@extend_operators operators
-tree = equation3(nx1, nx2, nx3)
-
-"""Check whether the ordering of constant_list is the same as the ordering of node_index."""
-function check_tree(tree::Node, node_index::NodeIndex, constant_list::AbstractVector)
-    if tree.degree == 0
-        (!tree.constant) || tree.val == constant_list[node_index.val::UInt16]
-    elseif tree.degree == 1
-        check_tree(tree.l, node_index.l, constant_list)
-    else
-        check_tree(tree.l, node_index.l, constant_list) &&
-            check_tree(tree.r, node_index.r, constant_list)
+    # Check whether the ordering of constant_list is the same as the ordering of node_index.
+    @eval function check_tree(
+        tree::Node, node_index::NodeIndex, constant_list::AbstractVector
+    )
+        if tree.degree == 0
+            (!tree.constant) || tree.val == constant_list[node_index.val::UInt16]
+        elseif tree.degree == 1
+            check_tree(tree.l, node_index.l, constant_list)
+        else
+            check_tree(tree.l, node_index.l, constant_list) &&
+                check_tree(tree.r, node_index.r, constant_list)
+        end
     end
+
+    @test check_tree(tree, index_constants(tree), get_constants(tree))
 end
 
-@test check_tree(tree, index_constants(tree), get_constants(tree))
+@testset "Test many operators" begin
+    # Since we use `@nif` in evaluating expressions,
+    # we can see if there are any issues with LARGE numbers of operators.
+    num_ops = 100
+    binary_operators = [@eval function (x, y)
+        return x + y
+    end for i in 1:num_ops]
+    unary_operators = [@eval function (x)
+        return x^2
+    end for i in 1:num_ops]
 
-println("Done.")
+    # This OperatorEnum will trigger the fallback code for fast compilation.
+    many_ops_operators = OperatorEnum(;
+        binary_operators=cat([+, -, *, /], binary_operators; dims=1),
+        unary_operators=cat([sin, cos], unary_operators; dims=1),
+    )
+
+    # This OperatorEnum will go through the regular evaluation code.
+    only_basic_ops_operator = OperatorEnum(;
+        binary_operators=[+, -, *, /], unary_operators=[sin, cos]
+    )
+
+    # We want to compare their gradients
+    num_tests = 100
+    n_features = 3
+    for _ in 1:num_tests
+        tree = gen_random_tree_fixed_size(20, only_basic_ops_operator, n_features, Float64)
+        X = randn(Float64, n_features, 10)
+        basic_eval = tree'(X, only_basic_ops_operator)
+        many_ops_eval = tree'(X, many_ops_operators)
+        @test (all(isnan, basic_eval) && all(isnan, many_ops_eval)) ||
+            basic_eval ≈ many_ops_eval
+    end
+end

@@ -8,15 +8,17 @@ import ..EvaluateEquationDerivativeModule: eval_grad_tree_array
 
 # Evaluation:
 """
-    (tree::AbstractExpressionNode)(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Bool=false)
+    (tree::AbstractExpressionNode)(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Union{Bool,Val}=false)
 
-Evaluate a binary tree (equation) over a given data matrix. The
-operators contain all of the operators used in the tree.
+Evaluate a binary tree (equation) over a given input data matrix. The
+operators contain all of the operators used. This function fuses doublets
+and triplets of operations for lower memory usage.
 
 # Arguments
-- `X::AbstractMatrix{T}`: The input data to evaluate the tree on.
+- `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
+- `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
 - `operators::OperatorEnum`: The operators used in the tree.
-- `turbo::Bool`: Use `LoopVectorization.@turbo` for faster evaluation.
+- `turbo::Union{Bool,Val}`: Use `LoopVectorization.@turbo` for faster evaluation.
 
 # Returns
 - `output::AbstractVector{T}`: the result, which is a 1D array.
@@ -36,7 +38,7 @@ end
 - `operators::GenericOperatorEnum`: The operators used in the tree.
 - `throw_errors::Bool=true`: Whether to throw errors
     if they occur during evaluation. Otherwise,
-    MethodErrors will be caught before they happen and 
+    MethodErrors will be caught before they happen and
     evaluation will return `nothing`,
     rather than throwing an error. This is useful in cases
     where you are unsure if a particular tree is valid or not,
@@ -57,11 +59,9 @@ end
 
 # Gradients:
 function _grad_evaluator(
-    tree::AbstractExpressionNode, X, operators::OperatorEnum; variable=true, kws...
+    tree::AbstractExpressionNode, X, operators::OperatorEnum; variable=Val(true), kws...
 )
-    _, grad, did_complete = eval_grad_tree_array(
-        tree, X, operators; variable=variable, kws...
-    )
+    _, grad, did_complete = eval_grad_tree_array(tree, X, operators; variable, kws...)
     !did_complete && (grad .= convert(eltype(grad), NaN))
     return grad
 end
@@ -72,7 +72,7 @@ function _grad_evaluator(
 end
 
 """
-    (tree::AbstractExpressionNode{T})'(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Bool=false, variable::Bool=true)
+    (tree::AbstractExpressionNode{T})'(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Union{Bool,Val}=Val(false), variable::Union{Bool,Val}=Val(true))
 
 Compute the forward-mode derivative of an expression, using a similar
 structure and optimization to eval_tree_array. `variable` specifies whether
@@ -82,9 +82,9 @@ to every constant in the expression.
 # Arguments
 - `X::AbstractMatrix{T}`: The data matrix, with each column being a data point.
 - `operators::OperatorEnum`: The operators used to create the `tree`.
-- `variable::Bool`: Whether to take derivatives with respect to features (i.e., `X` - with `variable=true`),
+- `variable::Union{Bool,Val}`: Whether to take derivatives with respect to features (i.e., `X` - with `variable=true`),
     or with respect to every constant in the expression (`variable=false`).
-- `turbo::Bool`: Use `LoopVectorization.@turbo` for faster evaluation.
+- `turbo::Union{Bool,Val}`: Use `LoopVectorization.@turbo` for faster evaluation.
 
 # Returns
 

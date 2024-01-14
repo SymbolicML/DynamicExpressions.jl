@@ -161,10 +161,10 @@ end
 """`mode=:precompile` will use `@precompile_*` directives; `mode=:compile` runs."""
 function do_precompilation(; mode=:precompile)
     @maybe_setup_workload mode begin
-        binary_operators = [[+, -, *, /]]
-        unary_operators = [[sin, cos]]
-        turbo = [Val(false)]
-        types = [Float32, Float64]
+        binary_operators = ((+, -, *, /),)
+        unary_operators = ((sin, cos),)
+        turbo = (Val(false),)
+        types = (Float32, Float64)
         @maybe_compile_workload mode begin
             test_all_combinations(;
                 binary_operators=binary_operators,
