@@ -2,7 +2,7 @@ module OperatorEnumConstructionModule
 
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
 import ..EquationModule: string_tree, Node, GraphNode, AbstractExpressionNode, constructorof
-import ..EvaluateEquationModule: eval_tree_array
+import ..EvaluateEquationModule: eval_tree_array, OPERATOR_LIMIT_BEFORE_SLOWDOWN
 import ..EvaluateEquationDerivativeModule: eval_grad_tree_array, _zygote_gradient
 import ..EvaluationHelpersModule: _grad_evaluator
 
@@ -365,10 +365,10 @@ function OperatorEnum(;
         :OperatorEnum,
     )
     for (op, s) in ((binary_operators, "binary"), (unary_operators, "unary"))
-        if length(op) > 15
+        if length(op) > OPERATOR_LIMIT_BEFORE_SLOWDOWN
             @warn(
-                "You have passed over 15 $(s) operators. " *
-                    "Note that this will result in very slow compilation times. " *
+                "You have passed over $(OPERATOR_LIMIT_BEFORE_SLOWDOWN) $(s) operators. " *
+                    "To prevent long compilation times, some optimizations will be disabled. " *
                     "If this presents an issue, please open an issue on https://github.com/SymbolicML/DynamicExpressions.jl"
             )
             break

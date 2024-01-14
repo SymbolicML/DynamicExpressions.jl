@@ -6,6 +6,8 @@ import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: @maybe_turbo, is_bad_array, fill_similar, counttuple
 import ..EquationUtilsModule: is_constant
 
+const OPERATOR_LIMIT_BEFORE_SLOWDOWN = 15
+
 struct ResultOk{A<:AbstractArray}
     x::A
     ok::Bool
@@ -160,7 +162,20 @@ end
     ::Val{turbo},
 ) where {T<:Number,turbo}
     nbin = get_nbin(operators)
-    quote
+    long_compilation_time = nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
+    if long_compilation_time
+        return quote
+            result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
+            !result_l.ok && return result_l
+            @return_on_nonfinite_array result_l.x
+            result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
+            !result_r.ok && return result_r
+            @return_on_nonfinite_array result_r.x
+            # op(x, y), for any x or y
+            deg2_eval(result_l.x, result_r.x, operators.binops[op_idx], Val(turbo))
+        end
+    end
+    return quote
         return Base.Cartesian.@nif(
             $nbin,
             i -> i == op_idx,
@@ -201,9 +216,18 @@ end
     ::Val{turbo},
 ) where {T<:Number,turbo}
     nuna = get_nuna(operators)
+    long_compilation_time = nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
+    if long_compilation_time
+        return quote
+            result = _eval_tree_array(tree.l, cX, operators, Val(turbo))
+            !result.ok && return result
+            @return_on_nonfinite_array result.x
+            deg1_eval(result.x, operators.unaops[op_idx], Val(turbo))
+        end
+    end
     # This @nif lets us generate an if statement over choice of operator,
     # which means the compiler will be able to completely avoid type inference on operators.
-    quote
+    return quote
         Base.Cartesian.@nif(
             $nuna,
             i -> i == op_idx,
@@ -240,6 +264,8 @@ end
     ::Val{turbo},
 ) where {T<:Number,F,turbo}
     nbin = counttuple(binops)
+    # (Note this is only called from dispatch_deg1_eval, which has already
+    # checked for long compilation times, so we don't need to check here)
     quote
         Base.Cartesian.@nif(
             $nbin,
@@ -450,27 +476,45 @@ over an entire array when the values are all the same.
 ) where {T<:Number}
     nuna = get_nuna(operators)
     nbin = get_nbin(operators)
-    quote
-        if tree.degree == 0
-            return deg0_eval_constant(tree)::ResultOk{Vector{T}}
-        elseif tree.degree == 1
-            op_idx = tree.op
-            return Base.Cartesian.@nif(
+    deg1_branch = if nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
+        quote
+            deg1_eval_constant(tree, operators.unaops[op_idx], operators)::ResultOk{Vector{T}}
+        end
+    else
+        quote
+            Base.Cartesian.@nif(
                 $nuna,
                 i -> i == op_idx,
                 i -> deg1_eval_constant(
                     tree, operators.unaops[i], operators
                 )::ResultOk{Vector{T}}
             )
-        else
-            op_idx = tree.op
-            return Base.Cartesian.@nif(
+        end
+    end
+    deg2_branch = if nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
+        quote
+            deg2_eval_constant(tree, operators.binops[op_idx], operators)::ResultOk{Vector{T}}
+        end
+    else
+        quote
+            Base.Cartesian.@nif(
                 $nbin,
                 i -> i == op_idx,
                 i -> deg2_eval_constant(
                     tree, operators.binops[i], operators
                 )::ResultOk{Vector{T}}
             )
+        end
+    end
+    return quote
+        if tree.degree == 0
+            return deg0_eval_constant(tree)::ResultOk{Vector{T}}
+        elseif tree.degree == 1
+            op_idx = tree.op
+            return $deg1_branch
+        else
+            op_idx = tree.op
+            return $deg2_branch
         end
     end
 end
