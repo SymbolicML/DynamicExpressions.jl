@@ -4,9 +4,7 @@ using Bumper: @no_escape, @alloc
 using DynamicExpressions: OperatorEnum, AbstractExpressionNode, tree_mapreduce
 using DynamicExpressions.UtilsModule: ResultOk, counttuple
 
-import DynamicExpressions.ExtensionInterfaceModule: bumper_eval_tree_array, _is_bumper_loaded
-
-_is_bumper_loaded(::Int) = true
+import DynamicExpressions.ExtensionInterfaceModule: bumper_eval_tree_array
 
 function bumper_eval_tree_array(
     tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum

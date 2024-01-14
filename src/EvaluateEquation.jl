@@ -4,7 +4,7 @@ import ..EquationModule: AbstractExpressionNode, constructorof, string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: is_bad_array, fill_similar, counttuple, ResultOk
 import ..EquationUtilsModule: is_constant
-import ..ExtensionInterfaceModule: bumper_eval_tree_array, _is_bumper_loaded, _is_loopvectorization_loaded
+import ..ExtensionInterfaceModule: bumper_eval_tree_array, _is_loopvectorization_loaded
 
 const OPERATOR_LIMIT_BEFORE_SLOWDOWN = 15
 
@@ -75,8 +75,6 @@ function eval_tree_array(
         @assert T in (Float32, Float64)
     end
     if bumper isa Val{true}
-        _is_bumper_loaded(0) ||
-            error("Please load the Bumper.jl package to use this feature.")
         return bumper_eval_tree_array(tree, cX, operators)
     end
     if v_turbo isa Val{true}
