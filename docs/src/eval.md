@@ -134,8 +134,9 @@ differentiable_eval_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::
 
 `DynamicExpressions.jl` also supports automatic differentiation with
 [`Enzyme.jl`](https://github.com/EnzymeAD/Enzyme.jl). Note that this is
-quite experimental, and may not work for all expressions. Be sure to explicitly verify
-gradients are correct (e.g., with finite differences).
+**extremely experimental**.
+You should expect to see occasional incorrect gradients.
+Be sure to explicitly verify gradients are correct (e.g., with finite differences).
 
 Let's look at an example. First, let's create a tree:
 
