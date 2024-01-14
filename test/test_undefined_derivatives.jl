@@ -2,9 +2,7 @@ using Test, DynamicExpressions, Zygote
 
 safe_log(x) = x > 0 ? log(x) : convert(eltype(x), NaN)
 
-operators = OperatorEnum(;
-    binary_operators=[+, *, -, /], unary_operators=[safe_log, cos], enable_autodiff=true
-)
+operators = OperatorEnum(; binary_operators=[+, *, -, /], unary_operators=[safe_log, cos])
 
 @extend_operators operators
 
