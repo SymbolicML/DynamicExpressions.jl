@@ -1,4 +1,6 @@
-# Evaluation
+# Evaluation & Derivatives
+
+## Evaluation
 
 Given an expression tree specified with a `Node` type, you may evaluate the expression
 over an array of data with the following command:
@@ -136,7 +138,8 @@ differentiable_eval_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::
 [`Enzyme.jl`](https://github.com/EnzymeAD/Enzyme.jl). Note that this is
 **extremely experimental**.
 You should expect to see occasional incorrect gradients.
-Be sure to explicitly verify gradients are correct (e.g., with finite differences).
+Be sure to explicitly verify gradients are correct for a particular
+space of operators (e.g., with finite differences).
 
 Let's look at an example. First, let's create a tree:
 
@@ -218,55 +221,3 @@ Some general notes about this:
 Note that you should never use anything other than `turbo=Val(false)` with Enzyme,
 as Enzyme and LoopVectorization are not compatible, and will cause a segfault.
 _Even using `turbo=false` will not work, because it would cause Enzyme to trace the (unused) LoopVectorization code!_
-
-<!--
-Now, let's try to take a gradient with respect to constants in a tree.
-We don't actually need to modify our loss function; we can simply
-take gradients with respect to the tree! Let's try it:
-
-```julia
-tree = 0.5 * x1 + cos(x2 - 0.2)
-
-# Just to keep things simple:
-X = [1.0 1.0;]
-
-d_tree = begin
-    storage_tree = copy(tree)
-    # Set all constants to zero:
-    foreach(storage_tree) do node
-        if node.degree == 0 && node.constant
-            node.val = 0.0
-        end
-    end
-    autodiff(
-        Reverse,
-        my_loss_function,
-        Active,
-        Duplicated(tree, storage_tree),
-        Const(X),
-        Const(operators),
-    )
-    storage_tree
-end
-```
-
-This will return a tree structure, with the derivative
-values stored in the `val` field of each node!
-Printing this should return:
-
-```julia
-(2.0 * x1) + cos(x2 - 0.5186867601044616)
-```
--->
-
-## Printing
-
-Trees are printed using the `string_tree` function, which is very
-configurable:
-
-```@docs
-string_tree(tree::Node, operators::AbstractOperatorEnum)
-```
-
-When you define an `OperatorEnum`, the standard `show` and `print` methods
-will be overwritten to use `string_tree`.
