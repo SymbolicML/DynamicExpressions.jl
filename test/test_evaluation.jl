@@ -170,7 +170,7 @@ end
         return x^2
     end for i in 1:num_ops]
     operators = if VERSION >= v"1.9"
-        @test_warn "You have passed over 15 binary" OperatorEnum(;
+        @test_logs (:warn, r"You have passed over 15 binary.*") OperatorEnum(;
             binary_operators, unary_operators
         )
     else
@@ -183,7 +183,9 @@ end
     @test truth ≈ tree(X, operators)
 
     VERSION >= v"1.9" &&
-        @test_warn "You have passed over 15 unary" OperatorEnum(; unary_operators)
+        @test_logs (:warn, r"You have passed over 15 unary.*") OperatorEnum(;
+            unary_operators
+        )
 
     # This OperatorEnum will trigger the fallback code for fast compilation.
     many_ops_operators = OperatorEnum(;
