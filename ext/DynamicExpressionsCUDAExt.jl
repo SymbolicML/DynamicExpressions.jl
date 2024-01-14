@@ -38,7 +38,7 @@ function eval_tree_array(
         tree;
         break_sharing=Val(true),
     )
-    return (result.x, isfinite(sum(x .* zero(T))))
+    return (result, isfinite(sum(result .* zero(T))))
 end
 @generated function dispatch_kern1!(unaops, op_idx, cumulator)
     nuna = counttuple(unaops)
