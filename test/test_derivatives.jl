@@ -5,6 +5,7 @@ using Random
 using Zygote
 using LinearAlgebra
 include("test_params.jl")
+include("tree_gen_utils.jl")
 
 seed = 0
 # SIMD doesn't like abs(x) ^ y for some reason.
