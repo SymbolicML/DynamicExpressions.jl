@@ -1,13 +1,16 @@
-module DynamicExpressionsCUDAExt
+module DynamicExpressionsGPUArraysExt
 
-using CUDA: CuArray
+using GPUArrays: AbstractDeviceArray
 using DynamicExpressions: OperatorEnum, AbstractExpressionNode, tree_mapreduce
 using DynamicExpressions.UtilsModule: counttuple
 
 import DynamicExpressions.EvaluateEquationModule: eval_tree_array
 
 function eval_tree_array(
-    tree::AbstractExpressionNode{T}, cX::CuArray{T,2}, operators::OperatorEnum; _...
+    tree::AbstractExpressionNode{T},
+    cX::AbstractDeviceArray{T,2},
+    operators::OperatorEnum;
+    _...,
 ) where {T<:Number}
     result = tree_mapreduce(
         # Leaf nodes, we create an allocation and fill
