@@ -28,16 +28,30 @@ macro return_on_nonfinite_array(array)
 end
 
 """
-    eval_tree_array(tree::AbstractExpressionNode, cX::AbstractMatrix{T}, operators::OperatorEnum; turbo::Bool=false)
+    eval_tree_array(tree::AbstractExpressionNode, cX::AbstractMatrix{T}, operators::OperatorEnum; turbo::Union{Bool,Val}=Val(false))
 
 Evaluate a binary tree (equation) over a given input data matrix. The
 operators contain all of the operators used. This function fuses doublets
 and triplets of operations for lower memory usage.
 
+# Arguments
+- `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
+- `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
+- `operators::OperatorEnum`: The operators used in the tree.
+- `turbo::Union{Bool,Val}`: Use `LoopVectorization.@turbo` for faster evaluation.
+
+# Returns
+- `(output, complete)::Tuple{AbstractVector{T}, Bool}`: the result,
+    which is a 1D array, as well as if the evaluation completed
+    successfully (true/false). A `false` complete means an infinity
+    or nan was encountered, and a large loss should be assigned
+    to the equation.
+
+# Notes
 This function can be represented by the following pseudocode:
 
 ```
-function eval(current_node)
+def eval(current_node)
     if current_node is leaf
         return current_node.value
     elif current_node is degree 1
@@ -47,20 +61,6 @@ function eval(current_node)
 ```
 The bulk of the code is for optimizations and pre-emptive NaN/Inf checks,
 which speed up evaluation significantly.
-
-# Arguments
-- `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
-- `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
-- `operators::OperatorEnum`: The operators used in the tree.
-- `turbo::Union{Bool,Val}`: Use `LoopVectorization.@turbo` for faster evaluation. To use Enzyme.jl,
-   you will need to fix this to `Val(false)`.
-
-# Returns
-- `(output, complete)::Tuple{AbstractVector{T}, Bool}`: the result,
-    which is a 1D array, as well as if the evaluation completed
-    successfully (true/false). A `false` complete means an infinity
-    or nan was encountered, and a large loss should be assigned
-    to the equation.
 """
 function eval_tree_array(
     tree::AbstractExpressionNode{T},

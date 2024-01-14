@@ -8,15 +8,17 @@ import ..EvaluateEquationDerivativeModule: eval_grad_tree_array
 
 # Evaluation:
 """
-    (tree::AbstractExpressionNode)(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Bool=false)
+    (tree::AbstractExpressionNode)(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Union{Bool,Val}=false)
 
-Evaluate a binary tree (equation) over a given data matrix. The
-operators contain all of the operators used in the tree.
+Evaluate a binary tree (equation) over a given input data matrix. The
+operators contain all of the operators used. This function fuses doublets
+and triplets of operations for lower memory usage.
 
 # Arguments
-- `X::AbstractMatrix{T}`: The input data to evaluate the tree on.
+- `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
+- `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
 - `operators::OperatorEnum`: The operators used in the tree.
-- `turbo::Bool`: Use `LoopVectorization.@turbo` for faster evaluation.
+- `turbo::Union{Bool,Val}`: Use `LoopVectorization.@turbo` for faster evaluation.
 
 # Returns
 - `output::AbstractVector{T}`: the result, which is a 1D array.
@@ -36,7 +38,7 @@ end
 - `operators::GenericOperatorEnum`: The operators used in the tree.
 - `throw_errors::Bool=true`: Whether to throw errors
     if they occur during evaluation. Otherwise,
-    MethodErrors will be caught before they happen and 
+    MethodErrors will be caught before they happen and
     evaluation will return `nothing`,
     rather than throwing an error. This is useful in cases
     where you are unsure if a particular tree is valid or not,
