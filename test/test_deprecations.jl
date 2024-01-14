@@ -15,7 +15,6 @@ for constructor in (OperatorEnum, GenericOperatorEnum)
 
     constructor == GenericOperatorEnum && continue
 
-    tree'([1.0; 2.0;;])
     VERSION >= v"1.9" &&
         @test_logs (:warn, r"The `tree'\(X; kws...\)` syntax is deprecated.*") tree'(
             [1.0; 2.0;;]
