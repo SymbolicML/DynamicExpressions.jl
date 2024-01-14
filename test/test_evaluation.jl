@@ -36,9 +36,10 @@ functions = [
     (x1, x2, x3) -> (sin(cos(sin(cos(x1) * x3) * 3.0) * -0.5) + 2.0) * 5.0,
 ]
 
-for turbo in [false, true], T in [Float16, Float32, Float64, ComplexF32, ComplexF64]
+for turbo in [Val(false), Val(true)],
+    T in [Float16, Float32, Float64, ComplexF32, ComplexF64]
     # Float16 not implemented:
-    turbo && !(T in (Float32, Float64)) && continue
+    turbo isa Val{true} && !(T in (Float32, Float64)) && continue
     @testset "Test evaluation of trees with turbo=$turbo, T=$T" begin
         for (i_func, fnc) in enumerate(functions)
 

@@ -37,8 +37,8 @@ function array_test(ar1, ar2; rtol=0.1)
     return isapprox(ar1, ar2; rtol=rtol)
 end
 
-for type in [Float16, Float32, Float64], turbo in [true, false]
-    type == Float16 && turbo && continue
+for type in [Float16, Float32, Float64], turbo in [Val(true), Val(false)]
+    type == Float16 && turbo isa Val{true} && continue
 
     println(
         "Testing derivatives with respect to variables, with type=$(type) and turbo=$(turbo).",
@@ -144,7 +144,7 @@ for type in [Float16, Float32, Float64], turbo in [true, false]
 end
 
 @testset "NodeIndex" begin
-    import DynamicExpressions: get_constants, NodeIndex, index_constants
+    @eval import DynamicExpressions: get_constants, NodeIndex, index_constants
 
     operators = OperatorEnum(;
         binary_operators=(+, *, -, /, pow_abs2), unary_operators=(custom_cos, exp, sin)
@@ -152,7 +152,7 @@ end
     @extend_operators operators
     tree = equation3(nx1, nx2, nx3)
 
-    """Check whether the ordering of constant_list is the same as the ordering of node_index."""
+    # Check whether the ordering of constant_list is the same as the ordering of node_index.
     @eval function check_tree(
         tree::Node, node_index::NodeIndex, constant_list::AbstractVector
     )

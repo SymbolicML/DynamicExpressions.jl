@@ -28,7 +28,7 @@ respect to `x1`.
 - `cX::AbstractMatrix{T}`: The data matrix, with each column being a data point.
 - `operators::OperatorEnum`: The operators used to create the `tree`.
 - `direction::Integer`: The index of the variable to take the derivative with respect to.
-- `turbo::Bool`: Use `LoopVectorization.@turbo` for faster evaluation.
+- `turbo::Union{Val,Bool}`: Use `LoopVectorization.@turbo` for faster evaluation.
 
 # Returns
 
@@ -40,7 +40,7 @@ function eval_diff_tree_array(
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     direction::Integer;
-    turbo::Bool=false,
+    turbo::Union{Val,Bool}=Val(false),
 ) where {T<:Number}
     # TODO: Implement quick check for whether the variable is actually used
     # in this tree. Otherwise, return zero.
