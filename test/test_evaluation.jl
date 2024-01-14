@@ -162,7 +162,7 @@ end
 @testset "Test many operators" begin
     # Since we use `@nif` in evaluating expressions,
     # we can see if there are any issues with LARGE numbers of operators.
-    num_ops = 20
+    num_ops = 100
     binary_operators = [@eval function (x, y)
         return x + y
     end for i in 1:num_ops]
@@ -180,8 +180,31 @@ end
     # = (3.0 + x2)^2
     X = randn(Float64, 2, 10)
     truth = @. (3.0 + X[2, :])^2
-    @test all(truth .≈ tree(X, operators))
+    @test truth ≈ tree(X, operators)
 
     VERSION >= v"1.9" &&
         @test_warn "You have passed over 15 unary" OperatorEnum(; unary_operators)
+
+    # This OperatorEnum will trigger the fallback code for fast compilation.
+    many_ops_operators = OperatorEnum(;
+        binary_operators=cat([+, -, *, /], binary_operators; dims=1),
+        unary_operators=cat([sin, cos], unary_operators; dims=1),
+    )
+
+    # This OperatorEnum will go through the regular evaluation code.
+    only_basic_ops_operator = OperatorEnum(;
+        binary_operators=[+, -, *, /], unary_operators=[sin, cos]
+    )
+
+    # We want to compare them:
+    num_tests = 100
+    n_features = 3
+    for _ in 1:num_tests
+        tree = gen_random_tree_fixed_size(20, only_basic_ops_operator, n_features, Float64)
+        X = randn(Float64, n_features, 10)
+        basic_eval = tree(X, only_basic_ops_operator)
+        many_ops_eval = tree(X, many_ops_operators)
+        @test (all(isnan, basic_eval) && all(isnan, many_ops_eval)) ||
+            basic_eval ≈ many_ops_eval
+    end
 end
