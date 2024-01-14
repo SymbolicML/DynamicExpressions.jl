@@ -128,7 +128,7 @@ end
 function deg2_eval(
     cumulator_l::AbstractVector{T}, cumulator_r::AbstractVector{T}, op::F, ::Val{false}
 )::ResultOk where {T<:Number,F}
-    @inline @simd for j in eachindex(cumulator_l)
+    @inbounds @simd for j in eachindex(cumulator_l)
         x = op(cumulator_l[j], cumulator_r[j])::T
         cumulator_l[j] = x
     end
@@ -138,7 +138,7 @@ end
 function deg1_eval(
     cumulator::AbstractVector{T}, op::F, ::Val{false}
 )::ResultOk where {T<:Number,F}
-    @inline @simd for j in eachindex(cumulator)
+    @inbounds @simd for j in eachindex(cumulator)
         x = op(cumulator[j])::T
         cumulator[j] = x
     end
