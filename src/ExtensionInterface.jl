@@ -14,7 +14,6 @@ end
 function bumper_eval_tree_array(args...)
     return error("Please load the Bumper.jl package to use this feature.")
 end
-_is_bumper_loaded(_) = false
 
 _is_loopvectorization_loaded(_) = false
 
