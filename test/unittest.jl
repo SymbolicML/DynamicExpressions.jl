@@ -1,7 +1,4 @@
 using SafeTestsets
-# Trigger extensions:
-using LoopVectorization
-using Bumper
 
 VERSION >= v"1.9" && @safetestset "Test Aqua.jl" begin
     include("test_aqua.jl")
@@ -10,6 +7,9 @@ end
 @safetestset "Initial error handling test" begin
     include("test_initial_errors.jl")
 end
+
+# Trigger extensions:
+using Zygote, SymbolicUtils, LoopVectorization, Bumper
 
 @safetestset "Test deprecations" begin
     include("test_deprecations.jl")
