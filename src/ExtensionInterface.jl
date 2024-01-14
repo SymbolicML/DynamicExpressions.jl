@@ -11,4 +11,10 @@ function _zygote_gradient(args...)
     return error("Please load the Zygote.jl package.")
 end
 
+function bumper_eval_tree_array end
+_is_bumper_loaded(_) = false
+
+_is_loopvectorization_loaded(_) = false
+
+
 end

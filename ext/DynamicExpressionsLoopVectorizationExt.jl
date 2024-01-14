@@ -11,8 +11,8 @@ import DynamicExpressions.EvaluateEquationModule:
     deg1_l1_ll0_eval,
     deg2_l0_r0_eval,
     deg2_l0_eval,
-    deg2_r0_eval,
-    _is_loopvectorization_loaded
+    deg2_r0_eval
+import DynamicExpressions.ExtensionInterfaceModule: _is_loopvectorization_loaded
 
 _is_loopvectorization_loaded(::Int) = true
 

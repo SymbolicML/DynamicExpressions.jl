@@ -4,6 +4,7 @@ import ..EquationModule: AbstractExpressionNode, constructorof, string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: is_bad_array, fill_similar, counttuple, ResultOk
 import ..EquationUtilsModule: is_constant
+import ..ExtensionInterfaceModule: bumper_eval_tree_array, _is_bumper_loaded, _is_loopvectorization_loaded
 
 const OPERATOR_LIMIT_BEFORE_SLOWDOWN = 15
 
@@ -98,11 +99,6 @@ function eval_tree_array(
     cX = Base.Fix1(convert, T).(cX)
     return eval_tree_array(tree, cX, operators; kws...)
 end
-
-# These functions are overloaded by their respective extensions
-function bumper_eval_tree_array end
-_is_bumper_loaded(_) = false
-_is_loopvectorization_loaded(_) = false
 
 get_nuna(::Type{<:OperatorEnum{B,U}}) where {B,U} = counttuple(U)
 get_nbin(::Type{<:OperatorEnum{B}}) where {B} = counttuple(B)
