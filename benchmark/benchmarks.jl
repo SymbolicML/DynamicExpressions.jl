@@ -7,7 +7,7 @@ else
     @eval using DynamicExpressions: GraphNode
 end
 
-include("benchmark_utils.jl")
+include("../test/tree_gen_utils.jl")
 
 const SUITE = BenchmarkGroup()
 

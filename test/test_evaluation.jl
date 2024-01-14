@@ -2,6 +2,7 @@ using DynamicExpressions
 using Random
 using Test
 include("test_params.jl")
+include("tree_gen_utils.jl")
 
 # Test simple evaluations:
 functions = [
