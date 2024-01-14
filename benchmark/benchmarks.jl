@@ -37,7 +37,15 @@ function benchmark_evaluation()
 
             (turbo || bumper) && !(T in (Float32, Float64)) && continue
             turbo && bumper && continue
-            bumper && PACKAGE_VERSION < v"0.15.0" && continue
+            if bumper
+                try
+                    eval_tree_array(Node{T}(val=1.0), ones(T, 5, n), operators; turbo, bumper)
+                catch e
+                    isa(e, MethodError) || rethrow(e)
+                    @warn "Skipping bumper tests"
+                    continue  # Assume its not available
+                end
+            end
 
             extra_key = turbo ? "_turbo" : (bumper ? "_bumper" : "")
             extra_kws = bumper ? (; bumper=Val(true)) : ()
@@ -45,7 +53,7 @@ function benchmark_evaluation()
                 gen_random_tree_fixed_size(20, operators, 5, T),
                 randn(MersenneTwister(0), T, 5, n),
                 operators;
-                turbo=turbo,
+                turbo,
                 extra_kws...
             )
             suite[T]["evaluation$(extra_key)"] = @benchmarkable(

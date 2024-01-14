@@ -64,17 +64,14 @@ function eval_tree_array(
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
     turbo::Union{Bool,Val}=Val(false),
-    bumper::Val=Val(false),
+    bumper::Union{Bool,Val}=Val(false),
 ) where {T<:Number}
-    v_turbo = if isa(turbo, Val)
-        turbo
-    else
-        turbo ? Val(true) : Val(false)
-    end
-    if v_turbo isa Val{true} || bumper isa Val{true}
+    v_turbo = isa(turbo, Val) ? turbo : (turbo ? Val(true) : Val(false))
+    v_bumper = isa(bumper, Val) ? bumper : (bumper ? Val(true) : Val(false))
+    if v_turbo isa Val{true} || v_bumper isa Val{true}
         @assert T in (Float32, Float64)
     end
-    if bumper isa Val{true}
+    if v_bumper isa Val{true}
         return bumper_eval_tree_array(tree, cX, operators)
     end
     if v_turbo isa Val{true}
@@ -89,13 +86,14 @@ function eval_tree_array(
     tree::AbstractExpressionNode{T1},
     cX::AbstractMatrix{T2},
     operators::OperatorEnum;
-    kws...,
+    turbo::Union{Bool,Val}=Val(false),
+    bumper::Union{Bool,Val}=Val(false),
 ) where {T1<:Number,T2<:Number}
     T = promote_type(T1, T2)
     @warn "Warning: eval_tree_array received mixed types: tree=$(T1) and data=$(T2)."
     tree = convert(constructorof(typeof(tree)){T}, tree)
     cX = Base.Fix1(convert, T).(cX)
-    return eval_tree_array(tree, cX, operators; kws...)
+    return eval_tree_array(tree, cX, operators; turbo, bumper)
 end
 
 get_nuna(::Type{<:OperatorEnum{B,U}}) where {B,U} = counttuple(U)
