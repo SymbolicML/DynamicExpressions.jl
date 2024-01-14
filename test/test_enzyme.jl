@@ -46,7 +46,7 @@ end
 tree = 0.5 * x1 + cos(x2 - 0.2)
 
 # Just to keep things simple:
-X = [1.0 1.0;]
+X = [1.0; 1.0;;]
 
 d_tree = begin
     storage_tree = copy(tree)
