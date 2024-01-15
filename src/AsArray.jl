@@ -8,19 +8,10 @@ function as_array(::Type{I}, trees::Vararg{N,M}) where {T,N<:AbstractExpressionN
 
     roots = Array{I}(undef, M)
 
-    constant = Array{Bool}(undef, num_nodes)
-
     val = Array{T}(undef, num_nodes)
 
-    # degree = Array{I}(undef, num_nodes)
-    # feature = Array{I}(undef, num_nodes)
-    # op = Array{I}(undef, num_nodes)
-    # execution_order = Array{I}(undef, num_nodes)
-    # idx_self = Array{I}(undef, num_nodes)
-    # idx_l = Array{I}(undef, num_nodes)
-    # idx_r = Array{I}(undef, num_nodes)
     ## Views of the same matrix:
-    buffer = Array{I}(undef, 7, num_nodes)
+    buffer = Array{I}(undef, 8, num_nodes)
     degree = @view buffer[1, :]
     feature = @view buffer[2, :]
     op = @view buffer[3, :]
@@ -28,6 +19,7 @@ function as_array(::Type{I}, trees::Vararg{N,M}) where {T,N<:AbstractExpressionN
     idx_self = @view buffer[5, :]
     idx_l = @view buffer[6, :]
     idx_r = @view buffer[7, :]
+    constant = @view buffer[8, :]
 
     cursor = Ref(zero(I))
     for (i_tree, tree) in enumerate(trees)

@@ -18,33 +18,31 @@ end
 function eval_tree_array(
     trees::NTuple{M,N}, gcX::CuArray{T,2}, operators::OperatorEnum; _...
 ) where {T<:Number,N<:AbstractExpressionNode{T},M}
-    (; constant, val, execution_order, roots, buffer) = as_array(UInt16, trees...)
+    (; val, execution_order, roots, buffer) = as_array(Int32, trees...)
     num_launches = maximum(execution_order)
     num_elem = size(gcX, 2)
     num_nodes = size(buffer, 2)
 
     ## Floating point arrays:
-    workspace = CuArray{T}(undef, num_elem, num_nodes)
+    gworkspace = CuArray{T}(undef, num_elem, num_nodes)
     gval = CuArray(val)
 
-    ## Bool arrays
-    gconstant = CuArray(constant)
-
     ## Index arrays (much faster to have `@view` here)
-    _gbuffer = CuArray(buffer)
-    gdegree = @view _gbuffer[1, :]
-    gfeature = @view _gbuffer[2, :]
-    gop = @view _gbuffer[3, :]
-    gexecution_order = @view _gbuffer[4, :]
-    gidx_self = @view _gbuffer[5, :]
-    gidx_l = @view _gbuffer[6, :]
-    gidx_r = @view _gbuffer[7, :]
+    gbuffer = CuArray(buffer)
+    gdegree = @view gbuffer[1, :]
+    gfeature = @view gbuffer[2, :]
+    gop = @view gbuffer[3, :]
+    gexecution_order = @view gbuffer[4, :]
+    gidx_self = @view gbuffer[5, :]
+    gidx_l = @view gbuffer[6, :]
+    gidx_r = @view gbuffer[7, :]
+    gconstant = @view gbuffer[8, :]
 
     num_threads = 256
     num_blocks = nextpow(2, ceil(Int, num_elem * num_nodes / num_threads))
 
     _launch_gpu_kernel!(
-        num_threads, num_blocks, num_launches, workspace,
+        num_threads, num_blocks, num_launches, gworkspace,
         # Thread info:
         num_elem, num_nodes, gexecution_order,
         # Input data and tree
@@ -53,13 +51,14 @@ function eval_tree_array(
     )
 
     out = ntuple(
-        i -> (@view workspace[:, roots[i]]),
+        i -> @view(gworkspace[:, roots[i]]),
         Val(M)
     )
     is_good = ntuple(
         i -> true,  # Up to user to find NaNs
         Val(M)
     )
+
     return (out, is_good)
 end
 
@@ -118,7 +117,7 @@ for nuna in 0:10, nbin in 0:10
             cur_degree = degree[node]
             cur_idx = idx_self[node]
             if cur_degree == 0
-                if constant[node]
+                if constant[node] == 1
                     cur_val = val[node]
                     buffer[elem, cur_idx] = cur_val
                 else
