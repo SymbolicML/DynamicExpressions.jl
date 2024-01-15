@@ -35,7 +35,6 @@ function eval_tree_array(
     gidx_l = cu(idx_l)
     gidx_r = cu(idx_r)
 
-    groots = cu(roots)  # Just for indexing output
 
     num_threads = 256
     num_blocks = nextpow(2, ceil(Int, num_elem * num_nodes / num_threads))
@@ -49,7 +48,7 @@ function eval_tree_array(
         gdegree, gconstant, gval, gfeature, gop,
     )
 
-    out = ntuple(i -> gbuffer[:, groots[i]], Val(M))
+    out = ntuple(i -> gbuffer[:, roots[i]], Val(M))
     is_good = ntuple(i -> isfinite(sum(out[i] .* zero(T))), Val(M))
     return out, is_good
 end
@@ -67,15 +66,13 @@ function _launch_gpu_kernel!(
     (nuna > 10 || nbin > 10) && error("Too many operators. Kernels are only compiled up to 10.")
     gpu_kernel! = create_gpu_kernel(operators, Val(nuna), Val(nbin))
     for launch in I.(1:num_launches)
-        CUDA.@sync begin
-            execute = execution_order .== launch
-            @cuda threads=256 blocks=num_blocks gpu_kernel!(
-                buffer,
-                num_elem, num_nodes, execute,
-                cX, idx_self, idx_l, idx_r,
-                degree, constant, val, feature, op
-            )
-        end
+        execute = execution_order .== launch
+        @cuda threads=256 blocks=num_blocks gpu_kernel!(
+            buffer,
+            num_elem, num_nodes, execute,
+            cX, idx_self, idx_l, idx_r,
+            degree, constant, val, feature, op
+        )
     end
     return nothing
 end
