@@ -16,6 +16,7 @@ TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [weakdeps]
 Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 GPUArrays = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
@@ -23,6 +24,7 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [extensions]
 DynamicExpressionsBumperExt = "Bumper"
+DynamicExpressionsCUDAExt = "CUDA"
 DynamicExpressionsGPUArraysExt = "GPUArrays"
 DynamicExpressionsLoopVectorizationExt = "LoopVectorization"
 DynamicExpressionsSymbolicUtilsExt = "SymbolicUtils"
@@ -32,6 +34,7 @@ DynamicExpressionsZygoteExt = "Zygote"
 Aqua = "0.7"
 Bumper = "0.6"
 Compat = "3.37, 4"
+CUDA = "5"
 Enzyme = "^0.11.12"
 GPUArrays = "8, 9, 10"
 LoopVectorization = "0.12"

@@ -1,6 +1,6 @@
 module AsArrayModule
 
-using .DynamicExpressions.EquationModule: AbstractExpressionNode, tree_mapreduce
+using ..EquationModule: AbstractExpressionNode, tree_mapreduce
 
 function as_array(
     tree::N, index_type::Type{I}=Int64
