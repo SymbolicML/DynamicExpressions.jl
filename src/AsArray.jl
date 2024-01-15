@@ -2,7 +2,9 @@ module AsArrayModule
 
 using ..EquationModule: AbstractExpressionNode, tree_mapreduce
 
-function as_array(::Type{I}, trees::Vararg{N,M}) where {T,N<:AbstractExpressionNode{T},I,M}
+function as_array(
+    ::Type{I}, trees::Vararg{N,M}; buffer::Union{AbstractArray{I},Nothing}=nothing
+) where {T,N<:AbstractExpressionNode{T},I,M}
     each_num_nodes = length.(trees)
     num_nodes = sum(each_num_nodes)
 
@@ -11,7 +13,7 @@ function as_array(::Type{I}, trees::Vararg{N,M}) where {T,N<:AbstractExpressionN
     val = Array{T}(undef, num_nodes)
 
     ## Views of the same matrix:
-    buffer = Array{I}(undef, 8, num_nodes)
+    buffer = buffer === nothing ? Array{I}(undef, 8, num_nodes) : buffer
     degree = @view buffer[1, :]
     feature = @view buffer[2, :]
     op = @view buffer[3, :]
@@ -78,6 +80,7 @@ function as_array(::Type{I}, trees::Vararg{N,M}) where {T,N<:AbstractExpressionN
         idx_r,
         roots,
         buffer,
+        num_nodes,
     )
 end
 
