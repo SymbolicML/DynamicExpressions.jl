@@ -9,26 +9,35 @@ using DynamicExpressions.AsArrayModule: as_array
 import DynamicExpressions.EvaluateEquationModule: eval_tree_array
 
 function eval_tree_array(
-    tree::AbstractExpressionNode{T}, gcX::CuArray{T,2}, operators::OperatorEnum; _...
+    tree::AbstractExpressionNode{T},
+    gcX::CuArray{T,2},
+    operators::OperatorEnum;
+    kws...
 ) where {T<:Number}
-    (outs, is_good) = eval_tree_array((tree,), gcX, operators)
+    (outs, is_good) = eval_tree_array((tree,), gcX, operators; kws...)
     return (only(outs), only(is_good))
 end
 
 function eval_tree_array(
-    trees::NTuple{M,N}, gcX::CuArray{T,2}, operators::OperatorEnum; _...
+    trees::NTuple{M,N},
+    gcX::CuArray{T,2},
+    operators::OperatorEnum;
+    buffer=nothing,
+    gpu_workspace=nothing,
+    gpu_buffer=nothing,
 ) where {T<:Number,N<:AbstractExpressionNode{T},M}
-    (; val, execution_order, roots, buffer) = as_array(Int32, trees...)
+    (; val, execution_order, roots, buffer, num_nodes) = as_array(Int32, trees...; buffer)
     num_launches = maximum(execution_order)
     num_elem = size(gcX, 2)
-    num_nodes = size(buffer, 2)
 
     ## Floating point arrays:
-    gworkspace = CuArray{T}(undef, num_elem, num_nodes)
-    gval = CuArray(val)
+    gworkspace = gpu_workspace === nothing ? CuArray{T}(undef, num_elem, num_nodes + 1) : gpu_workspace
+    # gval = CuArray(val)
+    gval = @view gworkspace[:, end]
+    copyto!(gval, val)
 
     ## Index arrays (much faster to have `@view` here)
-    gbuffer = CuArray(buffer)
+    gbuffer = gpu_buffer === nothing ? CuArray(buffer) : copyto!(gpu_buffer, buffer)
     gdegree = @view gbuffer[1, :]
     gfeature = @view gbuffer[2, :]
     gop = @view gbuffer[3, :]
