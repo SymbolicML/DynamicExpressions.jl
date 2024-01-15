@@ -6,17 +6,28 @@ function as_array(::Type{I}, trees::Vararg{N,M}) where {T,N<:AbstractExpressionN
     each_num_nodes = length.(trees)
     num_nodes = sum(each_num_nodes)
 
-    degree = Array{fieldtype(N, :degree)}(undef, num_nodes)
-    constant = Array{fieldtype(N, :constant)}(undef, num_nodes)
-    val = Array{T}(undef, num_nodes)
-    feature = Array{fieldtype(N, :feature)}(undef, num_nodes)
-    op = Array{fieldtype(N, :op)}(undef, num_nodes)
-    execution_order = Array{I}(undef, num_nodes)
-    idx_self = Array{I}(undef, num_nodes)
-    idx_l = Array{I}(undef, num_nodes)
-    idx_r = Array{I}(undef, num_nodes)
+    roots = Array{I}(undef, M)
 
-    roots = Array{I}(undef, length(trees))
+    constant = Array{Bool}(undef, num_nodes)
+
+    val = Array{T}(undef, num_nodes)
+
+    # degree = Array{I}(undef, num_nodes)
+    # feature = Array{I}(undef, num_nodes)
+    # op = Array{I}(undef, num_nodes)
+    # execution_order = Array{I}(undef, num_nodes)
+    # idx_self = Array{I}(undef, num_nodes)
+    # idx_l = Array{I}(undef, num_nodes)
+    # idx_r = Array{I}(undef, num_nodes)
+    ## Views of the same matrix:
+    buffer = Array{I}(undef, 7, num_nodes)
+    degree = @view buffer[1, :]
+    feature = @view buffer[2, :]
+    op = @view buffer[3, :]
+    execution_order = @view buffer[4, :]
+    idx_self = @view buffer[5, :]
+    idx_l = @view buffer[6, :]
+    idx_r = @view buffer[7, :]
 
     cursor = Ref(zero(I))
     for (i_tree, tree) in enumerate(trees)
@@ -64,7 +75,17 @@ function as_array(::Type{I}, trees::Vararg{N,M}) where {T,N<:AbstractExpressionN
     end
 
     return (;
-        degree, constant, val, feature, op, execution_order, idx_self, idx_l, idx_r, roots
+        degree,
+        constant,
+        val,
+        feature,
+        op,
+        execution_order,
+        idx_self,
+        idx_l,
+        idx_r,
+        roots,
+        buffer,
     )
 end
 
