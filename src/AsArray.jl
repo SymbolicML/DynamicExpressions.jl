@@ -3,7 +3,7 @@ module AsArrayModule
 using ..EquationModule: AbstractExpressionNode, tree_mapreduce
 
 function as_array(
-    ::Type{I}, trees::Vararg{N,M}; buffer::Union{AbstractArray{I},Nothing}=nothing
+    ::Type{I}, trees::Vararg{N,M}; buffer::Union{AbstractArray,Nothing}=nothing
 ) where {T,N<:AbstractExpressionNode{T},I,M}
     each_num_nodes = length.(trees)
     num_nodes = sum(each_num_nodes)
