@@ -18,59 +18,67 @@ end
 function eval_tree_array(
     trees::NTuple{M,N}, gcX::CuArray{T,2}, operators::OperatorEnum; _...
 ) where {T<:Number,N<:AbstractExpressionNode{T},M}
-    (; degree, constant, val, feature, op, execution_order, idx_self, idx_l, idx_r, roots) = as_array(Int32, trees...)
+    (; constant, val, execution_order, roots, buffer) = as_array(UInt16, trees...)
     num_launches = maximum(execution_order)
     num_elem = size(gcX, 2)
-    num_nodes = length(degree)
+    num_nodes = size(buffer, 2)
 
-    # Convert everything to GPU:
-    gbuffer = CuArray{T}(undef, num_elem, num_nodes)
-    gexecution_order = CuArray(execution_order)
-    gdegree = CuArray(degree)
-    gconstant = CuArray(constant)
+    ## Floating point arrays:
+    workspace = CuArray{T}(undef, num_elem, num_nodes)
     gval = CuArray(val)
-    gfeature = CuArray(feature)
-    gop = CuArray(op)
-    gidx_self = CuArray(idx_self)
-    gidx_l = CuArray(idx_l)
-    gidx_r = CuArray(idx_r)
 
-    gexecute = CUDA.zeros(Bool, num_nodes)
+    ## Bool arrays
+    gconstant = CuArray(constant)
+
+    ## Index arrays (much faster to have `@view` here)
+    _gbuffer = CuArray(buffer)
+    gdegree = @view _gbuffer[1, :]
+    gfeature = @view _gbuffer[2, :]
+    gop = @view _gbuffer[3, :]
+    gexecution_order = @view _gbuffer[4, :]
+    gidx_self = @view _gbuffer[5, :]
+    gidx_l = @view _gbuffer[6, :]
+    gidx_r = @view _gbuffer[7, :]
 
     num_threads = 256
     num_blocks = nextpow(2, ceil(Int, num_elem * num_nodes / num_threads))
 
     _launch_gpu_kernel!(
-        num_blocks, num_launches, gbuffer,
+        num_threads, num_blocks, num_launches, workspace,
         # Thread info:
-        num_elem, num_nodes, gexecute, gexecution_order,
+        num_elem, num_nodes, gexecution_order,
         # Input data and tree
         operators, gcX, gidx_self, gidx_l, gidx_r,
         gdegree, gconstant, gval, gfeature, gop,
     )
 
-    out = ntuple(i -> (@view gbuffer[:, roots[i]]), Val(M))
-    is_good = ntuple(i -> true, Val(M))  # Up to user to find NaNs
+    out = ntuple(
+        i -> (@view workspace[:, roots[i]]),
+        Val(M)
+    )
+    is_good = ntuple(
+        i -> true,  # Up to user to find NaNs
+        Val(M)
+    )
     return (out, is_good)
 end
 
 function _launch_gpu_kernel!(
-    num_blocks, num_launches::Integer, buffer::CuArray{T,2},
+    num_threads, num_blocks, num_launches::Integer, buffer::AbstractArray{T,2},
     # Thread info:
-    num_elem::Integer, num_nodes::Integer, execute::CuArray{Bool}, execution_order::CuArray{I},
+    num_elem::Integer, num_nodes::Integer, execution_order::AbstractArray{I},
     # Input data and tree
-    operators::OperatorEnum, cX::CuArray{T,2}, idx_self::CuArray, idx_l::CuArray, idx_r::CuArray,
-    degree::CuArray, constant::CuArray, val::CuArray{T,1}, feature::CuArray, op::CuArray,
+    operators::OperatorEnum, cX::AbstractArray{T,2}, idx_self::AbstractArray, idx_l::AbstractArray, idx_r::AbstractArray,
+    degree::AbstractArray, constant::AbstractArray, val::AbstractArray{T,1}, feature::AbstractArray, op::AbstractArray,
 ) where {I,T}
     nuna = get_nuna(typeof(operators))
     nbin = get_nbin(typeof(operators))
     (nuna > 10 || nbin > 10) && error("Too many operators. Kernels are only compiled up to 10.")
     gpu_kernel! = create_gpu_kernel(operators, Val(nuna), Val(nbin))
     for launch in one(I):I(num_launches)
-        @. execute = execution_order .== launch
-        @cuda threads=256 blocks=num_blocks gpu_kernel!(
+        @cuda threads=num_threads blocks=num_blocks gpu_kernel!(
             buffer,
-            num_elem, num_nodes, execute,
+            launch, num_elem, num_nodes, execution_order,
             cX, idx_self, idx_l, idx_r,
             degree, constant, val, feature, op
         )
@@ -90,7 +98,7 @@ for nuna in 0:10, nbin in 0:10
             # Storage:
             buffer,
             # Thread info:
-            num_elem::Integer, num_nodes::Integer, execute::AbstractArray,
+            launch::Integer, num_elem::Integer, num_nodes::Integer, execution_order::AbstractArray,
             # Input data and tree
             cX::AbstractArray, idx_self::AbstractArray, idx_l::AbstractArray, idx_r::AbstractArray,
             degree::AbstractArray, constant::AbstractArray, val::AbstractArray, feature::AbstractArray, op::AbstractArray,
@@ -103,7 +111,7 @@ for nuna in 0:10, nbin in 0:10
             node = (i - 1) % num_nodes + 1
             elem = (i - node) ÷ num_nodes + 1
 
-            if !execute[node]
+            if execution_order[node] != launch
                 return nothing
             end
 
