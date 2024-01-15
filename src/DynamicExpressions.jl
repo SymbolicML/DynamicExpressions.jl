@@ -23,6 +23,7 @@ using DispatchDoctor: @stable, @unstable
     include("Parse.jl")
     include("ParametricExpression.jl")
     include("StructuredExpression.jl")
+    include("AsArray.jl")
 end
 
 import Reexport: @reexport
@@ -106,6 +107,7 @@ import .ParseModule: parse_leaf
 @reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode
 @reexport import .StructuredExpressionModule: StructuredExpression
 import .StructuredExpressionModule: AbstractStructuredExpression
+@reexport import .AsArrayModule: as_array
 
 @stable default_mode = "disable" begin
     include("Interfaces.jl")
