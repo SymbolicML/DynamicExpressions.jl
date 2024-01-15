@@ -12,29 +12,30 @@ function eval_tree_array(
     tree::AbstractExpressionNode{T}, gcX::CuArray{T,2}, operators::OperatorEnum; _...
 ) where {T<:Number}
     (outs, is_good) = eval_tree_array((tree,), gcX, operators)
-    return only(outs), only(is_good)
+    return (only(outs), only(is_good))
 end
 
 function eval_tree_array(
     trees::NTuple{M,N}, gcX::CuArray{T,2}, operators::OperatorEnum; _...
 ) where {T<:Number,N<:AbstractExpressionNode{T},M}
-    (; degree, constant, val, feature, op, execution_order, idx_self, idx_l, idx_r, roots) = as_array(trees...; index_type=Int32)
+    (; degree, constant, val, feature, op, execution_order, idx_self, idx_l, idx_r, roots) = as_array(Int32, trees...)
     num_launches = maximum(execution_order)
     num_elem = size(gcX, 2)
     num_nodes = length(degree)
 
     # Convert everything to GPU:
     gbuffer = CuArray{T}(undef, num_elem, num_nodes)
-    gexecution_order = cu(execution_order)
-    gdegree = cu(degree)
-    gconstant = cu(constant)
+    gexecution_order = CuArray(execution_order)
+    gdegree = CuArray(degree)
+    gconstant = CuArray(constant)
     gval = CuArray(val)
-    gfeature = cu(feature)
-    gop = cu(op)
-    gidx_self = cu(idx_self)
-    gidx_l = cu(idx_l)
-    gidx_r = cu(idx_r)
+    gfeature = CuArray(feature)
+    gop = CuArray(op)
+    gidx_self = CuArray(idx_self)
+    gidx_l = CuArray(idx_l)
+    gidx_r = CuArray(idx_r)
 
+    gexecute = CUDA.zeros(Bool, num_nodes)
 
     num_threads = 256
     num_blocks = nextpow(2, ceil(Int, num_elem * num_nodes / num_threads))
@@ -42,21 +43,21 @@ function eval_tree_array(
     _launch_gpu_kernel!(
         num_blocks, num_launches, gbuffer,
         # Thread info:
-        num_elem, num_nodes, gexecution_order,
+        num_elem, num_nodes, gexecute, gexecution_order,
         # Input data and tree
         operators, gcX, gidx_self, gidx_l, gidx_r,
         gdegree, gconstant, gval, gfeature, gop,
     )
 
-    out = ntuple(i -> gbuffer[:, roots[i]], Val(M))
-    is_good = ntuple(i -> isfinite(sum(out[i] .* zero(T))), Val(M))
-    return out, is_good
+    out = ntuple(i -> (@view gbuffer[:, roots[i]]), Val(M))
+    is_good = ntuple(i -> true, Val(M))  # Up to user to find NaNs
+    return (out, is_good)
 end
 
 function _launch_gpu_kernel!(
     num_blocks, num_launches::Integer, buffer::CuArray{T,2},
     # Thread info:
-    num_elem::Integer, num_nodes::Integer, execution_order::CuArray{I},
+    num_elem::Integer, num_nodes::Integer, execute::CuArray{Bool}, execution_order::CuArray{I},
     # Input data and tree
     operators::OperatorEnum, cX::CuArray{T,2}, idx_self::CuArray, idx_l::CuArray, idx_r::CuArray,
     degree::CuArray, constant::CuArray, val::CuArray{T,1}, feature::CuArray, op::CuArray,
@@ -65,8 +66,8 @@ function _launch_gpu_kernel!(
     nbin = get_nbin(typeof(operators))
     (nuna > 10 || nbin > 10) && error("Too many operators. Kernels are only compiled up to 10.")
     gpu_kernel! = create_gpu_kernel(operators, Val(nuna), Val(nbin))
-    for launch in I.(1:num_launches)
-        execute = execution_order .== launch
+    for launch in one(I):I(num_launches)
+        @. execute = execution_order .== launch
         @cuda threads=256 blocks=num_blocks gpu_kernel!(
             buffer,
             num_elem, num_nodes, execute,
