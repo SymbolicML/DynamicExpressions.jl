@@ -326,6 +326,15 @@ function eval_tree_array(
     cX = Base.Fix1(convert, T).(cX)
     return eval_tree_array(tree, cX, operators; kws...)
 end
+function eval_tree_array(
+    trees::NTuple{M,N},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum;
+    kws...,
+) where {T<:Number,N<:AbstractExpressionNode{T},M}
+    outs = ntuple(i -> eval_tree_array(trees[i], cX, operators; kws...), Val(M))
+    return ntuple(i -> first(outs[i]), Val(M)), ntuple(i -> last(outs[i]), Val(M))
+end
 
 # These are marked unstable due to issues discussed on
 # https://github.com/JuliaLang/julia/issues/55147
