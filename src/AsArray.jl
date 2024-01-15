@@ -65,7 +65,9 @@ function as_array(
         )
     end
 
-    return (; degree, constant, val, feature, op, execution_order, idx_self, idx_l, idx_r, roots)
+    return (;
+        degree, constant, val, feature, op, execution_order, idx_self, idx_l, idx_r, roots
+    )
 end
 
 end
