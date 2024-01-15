@@ -327,10 +327,7 @@ function eval_tree_array(
     return eval_tree_array(tree, cX, operators; kws...)
 end
 function eval_tree_array(
-    trees::NTuple{M,N},
-    cX::AbstractMatrix{T},
-    operators::OperatorEnum;
-    kws...,
+    trees::NTuple{M,N}, cX::AbstractMatrix{T}, operators::OperatorEnum; kws...
 ) where {T<:Number,N<:AbstractExpressionNode{T},M}
     outs = ntuple(i -> eval_tree_array(trees[i], cX, operators; kws...), Val(M))
     return ntuple(i -> first(outs[i]), Val(M)), ntuple(i -> last(outs[i]), Val(M))
