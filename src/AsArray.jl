@@ -8,7 +8,7 @@ function as_array(
     each_num_nodes = length.(trees)
     num_nodes = sum(each_num_nodes)
 
-    roots = tuple(one(I), cumsum(each_num_nodes[1:end-1])...)
+    roots = cumsum(tuple(one(I), each_num_nodes[1:end-1]...))
 
     val = Array{T}(undef, num_nodes)
 
