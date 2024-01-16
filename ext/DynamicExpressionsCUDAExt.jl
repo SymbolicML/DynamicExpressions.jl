@@ -21,6 +21,7 @@ function eval_tree_array(
     buffer=nothing,
     gpu_workspace=nothing,
     gpu_buffer=nothing,
+    kws...
 ) where {T<:Number,N<:AbstractExpressionNode{T},M}
     (; val, execution_order, roots, buffer, num_nodes) = as_array(Int32, trees...; buffer)
     num_launches = maximum(execution_order)
@@ -139,7 +140,7 @@ for nuna in 0:10, nbin in 0:10
                     buffer[elem, cur_idx] = cX[cur_feature, elem]
                 end
             else
-                if cur_degree == 1
+                if cur_degree == 1 && $nuna > 0
                     cur_op = op[node]
                     l_idx = idx_l[node]
                     Base.Cartesian.@nif(
@@ -149,7 +150,7 @@ for nuna in 0:10, nbin in 0:10
                             buffer[elem, cur_idx] = op(buffer[elem, l_idx])
                         end
                     )
-                else
+                elseif $nbin > 0  # Note this check is to avoid type inference issues when binops is empty
                     cur_op = op[node]
                     l_idx = idx_l[node]
                     r_idx = idx_r[node]
