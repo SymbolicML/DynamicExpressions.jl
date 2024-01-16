@@ -1,5 +1,4 @@
 module DynamicExpressionsCUDAExt
-#! format: off
 
 using CUDA
 using DynamicExpressions: OperatorEnum, AbstractExpressionNode
@@ -9,10 +8,7 @@ using DynamicExpressions.AsArrayModule: as_array
 import DynamicExpressions.EvaluateEquationModule: eval_tree_array
 
 function eval_tree_array(
-    tree::AbstractExpressionNode{T},
-    gcX::CuArray{T,2},
-    operators::OperatorEnum;
-    kws...
+    tree::AbstractExpressionNode{T}, gcX::CuArray{T,2}, operators::OperatorEnum; kws...
 ) where {T<:Number}
     (outs, is_good) = eval_tree_array((tree,), gcX, operators; kws...)
     return (only(outs), only(is_good))
@@ -31,8 +27,11 @@ function eval_tree_array(
     num_elem = size(gcX, 2)
 
     ## Floating point arrays:
-    gworkspace = gpu_workspace === nothing ? CuArray{T}(undef, num_elem, num_nodes + 1) : gpu_workspace
-    # gval = CuArray(val)
+    gworkspace = if gpu_workspace === nothing
+        CuArray{T}(undef, num_elem, num_nodes + 1)
+    else
+        gpu_workspace
+    end
     gval = @view gworkspace[:, end]
     copyto!(gval, val)
 
@@ -50,6 +49,7 @@ function eval_tree_array(
     num_threads = 256
     num_blocks = nextpow(2, ceil(Int, num_elem * num_nodes / num_threads))
 
+    #! format: off
     _launch_gpu_kernel!(
         num_threads, num_blocks, num_launches, gworkspace,
         # Thread info:
@@ -58,19 +58,18 @@ function eval_tree_array(
         operators, gcX, gidx_self, gidx_l, gidx_r,
         gdegree, gconstant, gval, gfeature, gop,
     )
+    #! format: on
 
-    out = ntuple(
-        i -> @view(gworkspace[:, roots[i]]),
-        Val(M)
-    )
+    out = ntuple(i -> @view(gworkspace[:, roots[i]]), Val(M))
     is_good = ntuple(
         i -> true,  # Up to user to find NaNs
-        Val(M)
+        Val(M),
     )
 
     return (out, is_good)
 end
 
+#! format: off
 function _launch_gpu_kernel!(
     num_threads, num_blocks, num_launches::Integer, buffer::AbstractArray{T,2},
     # Thread info:
@@ -79,17 +78,21 @@ function _launch_gpu_kernel!(
     operators::OperatorEnum, cX::AbstractArray{T,2}, idx_self::AbstractArray, idx_l::AbstractArray, idx_r::AbstractArray,
     degree::AbstractArray, constant::AbstractArray, val::AbstractArray{T,1}, feature::AbstractArray, op::AbstractArray,
 ) where {I,T}
+    #! format: on
     nuna = get_nuna(typeof(operators))
     nbin = get_nbin(typeof(operators))
-    (nuna > 10 || nbin > 10) && error("Too many operators. Kernels are only compiled up to 10.")
+    (nuna > 10 || nbin > 10) &&
+        error("Too many operators. Kernels are only compiled up to 10.")
     gpu_kernel! = create_gpu_kernel(operators, Val(nuna), Val(nbin))
     for launch in one(I):I(num_launches)
+        #! format: off
         @cuda threads=num_threads blocks=num_blocks gpu_kernel!(
             buffer,
             launch, num_elem, num_nodes, execution_order,
             cX, idx_self, idx_l, idx_r,
             degree, constant, val, feature, op
         )
+        #! format: on
     end
     return nothing
 end
@@ -102,6 +105,7 @@ end
 #   3. We can't use `@generated` because we can't create closures in those.
 for nuna in 0:10, nbin in 0:10
     @eval function create_gpu_kernel(operators::OperatorEnum, ::Val{$nuna}, ::Val{$nbin})
+        #! format: off
         function (
             # Storage:
             buffer,
@@ -111,6 +115,7 @@ for nuna in 0:10, nbin in 0:10
             cX::AbstractArray, idx_self::AbstractArray, idx_l::AbstractArray, idx_r::AbstractArray,
             degree::AbstractArray, constant::AbstractArray, val::AbstractArray, feature::AbstractArray, op::AbstractArray,
         )
+            #! format: on
             i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
             if i > num_elem * num_nodes
                 return nothing
@@ -162,5 +167,4 @@ for nuna in 0:10, nbin in 0:10
     end
 end
 
-#! format: on
 end
