@@ -8,7 +8,7 @@ function as_array(
     each_num_nodes = length.(trees)
     num_nodes = sum(each_num_nodes)
 
-    roots = Array{I}(undef, M)
+    roots = tuple(one(I), cumsum(each_num_nodes[1:end-1])...)
 
     val = Array{T}(undef, num_nodes)
 
@@ -24,8 +24,7 @@ function as_array(
     constant = @view buffer[8, :]
 
     cursor = Ref(zero(I))
-    for (i_tree, tree) in enumerate(trees)
-        roots[i_tree] = cursor[] + one(I)
+    for tree in trees
         tree_mapreduce(
             leaf -> begin
                 self = (cursor[] += one(I))
