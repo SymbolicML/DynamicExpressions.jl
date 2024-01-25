@@ -1,7 +1,5 @@
 module DynamicExpressions
 
-using Requires: @require
-
 include("Utils.jl")
 include("OperatorEnum.jl")
 include("Equation.jl")

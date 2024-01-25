@@ -1,9 +1,9 @@
-module ConstantOptimizationModule
+module DynamicExpressionsOptimExt
+
+using DynamicExpressions: Node, eval_tree_array
 
 import Compat: @inline
 import Optim: optimize
-import ..EquationModule: Node
-import ..EvaluateEquationModule: eval_tree_array
 
 """Wrap f with insertion of values of the constant nodes."""
 function get_wrapped_f(
