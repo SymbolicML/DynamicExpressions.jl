@@ -1,22 +1,79 @@
 using DynamicExpressions, Optim, Zygote
 using Random: Xoshiro
 
-operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(exp,))
-x1, x2, x3 = (i -> Node(Float64; feature=i)).(1:3);
+@testset "Basic optimization" begin
+    operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(exp,))
+    x1, x2 = (i -> Node(Float64; feature=i)).(1:2)
 
-X = rand(Xoshiro(0), Float64, 3, 100);
-y = @. exp(X[1, :] * 2.1 - 0.9) + X[3, :] * -0.9
+    X = rand(Xoshiro(0), Float64, 2, 100)
+    y = @. exp(X[1, :] * 2.1 - 0.9) + X[2, :] * -0.9
 
-original_tree = exp(x1 * 0.8 - 0.0) + 5.2 * x3
-target_tree = exp(x1 * 2.1 - 0.9) + -0.9 * x3
-tree = copy(original_tree)
+    original_tree = exp(x1 * 0.8 - 0.0) + 5.2 * x2
+    target_tree = exp(x1 * 2.1 - 0.9) + -0.9 * x2
+    tree = copy(original_tree)
 
-res = optimize(t -> sum(abs2, t(X, operators) .- y), tree)
+    f(tree) = sum(abs2, tree(X, operators) .- y)
 
-# Should be unchanged by default
-if VERSION >= v"1.9"
-    ext = Base.get_extension(DynamicExpressions, :DynamicExpressionsOptimExt)
-    @test res isa ext.ExpressionOptimizationResults
+    res = optimize(f, tree)
+
+    # Should be unchanged by default
+    if VERSION >= v"1.9"
+        ext = Base.get_extension(DynamicExpressions, :DynamicExpressionsOptimExt)
+        @test res isa ext.ExpressionOptimizationResults
+    end
+    @test tree == original_tree
+    @test isapprox(get_constants(res.minimizer), get_constants(target_tree); atol=0.01)
 end
-@test tree == original_tree
-@test get_constants(res.minimizer) ≈ get_constants(target_tree)
+
+@testset "With gradients" begin
+    did_i_run = Ref(false)
+    # Now, try with gradients too (via Zygote and our hand-rolled forward-mode AD)
+    g!(G, tree) =
+        let
+            ŷ, dŷ_dconstants, _ = eval_grad_tree_array(tree, X, operators; variable=false)
+            dresult_dŷ = @. 2 * (ŷ - y)
+            for i in eachindex(G)
+                G[i] = sum(
+                    j -> dresult_dŷ[j] * dŷ_dconstants[i, j],
+                    eachindex(axes(dŷ_dconstants, 2), axes(dresult_dŷ, 1)),
+                )
+            end
+            did_i_run[] = true
+            return nothing
+        end
+
+    res = optimize(f, g!, tree, BFGS())
+    @test did_i_run[]
+    @test isapprox(get_constants(res.minimizer), get_constants(target_tree); atol=0.01)
+end
+
+# Now, try combined
+@testset "Combined evaluation with gradient" begin
+    did_i_run_2 = Ref(false)
+    fg!(F, G, tree) =
+        let
+            if G !== nothing
+                ŷ, dŷ_dconstants, _ = eval_grad_tree_array(
+                    tree, X, operators; variable=false
+                )
+                dresult_dŷ = @. 2 * (ŷ - y)
+                for i in eachindex(G)
+                    G[i] = sum(
+                        j -> dresult_dŷ[j] * dŷ_dconstants[i, j],
+                        eachindex(axes(dŷ_dconstants, 2), axes(dresult_dŷ, 1)),
+                    )
+                end
+                if F !== nothing
+                    did_i_run_2[] = true
+                    return sum(abs2, ŷ .- y)
+                end
+            elseif F !== nothing
+                # Only f
+                return sum(abs2, tree(X, operators) .- y)
+            end
+        end
+    res = optimize(Optim.only_fg!(fg!), tree, BFGS())
+
+    @test did_i_run_2[]
+    @test isapprox(get_constants(res.minimizer), get_constants(target_tree); atol=0.01)
+end
