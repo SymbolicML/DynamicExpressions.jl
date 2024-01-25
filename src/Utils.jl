@@ -56,14 +56,6 @@ macro maybe_turbo(turboflag, ex)
     end
 end
 
-macro return_on_false(flag, retval)
-    :(
-        if !$(esc(flag))
-            return ($(esc(retval)), false)
-        end
-    )
-end
-
 # Returns two arrays
 macro return_on_false2(flag, retval, retval2)
     :(
@@ -179,7 +171,7 @@ end
 
 @inline function fill_similar(value, array, args...)
     out_array = similar(array, args...)
-    fill!(out_array, value)
+    out_array .= value
     return out_array
 end
 
@@ -191,6 +183,8 @@ function deprecate_varmap(variable_names, varMap, func_name)
     end
     return variable_names
 end
+
+counttuple(::Type{<:NTuple{N,Any}}) where {N} = N
 
 """
     Undefined

@@ -1,7 +1,7 @@
 module DynamicExpressionsZygoteExt
 
 import Zygote: gradient
-import DynamicExpressions.EvaluateEquationDerivativeModule: _zygote_gradient
+import DynamicExpressions.ExtensionInterfaceModule: _zygote_gradient
 
 function _zygote_gradient(op::F, ::Val{1}) where {F}
     function (x)

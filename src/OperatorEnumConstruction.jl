@@ -2,7 +2,7 @@ module OperatorEnumConstructionModule
 
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
 import ..EquationModule: string_tree, Node, GraphNode, AbstractExpressionNode, constructorof
-import ..EvaluateEquationModule: eval_tree_array
+import ..EvaluateEquationModule: eval_tree_array, OPERATOR_LIMIT_BEFORE_SLOWDOWN
 import ..EvaluateEquationDerivativeModule: eval_grad_tree_array, _zygote_gradient
 import ..EvaluationHelpersModule: _grad_evaluator
 
@@ -333,7 +333,7 @@ end
 
 """
     OperatorEnum(; binary_operators=[], unary_operators=[],
-                   enable_autodiff::Bool=false, define_helper_functions::Bool=true,
+                   define_helper_functions::Bool=true,
                    empty_old_operators::Bool=true)
 
 Construct an `OperatorEnum` object, defining the possible expressions. This will also
@@ -345,39 +345,37 @@ redefine operators for `AbstractExpressionNode` types, as well as `show`, `print
   operator.
 - `unary_operators::Vector{Function}`: A vector of functions, each of which is a unary
   operator.
-- `enable_autodiff::Bool=false`: Whether to enable automatic differentiation.
 - `define_helper_functions::Bool=true`: Whether to define helper functions for creating
    and evaluating node types. Turn this off when doing precompilation. Note that these
    are *not* needed for the package to work; they are purely for convenience.
 - `empty_old_operators::Bool=true`: Whether to clear the old operators.
 """
 function OperatorEnum(;
-    binary_operators=[],
-    unary_operators=[],
-    enable_autodiff::Bool=false,
+    binary_operators=Function[],
+    unary_operators=Function[],
     define_helper_functions::Bool=true,
     empty_old_operators::Bool=true,
+    # Deprecated:
+    enable_autodiff=nothing,
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
-
-    binary_operators = Function[op for op in binary_operators]
-    unary_operators = Function[op for op in unary_operators]
-
-    diff_binary_operators = Function[]
-    diff_unary_operators = Function[]
-
-    if enable_autodiff
-        for op in binary_operators
-            push!(diff_binary_operators, _zygote_gradient(op, Val(2)))
-        end
-        for op in unary_operators
-            push!(diff_unary_operators, _zygote_gradient(op, Val(1)))
+    enable_autodiff !== nothing && Base.depwarn(
+        "The option `enable_autodiff` has been deprecated. " *
+        "Differential operators are now automatically computed within the gradient call.",
+        :OperatorEnum,
+    )
+    for (op, s) in ((binary_operators, "binary"), (unary_operators, "unary"))
+        if length(op) > OPERATOR_LIMIT_BEFORE_SLOWDOWN
+            @warn(
+                "You have passed over $(OPERATOR_LIMIT_BEFORE_SLOWDOWN) $(s) operators. " *
+                    "To prevent long compilation times, some optimizations will be disabled. " *
+                    "If this presents an issue, please open an issue on https://github.com/SymbolicML/DynamicExpressions.jl"
+            )
+            break
         end
     end
 
-    operators = OperatorEnum(
-        binary_operators, unary_operators, diff_binary_operators, diff_unary_operators
-    )
+    operators = OperatorEnum(Tuple(binary_operators), Tuple(unary_operators))
 
     if define_helper_functions
         @extend_operators_base operators empty_old_operators = empty_old_operators
@@ -407,17 +405,14 @@ and `(::AbstractExpressionNode)(X)`.
 - `empty_old_operators::Bool=true`: Whether to clear the old operators.
 """
 function GenericOperatorEnum(;
-    binary_operators=[],
-    unary_operators=[],
+    binary_operators=Function[],
+    unary_operators=Function[],
     define_helper_functions::Bool=true,
     empty_old_operators::Bool=true,
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
 
-    binary_operators = Function[op for op in binary_operators]
-    unary_operators = Function[op for op in unary_operators]
-
-    operators = GenericOperatorEnum(binary_operators, unary_operators)
+    operators = GenericOperatorEnum(Tuple(binary_operators), Tuple(unary_operators))
 
     if define_helper_functions
         @extend_operators_base operators empty_old_operators = empty_old_operators
@@ -430,18 +425,16 @@ end
 # Predefine the most common operators so the errors
 # are more informative
 function _overload_common_operators()
-    #! format: off
+    # Overload the operators in batches (so that we don't hit the warning
+    # about too many operators)
     operators = OperatorEnum(
-        Function[+, -, *, /, ^, max, min, mod],
-        Function[
-            sin, cos, tan, exp, log, log1p, log2, log10, sqrt, cbrt, abs, sinh,
-            cosh, tanh, atan, asinh, acosh, round, sign, floor, ceil,
-        ],
-        Function[],
-        Function[],
+        (+, -, *, /, ^, max, min, mod),
+        (sin, cos, tan, exp, log, log1p, log2, log10, sqrt, cbrt, abs, sinh),
     )
-    #! format: on
     @extend_operators(operators, empty_old_operators = false, internal = true)
+    operators = OperatorEnum((), (cosh, tanh, atan, asinh, acosh, round, sign, floor, ceil))
+    @extend_operators(operators, empty_old_operators = true, internal = true)
+
     empty!(LATEST_UNARY_OPERATOR_MAPPING)
     empty!(LATEST_BINARY_OPERATOR_MAPPING)
     return nothing
