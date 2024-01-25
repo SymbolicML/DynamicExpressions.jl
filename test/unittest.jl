@@ -8,6 +8,10 @@ end
     include("test_initial_errors.jl")
 end
 
+@safetestset "Test deprecations" begin
+    include("test_deprecations.jl")
+end
+
 @safetestset "Test Optim.jl" begin
     include("test_optim.jl")
 end

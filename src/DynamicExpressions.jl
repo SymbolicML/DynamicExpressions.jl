@@ -1,6 +1,7 @@
 module DynamicExpressions
 
 include("Utils.jl")
+include("ExtensionInterface.jl")
 include("OperatorEnum.jl")
 include("Equation.jl")
 include("EquationUtils.jl")
@@ -9,7 +10,6 @@ include("EvaluateEquationDerivative.jl")
 include("EvaluationHelpers.jl")
 include("SimplifyEquation.jl")
 include("OperatorEnumConstruction.jl")
-include("ExtensionInterface.jl")
 include("Random.jl")
 
 import PackageExtensionCompat: @require_extensions

@@ -26,7 +26,7 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
         T in types
 
         length(binops) == 0 && length(unaops) == 0 && continue
-        T == Float16 && use_turbo && continue
+        T == Float16 && use_turbo isa Val{true} && continue
 
         X = rand(T, 3, 10)
         operators = OperatorEnum(;
@@ -161,10 +161,10 @@ end
 """`mode=:precompile` will use `@precompile_*` directives; `mode=:compile` runs."""
 function do_precompilation(; mode=:precompile)
     @maybe_setup_workload mode begin
-        binary_operators = [[+, -, *, /]]
-        unary_operators = [[sin, cos]]
-        turbo = [false]
-        types = [Float32, Float64]
+        binary_operators = ((+, -, *, /),)
+        unary_operators = ((sin, cos),)
+        turbo = (Val(false),)
+        types = (Float32, Float64)
         @maybe_compile_workload mode begin
             test_all_combinations(;
                 binary_operators=binary_operators,

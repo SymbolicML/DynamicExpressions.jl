@@ -20,6 +20,18 @@ convert(::Type{<:AbstractExpressionNode{T1}}, n::AbstractExpressionNode{T2}) whe
 hash(tree::AbstractExpressionNode{T}, h::UInt; break_sharing::Val=Val(false)) where {T}
 ```
 
+## Printing
+
+Trees are printed using the `string_tree` function, which is very
+configurable:
+
+```@docs
+string_tree(tree::Node, operators::AbstractOperatorEnum)
+```
+
+The standard `show` and `print` methods will use the most recently-created `OperatorEnum`
+in a `string_tree`.
+
 ## Sampling
 
 There are also methods for random sampling of nodes:

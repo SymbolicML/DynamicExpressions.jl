@@ -105,7 +105,6 @@ using Zygote  # trigger extension
 operators = OperatorEnum(;
     binary_operators=[+, -, *],
     unary_operators=[cos],
-    enable_autodiff=true,
 )
 x1 = Node(; feature=1)
 x2 = Node(; feature=2)
