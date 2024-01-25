@@ -3,9 +3,7 @@ using Random
 using Test
 using Zygote
 
-operators = OperatorEnum(;
-    binary_operators=[+, -, *, /], unary_operators=[cos, sin], enable_autodiff=true
-);
+operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[cos, sin]);
 x1, x2, x3 = (i -> Node(Float64; feature=i)).(1:3)
 tree = cos(x1 * 3.2 - 5.8) * 0.2 - 0.5 * x2 * x3 * x3 + 0.9 / (x1 * x1 + 1);
 
