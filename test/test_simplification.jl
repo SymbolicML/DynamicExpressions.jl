@@ -1,16 +1,21 @@
 include("test_params.jl")
 using DynamicExpressions, Test
+import DynamicExpressions.EquationModule: strip_brackets
 import SymbolicUtils: simplify, Symbolic
 import Random: MersenneTwister
 import Base: ≈
 
+strip_brackets(a::String) = String(strip_brackets(collect(a)))
+
 function Base.:≈(a::String, b::String)
+    a = strip_brackets(a)
+    b = strip_brackets(b)
     a = replace(a, r"\s+" => "")
     b = replace(b, r"\s+" => "")
     return a == b
 end
 
-simplify_tree = DynamicExpressions.SimplifyEquationModule.simplify_tree
+simplify_tree! = DynamicExpressions.SimplifyEquationModule.simplify_tree!
 combine_operators = DynamicExpressions.SimplifyEquationModule.combine_operators
 
 binary_operators = (+, -, /, *)
@@ -49,20 +54,11 @@ tree_copy = convert(Node, eqn, operators)
 # with custom operators, and unary operators:
 x1, x2, x3 = Node("x1"), Node("x2"), Node("x3")
 pow_abs2(x, y) = abs(x)^y
-custom_cos(x) = cos(x)^2
-
-# Define for Node (usually these are done internally to OperatorEnum)
-pow_abs2(l::Node, r::Node)::Node =
-    (l.constant && r.constant) ? Node(pow_abs2(l.val, r.val)::Real) : Node(5, l, r)
-pow_abs2(l::Node, r::Real)::Node =
-    l.constant ? Node(pow_abs2(l.val, r)::Real) : Node(5, l, r)
-pow_abs2(l::Real, r::Node)::Node =
-    r.constant ? Node(pow_abs2(l, r.val)::Real) : Node(5, l, r)
-custom_cos(x::Node)::Node = x.constant ? Node(custom_cos(x.val)::Real) : Node(1, x)
 
 operators = OperatorEnum(;
     binary_operators=(+, *, -, /, pow_abs2), unary_operators=(custom_cos, exp, sin)
 )
+@extend_operators operators
 tree = (
     ((x2 + x2) * ((-0.5982493 / pow_abs2(x1, x2)) / -0.54734415)) + (
         sin(
@@ -91,7 +87,7 @@ output3, flag3 = eval_tree_array(tree_copy2, X, operators)
 @test isapprox(output1, output3, atol=1e-2 * sqrt(N))
 
 ###############################################################################
-## Hit other parts of `simplify_tree` and `combine_operators` to increase
+## Hit other parts of `simplify_tree!` and `combine_operators` to increase
 ## code coverage:
 operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(cos, sin))
 x1, x2, x3 = [Node(; feature=i) for i in 1:3]
@@ -99,12 +95,12 @@ x1, x2, x3 = [Node(; feature=i) for i in 1:3]
 # unary operator applied to constant => constant:
 tree = Node(1, Node(; val=0.0))
 @test repr(tree) ≈ "cos(0.0)"
-@test repr(simplify_tree(tree, operators)) ≈ "1.0"
+@test repr(simplify_tree!(tree, operators)) ≈ "1.0"
 
 # except when the result is a NaN, then we don't change it:
 tree = Node(1, Node(; val=NaN))
 @test repr(tree) ≈ "cos(NaN)"
-@test repr(simplify_tree(tree, operators)) ≈ "cos(NaN)"
+@test repr(simplify_tree!(tree, operators)) ≈ "cos(NaN)"
 
 # the same as above, but inside a binary tree.
 tree =

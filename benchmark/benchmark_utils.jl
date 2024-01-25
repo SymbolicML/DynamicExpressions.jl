@@ -8,13 +8,11 @@ function random_node(tree::Node{T})::Node{T} where {T}
     if tree.degree == 0
         return tree
     end
-    b = 0
-    c = 0
-    if tree.degree >= 1
-        b = count_nodes(tree.l)
-    end
-    if tree.degree == 2
-        c = count_nodes(tree.r)
+    b = count_nodes(tree.l)
+    c = if tree.degree == 2
+        count_nodes(tree.r)
+    else
+        0
     end
 
     i = rand(1:(1 + b + c))
@@ -27,7 +25,7 @@ function random_node(tree::Node{T})::Node{T} where {T}
     return random_node(tree.r)
 end
 
-function make_random_leaf(nfeatures::Int, ::Type{T})::Node{T} where {T}
+function make_random_leaf(nfeatures::Integer, ::Type{T})::Node{T} where {T}
     if rand() > 0.5
         return Node(; val=randn(T))
     else
@@ -37,7 +35,7 @@ end
 
 # Add a random unary/binary operation to the end of a tree
 function append_random_op(
-    tree::Node{T}, operators, nfeatures::Int; makeNewBinOp::Union{Bool,Nothing}=nothing
+    tree::Node{T}, operators, nfeatures::Integer; makeNewBinOp::Union{Bool,Nothing}=nothing
 )::Node{T} where {T}
     nuna = length(operators.unaops)
     nbin = length(operators.binops)
@@ -66,7 +64,7 @@ function append_random_op(
 end
 
 function gen_random_tree_fixed_size(
-    node_count::Int, operators, nfeatures::Int, ::Type{T}
+    node_count::Integer, operators, nfeatures::Integer, ::Type{T}
 )::Node{T} where {T}
     tree = make_random_leaf(nfeatures, T)
     cur_size = count_nodes(tree)

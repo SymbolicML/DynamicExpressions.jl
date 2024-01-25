@@ -9,19 +9,26 @@ include("EquationUtils.jl")
 include("EvaluateEquation.jl")
 include("EvaluateEquationDerivative.jl")
 include("EvaluationHelpers.jl")
-include("InterfaceSymbolicUtils.jl")
 include("SimplifyEquation.jl")
 include("OperatorEnumConstruction.jl")
+include("ExtensionInterface.jl")
+include("Random.jl")
 
-function __init__()
-    @require Optim = "429524aa-4258-5aef-a3af-852621145aeb" include(
-        "ConstantOptimization.jl"
-    )
-end
-
-using Reexport: @reexport
+import PackageExtensionCompat: @require_extensions
+import Reexport: @reexport
 @reexport import .EquationModule:
-    Node, string_tree, print_tree, copy_node, set_node!, tree_mapreduce, filter_map
+    AbstractNode,
+    AbstractExpressionNode,
+    GraphNode,
+    Node,
+    string_tree,
+    print_tree,
+    copy_node,
+    set_node!,
+    tree_mapreduce,
+    filter_map,
+    filter_map!
+import .EquationModule: constructorof, preserve_sharing
 @reexport import .EquationUtilsModule:
     count_nodes,
     count_constants,
@@ -34,13 +41,18 @@ using Reexport: @reexport
     set_constants!
 @reexport import .OperatorEnumModule: AbstractOperatorEnum
 @reexport import .OperatorEnumConstructionModule:
-    OperatorEnum, GenericOperatorEnum, @extend_operators
+    OperatorEnum, GenericOperatorEnum, @extend_operators, set_default_variable_names!
 @reexport import .EvaluateEquationModule: eval_tree_array, differentiable_eval_tree_array
 @reexport import .EvaluateEquationDerivativeModule:
     eval_diff_tree_array, eval_grad_tree_array
-@reexport import .InterfaceSymbolicUtilsModule: node_to_symbolic, symbolic_to_node
-@reexport import .SimplifyEquationModule: combine_operators, simplify_tree
+@reexport import .SimplifyEquationModule: combine_operators, simplify_tree!
 @reexport import .EvaluationHelpersModule
+@reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
+@reexport import .RandomModule: NodeSampler
+
+function __init__()
+    @require_extensions
+end
 
 include("deprecated.jl")
 

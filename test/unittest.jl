@@ -1,29 +1,11 @@
 using SafeTestsets
 
+VERSION >= v"1.9" && @safetestset "Test Aqua.jl" begin
+    include("test_aqua.jl")
+end
+
 @safetestset "Initial error handling test" begin
-    using DynamicExpressions
-    using Test
-
-    # Before defining OperatorEnum, calling the implicit (deprecated)
-    # syntax should fail:
-    tree = Node(; feature=1)
-    try
-        tree([1.0 2.0]')
-        @test false
-    catch e
-        @test isa(e, ErrorException)
-        expected_error_msg = "The `tree(X; kws...)` syntax is deprecated"
-        @test occursin(expected_error_msg, e.msg)
-    end
-
-    try
-        tree'([1.0 2.0]')
-        @test false
-    catch e
-        @test isa(e, ErrorException)
-        expected_error_msg = "The `tree'(X; kws...)` syntax is deprecated"
-        @test occursin(expected_error_msg, e.msg)
-    end
+    include("test_initial_errors.jl")
 end
 
 @safetestset "Test tree construction and scoring" begin
@@ -36,6 +18,10 @@ end
 
 @safetestset "Test derivatives" begin
     include("test_derivatives.jl")
+end
+
+@safetestset "Test undefined derivatives" begin
+    include("test_undefined_derivatives.jl")
 end
 
 @safetestset "Test simplification" begin
@@ -63,7 +49,7 @@ end
 end
 
 @safetestset "Test sharing-preserving copy" begin
-    include("test_preserve_multiple_parents.jl")
+    include("test_graphs.jl")
 end
 
 @safetestset "Test equation utils" begin
@@ -96,4 +82,20 @@ end
 
 @safetestset "Test Base" begin
     include("test_base.jl")
+end
+
+@safetestset "Test containers preserved" begin
+    include("test_container_preserved.jl")
+end
+
+@safetestset "Test helpers break upon redefining" begin
+    include("test_safe_helpers.jl")
+end
+
+@safetestset "Test custom node type" begin
+    include("test_custom_node_type.jl")
+end
+
+@safetestset "Test random sampling" begin
+    include("test_random.jl")
 end

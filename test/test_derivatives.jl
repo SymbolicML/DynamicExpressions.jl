@@ -4,11 +4,11 @@ using DynamicExpressions: eval_diff_tree_array, eval_grad_tree_array
 using Random
 using Zygote
 using LinearAlgebra
+include("test_params.jl")
 
 seed = 0
 # SIMD doesn't like abs(x) ^ y for some reason.
 pow_abs2(x, y) = exp(y * log(abs(x)))
-custom_cos(x) = cos(x)^2
 
 equation1(x1, x2, x3) = x1 + x2 + x3 + 3.2
 equation2(x1, x2, x3) = pow_abs2(x1, x2) + x3 + custom_cos(1.0 + x3) + 3.0 / x1
@@ -158,7 +158,7 @@ tree = equation3(nx1, nx2, nx3)
 """Check whether the ordering of constant_list is the same as the ordering of node_index."""
 function check_tree(tree::Node, node_index::NodeIndex, constant_list::AbstractVector)
     if tree.degree == 0
-        (!tree.constant) || tree.val == constant_list[node_index.constant_index]
+        (!tree.constant) || tree.val == constant_list[node_index.val::UInt16]
     elseif tree.degree == 1
         check_tree(tree.l, node_index.l, constant_list)
     else

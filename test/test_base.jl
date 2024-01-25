@@ -1,6 +1,7 @@
 using DynamicExpressions
 using Random
 using Test
+using Zygote
 
 operators = OperatorEnum(;
     binary_operators=[+, -, *, /], unary_operators=[cos, sin], enable_autodiff=true
@@ -39,7 +40,7 @@ end
     @test objectid(first(collect(ctree))) == objectid(ctree)
     @test typeof(collect(ctree)) == Vector{Node{Float64}}
     @test length(collect(ctree)) == 24
-    @test sum((t -> (t.degree == 0 && t.constant) ? t.val : 0.0).(collect(ctree))) == 11.6
+    @test sum((t -> (t.degree == 0 && t.constant) ? t.val : 0.0).(collect(ctree))) ≈ 11.6
 end
 
 @testset "count" begin
@@ -110,9 +111,11 @@ end
     @test sum(map(_ -> 2, ctree)) == 24 * 2
     @test sum(map(t -> t.degree == 1, ctree)) == 1
     @test length(unique(map(objectid, copy_node(tree)))) == 24
-    @test length(unique(map(objectid, copy_node(tree; preserve_sharing=true)))) == 24 - 3
     map(t -> (t.degree == 0 && t.constant) ? (t.val *= 2) : nothing, ctree)
     @test sum(t -> t.val, filter(t -> t.degree == 0 && t.constant, ctree)) == 11.6 * 2
+    local T = fieldtype(typeof(ctree), :degree)
+    @test typeof(map(t -> t.degree, ctree, T)) == Vector{T}
+    @test first(map(t -> t.degree, ctree, T)) == 2
 end
 
 @testset "in" begin
@@ -162,4 +165,13 @@ end
         end
     end
     @test sum(t -> (t.degree == 0 && t.constant) ? t.val : 0.0, ctree) ≈ 11.6 * 1.5
+end
+
+@testset "Unsupported" begin
+    if VERSION >= v"1.7.0"
+        for func in (:reduce, :foldl, :foldr, :mapfoldl, :mapfoldr)
+            wrapped_func(args...) = (@eval $func)(args...)
+            @test_throws ErrorException wrapped_func(Returns(1), tree)
+        end
+    end
 end

@@ -4,7 +4,7 @@
 
 *Ridiculously fast dynamic expressions.*
 
-[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://symbolicml.org/DynamicExpressions.jl/dev) [![CI](https://github.com/SymbolicML/DynamicExpressions.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/SymbolicML/DynamicExpressions.jl/actions/workflows/CI.yml) [![Coverage Status](https://coveralls.io/repos/github/SymbolicML/DynamicExpressions.jl/badge.svg?branch=master)](https://coveralls.io/github/SymbolicML/DynamicExpressions.jl?branch=master)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://symbolicml.org/DynamicExpressions.jl/dev) [![CI](https://github.com/SymbolicML/DynamicExpressions.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/SymbolicML/DynamicExpressions.jl/actions/workflows/CI.yml) [![Coverage Status](https://coveralls.io/repos/github/SymbolicML/DynamicExpressions.jl/badge.svg?branch=master)](https://coveralls.io/github/SymbolicML/DynamicExpressions.jl?branch=master) [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 DynamicExpressions.jl is the backbone of [SymbolicRegression.jl](https://github.com/MilesCranmer/SymbolicRegression.jl) and
 [PySR](https://github.com/MilesCranmer/PySR).
@@ -100,6 +100,8 @@ More importantly: we can change `expression` throughout runtime, and expect the 
 We can also compute gradients with the same speed:
 
 ```julia
+using Zygote  # trigger extension
+
 operators = OperatorEnum(;
     binary_operators=[+, -, *],
     unary_operators=[cos],

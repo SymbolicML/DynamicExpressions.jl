@@ -1,11 +1,13 @@
 module EvaluateEquationDerivativeModule
 
 import LoopVectorization: indices, @turbo
-import ..EquationModule: Node
+import ..EquationModule: AbstractExpressionNode, constructorof
 import ..OperatorEnumModule: OperatorEnum
-import ..UtilsModule: @return_on_false2, @maybe_turbo, is_bad_array
+import ..UtilsModule: @return_on_false2, @maybe_turbo, is_bad_array, fill_similar
 import ..EquationUtilsModule: count_constants, index_constants, NodeIndex
 import ..EvaluateEquationModule: deg0_eval
+
+_zygote_gradient(args...) = error("Please load the Zygote.jl package.")
 
 function assert_autodiff_enabled(operators::OperatorEnum)
     if length(operators.diff_binops) == 0 && length(operators.diff_unaops) == 0
@@ -16,7 +18,7 @@ function assert_autodiff_enabled(operators::OperatorEnum)
 end
 
 """
-    eval_diff_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Int; turbo::Bool=false)
+    eval_diff_tree_array(tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Integer; turbo::Bool=false)
 
 Compute the forward derivative of an expression, using a similar
 structure and optimization to eval_tree_array. `direction` is the index of a particular
@@ -25,11 +27,11 @@ respect to `x1`.
 
 # Arguments
 
-- `tree::Node`: The expression tree to evaluate.
+- `tree::AbstractExpressionNode`: The expression tree to evaluate.
 - `cX::AbstractMatrix{T}`: The data matrix, with each column being a data point.
 - `operators::OperatorEnum`: The operators used to create the `tree`. Note that `operators.enable_autodiff`
     must be `true`. This is needed to create the derivative operations.
-- `direction::Int`: The index of the variable to take the derivative with respect to.
+- `direction::Integer`: The index of the variable to take the derivative with respect to.
 - `turbo::Bool`: Use `LoopVectorization.@turbo` for faster evaluation.
 
 # Returns
@@ -38,10 +40,10 @@ respect to `x1`.
     the derivative, and whether the evaluation completed as normal (or encountered a nan or inf).
 """
 function eval_diff_tree_array(
-    tree::Node{T},
+    tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    direction::Int;
+    direction::Integer;
     turbo::Bool=false,
 )::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Number}
     assert_autodiff_enabled(operators)
@@ -52,24 +54,24 @@ function eval_diff_tree_array(
     )
 end
 function eval_diff_tree_array(
-    tree::Node{T1},
+    tree::AbstractExpressionNode{T1},
     cX::AbstractMatrix{T2},
     operators::OperatorEnum,
-    direction::Int;
+    direction::Integer;
     turbo::Bool=false,
 ) where {T1<:Number,T2<:Number}
     T = promote_type(T1, T2)
     @warn "Warning: eval_diff_tree_array received mixed types: tree=$(T1) and data=$(T2)."
-    tree = convert(Node{T}, tree)
-    cX = convert(AbstractMatrix{T}, cX)
+    tree = convert(constructorof(typeof(tree)){T}, tree)
+    cX = T.(cX)
     return eval_diff_tree_array(tree, cX, operators, direction; turbo=turbo)
 end
 
 function _eval_diff_tree_array(
-    tree::Node{T},
+    tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    direction::Int,
+    direction::Integer,
     ::Val{turbo},
 )::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Number,turbo}
     evaluation, derivative, complete = if tree.degree == 0
@@ -100,25 +102,26 @@ function _eval_diff_tree_array(
 end
 
 function diff_deg0_eval(
-    tree::Node{T}, cX::AbstractMatrix{T}, direction::Int
+    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, direction::Integer
 )::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Number}
-    n = size(cX, 2)
     const_part = deg0_eval(tree, cX)[1]
-    derivative_part =
-        ((!tree.constant) && tree.feature == direction) ? ones(T, n) : zeros(T, n)
+    derivative_part = if ((!tree.constant) && tree.feature == direction)
+        fill_similar(one(T), cX, axes(cX, 2))
+    else
+        fill_similar(zero(T), cX, axes(cX, 2))
+    end
     return (const_part, derivative_part, true)
 end
 
 function diff_deg1_eval(
-    tree::Node{T},
+    tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     op::F,
     diff_op::dF,
     operators::OperatorEnum,
-    direction::Int,
+    direction::Integer,
     ::Val{turbo},
 )::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Number,F,dF,turbo}
-    n = size(cX, 2)
     (cumulator, dcumulator, complete) = _eval_diff_tree_array(
         tree.l, cX, operators, direction, Val(turbo)
     )
@@ -136,12 +139,12 @@ function diff_deg1_eval(
 end
 
 function diff_deg2_eval(
-    tree::Node{T},
+    tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     op::F,
     diff_op::dF,
     operators::OperatorEnum,
-    direction::Int,
+    direction::Integer,
     ::Val{turbo},
 )::Tuple{AbstractVector{T},AbstractVector{T},Bool} where {T<:Number,F,dF,turbo}
     (cumulator, dcumulator, complete) = _eval_diff_tree_array(
@@ -166,7 +169,7 @@ function diff_deg2_eval(
 end
 
 """
-    eval_grad_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum; variable::Bool=false, turbo::Bool=false)
+    eval_grad_tree_array(tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum; variable::Bool=false, turbo::Bool=false)
 
 Compute the forward-mode derivative of an expression, using a similar
 structure and optimization to eval_tree_array. `variable` specifies whether
@@ -175,7 +178,7 @@ to every constant in the expression.
 
 # Arguments
 
-- `tree::Node{T}`: The expression tree to evaluate.
+- `tree::AbstractExpressionNode{T}`: The expression tree to evaluate.
 - `cX::AbstractMatrix{T}`: The data matrix, with each column being a data point.
 - `operators::OperatorEnum`: The operators used to create the `tree`. Note that `operators.enable_autodiff`
     must be `true`. This is needed to create the derivative operations.
@@ -189,51 +192,58 @@ to every constant in the expression.
     the gradient, and whether the evaluation completed as normal (or encountered a nan or inf).
 """
 function eval_grad_tree_array(
-    tree::Node{T},
+    tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
     variable::Bool=false,
     turbo::Bool=false,
 )::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Number}
     assert_autodiff_enabled(operators)
-    n = size(cX, 2)
+    n_gradients = variable ? size(cX, 1) : count_constants(tree)
     if variable
-        n_gradients = size(cX, 1)
+        return eval_grad_tree_array(
+            tree,
+            Val(n_gradients),
+            nothing,
+            cX,
+            operators,
+            Val(true),
+            (turbo ? Val(true) : Val(false)),
+        )
     else
-        n_gradients = count_constants(tree)
+        index_tree = index_constants(tree)
+        return eval_grad_tree_array(
+            tree,
+            Val(n_gradients),
+            index_tree,
+            cX,
+            operators,
+            Val(false),
+            (turbo ? Val(true) : Val(false)),
+        )
     end
-    index_tree = index_constants(tree, 0)
-    return eval_grad_tree_array(
-        tree,
-        n,
-        n_gradients,
-        index_tree,
-        cX,
-        operators,
-        (variable ? Val(true) : Val(false)),
-        (turbo ? Val(true) : Val(false)),
-    )
 end
 
 function eval_grad_tree_array(
-    tree::Node{T},
-    n::Int,
-    n_gradients::Int,
-    index_tree::NodeIndex,
+    tree::AbstractExpressionNode{T},
+    ::Val{n_gradients},
+    index_tree::Union{NodeIndex,Nothing},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     ::Val{variable},
     ::Val{turbo},
-)::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Number,variable,turbo}
+)::Tuple{
+    AbstractVector{T},AbstractMatrix{T},Bool
+} where {T<:Number,variable,turbo,n_gradients}
     evaluation, gradient, complete = _eval_grad_tree_array(
-        tree, n, n_gradients, index_tree, cX, operators, Val(variable), Val(turbo)
+        tree, Val(n_gradients), index_tree, cX, operators, Val(variable), Val(turbo)
     )
     @return_on_false2 complete evaluation gradient
     return evaluation, gradient, !(is_bad_array(evaluation) || is_bad_array(gradient))
 end
 
 function eval_grad_tree_array(
-    tree::Node{T1},
+    tree::AbstractExpressionNode{T1},
     cX::AbstractMatrix{T2},
     operators::OperatorEnum;
     variable::Bool=false,
@@ -241,7 +251,7 @@ function eval_grad_tree_array(
 ) where {T1<:Number,T2<:Number}
     T = promote_type(T1, T2)
     return eval_grad_tree_array(
-        convert(Node{T}, tree),
+        convert(constructorof(typeof(tree)){T}, tree),
         convert(AbstractMatrix{T}, cX),
         operators;
         variable=variable,
@@ -250,22 +260,22 @@ function eval_grad_tree_array(
 end
 
 function _eval_grad_tree_array(
-    tree::Node{T},
-    n::Int,
-    n_gradients::Int,
-    index_tree::NodeIndex,
+    tree::AbstractExpressionNode{T},
+    ::Val{n_gradients},
+    index_tree::Union{NodeIndex,Nothing},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     ::Val{variable},
     ::Val{turbo},
-)::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Number,variable,turbo}
+)::Tuple{
+    AbstractVector{T},AbstractMatrix{T},Bool
+} where {T<:Number,variable,turbo,n_gradients}
     if tree.degree == 0
-        grad_deg0_eval(tree, n, n_gradients, index_tree, cX, Val(variable))
+        grad_deg0_eval(tree, Val(n_gradients), index_tree, cX, Val(variable))
     elseif tree.degree == 1
         grad_deg1_eval(
             tree,
-            n,
-            n_gradients,
+            Val(n_gradients),
             index_tree,
             cX,
             operators.unaops[tree.op],
@@ -277,8 +287,7 @@ function _eval_grad_tree_array(
     else
         grad_deg2_eval(
             tree,
-            n,
-            n_gradients,
+            Val(n_gradients),
             index_tree,
             cX,
             operators.binops[tree.op],
@@ -291,39 +300,55 @@ function _eval_grad_tree_array(
 end
 
 function grad_deg0_eval(
-    tree::Node{T},
-    n::Int,
-    n_gradients::Int,
-    index_tree::NodeIndex,
+    tree::AbstractExpressionNode{T},
+    ::Val{n_gradients},
+    index_tree::Union{NodeIndex,Nothing},
     cX::AbstractMatrix{T},
     ::Val{variable},
-)::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Number,variable}
+)::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Number,variable,n_gradients}
     const_part = deg0_eval(tree, cX)[1]
 
-    if variable == tree.constant
-        return (const_part, zeros(T, n_gradients, n), true)
+    zero_mat = if typeof(cX) <: Array
+        zeros(T, n_gradients, size(cX, 2))
+    else
+        hcat((fill_similar(zero(T), cX, axes(cX, 2)) for _ in 1:n_gradients)...)'
     end
 
-    index = variable ? tree.feature : index_tree.constant_index
-    derivative_part = zeros(T, n_gradients, n)
+    if variable == tree.constant
+        return (const_part, zero_mat, true)
+    end
+
+    index = if variable
+        tree.feature
+    else
+        (index_tree === nothing ? zero(UInt16) : index_tree.val::UInt16)
+    end
+    derivative_part = zero_mat
     derivative_part[index, :] .= one(T)
     return (const_part, derivative_part, true)
 end
 
 function grad_deg1_eval(
-    tree::Node{T},
-    n::Int,
-    n_gradients::Int,
-    index_tree::NodeIndex,
+    tree::AbstractExpressionNode{T},
+    ::Val{n_gradients},
+    index_tree::Union{NodeIndex,Nothing},
     cX::AbstractMatrix{T},
     op::F,
     diff_op::dF,
     operators::OperatorEnum,
     ::Val{variable},
     ::Val{turbo},
-)::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Number,F,dF,variable,turbo}
+)::Tuple{
+    AbstractVector{T},AbstractMatrix{T},Bool
+} where {T<:Number,F,dF,variable,turbo,n_gradients}
     (cumulator, dcumulator, complete) = eval_grad_tree_array(
-        tree.l, n, n_gradients, index_tree.l, cX, operators, Val(variable), Val(turbo)
+        tree.l,
+        Val(n_gradients),
+        (index_tree === nothing ? index_tree : index_tree.l),
+        cX,
+        operators,
+        Val(variable),
+        Val(turbo),
     )
     @return_on_false2 complete cumulator dcumulator
 
@@ -340,23 +365,36 @@ function grad_deg1_eval(
 end
 
 function grad_deg2_eval(
-    tree::Node{T},
-    n::Int,
-    n_gradients::Int,
-    index_tree::NodeIndex,
+    tree::AbstractExpressionNode{T},
+    ::Val{n_gradients},
+    index_tree::Union{NodeIndex,Nothing},
     cX::AbstractMatrix{T},
     op::F,
     diff_op::dF,
     operators::OperatorEnum,
     ::Val{variable},
     ::Val{turbo},
-)::Tuple{AbstractVector{T},AbstractMatrix{T},Bool} where {T<:Number,F,dF,variable,turbo}
+)::Tuple{
+    AbstractVector{T},AbstractMatrix{T},Bool
+} where {T<:Number,F,dF,variable,turbo,n_gradients}
     (cumulator1, dcumulator1, complete) = eval_grad_tree_array(
-        tree.l, n, n_gradients, index_tree.l, cX, operators, Val(variable), Val(turbo)
+        tree.l,
+        Val(n_gradients),
+        (index_tree === nothing ? index_tree : index_tree.l),
+        cX,
+        operators,
+        Val(variable),
+        Val(turbo),
     )
     @return_on_false2 complete cumulator1 dcumulator1
     (cumulator2, dcumulator2, complete2) = eval_grad_tree_array(
-        tree.r, n, n_gradients, index_tree.r, cX, operators, Val(variable), Val(turbo)
+        tree.r,
+        Val(n_gradients),
+        (index_tree === nothing ? index_tree : index_tree.r),
+        cX,
+        operators,
+        Val(variable),
+        Val(turbo),
     )
     @return_on_false2 complete2 cumulator1 dcumulator1
 

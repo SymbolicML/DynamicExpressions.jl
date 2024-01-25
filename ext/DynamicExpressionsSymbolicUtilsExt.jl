@@ -1,12 +1,13 @@
-module InterfaceSymbolicUtilsModule
+module DynamicExpressionsSymbolicUtilsExt
 
 using SymbolicUtils
-import ..EquationModule: Node, DEFAULT_NODE_TYPE
-import ..OperatorEnumModule: AbstractOperatorEnum
-import ..UtilsModule: isgood, isbad, @return_on_false
+import DynamicExpressions.EquationModule:
+    AbstractExpressionNode, Node, constructorof, DEFAULT_NODE_TYPE
+import DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
+import DynamicExpressions.UtilsModule: isgood, isbad, @return_on_false, deprecate_varmap
+import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 
 const SYMBOLIC_UTILS_TYPES = Union{<:Number,SymbolicUtils.Symbolic{<:Number}}
-
 const SUPPORTED_OPS = (cos, sin, exp, cot, tan, csc, sec, +, -, *, /)
 
 function isgood(x::SymbolicUtils.Symbolic)
@@ -19,7 +20,9 @@ end
 subs_bad(x) = isgood(x) ? x : Inf
 
 function parse_tree_to_eqs(
-    tree::Node{T}, operators::AbstractOperatorEnum, index_functions::Bool=false
+    tree::AbstractExpressionNode{T},
+    operators::AbstractOperatorEnum,
+    index_functions::Bool=false,
 ) where {T}
     if tree.degree == 0
         # Return constant if needed
@@ -27,9 +30,10 @@ function parse_tree_to_eqs(
         return SymbolicUtils.Sym{LiteralReal}(Symbol("x$(tree.feature)"))
     end
     # Collect the next children
-    children = tree.degree >= 2 ? (tree.l, tree.r) : (tree.l,)
+    # TODO: Type instability!
+    children = tree.degree == 2 ? (tree.l, tree.r) : (tree.l,)
     # Get the operation
-    op = tree.degree > 1 ? operators.binops[tree.op] : operators.unaops[tree.op]
+    op = tree.degree == 2 ? operators.binops[tree.op] : operators.unaops[tree.op]
     # Create an N tuple of Numbers for each argument
     dtypes = map(x -> Number, 1:(tree.degree))
     #
@@ -66,9 +70,13 @@ convert_to_function(x, operators::AbstractOperatorEnum) = x
 function split_eq(
     op,
     args,
-    operators::AbstractOperatorEnum;
-    varMap::Union{Array{String,1},Nothing}=nothing,
-)
+    operators::AbstractOperatorEnum,
+    ::Type{N}=Node;
+    variable_names::Union{Array{String,1},Nothing}=nothing,
+    # Deprecated:
+    varMap=nothing,
+) where {N<:AbstractExpressionNode}
+    variable_names = deprecate_varmap(variable_names, varMap, :split_eq)
     !(op ∈ (sum, prod, +, *)) && throw(error("Unsupported operation $op in expression!"))
     if Symbol(op) == Symbol(sum)
         ind = findoperation(+, operators.binops)
@@ -77,10 +85,10 @@ function split_eq(
     else
         ind = findoperation(op, operators.binops)
     end
-    return Node(
+    return constructorof(N)(
         ind,
-        convert(Node, args[1], operators; varMap=varMap),
-        convert(Node, op(args[2:end]...), operators; varMap=varMap),
+        convert(N, args[1], operators; variable_names=variable_names),
+        convert(N, op(args[2:end]...), operators; variable_names=variable_names),
     )
 end
 
@@ -93,32 +101,35 @@ end
 
 function Base.convert(
     ::typeof(SymbolicUtils.Symbolic),
-    tree::Node,
+    tree::AbstractExpressionNode,
     operators::AbstractOperatorEnum;
-    varMap::Union{Array{String,1},Nothing}=nothing,
+    variable_names::Union{Array{String,1},Nothing}=nothing,
     index_functions::Bool=false,
+    # Deprecated:
+    varMap=nothing,
 )
-    return node_to_symbolic(tree, operators; varMap=varMap, index_functions=index_functions)
+    variable_names = deprecate_varmap(variable_names, varMap, :convert)
+    return node_to_symbolic(
+        tree, operators; variable_names=variable_names, index_functions=index_functions
+    )
 end
 
 function Base.convert(
-    ::typeof(Node),
-    x::Number,
-    operators::AbstractOperatorEnum;
-    varMap::Union{Array{String,1},Nothing}=nothing,
-)
-    return Node(; val=DEFAULT_NODE_TYPE(x))
+    ::Type{N}, x::Number, operators::AbstractOperatorEnum; kws...
+) where {N<:AbstractExpressionNode}
+    return constructorof(N)(; val=DEFAULT_NODE_TYPE(x))
 end
 
 function Base.convert(
-    ::typeof(Node),
+    ::Type{N},
     expr::SymbolicUtils.Symbolic,
     operators::AbstractOperatorEnum;
-    varMap::Union{Array{String,1},Nothing}=nothing,
-)
+    variable_names::Union{Array{String,1},Nothing}=nothing,
+) where {N<:AbstractExpressionNode}
+    variable_names = deprecate_varmap(variable_names, nothing, :convert)
     if !SymbolicUtils.istree(expr)
-        varMap === nothing && return Node(String(expr.name))
-        return Node(String(expr.name), varMap)
+        variable_names === nothing && return constructorof(N)(String(expr.name))
+        return constructorof(N)(String(expr.name), variable_names)
     end
 
     # First, we remove integer powers:
@@ -130,19 +141,22 @@ function Base.convert(
     op = convert_to_function(SymbolicUtils.operation(expr), operators)
     args = SymbolicUtils.arguments(expr)
 
-    length(args) > 2 && return split_eq(op, args, operators; varMap=varMap)
+    length(args) > 2 &&
+        return split_eq(op, args, operators, N; variable_names=variable_names)
     ind = if length(args) == 2
         findoperation(op, operators.binops)
     else
         findoperation(op, operators.unaops)
     end
 
-    return Node(ind, map(x -> convert(Node, x, operators; varMap=varMap), args)...)
+    return constructorof(N)(
+        ind, map(x -> convert(N, x, operators; variable_names=variable_names), args)...
+    )
 end
 
 """
-    node_to_symbolic(tree::Node, operators::AbstractOperatorEnum;
-                varMap::Union{Array{String, 1}, Nothing}=nothing,
+    node_to_symbolic(tree::AbstractExpressionNode, operators::AbstractOperatorEnum;
+                variable_names::Union{Array{String, 1}, Nothing}=nothing,
                 index_functions::Bool=false)
 
 The interface to SymbolicUtils.jl. Passing a tree to this function
@@ -150,40 +164,50 @@ will generate a symbolic equation in SymbolicUtils.jl format.
 
 ## Arguments
 
-- `tree::Node`: The equation to convert.
+- `tree::AbstractExpressionNode`: The equation to convert.
 - `operators::AbstractOperatorEnum`: OperatorEnum, which contains the operators used in the equation.
-- `varMap::Union{Array{String, 1}, Nothing}=nothing`: What variable names to use for
+- `variable_names::Union{Array{String, 1}, Nothing}=nothing`: What variable names to use for
     each feature. Default is [x1, x2, x3, ...].
 - `index_functions::Bool=false`: Whether to generate special names for the
-    operators, which then allows one to convert back to a `Node` format
+    operators, which then allows one to convert back to a `AbstractExpressionNode` format
     using `symbolic_to_node`.
     (CURRENTLY UNAVAILABLE - See https://github.com/MilesCranmer/SymbolicRegression.jl/pull/84).
 """
 function node_to_symbolic(
-    tree::Node,
+    tree::AbstractExpressionNode,
     operators::AbstractOperatorEnum;
-    varMap::Union{Array{String,1},Nothing}=nothing,
+    variable_names::Union{Array{String,1},Nothing}=nothing,
     index_functions::Bool=false,
+    # Deprecated:
+    varMap=nothing,
 )
+    variable_names = deprecate_varmap(variable_names, varMap, :node_to_symbolic)
     expr = subs_bad(parse_tree_to_eqs(tree, operators, index_functions))
     # Check for NaN and Inf
     @assert isgood(expr) "The recovered equation contains NaN or Inf."
-    # Return if no varMap is given
-    varMap === nothing && return expr
+    # Return if no variable_names is given
+    variable_names === nothing && return expr
     # Create a substitution tuple
     subs = Dict(
         [
             SymbolicUtils.Sym{LiteralReal}(Symbol("x$(i)")) =>
-                SymbolicUtils.Sym{LiteralReal}(Symbol(varMap[i])) for i in 1:length(varMap)
+                SymbolicUtils.Sym{LiteralReal}(Symbol(variable_names[i])) for
+            i in 1:length(variable_names)
         ]...,
     )
     return substitute(expr, subs)
 end
 
 function symbolic_to_node(
-    eqn::T, operators::AbstractOperatorEnum; varMap::Union{Array{String,1},Nothing}=nothing
-)::Node where {T<:SymbolicUtils.Symbolic}
-    return convert(Node, eqn, operators; varMap=varMap)
+    eqn::SymbolicUtils.Symbolic,
+    operators::AbstractOperatorEnum,
+    ::Type{N}=Node;
+    variable_names::Union{Array{String,1},Nothing}=nothing,
+    # Deprecated:
+    varMap=nothing,
+) where {N<:AbstractExpressionNode}
+    variable_names = deprecate_varmap(variable_names, varMap, :symbolic_to_node)
+    return convert(N, eqn, operators; variable_names=variable_names)
 end
 
 function multiply_powers(eqn::Number)::Tuple{SYMBOLIC_UTILS_TYPES,Bool}
@@ -213,7 +237,7 @@ function multiply_powers(
         @return_on_false complete eqn
         @return_on_false isgood(l) eqn
         n = args[2]
-        if typeof(n) <: Int
+        if typeof(n) <: Integer
             if n == 1
                 return l, true
             elseif n == -1

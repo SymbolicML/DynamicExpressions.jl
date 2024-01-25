@@ -90,17 +90,32 @@ for unaop in [cos, exp, safe_log, safe_log2, safe_log10, safe_sqrt, relu, gamma,
     end
 end
 
-# We also test whether we can set a node equal to another node:
-operators = OperatorEnum(; default_params...)
-tree = Node(Float64; feature=1)
-tree2 = exp(Node(; feature=2) / 3.2) + Node(; feature=1) * 2.0
+@testset "Set a node equal to another node" begin
+    operators = OperatorEnum(; default_params...)
+    tree = Node(Float64; feature=1)
+    tree2 = exp(Node(Float64; feature=2) / 3.2) + Node(Float64; feature=1) * 2.0
 
-# Test printing works:
-io = IOBuffer()
-print(io, tree2)
-s = String(take!(io))
-@test s == "(exp(x2 / 3.2) + (x1 * 2.0))"
+    # Test printing works:
+    io = IOBuffer()
+    print(io, tree2)
+    s = String(take!(io))
+    @test s == "exp(x2 / 3.2) + (x1 * 2.0)"
 
-set_node!(tree, tree2)
-@test tree !== tree2
-@test repr(tree) == repr(tree2)
+    set_node!(tree, tree2)
+    @test tree !== tree2
+    @test repr(tree) == repr(tree2)
+end
+
+@testset "Miscellaneous" begin
+    operators = OperatorEnum(; default_params...)
+    for N in (Node, GraphNode)
+        tree = N{ComplexF64}(; val=1)
+        @test typeof(tree.val) === ComplexF64
+
+        x = N{BigFloat}(; feature=1)
+        @test_throws AssertionError N{Float32}(1, x)
+        @test N{BigFloat}(1, x) == N(1, x)
+        @test typeof(N(1, x, N{Float32}(; val=1))) === N{BigFloat}
+        @test typeof(N(1, N{Float32}(; val=1), x)) === N{BigFloat}
+    end
+end

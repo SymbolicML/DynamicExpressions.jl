@@ -75,13 +75,13 @@ end
 
 # Fastest way to check for NaN in an array.
 # (due to optimizations in sum())
-is_bad_array(array) = !isfinite(sum(array))
+is_bad_array(array) = !(isempty(array) || isfinite(sum(array)))
 isgood(x::T) where {T<:Number} = !(isnan(x) || !isfinite(x))
 isgood(x) = true
 isbad(x) = !isgood(x)
 
 """
-    @memoize_on tree function my_function_on_tree(tree::Node)
+    @memoize_on tree [postprocess] function my_function_on_tree(tree::AbstractExpressionNode)
         ...
     end
 
@@ -90,23 +90,36 @@ function with an additional `id_map` argument. When passed this argument (an
 IdDict()), it will use use the `id_map` to avoid recomputing the same value
 for the same node in a tree. Use this to automatically create functions that
 work with trees that have shared child nodes.
+
+Can optionally take a `postprocess` function, which will be applied to the
+result of the function before returning it, taking the result as the
+first argument and a boolean for whether the result was memoized as the
+second argument. This is useful for functions that need to count the number
+of unique nodes in a tree, for example.
 """
-macro memoize_on(tree, def)
-    idmap_def = _memoize_on(tree, def)
+macro memoize_on(tree, args...)
+    if length(args) ∉ (1, 2)
+        error("Expected 2 or 3 arguments to @memoize_on")
+    end
+    postprocess = length(args) == 1 ? :((r, _) -> r) : args[1]
+    def = length(args) == 1 ? args[1] : args[2]
+    idmap_def = _memoize_on(tree, postprocess, def)
+
     return quote
         $(esc(def)) # The normal function
         $(esc(idmap_def)) # The function with an id_map argument
     end
 end
-function _memoize_on(tree::Symbol, def::Expr)
+function _memoize_on(tree::Symbol, postprocess, def)
     sdef = splitdef(def)
 
     # Add an id_map argument
-    push!(sdef[:args], :(id_map::IdDict))
+    push!(sdef[:args], :(id_map::AbstractDict))
 
     f_name = sdef[:name]
 
-    # Add id_map argument to all calls within the function:
+    # Forward id_map argument to all calls of the same function
+    # within the function body:
     sdef[:body] = postwalk(sdef[:body]) do ex
         if @capture(ex, f_(args__))
             if f == f_name
@@ -117,10 +130,19 @@ function _memoize_on(tree::Symbol, def::Expr)
     end
 
     # Wrap the function body in a get!(id_map, tree) do ... end block:
+    @gensym key is_memoized result body
     sdef[:body] = quote
-        get!(id_map, $(tree)) do
-            $(sdef[:body])
+        $key = objectid($tree)
+        $is_memoized = haskey(id_map, $key)
+        function $body()
+            return $(sdef[:body])
         end
+        $result = if $is_memoized
+            @inbounds(id_map[$key])
+        else
+            id_map[$key] = $body()
+        end
+        return $postprocess($result, $is_memoized)
     end
 
     return combinedef(sdef)
@@ -150,9 +172,31 @@ macro with_memoize(def, id_map)
     end
 end
 
-function _add_idmap_to_call(def::Expr, id_map::Expr)
+function _add_idmap_to_call(def::Expr, id_map::Union{Symbol,Expr})
     @assert def.head == :call
     return Expr(:call, def.args[1], def.args[2:end]..., id_map)
 end
+
+@inline function fill_similar(value, array, args...)
+    out_array = similar(array, args...)
+    fill!(out_array, value)
+    return out_array
+end
+
+function deprecate_varmap(variable_names, varMap, func_name)
+    if varMap !== nothing
+        Base.depwarn("`varMap` is deprecated; use `variable_names` instead", func_name)
+        @assert variable_names === nothing "Cannot pass both `varMap` and `variable_names`"
+        variable_names = varMap
+    end
+    return variable_names
+end
+
+"""
+    Undefined
+
+Just a type like `Nothing` to differentiate from a literal `Nothing`.
+"""
+struct Undefined end
 
 end
