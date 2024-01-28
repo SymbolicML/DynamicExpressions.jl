@@ -21,7 +21,7 @@ function eval_tree_array(
     buffer=nothing,
     gpu_workspace=nothing,
     gpu_buffer=nothing,
-    kws...
+    kws...,
 ) where {T<:Number,N<:AbstractExpressionNode{T},M}
     (; val, execution_order, roots, buffer, num_nodes) = as_array(Int32, trees...; buffer)
     num_launches = maximum(execution_order)
