@@ -12,6 +12,10 @@ end
     include("test_deprecations.jl")
 end
 
+@safetestset "Test Optim.jl" begin
+    include("test_optim.jl")
+end
+
 @safetestset "Test tree construction and scoring" begin
     include("test_tree_construction.jl")
 end

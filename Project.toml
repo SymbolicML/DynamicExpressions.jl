@@ -16,10 +16,12 @@ Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [weakdeps]
+Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [extensions]
+DynamicExpressionsOptimExt = "Optim"
 DynamicExpressionsSymbolicUtilsExt = "SymbolicUtils"
 DynamicExpressionsZygoteExt = "Zygote"
 
@@ -28,6 +30,7 @@ Aqua = "0.7"
 Compat = "3.37, 4"
 Enzyme = "^0.11.12"
 LoopVectorization = "0.12"
+Optim = "0.19, 1"
 MacroTools = "0.4, 0.5"
 PackageExtensionCompat = "1"
 PrecompileTools = "1"
@@ -40,6 +43,7 @@ julia = "1.6"
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
@@ -48,4 +52,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [targets]
-test = ["Test", "SafeTestsets", "Aqua", "Enzyme", "ForwardDiff", "SpecialFunctions", "StaticArrays", "SymbolicUtils", "Zygote"]
+test = ["Test", "SafeTestsets", "Aqua", "Enzyme", "Optim", "ForwardDiff", "SpecialFunctions", "StaticArrays", "SymbolicUtils", "Zygote"]
