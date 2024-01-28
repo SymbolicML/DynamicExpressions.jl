@@ -45,7 +45,10 @@ end
 
     res = optimize(f, g!, tree, BFGS())
     @test did_i_run[]
+    @test res.f_calls > 0
     @test isapprox(get_constants(res.minimizer), get_constants(target_tree); atol=0.01)
+    @test Optim.minimizer(res) === res.minimizer
+    @test propertynames(res) == (:tree, propertynames(getfield(res, :_results))...)
 
     @testset "Hessians not implemented" begin
         @test_throws ArgumentError optimize(f, g!, t -> t, tree, BFGS())

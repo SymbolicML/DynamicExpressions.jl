@@ -27,9 +27,6 @@ end
 function Base.propertynames(r::ExpressionOptimizationResults)
     return (:tree, propertynames(getfield(r, :_results))...)
 end
-function base_results(r::ExpressionOptimizationResults)
-    return getfield(r, :_results)
-end
 function Optim.minimizer(r::ExpressionOptimizationResults)
     return r.tree
 end
