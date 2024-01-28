@@ -17,12 +17,14 @@ TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 [weakdeps]
 Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
+Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [extensions]
 DynamicExpressionsBumperExt = "Bumper"
 DynamicExpressionsLoopVectorizationExt = "LoopVectorization"
+DynamicExpressionsOptimExt = "Optim"
 DynamicExpressionsSymbolicUtilsExt = "SymbolicUtils"
 DynamicExpressionsZygoteExt = "Zygote"
 
@@ -32,6 +34,7 @@ Bumper = "0.6"
 Compat = "3.37, 4"
 Enzyme = "^0.11.12"
 LoopVectorization = "0.12"
+Optim = "0.19, 1"
 MacroTools = "0.4, 0.5"
 PackageExtensionCompat = "1"
 PrecompileTools = "1"
@@ -46,6 +49,7 @@ Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
+Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
@@ -54,4 +58,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [targets]
-test = ["Test", "SafeTestsets", "Aqua", "Bumper", "Enzyme", "ForwardDiff", "LoopVectorization", "SpecialFunctions", "StaticArrays", "SymbolicUtils", "Zygote"]
+test = ["Test", "SafeTestsets", "Aqua", "Bumper", "Enzyme", "ForwardDiff", "LoopVectorization", "Optim", "SpecialFunctions", "StaticArrays", "SymbolicUtils", "Zygote"]
