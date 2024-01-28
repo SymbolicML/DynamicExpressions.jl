@@ -46,6 +46,14 @@ end
     res = optimize(f, g!, tree, BFGS())
     @test did_i_run[]
     @test isapprox(get_constants(res.minimizer), get_constants(target_tree); atol=0.01)
+
+    @testset "Hessians not implemented" begin
+        @test_throws ArgumentError optimize(f, g!, t -> t, tree, BFGS())
+        VERSION >= v"1.9" && @test_throws(
+            "Optim.optimize does not yet support Hessians on `AbstractExpressionNode`",
+            optimize(f, g!, t -> t, tree, BFGS())
+        )
+    end
 end
 
 # Now, try combined

@@ -100,22 +100,20 @@ function Optim.optimize(
     end
     constant_nodes = filter(t -> t.degree == 0 && t.constant, tree)
     x0 = T[t.val::T for t in constant_nodes]
-    base_res = if g! === nothing
-        @assert h! === nothing
-        Optim.optimize(wrap_func(f, tree, constant_nodes), x0, args...; kwargs...)
-    elseif h! === nothing
-        Optim.optimize(
-            wrap_func(f, tree, constant_nodes),
-            wrap_func(g!, tree, constant_nodes),
-            x0,
-            args...;
-            kwargs...,
+    if !isnothing(h!)
+        throw(
+            ArgumentError(
+                "Optim.optimize does not yet support Hessians on `AbstractExpressionNode`. " *
+                "Please raise an issue at github.com/SymbolicML/DynamicExpressions.jl.",
+            ),
         )
+    end
+    base_res = if isnothing(g!)
+        Optim.optimize(wrap_func(f, tree, constant_nodes), x0, args...; kwargs...)
     else
         Optim.optimize(
             wrap_func(f, tree, constant_nodes),
             wrap_func(g!, tree, constant_nodes),
-            wrap_func(h!, tree, constant_nodes),
             x0,
             args...;
             kwargs...,
