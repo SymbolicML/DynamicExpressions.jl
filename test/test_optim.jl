@@ -1,19 +1,19 @@
 using DynamicExpressions, Optim, Zygote
 using Random: Xoshiro
 
+operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(exp,))
+x1, x2 = (i -> Node(Float64; feature=i)).(1:2)
+
+X = rand(Xoshiro(0), Float64, 2, 100)
+y = @. exp(X[1, :] * 2.1 - 0.9) + X[2, :] * -0.9
+
+original_tree = exp(x1 * 0.8 - 0.0) + 5.2 * x2
+target_tree = exp(x1 * 2.1 - 0.9) + -0.9 * x2
+
+f(tree) = sum(abs2, tree(X, operators) .- y)
+
 @testset "Basic optimization" begin
-    operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(exp,))
-    x1, x2 = (i -> Node(Float64; feature=i)).(1:2)
-
-    X = rand(Xoshiro(0), Float64, 2, 100)
-    y = @. exp(X[1, :] * 2.1 - 0.9) + X[2, :] * -0.9
-
-    original_tree = exp(x1 * 0.8 - 0.0) + 5.2 * x2
-    target_tree = exp(x1 * 2.1 - 0.9) + -0.9 * x2
     tree = copy(original_tree)
-
-    f(tree) = sum(abs2, tree(X, operators) .- y)
-
     res = optimize(f, tree)
 
     # Should be unchanged by default
@@ -26,6 +26,7 @@ using Random: Xoshiro
 end
 
 @testset "With gradients" begin
+    tree = copy(original_tree)
     did_i_run = Ref(false)
     # Now, try with gradients too (via Zygote and our hand-rolled forward-mode AD)
     g!(G, tree) =
@@ -49,6 +50,7 @@ end
 
 # Now, try combined
 @testset "Combined evaluation with gradient" begin
+    tree = copy(original_tree)
     did_i_run_2 = Ref(false)
     fg!(F, G, tree) =
         let
