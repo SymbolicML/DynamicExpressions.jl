@@ -2,7 +2,7 @@ module DynamicExpressionsBumperExt
 
 using Bumper: @no_escape, @alloc
 using DynamicExpressions: OperatorEnum, AbstractExpressionNode, tree_mapreduce
-using DynamicExpressions.UtilsModule: ResultOk, counttuple
+using DynamicExpressions.UtilsModule: ResultOk, counttuple, is_bad_array
 
 import DynamicExpressions.ExtensionInterfaceModule: bumper_eval_tree_array
 
@@ -35,7 +35,7 @@ function bumper_eval_tree_array(
                 if M == 1
                     if cumulators[1].ok
                         out = dispatch_kern1!(operators.unaops, branch.op, cumulators[1].x)
-                        ResultOk(out, isfinite(sum(yi -> yi * zero(yi), out)))
+                        ResultOk(out, !is_bad_array(out))
                     else
                         cumulators[1]
                     end
@@ -47,7 +47,7 @@ function bumper_eval_tree_array(
                             cumulators[1].x,
                             cumulators[2].x,
                         )
-                        ResultOk(out, isfinite(sum(yi -> yi * zero(yi), out)))
+                        ResultOk(out, !is_bad_array(out))
                     elseif cumulators[1].ok
                         cumulators[2]
                     else
