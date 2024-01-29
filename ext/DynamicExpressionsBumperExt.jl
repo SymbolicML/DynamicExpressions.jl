@@ -17,13 +17,15 @@ function bumper_eval_tree_array(
             # it with the value of the leaf:
             leaf -> begin
                 ar = @alloc(T, n)
-                if leaf.constant
+                ok = if leaf.constant
                     v = leaf.val::T
                     ar .= v
+                    isfinite(v)
                 else
                     ar .= view(cX, leaf.feature, :)
+                    true
                 end
-                ResultOk(ar, true)
+                ResultOk(ar, ok)
             end,
             # Branch nodes, we simply pass them to the evaluation kernel:
             branch -> branch,
