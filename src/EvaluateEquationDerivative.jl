@@ -2,17 +2,11 @@ module EvaluateEquationDerivativeModule
 
 import ..EquationModule: AbstractExpressionNode, constructorof
 import ..OperatorEnumModule: OperatorEnum
-import ..UtilsModule: is_bad_array, fill_similar
+import ..UtilsModule: is_bad_array, fill_similar, ResultOk2
 import ..EquationUtilsModule: count_constants, index_constants, NodeIndex
 import ..EvaluateEquationModule:
     deg0_eval, get_nuna, get_nbin, OPERATOR_LIMIT_BEFORE_SLOWDOWN
 import ..ExtensionInterfaceModule: _zygote_gradient
-
-struct ResultOk2{A<:AbstractArray,B<:AbstractArray}
-    x::A
-    dx::B
-    ok::Bool
-end
 
 """
     eval_diff_tree_array(tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Integer; turbo::Bool=false)
