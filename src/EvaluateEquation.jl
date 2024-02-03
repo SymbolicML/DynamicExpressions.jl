@@ -72,13 +72,12 @@ function eval_tree_array(
     if v_turbo isa Val{true} || v_bumper isa Val{true}
         @assert T in (Float32, Float64)
     end
-    @assert !(v_turbo isa Val{true} && v_bumper isa Val{true})
-    if v_bumper isa Val{true}
-        return bumper_eval_tree_array(tree, cX, operators)
-    end
     if v_turbo isa Val{true}
         _is_loopvectorization_loaded(0) ||
             error("Please load the LoopVectorization.jl package to use this feature.")
+    end
+    if v_bumper isa Val{true}
+        return bumper_eval_tree_array(tree, cX, operators, v_turbo)
     end
 
     result = _eval_tree_array(tree, cX, operators, v_turbo)

@@ -36,7 +36,6 @@ function benchmark_evaluation()
         for turbo in (false, true), bumper in (false, true)
 
             (turbo || bumper) && !(T in (Float32, Float64)) && continue
-            turbo && bumper && continue
             if bumper
                 try
                     eval_tree_array(Node{T}(val=1.0), ones(T, 5, n), operators; turbo, bumper)
@@ -47,7 +46,15 @@ function benchmark_evaluation()
                 end
             end
 
-            extra_key = turbo ? "_turbo" : (bumper ? "_bumper" : "")
+            extra_key = if turbo && bumper
+                "_turbo_bumper"
+            elseif turbo
+                "_turbo"
+            elseif bumper
+                "_bumper"
+            else
+                ""
+            end
             extra_kws = bumper ? (; bumper=Val(true)) : ()
             eval_tree_array(
                 gen_random_tree_fixed_size(20, operators, 5, T),

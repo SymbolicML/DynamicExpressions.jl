@@ -43,7 +43,6 @@ for turbo in [Val(false), Val(true)],
 
     # Float16 not implemented:
     (turbo isa Val{true} || bumper isa Val{true}) && !(T in (Float32, Float64)) && continue
-    turbo isa Val{true} && bumper isa Val{true} && continue
     @testset "Test evaluation of trees with turbo=$turbo, bumper=$bumper, T=$T" begin
         for (i_func, fnc) in enumerate(functions)
 
