@@ -18,7 +18,7 @@ struct ExpressionOptimizationResults{R<:OptimizationResults,N<:AbstractExpressio
     tree::N # The final expression tree
 end
 #! format: on
-function Base.getproperty(r::ExpressionOptimizationResults, s)
+function Base.getproperty(r::ExpressionOptimizationResults, s::Symbol)
     if s == :tree || s == :minimizer
         return getfield(r, :tree)
     else
