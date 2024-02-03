@@ -9,7 +9,7 @@ import ..EvaluateEquationModule:
 import ..ExtensionInterfaceModule: _zygote_gradient
 
 """
-    eval_diff_tree_array(tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Integer; turbo::Bool=false)
+    eval_diff_tree_array(tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Integer; turbo::Union{Bool,Val}=Val(false))
 
 Compute the forward derivative of an expression, using a similar
 structure and optimization to eval_tree_array. `direction` is the index of a particular
@@ -22,7 +22,8 @@ respect to `x1`.
 - `cX::AbstractMatrix{T}`: The data matrix, with each column being a data point.
 - `operators::OperatorEnum`: The operators used to create the `tree`.
 - `direction::Integer`: The index of the variable to take the derivative with respect to.
-- `turbo::Union{Val,Bool}`: Use `LoopVectorization.@turbo` for faster evaluation.
+- `turbo::Union{Bool,Val}`: Use LoopVectorization.jl for faster evaluation. Currently this does not have
+    any effect.
 
 # Returns
 
@@ -34,7 +35,7 @@ function eval_diff_tree_array(
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     direction::Integer;
-    turbo::Union{Val,Bool}=Val(false),
+    turbo::Union{Bool,Val}=Val(false),
 ) where {T<:Number}
     # TODO: Implement quick check for whether the variable is actually used
     # in this tree. Otherwise, return zero.
@@ -48,7 +49,7 @@ function eval_diff_tree_array(
     cX::AbstractMatrix{T2},
     operators::OperatorEnum,
     direction::Integer;
-    turbo::Bool=false,
+    turbo::Union{Bool,Val}=Val(false),
 ) where {T1<:Number,T2<:Number}
     T = promote_type(T1, T2)
     @warn "Warning: eval_diff_tree_array received mixed types: tree=$(T1) and data=$(T2)."
@@ -175,7 +176,7 @@ function diff_deg2_eval(
 end
 
 """
-    eval_grad_tree_array(tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum; variable::Bool=false, turbo::Bool=false)
+    eval_grad_tree_array(tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum; variable::Union{Bool,Val}=Val(false), turbo::Union{Bool,Val}=Val(false))
 
 Compute the forward-mode derivative of an expression, using a similar
 structure and optimization to eval_tree_array. `variable` specifies whether
@@ -187,9 +188,9 @@ to every constant in the expression.
 - `tree::AbstractExpressionNode{T}`: The expression tree to evaluate.
 - `cX::AbstractMatrix{T}`: The data matrix, with each column being a data point.
 - `operators::OperatorEnum`: The operators used to create the `tree`.
-- `variable::Bool`: Whether to take derivatives with respect to features (i.e., `cX` - with `variable=true`),
+- `variable::Union{Bool,Val}`: Whether to take derivatives with respect to features (i.e., `cX` - with `variable=true`),
     or with respect to every constant in the expression (`variable=false`).
-- `turbo::Bool`: Use `LoopVectorization.@turbo` for faster evaluation. Currently this does not have
+- `turbo::Union{Bool,Val}`: Use LoopVectorization.jl for faster evaluation. Currently this does not have
     any effect.
 
 # Returns
@@ -201,8 +202,8 @@ function eval_grad_tree_array(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
-    variable::Union{Val,Bool}=Val{false}(),
-    turbo::Union{Val,Bool}=Val{false}(),
+    variable::Union{Bool,Val}=Val(false),
+    turbo::Union{Bool,Val}=Val(false),
 ) where {T<:Number}
     n_gradients = if isa(variable, Val{true}) || (isa(variable, Bool) && variable)
         size(cX, 1)::Int
@@ -239,8 +240,8 @@ function eval_grad_tree_array(
     tree::AbstractExpressionNode{T1},
     cX::AbstractMatrix{T2},
     operators::OperatorEnum;
-    variable::Union{Val,Bool}=Val{false}(),
-    turbo::Union{Val,Bool}=Val{false}(),
+    variable::Union{Bool,Val}=Val(false),
+    turbo::Union{Bool,Val}=Val(false),
 ) where {T1<:Number,T2<:Number}
     T = promote_type(T1, T2)
     return eval_grad_tree_array(

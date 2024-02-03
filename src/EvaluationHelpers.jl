@@ -8,7 +8,7 @@ import ..EvaluateEquationDerivativeModule: eval_grad_tree_array
 
 # Evaluation:
 """
-    (tree::AbstractExpressionNode)(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Union{Bool,Val}=false)
+    (tree::AbstractExpressionNode)(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Union{Bool,Val}=false, bumper::Union{Bool,Val}=Val(false))
 
 Evaluate a binary tree (equation) over a given input data matrix. The
 operators contain all of the operators used. This function fuses doublets
@@ -18,7 +18,8 @@ and triplets of operations for lower memory usage.
 - `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
 - `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
 - `operators::OperatorEnum`: The operators used in the tree.
-- `turbo::Union{Bool,Val}`: Use `LoopVectorization.@turbo` for faster evaluation.
+- `turbo::Union{Bool,Val}`: Use LoopVectorization.jl for faster evaluation.
+- `bumper::Union{Bool,Val}`: Use Bumper.jl for faster evaluation.
 
 # Returns
 - `output::AbstractVector{T}`: the result, which is a 1D array.
@@ -84,7 +85,8 @@ to every constant in the expression.
 - `operators::OperatorEnum`: The operators used to create the `tree`.
 - `variable::Union{Bool,Val}`: Whether to take derivatives with respect to features (i.e., `X` - with `variable=true`),
     or with respect to every constant in the expression (`variable=false`).
-- `turbo::Union{Bool,Val}`: Use `LoopVectorization.@turbo` for faster evaluation.
+- `turbo::Union{Bool,Val}`: Use LoopVectorization.jl for faster evaluation. Currently this does not have
+    any effect.
 
 # Returns
 
