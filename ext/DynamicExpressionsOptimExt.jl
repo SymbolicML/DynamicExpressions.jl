@@ -1,6 +1,7 @@
 module DynamicExpressionsOptimExt
 
-using DynamicExpressions: AbstractExpressionNode, eval_tree_array
+using DynamicExpressions:
+    AbstractExpressionNode, eval_tree_array, get_constant_refs, set_constant_refs!
 using Compat: @inline
 
 import Optim: Optim, OptimizationResults, NLSolversBase
@@ -31,45 +32,36 @@ function Optim.minimizer(r::ExpressionOptimizationResults)
     return r.tree
 end
 
-function set_constant_nodes!(
-    constant_nodes::AbstractArray{N}, x
-) where {T,N<:AbstractExpressionNode{T}}
-    for (ci, xi) in zip(constant_nodes, x)
-        ci.val::T = xi::T
-    end
-    return nothing
-end
-
 """Wrap function or objective with insertion of values of the constant nodes."""
 function wrap_func(
-    f::F, tree::N, constant_nodes::AbstractArray{N}
+    f::F, tree::N, constant_refs::AbstractArray
 ) where {F<:Function,T,N<:AbstractExpressionNode{T}}
     function wrapped_f(args::Vararg{Any,M}) where {M}
         first_args = args[1:(end - 1)]
         x = last(args)
-        set_constant_nodes!(constant_nodes, x)
+        set_constant_refs!(constant_refs, x)
         return @inline(f(first_args..., tree))
     end
     return wrapped_f
 end
 function wrap_func(
-    ::Nothing, tree::N, constant_nodes::AbstractArray{N}
+    ::Nothing, tree::N, constant_refs::AbstractArray
 ) where {N<:AbstractExpressionNode}
     return nothing
 end
 function wrap_func(
-    f::NLSolversBase.InplaceObjective, tree::N, constant_nodes::AbstractArray{N}
+    f::NLSolversBase.InplaceObjective, tree::N, constant_refs::AbstractArray
 ) where {N<:AbstractExpressionNode}
     # Some objectives, like `Optim.only_fg!(fg!)`, are not functions but instead
     # `InplaceObjective`. These contain multiple functions, each of which needs to be
     # wrapped. Some functions are `nothing`; those can be left as-is.
     @assert fieldnames(NLSolversBase.InplaceObjective) == (:df, :fdf, :fgh, :hv, :fghv)
     return NLSolversBase.InplaceObjective(
-        wrap_func(f.df, tree, constant_nodes),
-        wrap_func(f.fdf, tree, constant_nodes),
-        wrap_func(f.fgh, tree, constant_nodes),
-        wrap_func(f.hv, tree, constant_nodes),
-        wrap_func(f.fghv, tree, constant_nodes),
+        wrap_func(f.df, tree, constant_refs),
+        wrap_func(f.fdf, tree, constant_refs),
+        wrap_func(f.fgh, tree, constant_refs),
+        wrap_func(f.hv, tree, constant_refs),
+        wrap_func(f.fghv, tree, constant_refs),
     )
 end
 
@@ -95,8 +87,8 @@ function Optim.optimize(
     if make_copy
         tree = copy(tree)
     end
-    constant_nodes = filter(t -> t.degree == 0 && t.constant, tree)
-    x0 = T[t.val::T for t in constant_nodes]
+    constant_refs = get_constant_refs(tree)
+    x0 = map(t -> t.x, constant_refs)
     if !isnothing(h!)
         throw(
             ArgumentError(
@@ -106,17 +98,17 @@ function Optim.optimize(
         )
     end
     base_res = if isnothing(g!)
-        Optim.optimize(wrap_func(f, tree, constant_nodes), x0, args...; kwargs...)
+        Optim.optimize(wrap_func(f, tree, constant_refs), x0, args...; kwargs...)
     else
         Optim.optimize(
-            wrap_func(f, tree, constant_nodes),
-            wrap_func(g!, tree, constant_nodes),
+            wrap_func(f, tree, constant_refs),
+            wrap_func(g!, tree, constant_refs),
             x0,
             args...;
             kwargs...,
         )
     end
-    set_constant_nodes!(constant_nodes, Optim.minimizer(base_res))
+    set_constant_refs!(constant_refs, Optim.minimizer(base_res))
     return ExpressionOptimizationResults(base_res, tree)
 end
 
