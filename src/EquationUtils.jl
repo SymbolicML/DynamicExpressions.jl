@@ -111,12 +111,12 @@ struct NodeConstantRef{T,N<:AbstractExpressionNode{T}}
         return new{_T,_N}(Ref(node))
     end
 end
-function Base.getproperty(cr::NodeConstantRef{T}, s::Symbol) where {T}
+function Base.getproperty(cr::NodeConstantRef{T}, s) where {T}
     s != :x && error("Only :x is a valid property for NodeConstantRef")
 
     return getfield(cr, :_node).x.val::T
 end
-function Base.setproperty!(cr::NodeConstantRef{T}, s::Symbol, v) where {T}
+function Base.setproperty!(cr::NodeConstantRef{T}, s, v) where {T}
     s != :x && error("Only :x is a valid property for NodeConstantRef")
 
     return getfield(cr, :_node).x.val::T = v::T
