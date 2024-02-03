@@ -15,46 +15,23 @@ function bumper_eval_tree_array(
         _result_ok = tree_mapreduce(
             # Leaf nodes, we create an allocation and fill
             # it with the value of the leaf:
-            leaf -> begin
+            leaf_node -> begin
                 ar = @alloc(T, n)
-                ok = if leaf.constant
-                    v = leaf.val::T
+                ok = if leaf_node.constant
+                    v = leaf_node.val::T
                     ar .= v
                     isfinite(v)
                 else
-                    ar .= view(cX, leaf.feature, :)
+                    ar .= view(cX, leaf_node.feature, :)
                     true
                 end
                 ResultOk(ar, ok)
             end,
             # Branch nodes, we simply pass them to the evaluation kernel:
-            branch -> branch,
+            branch_node -> branch_node,
             # In the evaluation kernel, we combine the branch nodes
             # with the arrays created by the leaf nodes:
-            ((branch, cumulators::Vararg{Any,M}) where {M}) -> begin
-                if M == 1
-                    if cumulators[1].ok
-                        out = dispatch_kern1!(operators.unaops, branch.op, cumulators[1].x)
-                        ResultOk(out, !is_bad_array(out))
-                    else
-                        cumulators[1]
-                    end
-                else
-                    if cumulators[1].ok && cumulators[2].ok
-                        out = dispatch_kern2!(
-                            operators.binops,
-                            branch.op,
-                            cumulators[1].x,
-                            cumulators[2].x,
-                        )
-                        ResultOk(out, !is_bad_array(out))
-                    elseif cumulators[1].ok
-                        cumulators[2]
-                    else
-                        cumulators[1]
-                    end
-                end
-            end,
+            ((args::Vararg{Any,M}) where {M}) -> dispatch_kerns!(operators, args...),
             tree;
             break_sharing=Val(true),
         )
@@ -64,6 +41,21 @@ function bumper_eval_tree_array(
     end
     return (result, ok)
 end
+
+function dispatch_kerns!(operators, branch_node, cumulator)
+    cumulator.ok || return cumulator
+
+    out = dispatch_kern1!(operators.unaops, branch_node.op, cumulator.x)
+    return ResultOk(out, !is_bad_array(out))
+end
+function dispatch_kerns!(operators, branch_node, cumulator1, cumulator2)
+    cumulator1.ok || return cumulator1
+    cumulator2.ok || return cumulator2
+
+    out = dispatch_kern2!(operators.binops, branch_node.op, cumulator1.x, cumulator2.x)
+    return ResultOk(out, !is_bad_array(out))
+end
+
 @generated function dispatch_kern1!(unaops, op_idx, cumulator)
     nuna = counttuple(unaops)
     quote
