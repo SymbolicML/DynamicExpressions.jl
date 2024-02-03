@@ -11,7 +11,8 @@ function bumper_eval_tree_array(
 ) where {T}
     result = similar(cX, axes(cX, 2))
     n = size(cX, 2)
-    ok = @no_escape begin
+    all_ok = Ref(false)
+    @no_escape begin
         _result_ok = tree_mapreduce(
             # Leaf nodes, we create an allocation and fill
             # it with the value of the leaf:
@@ -37,9 +38,9 @@ function bumper_eval_tree_array(
         )
         x = _result_ok.x
         result .= x
-        _result_ok.ok
+        all_ok[] = _result_ok.ok
     end
-    return (result, ok)
+    return (result, all_ok[])
 end
 
 function dispatch_kerns!(operators, branch_node, cumulator)
