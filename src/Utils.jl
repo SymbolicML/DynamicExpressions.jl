@@ -153,4 +153,10 @@ struct ResultOk{A}
     ok::Bool
 end
 
+struct ResultOk2{A<:AbstractArray,B<:AbstractArray}
+    x::A
+    dx::B
+    ok::Bool
+end
+
 end

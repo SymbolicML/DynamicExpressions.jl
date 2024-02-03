@@ -12,7 +12,8 @@ import DynamicExpressions.EvaluateEquationModule:
     deg2_l0_r0_eval,
     deg2_l0_eval,
     deg2_r0_eval
-import DynamicExpressions.ExtensionInterfaceModule: _is_loopvectorization_loaded
+import DynamicExpressions.ExtensionInterfaceModule:
+    _is_loopvectorization_loaded, bumper_kern1!, bumper_kern2!
 
 _is_loopvectorization_loaded(::Int) = true
 
@@ -199,6 +200,16 @@ function deg2_r0_eval(
         end
         return ResultOk(cumulator, true)
     end
+end
+
+## Interface with Bumper.jl
+function bumper_kern1!(op::F, cumulator, ::Val{true}) where {F}
+    @turbo @. cumulator = op(cumulator)
+    return cumulator
+end
+function bumper_kern2!(op::F, cumulator1, cumulator2, ::Val{true}) where {F}
+    @turbo @. cumulator1 = op(cumulator1, cumulator2)
+    return cumulator1
 end
 
 end

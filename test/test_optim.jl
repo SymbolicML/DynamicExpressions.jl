@@ -1,5 +1,6 @@
 using DynamicExpressions, Optim, Zygote
 using Random: MersenneTwister as RNG
+using Test
 
 operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(exp,))
 x1, x2 = (i -> Node(Float64; feature=i)).(1:2)

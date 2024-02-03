@@ -25,7 +25,7 @@ macro return_on_nonfinite_array(array)
 end
 
 """
-    eval_tree_array(tree::AbstractExpressionNode, cX::AbstractMatrix{T}, operators::OperatorEnum; turbo::Union{Bool,Val}=Val(false))
+    eval_tree_array(tree::AbstractExpressionNode, cX::AbstractMatrix{T}, operators::OperatorEnum; turbo::Union{Bool,Val}=Val(false), bumper::Union{Bool,Val}=Val(false))
 
 Evaluate a binary tree (equation) over a given input data matrix. The
 operators contain all of the operators used. This function fuses doublets
@@ -35,7 +35,8 @@ and triplets of operations for lower memory usage.
 - `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
 - `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
 - `operators::OperatorEnum`: The operators used in the tree.
-- `turbo::Union{Bool,Val}`: Use `LoopVectorization.@turbo` for faster evaluation.
+- `turbo::Union{Bool,Val}`: Use LoopVectorization.jl for faster evaluation.
+- `bumper::Union{Bool,Val}`: Use Bumper.jl for faster evaluation.
 
 # Returns
 - `(output, complete)::Tuple{AbstractVector{T}, Bool}`: the result,
@@ -71,12 +72,12 @@ function eval_tree_array(
     if v_turbo isa Val{true} || v_bumper isa Val{true}
         @assert T in (Float32, Float64)
     end
-    if v_bumper isa Val{true}
-        return bumper_eval_tree_array(tree, cX, operators)
-    end
     if v_turbo isa Val{true}
         _is_loopvectorization_loaded(0) ||
             error("Please load the LoopVectorization.jl package to use this feature.")
+    end
+    if v_bumper isa Val{true}
+        return bumper_eval_tree_array(tree, cX, operators, v_turbo)
     end
 
     result = _eval_tree_array(tree, cX, operators, v_turbo)
