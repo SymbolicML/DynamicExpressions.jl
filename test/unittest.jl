@@ -8,6 +8,9 @@ end
     include("test_initial_errors.jl")
 end
 
+# Trigger extensions:
+using Zygote, SymbolicUtils, LoopVectorization, Bumper, Optim
+
 @safetestset "Test deprecations" begin
     include("test_deprecations.jl")
 end

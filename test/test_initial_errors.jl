@@ -33,4 +33,13 @@ if VERSION >= v"1.9"
     )
 
     @test_throws("Please load the Zygote.jl package.", tree'(ones(2, 10)))
+
+    @test_throws(
+        "Please load the Bumper.jl package", tree(ones(2, 10), operators; bumper=Val(true))
+    )
+
+    @test_throws(
+        "Please load the LoopVectorization.jl package",
+        tree(ones(2, 10), operators; turbo=Val(true))
+    )
 end

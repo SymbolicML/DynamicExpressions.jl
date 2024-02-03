@@ -13,25 +13,23 @@ Assuming you are only using a single `OperatorEnum`, you can also use
 the following shorthand by using the expression as a function:
 
 ```
-    (tree::Node)(X::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)
+    (tree::AbstractExpressionNode)(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Union{Bool,Val}=false, bumper::Union{Bool,Val}=Val(false))
+
+Evaluate a binary tree (equation) over a given input data matrix. The
+operators contain all of the operators used. This function fuses doublets
+and triplets of operations for lower memory usage.
 
 # Arguments
-- `X::AbstractArray`: The input data to evaluate the tree on.
-- `operators::GenericOperatorEnum`: The operators used in the tree.
-- `throw_errors::Bool=true`: Whether to throw errors
-    if they occur during evaluation. Otherwise,
-    MethodErrors will be caught before they happen and
-    evaluation will return `nothing`,
-    rather than throwing an error. This is useful in cases
-    where you are unsure if a particular tree is valid or not,
-    and would prefer to work with `nothing` as an output.
+- `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
+- `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
+- `operators::OperatorEnum`: The operators used in the tree.
+- `turbo::Union{Bool,Val}`: Use LoopVectorization.jl for faster evaluation.
+- `bumper::Union{Bool,Val}`: Use Bumper.jl for faster evaluation.
 
 # Returns
-- `output`: the result of the evaluation.
-    If evaluation failed, `nothing` will be returned for the first argument.
-    A `false` complete means an operator was called on input types
-    that it was not defined for. You can change this behavior by
-    setting `throw_errors=false`.
+- `output::AbstractVector{T}`: the result, which is a 1D array.
+    Any NaN, Inf, or other failure during the evaluation will result in the entire
+    output array being set to NaN.
 ```
 
 For example,
@@ -98,7 +96,7 @@ all variables (or, all constants). Both use forward-mode automatic, but use
 
 ```@docs
 eval_diff_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Integer) where {T<:Number}
-eval_grad_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum; turbo::Bool=false, variable::Bool=false) where {T<:Number}
+eval_grad_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum) where {T<:Number}
 ```
 
 You can compute gradients this with shorthand notation as well (which by default computes

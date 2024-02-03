@@ -1,6 +1,12 @@
 using DynamicExpressions, BenchmarkTools, Random
 using DynamicExpressions.EquationUtilsModule: is_constant
+
+# Trigger extensions:
+using LoopVectorization
+using Bumper
+using StrideArrays
 using Zygote
+
 if PACKAGE_VERSION < v"0.14.0"
     @eval using DynamicExpressions: Node as GraphNode
 else
@@ -27,19 +33,38 @@ function benchmark_evaluation()
         n = 1_000
 
         #! format: off
-        for turbo in (false, true)
-            if turbo && !(T in (Float32, Float64))
-                continue
+        for turbo in (false, true), bumper in (false, true)
+
+            (turbo || bumper) && !(T in (Float32, Float64)) && continue
+            if bumper
+                try
+                    eval_tree_array(Node{T}(val=1.0), ones(T, 5, n), operators; turbo, bumper)
+                catch e
+                    isa(e, MethodError) || rethrow(e)
+                    @warn "Skipping bumper tests"
+                    continue  # Assume its not available
+                end
             end
-            extra_key = turbo ? "_turbo" : ""
+
+            extra_key = if turbo && bumper
+                "_turbo_bumper"
+            elseif turbo
+                "_turbo"
+            elseif bumper
+                "_bumper"
+            else
+                ""
+            end
+            extra_kws = bumper ? (; bumper=Val(true)) : ()
             eval_tree_array(
                 gen_random_tree_fixed_size(20, operators, 5, T),
                 randn(MersenneTwister(0), T, 5, n),
                 operators;
-                turbo=turbo
+                turbo,
+                extra_kws...
             )
             suite[T]["evaluation$(extra_key)"] = @benchmarkable(
-                [eval_tree_array(tree, X, $operators; turbo=$turbo) for tree in trees],
+                [eval_tree_array(tree, X, $operators; turbo=$turbo, $extra_kws...) for tree in trees],
                 setup=(
                     X=randn(MersenneTwister(0), $T, 5, $n);
                     treesize=20;
@@ -47,7 +72,7 @@ function benchmark_evaluation()
                     trees=[gen_random_tree_fixed_size(treesize, $operators, 5, $T) for _ in 1:ntrees]
                 )
             )
-            if T <: Real
+            if T <: Real && !bumper
                 eval_grad_tree_array(
                     gen_random_tree_fixed_size(20, operators, 5, T),
                     randn(MersenneTwister(0), T, 5, n),
