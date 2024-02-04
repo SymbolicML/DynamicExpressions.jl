@@ -221,8 +221,8 @@ end
     T = node_factory_type(N, T1, T2)
     n = allocator(N, T)
     n.degree = 0
-    n.val = convert(T, val)
     n.constant = true
+    n.val = convert(T, val)
     return n
 end
 """Create a variable leaf, to store data."""
@@ -328,7 +328,7 @@ function Base.promote_rule(::Type{GraphNode{T1}}, ::Type{GraphNode{T2}}) where {
 end
 
 # TODO: Verify using this helps with garbage collection
-create_dummy_node(::Type{N}) where {N<:AbstractExpressionNode} = N(; feature=zero(UInt16))
+create_dummy_node(::Type{N}) where {N<:AbstractExpressionNode} = N()
 
 """
     set_node!(tree::AbstractExpressionNode{T}, new_tree::AbstractExpressionNode{T}) where {T}

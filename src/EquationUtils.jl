@@ -91,7 +91,7 @@ function set_constants!(
     Base.require_one_based_indexing(constants)
     i = Ref(0)
     foreach(tree) do node
-        if node.degree == 0 && node.constant
+        if is_node_constant(node)
             @inbounds node.val = constants[i[] += 1]
         end
     end

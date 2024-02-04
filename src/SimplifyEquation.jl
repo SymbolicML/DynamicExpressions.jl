@@ -33,12 +33,13 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
         tree.r = combine_operators(tree.r, operators)
     end
 
-    top_level_constant = tree.degree == 2 && (tree.l.constant || tree.r.constant)
+    top_level_constant =
+        tree.degree == 2 && (is_node_constant(tree.l) || is_node_constant(tree.r))
     if tree.degree == 2 && is_commutative(operators.binops[tree.op]) && top_level_constant
         # TODO: Does this break SymbolicRegression.jl due to the different names of operators?
         op = tree.op
         # Put the constant in r. Need to assume var in left for simplification assumption.
-        if tree.l.constant
+        if is_node_constant(tree.l)
             tmp = tree.r
             tree.r = tree.l
             tree.l = tmp
@@ -47,12 +48,12 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
         # Simplify down first
         below = tree.l
         if below.degree == 2 && below.op == op
-            if below.l.constant
+            if is_node_constant(below.l)
                 tree = below
                 tree.l.val = _bin_op_kernel(
                     operators.binops[op], tree.l.val::T, topconstant
                 )
-            elseif below.r.constant
+            elseif is_node_constant(below.r)
                 tree = below
                 tree.r.val = _bin_op_kernel(
                     operators.binops[op], tree.r.val::T, topconstant
@@ -65,9 +66,9 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
 
         # Currently just simplifies subtraction. (can't assume both plus and sub are operators)
         # Not commutative, so use different op.
-        if tree.l.constant
+        if is_node_constant(tree.l)
             if tree.r.degree == 2 && tree.op == tree.r.op
-                if tree.r.l.constant
+                if is_node_constant(tree.r.l)
                     #(const - (const - var)) => (var - const)
                     l = tree.l
                     r = tree.r
@@ -75,7 +76,7 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
                     tree.l = tree.r.r
                     tree.r = l
                     tree.r.val = simplified_const
-                elseif tree.r.r.constant
+                elseif is_node_constant(tree.r.r)
                     #(const - (var - const)) => (const - var)
                     l = tree.l
                     r = tree.r
@@ -84,9 +85,9 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
                     tree.l.val = simplified_const
                 end
             end
-        else #tree.r.constant is true
+        else #tree.r is a constant
             if tree.l.degree == 2 && tree.op == tree.l.op
-                if tree.l.l.constant
+                if is_node_constant(tree.l.l)
                     #((const - var) - const) => (const - var)
                     l = tree.l
                     r = tree.r
@@ -94,7 +95,7 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
                     tree.r = tree.l.r
                     tree.l = r
                     tree.l.val = simplified_const
-                elseif tree.l.r.constant
+                elseif is_node_constant(tree.l.r)
                     #((var - const) - const) => (var - const)
                     l = tree.l
                     r = tree.r
