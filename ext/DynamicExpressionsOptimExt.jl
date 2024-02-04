@@ -17,20 +17,22 @@ struct ExpressionOptimizationResults{R<:OptimizationResults,N<:AbstractExpressio
     _results::R # The raw results from Optim.
     tree::N # The final expression tree
 end
-#! format: on
+base_results(r::ExpressionOptimizationResults) = getfield(r, :_results)
 function Base.getproperty(r::ExpressionOptimizationResults, s::Symbol)
     if s == :tree || s == :minimizer
         return getfield(r, :tree)
     else
-        return getproperty(getfield(r, :_results), s)
+        return getproperty(base_results(r), s)
     end
 end
 function Base.propertynames(r::ExpressionOptimizationResults)
-    return (:tree, propertynames(getfield(r, :_results))...)
+    return (:tree, propertynames(base_results(r))...)
 end
-function Optim.minimizer(r::ExpressionOptimizationResults)
-    return r.tree
+Optim.minimizer(r::ExpressionOptimizationResults) = r.tree
+for f in (:converged, :f_calls, :g_calls, :h_calls, :iterations, :time_limit, :minimum, :summary, :method, :f_tol, :g_tol, :x_tol)
+    @eval Optim.$(f)(r::ExpressionOptimizationResults) = Optim.$(f)(base_results(r))
 end
+#! format: on
 
 """Wrap function or objective with insertion of values of the constant nodes."""
 function wrap_func(
