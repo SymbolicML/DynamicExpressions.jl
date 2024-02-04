@@ -73,7 +73,7 @@ end
             t.val *= 2
         end
     end
-    @test sum(t -> t.val, filter(t -> t.degree == 0 && t.constant, ctree)) == 11.6 * 2
+    @test sum(t -> t.val, filter(t -> t.degree == 0 && t.constant, ctree)) ≈ 11.6 * 2
 end
 
 @testset "iterate" begin
@@ -88,7 +88,7 @@ end
             t.val *= 2
         end
     end
-    @test sum(t -> t.val, filter(t -> t.degree == 0 && t.constant, ctree)) == 11.6 * 2
+    @test sum(t -> t.val, filter(t -> t.degree == 0 && t.constant, ctree)) ≈ 11.6 * 2
 
     # iterate within iterate:
     counter = Ref(0)
@@ -110,7 +110,7 @@ end
     @test sum(map(t -> t.degree == 1, ctree)) == 1
     @test length(unique(map(objectid, copy_node(tree)))) == 24
     map(t -> (t.degree == 0 && t.constant) ? (t.val *= 2) : nothing, ctree)
-    @test sum(t -> t.val, filter(t -> t.degree == 0 && t.constant, ctree)) == 11.6 * 2
+    @test sum(t -> t.val, filter(t -> t.degree == 0 && t.constant, ctree)) ≈ 11.6 * 2
     local T = fieldtype(typeof(ctree), :degree)
     @test typeof(map(t -> t.degree, ctree, T)) == Vector{T}
     @test first(map(t -> t.degree, ctree, T)) == 2

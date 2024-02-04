@@ -1,6 +1,7 @@
 module EvaluateEquationModule
 
-import ..EquationModule: AbstractExpressionNode, constructorof, string_tree
+import ..EquationModule: AbstractExpressionNode, constructorof
+import ..StringsModule: string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: is_bad_array, fill_similar, counttuple, ResultOk
 import ..EquationUtilsModule: is_constant
