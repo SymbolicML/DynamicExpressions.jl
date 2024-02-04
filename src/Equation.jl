@@ -116,7 +116,7 @@ to `Node`s `l` and `r`.
 mutable struct Node{T} <: AbstractExpressionNode{T}
     degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     constant::Bool  # false if variable
-    val::Union{T,Nothing}  # If is a constant, this stores the actual value
+    val::T  # If is a constant, this stores the actual value
     # ------------------- (possibly undefined below)
     feature::UInt16  # If is a variable (e.g., x in cos(x)), this stores the feature index.
     op::UInt8  # If operator, this is the index of the operator in operators.binops, or operators.unaops
@@ -126,12 +126,7 @@ mutable struct Node{T} <: AbstractExpressionNode{T}
     #################
     ## Constructors:
     #################
-    Node(d::Integer, c::Bool, v::_T) where {_T} = new{_T}(UInt8(d), c, v)
-    Node(::Type{_T}, d::Integer, c::Bool, v::_T) where {_T} = new{_T}(UInt8(d), c, v)
-    Node(::Type{_T}, d::Integer, c::Bool, v::Nothing, f::Integer) where {_T} = new{_T}(UInt8(d), c, v, UInt16(f))
-    Node(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::Node{_T}) where {_T} = new{_T}(UInt8(d), c, v, UInt16(f), UInt8(o), l)
-    Node(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::Node{_T}, r::Node{_T}) where {_T} = new{_T}(UInt8(d), c, v, UInt16(f), UInt8(o), l, r)
-
+    Node{_T}() where {_T} = new{_T}()
 end
 
 """
@@ -168,25 +163,21 @@ when constructing or setting properties.
 mutable struct GraphNode{T} <: AbstractExpressionNode{T}
     degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     constant::Bool  # false if variable
-    val::Union{T,Nothing}  # If is a constant, this stores the actual value
+    val::T  # If is a constant, this stores the actual value
     # ------------------- (possibly undefined below)
     feature::UInt16  # If is a variable (e.g., x in cos(x)), this stores the feature index.
     op::UInt8  # If operator, this is the index of the operator in operators.binops, or operators.unaops
     l::GraphNode{T}  # Left child node. Only defined for degree=1 or degree=2.
     r::GraphNode{T}  # Right child node. Only defined for degree=2. 
 
-    #################
-    ## Constructors:
-    #################
-    GraphNode(d::Integer, c::Bool, v::_T) where {_T} = new{_T}(UInt8(d), c, v)
-    GraphNode(::Type{_T}, d::Integer, c::Bool, v::_T) where {_T} = new{_T}(UInt8(d), c, v)
-    GraphNode(::Type{_T}, d::Integer, c::Bool, v::Nothing, f::Integer) where {_T} = new{_T}(UInt8(d), c, v, UInt16(f))
-    GraphNode(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::GraphNode{_T}) where {_T} = new{_T}(UInt8(d), c, v, UInt16(f), UInt8(o), l)
-    GraphNode(d::Integer, c::Bool, v::Nothing, f::Integer, o::Integer, l::GraphNode{_T}, r::GraphNode{_T}) where {_T} = new{_T}(UInt8(d), c, v, UInt16(f), UInt8(o), l, r)
+    GraphNode{_T}() where {_T} = new{_T}()
 end
 
 ################################################################################
 #! format: on
+
+Base.eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = T
+Base.eltype(::AbstractExpressionNode{T}) where {T} = T
 
 constructorof(::Type{N}) where {N<:AbstractNode} = Base.typename(N).wrapper
 constructorof(::Type{<:Node}) = Node
@@ -198,6 +189,12 @@ end
 with_type_parameters(::Type{<:Node}, ::Type{T}) where {T} = Node{T}
 with_type_parameters(::Type{<:GraphNode}, ::Type{T}) where {T} = GraphNode{T}
 
+function default_allocator(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNode,T}
+    return with_type_parameters(N, T)()
+end
+default_allocator(::Type{<:Node}, ::Type{T}) where {T} = Node{T}()
+default_allocator(::Type{<:GraphNode}, ::Type{T}) where {T} = GraphNode{T}()
+
 """Trait declaring whether nodes share children or not."""
 preserve_sharing(::Type{<:AbstractNode}) = false
 preserve_sharing(::Type{<:Node}) = false
@@ -205,41 +202,106 @@ preserve_sharing(::Type{<:GraphNode}) = true
 
 include("base.jl")
 
-function (::Type{N})(
-    ::Type{T}=Undefined; val::T1=nothing, feature::T2=nothing
-) where {T,T1,T2<:Union{Integer,Nothing},N<:AbstractExpressionNode}
-    ((T1 <: Nothing) ⊻ (T2 <: Nothing)) || error(
-        "You must specify exactly one of `val` or `feature` when creating a leaf node."
-    )
-    Tout = compute_value_output_type(N, T, T1)
-    if T2 <: Nothing
-        if !(T1 <: T)
-            # Only convert if not already in the type union.
-            val = convert(Tout, val)
-        end
-        return constructorof(N)(Tout, 0, true, val)
-    else
-        return constructorof(N)(Tout, 0, false, nothing, feature)
-    end
+@inline function (::Type{N})(
+    ::Type{T1}=Undefined;
+    val=nothing,
+    feature=nothing,
+    op=nothing,
+    l=nothing,
+    r=nothing,
+    allocator=default_allocator,
+) where {T1,N<:AbstractExpressionNode}
+    return node_factory(N, T1, val, feature, op, l, r, allocator)
 end
-function (::Type{N})(
-    op::Integer, l::AbstractExpressionNode{T}
-) where {T,N<:AbstractExpressionNode}
+
+"""Create a constant leaf."""
+@inline function node_factory(
+    ::Type{N}, ::Type{T1}, val::T2, ::Nothing, ::Nothing, ::Nothing, ::Nothing, allocator
+) where {N,T1,T2}
+    T = node_factory_type(N, T1, T2)
+    n = allocator(N, T)
+    n.degree = 0
+    n.val = convert(T, val)
+    n.constant = true
+    return n
+end
+"""Create a variable leaf, to store data."""
+@inline function node_factory(
+    ::Type{N},
+    ::Type{T1},
+    ::Nothing,
+    feature::Integer,
+    ::Nothing,
+    ::Nothing,
+    ::Nothing,
+    allocator,
+) where {N,T1}
+    T = node_factory_type(N, T1, DEFAULT_NODE_TYPE)
+    n = allocator(N, T)
+    n.degree = 0
+    n.constant = false
+    n.feature = feature
+    return n
+end
+"""Create a unary operator node."""
+@inline function node_factory(
+    ::Type{N},
+    ::Type{T1},
+    ::Nothing,
+    ::Nothing,
+    op::Integer,
+    l::AbstractExpressionNode{T2},
+    ::Nothing,
+    allocator,
+) where {N,T1,T2}
     @assert l isa N
-    return constructorof(N)(1, false, nothing, 0, op, l)
+    T = T2  # Always prefer existing nodes, so we don't mess up references from conversion
+    n = allocator(N, T)
+    n.degree = 1
+    n.op = op
+    n.l = l
+    return n
+end
+"""Create a binary operator node."""
+@inline function node_factory(
+    ::Type{N},
+    ::Type{T1},
+    ::Nothing,
+    ::Nothing,
+    op::Integer,
+    l::AbstractExpressionNode{T2},
+    r::AbstractExpressionNode{T3},
+    allocator,
+) where {N,T1,T2,T3}
+    T = promote_type(T2, T3)
+    n = allocator(N, T)
+    n.degree = 2
+    n.op = op
+    n.l = T2 === T ? l : convert(with_type_parameters(N, T), l)
+    n.r = T3 === T ? r : convert(with_type_parameters(N, T), r)
+    return n
+end
+@inline function node_factory_type(::Type{N}, ::Type{T1}, ::Type{T2}) where {N,T1,T2}
+    if T1 === Undefined && N isa UnionAll
+        T2
+    elseif T1 === Undefined
+        eltype(N)
+    elseif N isa UnionAll
+        T1
+    else
+        eltype(N)
+    end
+end
+
+function (::Type{N})(
+    op::Integer, l::AbstractExpressionNode
+) where {N<:AbstractExpressionNode}
+    return N(; op=op, l=l)
 end
 function (::Type{N})(
-    op::Integer, l::AbstractExpressionNode{T1}, r::AbstractExpressionNode{T2}
-) where {T1,T2,N<:AbstractExpressionNode}
-    @assert l isa N && r isa N
-    # Get highest type:
-    if T1 != T2
-        T = promote_type(T1, T2)
-        # TODO: This might slow things down
-        l = convert(with_type_parameters(N, T), l)
-        r = convert(with_type_parameters(N, T), r)
-    end
-    return constructorof(N)(2, false, nothing, 0, op, l, r)
+    op::Integer, l::AbstractExpressionNode, r::AbstractExpressionNode
+) where {N<:AbstractExpressionNode}
+    return N(; op=op, l=l, r=r)
 end
 function (::Type{N})(var_string::String) where {N<:AbstractExpressionNode}
     Base.depwarn(
@@ -255,28 +317,6 @@ function (::Type{N})(
     return N(; feature=i)
 end
 
-@inline function compute_value_output_type(
-    ::Type{N}, ::Type{T}, ::Type{T1}
-) where {N<:AbstractExpressionNode,T,T1}
-    !(N isa UnionAll) &&
-        T !== Undefined &&
-        error(
-            "Ambiguous type for node. Please either use `Node{T}(; val, feature)` or `Node(T; val, feature)`.",
-        )
-
-    if T === Undefined && N isa UnionAll
-        if T1 <: Nothing
-            return DEFAULT_NODE_TYPE
-        else
-            return T1
-        end
-    elseif T === Undefined
-        return eltype(N)
-    else
-        return T
-    end
-end
-
 function Base.promote_rule(::Type{Node{T1}}, ::Type{Node{T2}}) where {T1,T2}
     return Node{promote_type(T1, T2)}
 end
@@ -286,8 +326,6 @@ end
 function Base.promote_rule(::Type{GraphNode{T1}}, ::Type{GraphNode{T2}}) where {T1,T2}
     return GraphNode{promote_type(T1, T2)}
 end
-Base.eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = T
-Base.eltype(::AbstractExpressionNode{T}) where {T} = T
 
 # TODO: Verify using this helps with garbage collection
 create_dummy_node(::Type{N}) where {N<:AbstractExpressionNode} = N(; feature=zero(UInt16))
