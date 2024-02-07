@@ -190,7 +190,11 @@ include("base.jl")
 ) where {T1,N<:AbstractExpressionNode}
     if children !== nothing
         @assert l === nothing && r === nothing
-        return node_factory(N, T1, val, feature, op, children..., allocator)
+        if length(children) == 1
+            return node_factory(N, T1, val, feature, op, only(children), nothing, allocator)
+        else
+            return node_factory(N, T1, val, feature, op, children..., allocator)
+        end
     end
     return node_factory(N, T1, val, feature, op, l, r, allocator)
 end
