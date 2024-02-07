@@ -1,5 +1,7 @@
 module DynamicExpressions
 
+__precompile__(false)
+
 include("Utils.jl")
 include("ExtensionInterface.jl")
 include("OperatorEnum.jl")
