@@ -186,8 +186,8 @@ include("base.jl")
 
 #! format: off
 @inline function (::Type{N})(
-    ::Type{T1}=Undefined; val=nothing, feature=nothing, op=nothing, l=nothing, r=nothing, children=nothing, allocator=default_allocator,
-) where {T1,N<:AbstractExpressionNode}
+    ::Type{T1}=Undefined; val=nothing, feature=nothing, op=nothing, l=nothing, r=nothing, children=nothing, allocator::F=default_allocator,
+) where {T1,N<:AbstractExpressionNode,F}
     if children !== nothing
         @assert l === nothing && r === nothing
         if length(children) == 1
@@ -200,8 +200,8 @@ include("base.jl")
 end
 """Create a constant leaf."""
 @inline function node_factory(
-    ::Type{N}, ::Type{T1}, val::T2, ::Nothing, ::Nothing, ::Nothing, ::Nothing, allocator
-) where {N,T1,T2}
+    ::Type{N}, ::Type{T1}, val::T2, ::Nothing, ::Nothing, ::Nothing, ::Nothing, allocator::F,
+) where {N,T1,T2,F}
     T = node_factory_type(N, T1, T2)
     n = allocator(N, T)
     n.degree = 0
@@ -211,8 +211,8 @@ end
 end
 """Create a variable leaf, to store data."""
 @inline function node_factory(
-    ::Type{N}, ::Type{T1}, ::Nothing, feature::Integer, ::Nothing, ::Nothing, ::Nothing, allocator,
-) where {N,T1}
+    ::Type{N}, ::Type{T1}, ::Nothing, feature::Integer, ::Nothing, ::Nothing, ::Nothing, allocator::F,
+) where {N,T1,F}
     T = node_factory_type(N, T1, DEFAULT_NODE_TYPE)
     n = allocator(N, T)
     n.degree = 0
@@ -222,8 +222,8 @@ end
 end
 """Create a unary operator node."""
 @inline function node_factory(
-    ::Type{N}, ::Type{T1}, ::Nothing, ::Nothing, op::Integer, l::AbstractExpressionNode{T2}, ::Nothing, allocator,
-) where {N,T1,T2}
+    ::Type{N}, ::Type{T1}, ::Nothing, ::Nothing, op::Integer, l::AbstractExpressionNode{T2}, ::Nothing, allocator::F,
+) where {N,T1,T2,F}
     @assert l isa N
     T = T2  # Always prefer existing nodes, so we don't mess up references from conversion
     n = allocator(N, T)
@@ -234,8 +234,8 @@ end
 end
 """Create a binary operator node."""
 @inline function node_factory(
-    ::Type{N}, ::Type{T1}, ::Nothing, ::Nothing, op::Integer, l::AbstractExpressionNode{T2}, r::AbstractExpressionNode{T3}, allocator,
-) where {N,T1,T2,T3}
+    ::Type{N}, ::Type{T1}, ::Nothing, ::Nothing, op::Integer, l::AbstractExpressionNode{T2}, r::AbstractExpressionNode{T3}, allocator::F,
+) where {N,T1,T2,T3,F}
     T = promote_type(T2, T3)
     n = allocator(N, T)
     n.degree = 2
