@@ -181,7 +181,7 @@ preserve_sharing(::Type{<:GraphNode}) = true
 
 include("base.jl")
 
-#! format: on
+#! format: off
 @inline function (::Type{N})(
     ::Type{T1}=Undefined; val=nothing, feature=nothing, op=nothing, l=nothing, r=nothing, allocator=default_allocator,
 ) where {T1,N<:AbstractExpressionNode}
