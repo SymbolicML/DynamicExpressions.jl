@@ -181,18 +181,12 @@ preserve_sharing(::Type{<:GraphNode}) = true
 
 include("base.jl")
 
+#! format: on
 @inline function (::Type{N})(
-    ::Type{T1}=Undefined;
-    val=nothing,
-    feature=nothing,
-    op=nothing,
-    l=nothing,
-    r=nothing,
-    allocator=default_allocator,
+    ::Type{T1}=Undefined; val=nothing, feature=nothing, op=nothing, l=nothing, r=nothing, allocator=default_allocator,
 ) where {T1,N<:AbstractExpressionNode}
     return node_factory(N, T1, val, feature, op, l, r, allocator)
 end
-
 """Create a constant leaf."""
 @inline function node_factory(
     ::Type{N}, ::Type{T1}, val::T2, ::Nothing, ::Nothing, ::Nothing, ::Nothing, allocator
@@ -206,14 +200,7 @@ end
 end
 """Create a variable leaf, to store data."""
 @inline function node_factory(
-    ::Type{N},
-    ::Type{T1},
-    ::Nothing,
-    feature::Integer,
-    ::Nothing,
-    ::Nothing,
-    ::Nothing,
-    allocator,
+    ::Type{N}, ::Type{T1}, ::Nothing, feature::Integer, ::Nothing, ::Nothing, ::Nothing, allocator,
 ) where {N,T1}
     T = node_factory_type(N, T1, DEFAULT_NODE_TYPE)
     n = allocator(N, T)
@@ -224,14 +211,7 @@ end
 end
 """Create a unary operator node."""
 @inline function node_factory(
-    ::Type{N},
-    ::Type{T1},
-    ::Nothing,
-    ::Nothing,
-    op::Integer,
-    l::AbstractExpressionNode{T2},
-    ::Nothing,
-    allocator,
+    ::Type{N}, ::Type{T1}, ::Nothing, ::Nothing, op::Integer, l::AbstractExpressionNode{T2}, ::Nothing, allocator,
 ) where {N,T1,T2}
     @assert l isa N
     T = T2  # Always prefer existing nodes, so we don't mess up references from conversion
@@ -243,14 +223,7 @@ end
 end
 """Create a binary operator node."""
 @inline function node_factory(
-    ::Type{N},
-    ::Type{T1},
-    ::Nothing,
-    ::Nothing,
-    op::Integer,
-    l::AbstractExpressionNode{T2},
-    r::AbstractExpressionNode{T3},
-    allocator,
+    ::Type{N}, ::Type{T1}, ::Nothing, ::Nothing, op::Integer, l::AbstractExpressionNode{T2}, r::AbstractExpressionNode{T3}, allocator,
 ) where {N,T1,T2,T3}
     T = promote_type(T2, T3)
     n = allocator(N, T)
@@ -260,6 +233,7 @@ end
     n.r = T3 === T ? r : convert(with_type_parameters(N, T), r)
     return n
 end
+
 @inline function node_factory_type(::Type{N}, ::Type{T1}, ::Type{T2}) where {N,T1,T2}
     if T1 === Undefined && N isa UnionAll
         T2
@@ -271,6 +245,7 @@ end
         eltype(N)
     end
 end
+#! format: on
 
 function (::Type{N})(
     op::Integer, l::AbstractExpressionNode
