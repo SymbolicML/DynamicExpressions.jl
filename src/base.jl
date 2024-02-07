@@ -440,7 +440,7 @@ function copy_node(
             constructorof(N)(T; feature=t.feature)
         end,
         identity,
-        (p, c...) -> constructorof(N)(p.op, c...),
+        (p, children...) -> constructorof(N)(; op=p.op, children),
         tree,
         N;
         break_sharing,
@@ -483,7 +483,7 @@ function convert(
             constructorof(N1)(T1; feature=t.feature)
         end,
         identity,
-        ((p, c::Vararg{Any,M}) where {M}) -> constructorof(N1)(p.op, c...),
+        (p, children...) -> constructorof(N1)(; op=p.op, children),
         tree,
         N1,
     )
