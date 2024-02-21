@@ -114,6 +114,7 @@ end
     x1 = Node{Float32}(; feature=1)
     @inferred Node(; op=1, l=x1)
     @inferred Node(; op=1, l=x1, r=x1)
+    @inferred Node(; op=1, l=x1, r=Node{Float64}(x1))
 end
 
 @testset "Miscellaneous" begin
