@@ -138,7 +138,7 @@ function string_tree(
     variable_names = deprecate_varmap(variable_names, varMap, :string_tree)
     raw_output = tree_mapreduce(
         leaf -> if leaf.constant
-            collect(f_constant(leaf.val::T))
+            collect(f_constant(leaf.val))
         else
             collect(f_variable(leaf.feature, variable_names))
         end,

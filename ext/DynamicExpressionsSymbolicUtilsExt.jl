@@ -34,7 +34,7 @@ function parse_tree_to_eqs(
 ) where {T}
     if tree.degree == 0
         # Return constant if needed
-        tree.constant && return subs_bad(tree.val::T)
+        tree.constant && return subs_bad(tree.val)
         return SymbolicUtils.Sym{LiteralReal}(Symbol("x$(tree.feature)"))
     end
     # Collect the next children

@@ -411,7 +411,7 @@ function hash(
     tree::AbstractExpressionNode{T}, h::UInt=zero(UInt); break_sharing::Val=Val(false)
 ) where {T}
     return tree_mapreduce(
-        t -> t.constant ? hash((0, t.val::T), h) : hash((1, t.feature), h),
+        t -> t.constant ? hash((0, t.val), h) : hash((1, t.feature), h),
         t -> hash((t.degree + 1, t.op), h),
         (n...) -> hash(n, h),
         tree,
@@ -435,7 +435,7 @@ function copy_node(
 ) where {T,N<:AbstractExpressionNode{T}}
     return tree_mapreduce(
         t -> if t.constant
-            constructorof(N)(; val=t.val::T)
+            constructorof(N)(; val=t.val)
         else
             constructorof(N)(T; feature=t.feature)
         end,

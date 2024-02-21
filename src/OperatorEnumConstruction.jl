@@ -122,7 +122,7 @@ function _extend_unary_operator(f::Symbol, type_requirements, internal)
                 l::N
             ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
                 return if (l.degree == 0 && l.constant)
-                    $_constructorof(N)(T; val=$($f)(l.val::T))
+                    $_constructorof(N)(T; val=$($f)(l.val))
                 else
                     latest_op_idx = $($lookup_op)($($f), Val(1))
                     $_constructorof(N)(; op=latest_op_idx, l)
@@ -149,7 +149,7 @@ function _extend_binary_operator(f::Symbol, type_requirements, build_converters,
                 l::N, r::N
             ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
                 if (l.degree == 0 && l.constant && r.degree == 0 && r.constant)
-                    $_constructorof(N)(T; val=$($f)(l.val::T, r.val::T))
+                    $_constructorof(N)(T; val=$($f)(l.val, r.val))
                 else
                     latest_op_idx = $($lookup_op)($($f), Val(2))
                     $_constructorof(N)(; op=latest_op_idx, l, r)
@@ -159,7 +159,7 @@ function _extend_binary_operator(f::Symbol, type_requirements, build_converters,
                 l::N, r::T
             ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
                 if l.degree == 0 && l.constant
-                    $_constructorof(N)(T; val=$($f)(l.val::T, r))
+                    $_constructorof(N)(T; val=$($f)(l.val, r))
                 else
                     latest_op_idx = $($lookup_op)($($f), Val(2))
                     $_constructorof(N)(;
@@ -171,7 +171,7 @@ function _extend_binary_operator(f::Symbol, type_requirements, build_converters,
                 l::T, r::N
             ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
                 if r.degree == 0 && r.constant
-                    $_constructorof(N)(T; val=$($f)(l, r.val::T))
+                    $_constructorof(N)(T; val=$($f)(l, r.val))
                 else
                     latest_op_idx = $($lookup_op)($($f), Val(2))
                     $_constructorof(N)(;

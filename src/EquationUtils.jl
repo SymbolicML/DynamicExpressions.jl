@@ -76,7 +76,7 @@ The function `set_constants!` sets them in the same order,
 given the output of this function.
 """
 function get_constants(tree::AbstractExpressionNode{T}) where {T}
-    return filter_map(is_node_constant, t -> (t.val::T), tree, T)
+    return filter_map(is_node_constant, t -> (t.val), tree, T)
 end
 
 """
@@ -114,12 +114,12 @@ end
 function Base.getproperty(cr::NodeConstantRef{T}, s::Symbol) where {T}
     s != :x && error("Only :x is a valid property for NodeConstantRef")
 
-    return getfield(cr, :_node).x.val::T
+    return getfield(cr, :_node).x.val
 end
 function Base.setproperty!(cr::NodeConstantRef{T}, s::Symbol, v) where {T}
     s != :x && error("Only :x is a valid property for NodeConstantRef")
 
-    return getfield(cr, :_node).x.val::T = v::T
+    return getfield(cr, :_node).x.val = v
 end
 Base.propertynames(::NodeConstantRef) = (:x,)
 

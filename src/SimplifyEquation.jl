@@ -44,20 +44,16 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
             tree.r = tree.l
             tree.l = tmp
         end
-        topconstant = tree.r.val::T
+        topconstant = tree.r.val
         # Simplify down first
         below = tree.l
         if below.degree == 2 && below.op == op
             if is_node_constant(below.l)
                 tree = below
-                tree.l.val = _bin_op_kernel(
-                    operators.binops[op], tree.l.val::T, topconstant
-                )
+                tree.l.val = _bin_op_kernel(operators.binops[op], tree.l.val, topconstant)
             elseif is_node_constant(below.r)
                 tree = below
-                tree.r.val = _bin_op_kernel(
-                    operators.binops[op], tree.r.val::T, topconstant
-                )
+                tree.r.val = _bin_op_kernel(operators.binops[op], tree.r.val, topconstant)
             end
         end
     end
@@ -72,7 +68,7 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
                     #(const - (const - var)) => (var - const)
                     l = tree.l
                     r = tree.r
-                    simplified_const = (r.l.val::T - l.val::T) #neg(sub(l.val, r.l.val))
+                    simplified_const = (r.l.val - l.val) #neg(sub(l.val, r.l.val))
                     tree.l = tree.r.r
                     tree.r = l
                     tree.r.val = simplified_const
@@ -80,7 +76,7 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
                     #(const - (var - const)) => (const - var)
                     l = tree.l
                     r = tree.r
-                    simplified_const = l.val::T + r.r.val::T #plus(l.val, r.r.val)
+                    simplified_const = l.val + r.r.val #plus(l.val, r.r.val)
                     tree.r = tree.r.l
                     tree.l.val = simplified_const
                 end
@@ -91,7 +87,7 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
                     #((const - var) - const) => (const - var)
                     l = tree.l
                     r = tree.r
-                    simplified_const = l.l.val::T - r.val::T#sub(l.l.val, r.val)
+                    simplified_const = l.l.val - r.val#sub(l.l.val, r.val)
                     tree.r = tree.l.r
                     tree.l = r
                     tree.l.val = simplified_const
@@ -99,7 +95,7 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
                     #((var - const) - const) => (var - const)
                     l = tree.l
                     r = tree.r
-                    simplified_const = r.val::T + l.r.val::T #plus(r.val, l.r.val)
+                    simplified_const = r.val + l.r.val #plus(r.val, l.r.val)
                     tree.l = tree.l.l
                     tree.r.val = simplified_const
                 end
@@ -111,7 +107,7 @@ end
 
 function combine_children!(operators, p::N, c::N...) where {T,N<:AbstractExpressionNode{T}}
     all(is_node_constant, c) || return p
-    vals = map(n -> n.val::T, c)
+    vals = map(n -> n.val, c)
     all(isgood, vals) || return p
     out = if length(c) == 1
         _una_op_kernel(operators.unaops[p.op], vals...)
