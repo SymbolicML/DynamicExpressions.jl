@@ -127,7 +127,7 @@ end
         )::Node{T} where {T}
             if tree.degree == 0
                 if tree.constant
-                    Node(; val=copy(tree.val::T))
+                    Node(; val=copy(tree.val))
                 else
                     Node(T; feature=copy(tree.feature))
                 end
@@ -141,7 +141,7 @@ end
             function _copy_node(tree::Node{T})::Node{T} where {T}
                 if tree.degree == 0
                     if tree.constant
-                        Node(; val=copy(tree.val::T))
+                        Node(; val=copy(tree.val))
                     else
                         Node(T; feature=copy(tree.feature))
                     end
@@ -158,7 +158,7 @@ end
                     return begin
                         if tree.degree == 0
                             if tree.constant
-                                Node(; val=copy(tree.val::T))
+                                Node(; val=copy(tree.val))
                             else
                                 Node(T; feature=copy(tree.feature))
                             end

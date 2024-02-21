@@ -1,6 +1,6 @@
 include("test_params.jl")
 using DynamicExpressions, Test
-import DynamicExpressions.EquationModule: strip_brackets
+import DynamicExpressions.StringsModule: strip_brackets
 import SymbolicUtils: simplify, Symbolic
 import Random: MersenneTwister
 import Base: ≈
