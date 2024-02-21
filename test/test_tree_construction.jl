@@ -106,6 +106,16 @@ end
     @test repr(tree) == repr(tree2)
 end
 
+@testset "Type inference" begin
+    @inferred Node(; feature=1)
+    @inferred Node(; val=1)
+    @inferred Node(Float32; val=1)
+    @inferred Node{Float32}(; val=1)
+    x1 = Node{Float32}(; feature=1)
+    @inferred Node(; op=1, l=x1)
+    @inferred Node(; op=1, l=x1, r=x1)
+end
+
 @testset "Miscellaneous" begin
     operators = OperatorEnum(; default_params...)
     for N in (Node, GraphNode)
