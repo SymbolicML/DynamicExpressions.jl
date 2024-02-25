@@ -98,7 +98,7 @@ function eval_tree_array(
     return eval_tree_array(tree, cX, operators; turbo, bumper)
 end
 function eval_tree_array(
-    trees::Union{NTuple{M,N} where M,AbstractArray{N}},
+    trees::Union{Tuple{N,Vararg{N}},AbstractVector{N}},
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
     kws...,

@@ -4,7 +4,7 @@ using ..EquationModule: AbstractExpressionNode, tree_mapreduce, count_nodes
 
 function as_array(
     ::Type{I},
-    trees::Union{NTuple{M,N} where M,AbstractVector{N}};
+    trees::Union{Tuple{N,Vararg{N}},AbstractVector{N}};
     buffer::Union{AbstractArray,Nothing}=nothing,
 ) where {T,N<:AbstractExpressionNode{T},I}
     each_num_nodes = (t -> count_nodes(t; break_sharing=Val(true))).(trees)
