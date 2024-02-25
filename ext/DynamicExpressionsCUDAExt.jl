@@ -29,7 +29,7 @@ function eval_tree_array(
 end
 
 function eval_tree_array(
-    trees::Union{NTuple{M,N} where M,AbstractVector{N}},
+    trees::Union{Tuple{N,Vararg{N}},AbstractVector{N}},
     gcX::MaybeCuArray{T,2},
     operators::OperatorEnum;
     buffer=nothing,
