@@ -3,8 +3,12 @@ module AsArrayModule
 using ..EquationModule: AbstractExpressionNode, tree_mapreduce, count_nodes
 
 function as_array(
-    ::Type{I}, trees::Vararg{N,M}; buffer::Union{AbstractArray,Nothing}=nothing
+    ::Type{I},
+    tree::N,
+    additional_trees::Vararg{N,M};
+    buffer::Union{AbstractArray,Nothing}=nothing,
 ) where {T,N<:AbstractExpressionNode{T},I,M}
+    trees = (tree, additional_trees...)
     each_num_nodes = (t -> count_nodes(t; break_sharing=Val(true))).(trees)
     num_nodes = sum(each_num_nodes)
 

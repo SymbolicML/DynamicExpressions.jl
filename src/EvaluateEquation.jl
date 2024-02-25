@@ -98,10 +98,10 @@ function eval_tree_array(
     return eval_tree_array(tree, cX, operators; turbo, bumper)
 end
 function eval_tree_array(
-    trees::NTuple{M,N}, cX::AbstractMatrix{T}, operators::OperatorEnum; kws...
+    trees::Tuple{N,Vararg{N,M}}, cX::AbstractMatrix{T}, operators::OperatorEnum; kws...
 ) where {T<:Number,N<:AbstractExpressionNode{T},M}
-    outs = ntuple(i -> eval_tree_array(trees[i], cX, operators; kws...)[1], Val(M))
-    return ntuple(i -> first(outs[i]), Val(M)), ntuple(i -> last(outs[i]), Val(M))
+    outs = ntuple(i -> eval_tree_array(trees[i], cX, operators; kws...)[1], Val(M + 1))
+    return ntuple(i -> first(outs[i]), Val(M + 1)), ntuple(i -> last(outs[i]), Val(M + 1))
 end
 
 get_nuna(::Type{<:OperatorEnum{B,U}}) where {B,U} = counttuple(U)
