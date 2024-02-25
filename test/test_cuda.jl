@@ -21,27 +21,41 @@ let
 
         nrow = rand(10:30)
         nnodes = rand(10:25, ntrees)
+        use_tuple = rand(Bool)
 
         buffer = rand(Bool) ? ones(Int32, 8, sum(nnodes)) : nothing
         gpu_buffer = rand(Bool) ? FakeCuArray(ones(Int32, 8, sum(nnodes))) : nothing
         gpu_workspace = rand(Bool) ? FakeCuArray(ones(T, nrow + 1, sum(nnodes))) : nothing
 
         trees = ntuple(i -> gen_random_tree_fixed_size(nnodes[i], operators, 3, T), ntrees)
+        trees = use_tuple ? trees : collect(trees)
         X = randn(T, 3, nrow)
         if ntrees > 1
-            y, completed = eval_tree_array(trees, X, operators)
-            gpu_y, gpu_completed = eval_tree_array(
+            y, completed = @inferred eval_tree_array(trees, X, operators)
+            gpu_y, gpu_completed = @inferred eval_tree_array(
                 trees, FakeCuArray(X), operators; buffer, gpu_workspace, gpu_buffer
             )
 
+            # Should give same result either way
             for i in eachindex(completed, gpu_completed)
                 if completed[i]
                     @test y[i] ≈ gpu_y[i]
                 end
             end
+
+            # Should return same type as input
+            if use_tuple
+                @test y isa Tuple
+                @test gpu_y isa Tuple
+            else
+                @test y isa Vector
+                @test gpu_y isa Vector
+            end
         else
-            y, completed = eval_tree_array(only(trees), X, operators)
-            gpu_y, gpu_completed = eval_tree_array(only(trees), FakeCuArray(X), operators)
+            y, completed = @inferred eval_tree_array(only(trees), X, operators)
+            gpu_y, gpu_completed = @inferred eval_tree_array(
+                only(trees), FakeCuArray(X), operators
+            )
             if completed
                 @test y ≈ gpu_y
             end

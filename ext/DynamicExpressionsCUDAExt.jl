@@ -29,15 +29,15 @@ function eval_tree_array(
 end
 
 function eval_tree_array(
-    trees::Tuple{N,Vararg{N,M}},
+    trees::Union{NTuple{M,N} where M,AbstractVector{N}},
     gcX::MaybeCuArray{T,2},
     operators::OperatorEnum;
     buffer=nothing,
     gpu_workspace=nothing,
     gpu_buffer=nothing,
     kws...,
-) where {T<:Number,N<:AbstractExpressionNode{T},M}
-    (; val, execution_order, roots, buffer, num_nodes) = as_array(Int32, trees...; buffer)
+) where {T<:Number,N<:AbstractExpressionNode{T}}
+    (; val, execution_order, roots, buffer, num_nodes) = as_array(Int32, trees; buffer)
     num_launches = maximum(execution_order)
     num_elem = size(gcX, 2)
 
@@ -82,11 +82,8 @@ function eval_tree_array(
     )
     #! format: on
 
-    out = ntuple(i -> @view(gworkspace[begin:(end - 1), roots[i]]), Val(M + 1))
-    is_good = ntuple(
-        i -> true,  # Up to user to find NaNs
-        Val(M + 1),
-    )
+    out = (r -> @view(gworkspace[begin:(end - 1), r])).(roots)
+    is_good = (_ -> true).(trees)
 
     return (out, is_good)
 end
