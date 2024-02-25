@@ -1,15 +1,13 @@
 name = "DynamicExpressions"
 uuid = "a40a106e-89c9-4ca8-8020-a735e8728b6b"
 authors = ["MilesCranmer <miles.cranmer@gmail.com>"]
-version = "0.15.0"
+version = "0.16.0"
 
 [deps]
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
-LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 PackageExtensionCompat = "65ce6f38-6b18-4e1d-a461-8949797d7930"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
-Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
@@ -37,8 +35,8 @@ CUDA = "4, 5"
 Compat = "3.37, 4"
 Enzyme = "^0.11.12"
 LoopVectorization = "0.12"
-Optim = "0.19, 1"
 MacroTools = "0.4, 0.5"
+Optim = "0.19, 1"
 PackageExtensionCompat = "1"
 PrecompileTools = "1"
 Reexport = "1"
@@ -52,6 +50,7 @@ Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
@@ -62,4 +61,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [targets]
-test = ["Test", "SafeTestsets", "Aqua", "Bumper", "CUDA", "Enzyme", "ForwardDiff", "LoopVectorization", "Optim", "SpecialFunctions", "StaticArrays", "SymbolicUtils", "Zygote"]
+test = ["Test", "SafeTestsets", "Aqua", "Bumper", "CUDA", "Enzyme", "ForwardDiff", "LinearAlgebra", "LoopVectorization", "Optim", "SpecialFunctions", "StaticArrays", "SymbolicUtils", "Zygote"]

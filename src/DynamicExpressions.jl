@@ -5,6 +5,7 @@ include("ExtensionInterface.jl")
 include("OperatorEnum.jl")
 include("Equation.jl")
 include("EquationUtils.jl")
+include("Strings.jl")
 include("EvaluateEquation.jl")
 include("EvaluateEquationDerivative.jl")
 include("EvaluationHelpers.jl")
@@ -20,8 +21,6 @@ import Reexport: @reexport
     AbstractExpressionNode,
     GraphNode,
     Node,
-    string_tree,
-    print_tree,
     copy_node,
     set_node!,
     tree_mapreduce,
@@ -40,6 +39,7 @@ import .EquationModule: constructorof, preserve_sharing
     set_constants!,
     get_constant_refs,
     set_constant_refs!
+@reexport import .StringsModule: string_tree, print_tree
 @reexport import .OperatorEnumModule: AbstractOperatorEnum
 @reexport import .OperatorEnumConstructionModule:
     OperatorEnum, GenericOperatorEnum, @extend_operators, set_default_variable_names!

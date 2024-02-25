@@ -411,7 +411,7 @@ function hash(
     tree::AbstractExpressionNode{T}, h::UInt=zero(UInt); break_sharing::Val=Val(false)
 ) where {T}
     return tree_mapreduce(
-        t -> t.constant ? hash((0, t.val::T), h) : hash((1, t.feature), h),
+        t -> t.constant ? hash((0, t.val), h) : hash((1, t.feature), h),
         t -> hash((t.degree + 1, t.op), h),
         (n...) -> hash(n, h),
         tree,
@@ -435,12 +435,12 @@ function copy_node(
 ) where {T,N<:AbstractExpressionNode{T}}
     return tree_mapreduce(
         t -> if t.constant
-            constructorof(N)(; val=t.val::T)
+            constructorof(N)(; val=t.val)
         else
             constructorof(N)(T; feature=t.feature)
         end,
         identity,
-        (p, c...) -> constructorof(N)(p.op, c...),
+        (p, children...) -> constructorof(N)(; op=p.op, children),
         tree,
         N;
         break_sharing,
@@ -478,12 +478,12 @@ function convert(
     end
     return tree_mapreduce(
         t -> if t.constant
-            constructorof(N1)(T1, 0, true, convert(T1, t.val::T2))
+            constructorof(N1)(; val=convert(T1, t.val::T2))
         else
-            constructorof(N1)(T1, 0, false, nothing, t.feature)
+            constructorof(N1)(T1; feature=t.feature)
         end,
         identity,
-        (p, c...) -> constructorof(N1)(p.degree, false, nothing, 0, p.op, c...),
+        (p, children...) -> constructorof(N1)(; op=p.op, children),
         tree,
         N1,
     )
@@ -491,7 +491,7 @@ end
 function convert(
     ::Type{N1}, tree::N2
 ) where {T2,N1<:AbstractExpressionNode,N2<:AbstractExpressionNode{T2}}
-    return convert(constructorof(N1){T2}, tree)
+    return convert(with_type_parameters(N1, T2), tree)
 end
 function (::Type{N})(tree::AbstractExpressionNode) where {N<:AbstractExpressionNode}
     return convert(N, tree)

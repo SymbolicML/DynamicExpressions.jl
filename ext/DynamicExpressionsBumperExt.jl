@@ -23,7 +23,7 @@ function bumper_eval_tree_array(
             leaf_node -> begin
                 ar = @alloc(T, n)
                 ok = if leaf_node.constant
-                    v = leaf_node.val::T
+                    v = leaf_node.val
                     ar .= v
                     isfinite(v)
                 else

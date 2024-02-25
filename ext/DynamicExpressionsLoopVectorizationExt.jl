@@ -41,8 +41,8 @@ function deg1_l2_ll0_lr0_eval(
     tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::Val{true}
 ) where {T<:Number,F,F2}
     if tree.l.l.constant && tree.l.r.constant
-        val_ll = tree.l.l.val::T
-        val_lr = tree.l.r.val::T
+        val_ll = tree.l.l.val
+        val_lr = tree.l.r.val
         @return_on_check val_ll cX
         @return_on_check val_lr cX
         x_l = op_l(val_ll, val_lr)::T
@@ -51,7 +51,7 @@ function deg1_l2_ll0_lr0_eval(
         @return_on_check x cX
         return ResultOk(fill_similar(x, cX, axes(cX, 2)), true)
     elseif tree.l.l.constant
-        val_ll = tree.l.l.val::T
+        val_ll = tree.l.l.val
         @return_on_check val_ll cX
         feature_lr = tree.l.r.feature
         cumulator = similar(cX, axes(cX, 2))
@@ -63,7 +63,7 @@ function deg1_l2_ll0_lr0_eval(
         return ResultOk(cumulator, true)
     elseif tree.l.r.constant
         feature_ll = tree.l.l.feature
-        val_lr = tree.l.r.val::T
+        val_lr = tree.l.r.val
         @return_on_check val_lr cX
         cumulator = similar(cX, axes(cX, 2))
         @turbo for j in axes(cX, 2)
@@ -89,7 +89,7 @@ function deg1_l1_ll0_eval(
     tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::Val{true}
 ) where {T<:Number,F,F2}
     if tree.l.l.constant
-        val_ll = tree.l.l.val::T
+        val_ll = tree.l.l.val
         @return_on_check val_ll cX
         x_l = op_l(val_ll)::T
         @return_on_check x_l cX
@@ -112,16 +112,16 @@ function deg2_l0_r0_eval(
     tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, ::Val{true}
 ) where {T<:Number,F}
     if tree.l.constant && tree.r.constant
-        val_l = tree.l.val::T
+        val_l = tree.l.val
         @return_on_check val_l cX
-        val_r = tree.r.val::T
+        val_r = tree.r.val
         @return_on_check val_r cX
         x = op(val_l, val_r)::T
         @return_on_check x cX
         return ResultOk(fill_similar(x, cX, axes(cX, 2)), true)
     elseif tree.l.constant
         cumulator = similar(cX, axes(cX, 2))
-        val_l = tree.l.val::T
+        val_l = tree.l.val
         @return_on_check val_l cX
         feature_r = tree.r.feature
         @turbo for j in axes(cX, 2)
@@ -132,7 +132,7 @@ function deg2_l0_r0_eval(
     elseif tree.r.constant
         cumulator = similar(cX, axes(cX, 2))
         feature_l = tree.l.feature
-        val_r = tree.r.val::T
+        val_r = tree.r.val
         @return_on_check val_r cX
         @turbo for j in axes(cX, 2)
             x = op(cX[feature_l, j], val_r)
@@ -160,7 +160,7 @@ function deg2_l0_eval(
     ::Val{true},
 ) where {T<:Number,F}
     if tree.l.constant
-        val = tree.l.val::T
+        val = tree.l.val
         @return_on_check val cX
         @turbo for j in eachindex(cumulator)
             x = op(val, cumulator[j])
@@ -185,7 +185,7 @@ function deg2_r0_eval(
     ::Val{true},
 ) where {T<:Number,F}
     if tree.r.constant
-        val = tree.r.val::T
+        val = tree.r.val
         @return_on_check val cX
         @turbo for j in eachindex(cumulator)
             x = op(cumulator[j], val)

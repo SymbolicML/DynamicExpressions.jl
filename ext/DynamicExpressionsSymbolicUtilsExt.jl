@@ -34,7 +34,7 @@ function parse_tree_to_eqs(
 ) where {T}
     if tree.degree == 0
         # Return constant if needed
-        tree.constant && return subs_bad(tree.val::T)
+        tree.constant && return subs_bad(tree.val)
         return SymbolicUtils.Sym{LiteralReal}(Symbol("x$(tree.feature)"))
     end
     # Collect the next children
@@ -93,10 +93,10 @@ function split_eq(
     else
         ind = findoperation(op, operators.binops)
     end
-    return constructorof(N)(
-        ind,
-        convert(N, args[1], operators; variable_names=variable_names),
-        convert(N, op(args[2:end]...), operators; variable_names=variable_names),
+    return constructorof(N)(;
+        op=ind,
+        l=convert(N, args[1], operators; variable_names=variable_names),
+        r=convert(N, op(args[2:end]...), operators; variable_names=variable_names),
     )
 end
 
@@ -157,8 +157,9 @@ function Base.convert(
         findoperation(op, operators.unaops)
     end
 
-    return constructorof(N)(
-        ind, map(x -> convert(N, x, operators; variable_names=variable_names), args)...
+    return constructorof(N)(;
+        op=ind,
+        children=map(x -> convert(N, x, operators; variable_names=variable_names), args),
     )
 end
 

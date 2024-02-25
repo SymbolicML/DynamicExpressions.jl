@@ -1,7 +1,8 @@
 module OperatorEnumConstructionModule
 
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
-import ..EquationModule: string_tree, Node, GraphNode, AbstractExpressionNode, constructorof
+import ..EquationModule: Node, GraphNode, AbstractExpressionNode, constructorof
+import ..StringsModule: string_tree
 import ..EvaluateEquationModule: eval_tree_array, OPERATOR_LIMIT_BEFORE_SLOWDOWN
 import ..EvaluateEquationDerivativeModule: eval_grad_tree_array, _zygote_gradient
 import ..EvaluationHelpersModule: _grad_evaluator
@@ -121,10 +122,10 @@ function _extend_unary_operator(f::Symbol, type_requirements, internal)
                 l::N
             ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
                 return if (l.degree == 0 && l.constant)
-                    $_constructorof(N)(T; val=$($f)(l.val::T))
+                    $_constructorof(N)(T; val=$($f)(l.val))
                 else
                     latest_op_idx = $($lookup_op)($($f), Val(1))
-                    $_constructorof(N)(latest_op_idx, l)
+                    $_constructorof(N)(; op=latest_op_idx, l)
                 end
             end
         end
@@ -148,30 +149,34 @@ function _extend_binary_operator(f::Symbol, type_requirements, build_converters,
                 l::N, r::N
             ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
                 if (l.degree == 0 && l.constant && r.degree == 0 && r.constant)
-                    $_constructorof(N)(T; val=$($f)(l.val::T, r.val::T))
+                    $_constructorof(N)(T; val=$($f)(l.val, r.val))
                 else
                     latest_op_idx = $($lookup_op)($($f), Val(2))
-                    $_constructorof(N)(latest_op_idx, l, r)
+                    $_constructorof(N)(; op=latest_op_idx, l, r)
                 end
             end
             function $($f)(
                 l::N, r::T
             ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
                 if l.degree == 0 && l.constant
-                    $_constructorof(N)(T; val=$($f)(l.val::T, r))
+                    $_constructorof(N)(T; val=$($f)(l.val, r))
                 else
                     latest_op_idx = $($lookup_op)($($f), Val(2))
-                    $_constructorof(N)(latest_op_idx, l, $_constructorof(N)(T; val=r))
+                    $_constructorof(N)(;
+                        op=latest_op_idx, l, r=$_constructorof(N)(T; val=r)
+                    )
                 end
             end
             function $($f)(
                 l::T, r::N
             ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
                 if r.degree == 0 && r.constant
-                    $_constructorof(N)(T; val=$($f)(l, r.val::T))
+                    $_constructorof(N)(T; val=$($f)(l, r.val))
                 else
                     latest_op_idx = $($lookup_op)($($f), Val(2))
-                    $_constructorof(N)(latest_op_idx, $_constructorof(N)(T; val=l), r)
+                    $_constructorof(N)(;
+                        op=latest_op_idx, l=$_constructorof(N)(T; val=l), r
+                    )
                 end
             end
             if $($build_converters)
