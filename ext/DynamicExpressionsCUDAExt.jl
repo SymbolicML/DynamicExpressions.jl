@@ -83,7 +83,7 @@ function eval_tree_array(
     )
     #! format: on
 
-    out = ntuple(i -> @view(gworkspace[begin:end-1, roots[i]]), Val(M + 1))
+    out = ntuple(i -> @view(gworkspace[begin:(end - 1), roots[i]]), Val(M + 1))
     is_good = ntuple(
         i -> true,  # Up to user to find NaNs
         Val(M + 1),
