@@ -17,7 +17,7 @@ Base.setindex!(x::FakeCuArray, v, i::Int...) = setindex!(x.a, v, i...)
 Base.size(x::FakeCuArray) = size(x.a)
 Base.Array(x::FakeCuArray) = Array(x.a)
 
-const MaybeCuArray{T,N} = Union{CuArray{T,2},FakeCuArray{T,N}}
+const MaybeCuArray{T,N} = Union{CuArray{T,N},FakeCuArray{T,N}}
 
 to_device(a, ::CuArray) = CuArray(a)
 to_device(a, ::FakeCuArray) = FakeCuArray(a)
