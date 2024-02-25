@@ -115,9 +115,11 @@ for nuna in 0:10, nbin in 0:10
             # Input data and tree
             cX::AbstractArray, idx_self::AbstractArray, idx_l::AbstractArray, idx_r::AbstractArray,
             degree::AbstractArray, constant::AbstractArray, val::AbstractArray, feature::AbstractArray, op::AbstractArray,
+            # Override for unittesting:
+            i=nothing,
         )
             #! format: on
-            i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+            i = i === nothing ? (blockIdx().x - 1) * blockDim().x + threadIdx().x : i
             if i > num_elem * num_nodes
                 return nothing
             end
