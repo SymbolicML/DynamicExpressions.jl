@@ -1,5 +1,4 @@
-import DynamicExpressions:
-    Node, copy_node, set_node!, count_nodes, has_constants, has_operators
+import DynamicExpressions: Node, copy_node, count_nodes, has_constants, has_operators
 
 # This code is copied from SymbolicRegression.jl and modified
 
@@ -57,8 +56,6 @@ function append_random_op(
     else
         newnode = Node(rand(1:nuna), make_random_leaf(nfeatures, T))
     end
-
-    set_node!(node, newnode)
 
     return tree
 end

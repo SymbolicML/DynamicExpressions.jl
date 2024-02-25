@@ -112,7 +112,6 @@ function test_functions_on_trees(::Type{T}, operators) where {T}
     end
     tree = convert(Node{T}, tree)
     tree = copy_node(tree)
-    set_node!(tree, tree)
 
     string_tree(tree, operators)
     count_nodes(tree)

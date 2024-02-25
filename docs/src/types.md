@@ -63,12 +63,6 @@ You can convert the type of a node using `convert`:
 convert(::Type{AbstractExpressionNode{T1}}, tree::AbstractExpressionNode{T2}) where {T1, T2}
 ```
 
-You can set a `tree` (in-place) with `set_node!`:
-
-```@docs
-set_node!
-```
-
 You can create a copy of a node with `copy_node`:
 
 ```@docs

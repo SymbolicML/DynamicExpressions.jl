@@ -101,7 +101,6 @@ end
     s = String(take!(io))
     @test s == "exp(x2 / 3.2) + (x1 * 2.0)"
 
-    set_node!(tree, tree2)
     @test tree !== tree2
     @test repr(tree) == repr(tree2)
 end

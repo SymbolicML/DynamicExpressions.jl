@@ -96,19 +96,13 @@ You may also choose to specify a default memory allocator for the node other tha
 in the `allocator` keyword argument.
 """
 mutable struct Node{T} <: AbstractExpressionNode{T}
-    degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
-    constant::Bool  # false if variable
-    val::T  # If is a constant, this stores the actual value
-    # ------------------- (possibly undefined below)
-    feature::UInt16  # If is a variable (e.g., x in cos(x)), this stores the feature index.
-    op::UInt8  # If operator, this is the index of the operator in operators.binops, or operators.unaops
-    l::Node{T}  # Left child node. Only defined for degree=1 or degree=2.
-    r::Node{T}  # Right child node. Only defined for degree=2. 
-
-    #################
-    ## Constructors:
-    #################
-    Node{_T}() where {_T} = new{_T}()
+    const degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
+    const constant::Union{Bool,Nothing}  # false if variable
+    val::Union{T,Nothing}  # If is a constant, this stores the actual value
+    const feature::Union{UInt16,Nothing}  # If is a variable (e.g., x in cos(x)), this stores the feature index.
+    const op::Union{UInt8,Nothing}  # If operator, this is the index of the operator in operators.binops, or operators.unaops
+    l::Union{Node{T},Nothing}  # Left child node. Only defined for degree=1 or degree=2.
+    r::Union{Node{T},Nothing}  # Right child node. Only defined for degree=2. 
 end
 
 """
@@ -143,16 +137,13 @@ are created simply by using the same node in multiple places
 when constructing or setting properties.
 """
 mutable struct GraphNode{T} <: AbstractExpressionNode{T}
-    degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
-    constant::Bool  # false if variable
-    val::T  # If is a constant, this stores the actual value
-    # ------------------- (possibly undefined below)
-    feature::UInt16  # If is a variable (e.g., x in cos(x)), this stores the feature index.
-    op::UInt8  # If operator, this is the index of the operator in operators.binops, or operators.unaops
+    const degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
+    const constant::Union{Bool,Nothing}  # false if variable
+    val::Union{T,Nothing}  # If is a constant, this stores the actual value
+    const feature::Union{UInt16,Nothing}  # If is a variable (e.g., x in cos(x)), this stores the feature index.
+    const op::Union{UInt8,Nothing}  # If operator, this is the index of the operator in operators.binops, or operators.unaops
     l::GraphNode{T}  # Left child node. Only defined for degree=1 or degree=2.
     r::GraphNode{T}  # Right child node. Only defined for degree=2. 
-
-    GraphNode{_T}() where {_T} = new{_T}()
 end
 
 ################################################################################
@@ -171,11 +162,7 @@ end
 with_type_parameters(::Type{<:Node}, ::Type{T}) where {T} = Node{T}
 with_type_parameters(::Type{<:GraphNode}, ::Type{T}) where {T} = GraphNode{T}
 
-function default_allocator(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNode,T}
-    return with_type_parameters(N, T)()
-end
-default_allocator(::Type{<:Node}, ::Type{T}) where {T} = Node{T}()
-default_allocator(::Type{<:GraphNode}, ::Type{T}) where {T} = GraphNode{T}()
+default_allocator(::Type{N}, args...) where {T,N<:AbstractExpressionNode{T}} = N(args...)
 
 """Trait declaring whether nodes share children or not."""
 preserve_sharing(::Type{<:AbstractNode}) = false
@@ -203,22 +190,16 @@ end
     ::Type{N}, ::Type{T1}, val::T2, ::Nothing, ::Nothing, ::Nothing, ::Nothing, allocator::F,
 ) where {N,T1,T2,F}
     T = node_factory_type(N, T1, T2)
-    n = allocator(N, T)
-    n.degree = 0
-    n.constant = true
-    n.val = convert(T, val)
-    return n
+    NT = with_type_parameters(N, T)
+    return allocator(NT, 0, true, convert(T, val), nothing, nothing, nothing, nothing)
 end
 """Create a variable leaf, to store data."""
 @inline function node_factory(
     ::Type{N}, ::Type{T1}, ::Nothing, feature::Integer, ::Nothing, ::Nothing, ::Nothing, allocator::F,
 ) where {N,T1,F}
     T = node_factory_type(N, T1, DEFAULT_NODE_TYPE)
-    n = allocator(N, T)
-    n.degree = 0
-    n.constant = false
-    n.feature = feature
-    return n
+    NT = with_type_parameters(N, T)
+    return allocator(NT, 0, false, nothing, feature, nothing, nothing, nothing)
 end
 """Create a unary operator node."""
 @inline function node_factory(
@@ -226,23 +207,18 @@ end
 ) where {N,T1,T2,F}
     @assert l isa N
     T = T2  # Always prefer existing nodes, so we don't mess up references from conversion
-    n = allocator(N, T)
-    n.degree = 1
-    n.op = op
-    n.l = l
-    return n
+    NT = with_type_parameters(N, T)
+    return allocator(NT, 1, nothing, nothing, nothing, op, l, nothing)
 end
 """Create a binary operator node."""
 @inline function node_factory(
     ::Type{N}, ::Type{T1}, ::Nothing, ::Nothing, op::Integer, l::AbstractExpressionNode{T2}, r::AbstractExpressionNode{T3}, allocator::F,
 ) where {N,T1,T2,T3,F}
     T = promote_type(T2, T3)
-    n = allocator(N, T)
-    n.degree = 2
-    n.op = op
-    n.l = T2 === T ? l : convert(with_type_parameters(N, T), l)
-    n.r = T3 === T ? r : convert(with_type_parameters(N, T), r)
-    return n
+    NT = with_type_parameters(N, T)
+    l = T2 === T ? l : convert(NT, l)
+    r = T3 === T ? r : convert(NT, r)
+    return allocator(NT, 2, nothing, nothing, nothing, op, l, r)
 end
 
 @inline function node_factory_type(::Type{N}, ::Type{T1}, ::Type{T2}) where {N,T1,T2}
@@ -257,6 +233,23 @@ end
     end
 end
 #! format: on
+
+@inline function Base.getproperty(node::AbstractExpressionNode{T}, name::Symbol) where {T}
+    # We assert that the field is always defined, for type stability in code
+    if name == :constant
+        return getfield(node, :constant)::Bool
+    elseif name == :val
+        return getfield(node, :val)::T
+    elseif name == :feature
+        return getfield(node, :feature)::UInt16
+    elseif name == :op
+        return getfield(node, :op)::UInt8
+    elseif name in (:l, :r)
+        return getfield(node, name)::typeof(node)
+    else
+        return getfield(node, name)
+    end
+end
 
 function (::Type{N})(
     op::Integer, l::AbstractExpressionNode
@@ -290,41 +283,6 @@ function Base.promote_rule(::Type{GraphNode{T1}}, ::Type{Node{T2}}) where {T1,T2
 end
 function Base.promote_rule(::Type{GraphNode{T1}}, ::Type{GraphNode{T2}}) where {T1,T2}
     return GraphNode{promote_type(T1, T2)}
-end
-
-# TODO: Verify using this helps with garbage collection
-create_dummy_node(::Type{N}) where {N<:AbstractExpressionNode} = N()
-
-"""
-    set_node!(tree::AbstractExpressionNode{T}, new_tree::AbstractExpressionNode{T}) where {T}
-
-Set every field of `tree` equal to the corresponding field of `new_tree`.
-"""
-function set_node!(tree::AbstractExpressionNode, new_tree::AbstractExpressionNode)
-    # First, ensure we free some memory:
-    if new_tree.degree < 2 && tree.degree == 2
-        tree.r = create_dummy_node(typeof(tree))
-    end
-    if new_tree.degree < 1 && tree.degree >= 1
-        tree.l = create_dummy_node(typeof(tree))
-    end
-
-    tree.degree = new_tree.degree
-    if new_tree.degree == 0
-        tree.constant = new_tree.constant
-        if new_tree.constant
-            tree.val = new_tree.val::eltype(new_tree)
-        else
-            tree.feature = new_tree.feature
-        end
-    else
-        tree.op = new_tree.op
-        tree.l = new_tree.l
-        if new_tree.degree == 2
-            tree.r = new_tree.r
-        end
-    end
-    return nothing
 end
 
 end

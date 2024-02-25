@@ -21,7 +21,6 @@ import Reexport: @reexport
     GraphNode,
     Node,
     copy_node,
-    set_node!,
     tree_mapreduce,
     filter_map,
     filter_map!

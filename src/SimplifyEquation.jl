@@ -1,6 +1,6 @@
 module SimplifyEquationModule
 
-import ..EquationModule: AbstractExpressionNode, constructorof, Node, copy_node, set_node!
+import ..EquationModule: AbstractExpressionNode, constructorof, Node, copy_node
 import ..EquationUtilsModule: tree_mapreduce, is_node_constant
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..UtilsModule: isbad, isgood
@@ -105,7 +105,7 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
     return tree
 end
 
-function combine_children!(operators, p::N, c::N...) where {T,N<:AbstractExpressionNode{T}}
+function combine_children(operators, p::N, c::N...) where {T,N<:AbstractExpressionNode{T}}
     all(is_node_constant, c) || return p
     vals = map(n -> n.val, c)
     all(isgood, vals) || return p
@@ -116,19 +116,14 @@ function combine_children!(operators, p::N, c::N...) where {T,N<:AbstractExpress
     end
     isgood(out) || return p
     new_node = constructorof(N)(T; val=convert(T, out))
-    set_node!(p, new_node)
-    return p
+    return new_node
 end
 
 # Simplify tree
 function simplify_tree!(tree::AbstractExpressionNode, operators::AbstractOperatorEnum)
-    tree = tree_mapreduce(
-        identity,
-        (p, c...) -> combine_children!(operators, p, c...),
-        tree,
-        constructorof(typeof(tree));
+    return tree_mapreduce(
+        identity, (p, c...) -> combine_children(operators, p, c...), tree, typeof(tree);
     )
-    return tree
 end
 
 end
