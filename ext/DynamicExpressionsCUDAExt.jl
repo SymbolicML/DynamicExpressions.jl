@@ -1,22 +1,36 @@
 module DynamicExpressionsCUDAExt
 
-using CUDA
+using CUDA: @cuda, CuArray, blockDim, blockIdx, threadIdx
 using DynamicExpressions: OperatorEnum, AbstractExpressionNode
 using DynamicExpressions.EvaluateEquationModule: get_nbin, get_nuna
 using DynamicExpressions.AsArrayModule: as_array
 
 import DynamicExpressions.EvaluateEquationModule: eval_tree_array
 
+# array type for exclusively testing purposes
+struct FakeCuArray{T,N,A<:AbstractArray{T,N}} <: AbstractArray{T,N}
+    a::A
+end
+Base.similar(x::FakeCuArray, dims::Integer...) = FakeCuArray(similar(x.a, dims...))
+Base.getindex(x::FakeCuArray, i::Int...) = getindex(x.a, i...)
+Base.setindex!(x::FakeCuArray, v, i::Int...) = setindex!(x.a, v, i...)
+Base.size(x::FakeCuArray) = size(x.a)
+
+const MaybeCuArray{T,N} = Union{CuArray{T,2},FakeCuArray{T,N}}
+
+to_device(a, ::CuArray) = CuArray(a)
+to_device(a, ::FakeCuArray) = FakeCuArray(a)
+
 function eval_tree_array(
-    tree::AbstractExpressionNode{T}, gcX::CuArray{T,2}, operators::OperatorEnum; kws...
+    tree::AbstractExpressionNode{T}, gcX::MaybeCuArray{T,2}, operators::OperatorEnum; kws...
 ) where {T<:Number}
     (outs, is_good) = eval_tree_array((tree,), gcX, operators; kws...)
     return (only(outs), only(is_good))
 end
 
 function eval_tree_array(
-    trees::NTuple{M,N},
-    gcX::CuArray{T,2},
+    trees::Tuple{N,Vararg{N,M}},
+    gcX::MaybeCuArray{T,2},
     operators::OperatorEnum;
     buffer=nothing,
     gpu_workspace=nothing,
@@ -29,7 +43,7 @@ function eval_tree_array(
 
     ## Floating point arrays:
     gworkspace = if gpu_workspace === nothing
-        CuArray{T}(undef, num_elem, num_nodes + 1)
+        similar(gcX, num_elem, num_nodes + 1)
     else
         gpu_workspace
     end
@@ -37,7 +51,11 @@ function eval_tree_array(
     copyto!(gval, val)
 
     ## Index arrays (much faster to have `@view` here)
-    gbuffer = gpu_buffer === nothing ? CuArray(buffer) : copyto!(gpu_buffer, buffer)
+    gbuffer = if gpu_buffer === nothing
+        to_device(buffer, gcX)
+    else
+        copyto!(gpu_buffer, buffer)
+    end
     gdegree = @view gbuffer[1, :]
     gfeature = @view gbuffer[2, :]
     gop = @view gbuffer[3, :]
@@ -61,10 +79,10 @@ function eval_tree_array(
     )
     #! format: on
 
-    out = ntuple(i -> @view(gworkspace[:, roots[i]]), Val(M))
+    out = ntuple(i -> @view(gworkspace[:, roots[i]]), Val(M + 1))
     is_good = ntuple(
         i -> true,  # Up to user to find NaNs
-        Val(M),
+        Val(M + 1),
     )
 
     return (out, is_good)
@@ -87,12 +105,24 @@ function _launch_gpu_kernel!(
     gpu_kernel! = create_gpu_kernel(operators, Val(nuna), Val(nbin))
     for launch in one(I):I(num_launches)
         #! format: off
-        @cuda threads=num_threads blocks=num_blocks gpu_kernel!(
-            buffer,
-            launch, num_elem, num_nodes, execution_order,
-            cX, idx_self, idx_l, idx_r,
-            degree, constant, val, feature, op
-        )
+        if buffer isa CuArray
+            @cuda threads=num_threads blocks=num_blocks gpu_kernel!(
+                buffer,
+                launch, num_elem, num_nodes, execution_order,
+                cX, idx_self, idx_l, idx_r,
+                degree, constant, val, feature, op
+            )
+        else
+            Threads.@threads for i in 1:(num_threads * num_blocks)
+                gpu_kernel!(
+                    buffer,
+                    launch, num_elem, num_nodes, execution_order,
+                    cX, idx_self, idx_l, idx_r,
+                    degree, constant, val, feature, op,
+                    i
+                )
+            end
+        end
         #! format: on
     end
     return nothing

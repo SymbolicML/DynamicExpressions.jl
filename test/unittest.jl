@@ -10,7 +10,7 @@ end
 end
 
 # Trigger extensions:
-using Zygote, SymbolicUtils, LoopVectorization, Bumper, Optim
+using Zygote, SymbolicUtils, LoopVectorization, Bumper, Optim, CUDA
 
 @safetestset "Test deprecations" begin
     include("test_deprecations.jl")
@@ -134,3 +134,4 @@ include("test_structured_expression.jl")
 include("test_zygote_gradient_wrapper.jl")
 include("test_supposition_consistency.jl")
 include("test_n_arity_nodes.jl")
+include("test_cuda.jl")
