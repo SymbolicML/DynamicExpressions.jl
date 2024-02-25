@@ -1,11 +1,11 @@
 module AsArrayModule
 
-using ..EquationModule: AbstractExpressionNode, tree_mapreduce
+using ..EquationModule: AbstractExpressionNode, tree_mapreduce, count_nodes
 
 function as_array(
     ::Type{I}, trees::Vararg{N,M}; buffer::Union{AbstractArray,Nothing}=nothing
 ) where {T,N<:AbstractExpressionNode{T},I,M}
-    each_num_nodes = length.(trees)
+    each_num_nodes = (t -> count_nodes(t; break_sharing=Val(true))).(trees)
     num_nodes = sum(each_num_nodes)
 
     roots = cumsum(tuple(one(I), each_num_nodes[1:(end - 1)]...))
@@ -24,7 +24,8 @@ function as_array(
     constant = @view buffer[8, :]
 
     cursor = Ref(zero(I))
-    for tree in trees
+    for (root, tree) in zip(roots, trees)
+        @assert root == cursor[] + 1
         tree_mapreduce(
             leaf -> begin
                 self = (cursor[] += one(I))
