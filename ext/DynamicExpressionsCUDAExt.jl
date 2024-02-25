@@ -15,7 +15,6 @@ Base.similar(x::FakeCuArray, dims::Integer...) = FakeCuArray(similar(x.a, dims..
 Base.getindex(x::FakeCuArray, i::Int...) = getindex(x.a, i...)
 Base.setindex!(x::FakeCuArray, v, i::Int...) = setindex!(x.a, v, i...)
 Base.size(x::FakeCuArray) = size(x.a)
-Base.Array(x::FakeCuArray) = Array(x.a)
 
 const MaybeCuArray{T,N} = Union{CuArray{T,N},FakeCuArray{T,N}}
 
