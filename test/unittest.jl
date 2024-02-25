@@ -9,7 +9,7 @@ end
 end
 
 # Trigger extensions:
-using Zygote, SymbolicUtils, LoopVectorization, Bumper, Optim, CUDA
+using Zygote, SymbolicUtils, LoopVectorization, Bumper, Optim
 
 @safetestset "Test deprecations" begin
     include("test_deprecations.jl")
@@ -111,6 +111,8 @@ end
     include("test_random.jl")
 end
 
-@safetestset "Test CUDA" begin
-    include("test_cuda.jl")
+if VERSION >= v"1.9"
+    @eval @safetestset "Test CUDA" begin
+        include("test_cuda.jl")
+    end
 end
