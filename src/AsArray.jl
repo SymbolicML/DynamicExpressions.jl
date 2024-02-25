@@ -4,15 +4,20 @@ using ..EquationModule: AbstractExpressionNode, tree_mapreduce, count_nodes
 
 function as_array(
     ::Type{I},
-    tree::N,
-    additional_trees::Vararg{N,M};
+    trees::Union{NTuple{M,N} where M,AbstractVector{N}};
     buffer::Union{AbstractArray,Nothing}=nothing,
-) where {T,N<:AbstractExpressionNode{T},I,M}
-    trees = (tree, additional_trees...)
+) where {T,N<:AbstractExpressionNode{T},I}
     each_num_nodes = (t -> count_nodes(t; break_sharing=Val(true))).(trees)
     num_nodes = sum(each_num_nodes)
 
-    roots = cumsum(tuple(one(I), each_num_nodes[1:(end - 1)]...))
+    # Want `roots` to be tuple if `trees` is tuple and similar for vector
+    roots = cumsum(
+        if each_num_nodes isa Tuple
+            tuple(one(I), each_num_nodes[1:(end - 1)]...)
+        else
+            vcat(one(I), each_num_nodes[1:(end - 1)])
+        end,
+    )
 
     val = Array{T}(undef, num_nodes)
 
