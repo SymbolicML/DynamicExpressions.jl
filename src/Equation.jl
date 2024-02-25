@@ -142,8 +142,8 @@ mutable struct GraphNode{T} <: AbstractExpressionNode{T}
     val::Union{T,Nothing}  # If is a constant, this stores the actual value
     const feature::Union{UInt16,Nothing}  # If is a variable (e.g., x in cos(x)), this stores the feature index.
     const op::Union{UInt8,Nothing}  # If operator, this is the index of the operator in operators.binops, or operators.unaops
-    l::GraphNode{T}  # Left child node. Only defined for degree=1 or degree=2.
-    r::GraphNode{T}  # Right child node. Only defined for degree=2. 
+    l::Union{GraphNode{T},Nothing}  # Left child node. Only defined for degree=1 or degree=2.
+    r::Union{GraphNode{T},Nothing}  # Right child node. Only defined for degree=2. 
 end
 
 ################################################################################
