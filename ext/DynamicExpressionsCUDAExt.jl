@@ -15,6 +15,7 @@ Base.similar(x::FakeCuArray, dims::Integer...) = FakeCuArray(similar(x.a, dims..
 Base.getindex(x::FakeCuArray, i::Int...) = getindex(x.a, i...)
 Base.setindex!(x::FakeCuArray, v, i::Int...) = setindex!(x.a, v, i...)
 Base.size(x::FakeCuArray) = size(x.a)
+Base.Array(x::FakeCuArray) = Array(x.a)
 
 const MaybeCuArray{T,N} = Union{CuArray{T,2},FakeCuArray{T,N}}
 
@@ -41,13 +42,16 @@ function eval_tree_array(
     num_launches = maximum(execution_order)
     num_elem = size(gcX, 2)
 
-    ## Floating point arrays:
+    ## The following array is our "workspace" for
+    ## the GPU kernel, with size equal to the number of rows
+    ## in the input data by the number of nodes in the tree.
+    ## It has one extra row to store the constant values.
     gworkspace = if gpu_workspace === nothing
-        similar(gcX, num_elem, num_nodes + 1)
+        similar(gcX, num_elem + 1, num_nodes)
     else
         gpu_workspace
     end
-    gval = @view gworkspace[:, end]
+    gval = @view gworkspace[end, :]
     copyto!(gval, val)
 
     ## Index arrays (much faster to have `@view` here)
@@ -79,7 +83,7 @@ function eval_tree_array(
     )
     #! format: on
 
-    out = ntuple(i -> @view(gworkspace[:, roots[i]]), Val(M + 1))
+    out = ntuple(i -> @view(gworkspace[begin:end-1, roots[i]]), Val(M + 1))
     is_good = ntuple(
         i -> true,  # Up to user to find NaNs
         Val(M + 1),

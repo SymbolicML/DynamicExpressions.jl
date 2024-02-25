@@ -100,7 +100,7 @@ end
 function eval_tree_array(
     trees::Tuple{N,Vararg{N,M}}, cX::AbstractMatrix{T}, operators::OperatorEnum; kws...
 ) where {T<:Number,N<:AbstractExpressionNode{T},M}
-    outs = ntuple(i -> eval_tree_array(trees[i], cX, operators; kws...)[1], Val(M + 1))
+    outs = ntuple(i -> eval_tree_array(trees[i], cX, operators; kws...), Val(M + 1))
     return ntuple(i -> first(outs[i]), Val(M + 1)), ntuple(i -> last(outs[i]), Val(M + 1))
 end
 
