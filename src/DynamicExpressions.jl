@@ -48,7 +48,8 @@ import .EquationModule: constructorof, preserve_sharing
     eval_diff_tree_array, eval_grad_tree_array
 @reexport import .SimplifyEquationModule: combine_operators, simplify_tree!
 @reexport import .EvaluationHelpersModule
-@reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
+@reexport import .ExtensionInterfaceModule:
+    node_to_symbolic, symbolic_to_node, gpu_eval_tree_array
 @reexport import .RandomModule: NodeSampler
 @reexport import .AsArrayModule: as_array
 

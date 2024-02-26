@@ -14,6 +14,9 @@ end
 function bumper_eval_tree_array(args...)
     return error("Please load the Bumper.jl package to use this feature.")
 end
+function gpu_eval_tree_array(args...)
+    return error("Please load a GPU backend such as CUDA.jl to use this feature.")
+end
 function bumper_kern1! end
 function bumper_kern2! end
 
