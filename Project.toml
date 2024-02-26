@@ -14,7 +14,7 @@ TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [weakdeps]
 Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
-KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
@@ -22,7 +22,7 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [extensions]
 DynamicExpressionsBumperExt = "Bumper"
-DynamicExpressionsKernelAbstractionsExt = "KernelAbstractions"
+DynamicExpressionsCUDAExt = "CUDA"
 DynamicExpressionsLoopVectorizationExt = "LoopVectorization"
 DynamicExpressionsOptimExt = "Optim"
 DynamicExpressionsSymbolicUtilsExt = "SymbolicUtils"
@@ -31,7 +31,7 @@ DynamicExpressionsZygoteExt = "Zygote"
 [compat]
 Aqua = "0.7"
 Bumper = "0.6"
-KernelAbstractions = "0.9"
+CUDA = "4, 5"
 Compat = "3.37, 4"
 Enzyme = "^0.11.12"
 LoopVectorization = "0.12"
@@ -47,9 +47,9 @@ julia = "1.6"
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
@@ -61,4 +61,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [targets]
-test = ["Test", "SafeTestsets", "Aqua", "Bumper", "KernelAbstractions", "Enzyme", "ForwardDiff", "LinearAlgebra", "LoopVectorization", "Optim", "SpecialFunctions", "StaticArrays", "SymbolicUtils", "Zygote"]
+test = ["Test", "SafeTestsets", "Aqua", "Bumper", "CUDA", "Enzyme", "ForwardDiff", "LinearAlgebra", "LoopVectorization", "Optim", "SpecialFunctions", "StaticArrays", "SymbolicUtils", "Zygote"]
