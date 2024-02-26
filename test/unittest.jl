@@ -110,3 +110,9 @@ end
 @safetestset "Test random sampling" begin
     include("test_random.jl")
 end
+
+if VERSION >= v"1.9"
+    @eval @safetestset "Test CUDA" begin
+        include("test_cuda.jl")
+    end
+end

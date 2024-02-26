@@ -1,6 +1,6 @@
 module EvaluateEquationModule
 
-import ..EquationModule: AbstractExpressionNode, constructorof
+import ..EquationModule: AbstractExpressionNode, with_type_parameters
 import ..StringsModule: string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: is_bad_array, fill_similar, counttuple, ResultOk
@@ -93,9 +93,18 @@ function eval_tree_array(
 ) where {T1<:Number,T2<:Number}
     T = promote_type(T1, T2)
     @warn "Warning: eval_tree_array received mixed types: tree=$(T1) and data=$(T2)."
-    tree = convert(constructorof(typeof(tree)){T}, tree)
-    cX = Base.Fix1(convert, T).(cX)
+    tree = convert(with_type_parameters(typeof(tree), T), tree)
+    cX = T.(cX)
     return eval_tree_array(tree, cX, operators; turbo, bumper)
+end
+function eval_tree_array(
+    trees::Union{Tuple{N,Vararg{N}},AbstractVector{N}},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum;
+    kws...,
+) where {T<:Number,N<:AbstractExpressionNode{T}}
+    outs = (t -> eval_tree_array(t, cX, operators; kws...)).(trees)
+    return first.(outs), last.(outs)
 end
 
 get_nuna(::Type{<:OperatorEnum{B,U}}) where {B,U} = counttuple(U)

@@ -12,6 +12,7 @@ include("EvaluationHelpers.jl")
 include("SimplifyEquation.jl")
 include("OperatorEnumConstruction.jl")
 include("Random.jl")
+include("AsArray.jl")
 
 import PackageExtensionCompat: @require_extensions
 import Reexport: @reexport
@@ -49,6 +50,7 @@ import .EquationModule: constructorof, preserve_sharing
 @reexport import .EvaluationHelpersModule
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 @reexport import .RandomModule: NodeSampler
+@reexport import .AsArrayModule: as_array
 
 function __init__()
     @require_extensions
