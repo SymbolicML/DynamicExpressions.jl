@@ -88,8 +88,7 @@ import .EvaluateModule: ArrayBuffer, ResultOk
 @reexport import .ChainRulesModule: NodeTangent, extract_gradient
 @reexport import .SimplifyModule: combine_operators, simplify_tree!
 @reexport import .EvaluationHelpersModule
-@reexport import .ExtensionInterfaceModule:
-    node_to_symbolic, symbolic_to_node, gpu_eval_tree_array
+@reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 @reexport import .RandomModule: NodeSampler
 @reexport import .ExpressionModule:
     AbstractExpression,

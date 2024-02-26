@@ -60,9 +60,6 @@ function bumper_eval_tree_array(args...)
 end
 function _bumper_eval_tree_array end
 function bumper_kern! end
-function gpu_eval_tree_array(args...)
-    return error("Please load a GPU backend such as CUDA.jl to use this feature.")
-end
 
 _is_loopvectorization_loaded(_) = false  # COV_EXCL_LINE
 
