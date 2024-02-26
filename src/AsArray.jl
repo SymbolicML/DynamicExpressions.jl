@@ -4,9 +4,12 @@ using ..EquationModule: AbstractExpressionNode, tree_mapreduce, count_nodes
 
 function as_array(
     ::Type{I},
-    trees::Union{Tuple{N,Vararg{N}},AbstractVector{N}};
+    trees::Union{N,Tuple{N,Vararg{N}},AbstractVector{N}};
     buffer::Union{AbstractArray,Nothing}=nothing,
 ) where {T,N<:AbstractExpressionNode{T},I}
+    if trees isa N
+        return as_array(I, (trees,); buffer=buffer)
+    end
     each_num_nodes = (t -> count_nodes(t; break_sharing=Val(true))).(trees)
     num_nodes = sum(each_num_nodes)
 
@@ -33,6 +36,7 @@ function as_array(
     constant = @view buffer[8, :]
 
     cursor = Ref(zero(I))
+    num_launches = zero(I)
     for (root, tree) in zip(roots, trees)
         @assert root == cursor[] + 1
         tree_mapreduce(
@@ -70,6 +74,11 @@ function as_array(
                 end
                 execution_order[parent.id] = parent_execution_order
 
+                # Global number of launches equal to maximum execution order
+                if parent_execution_order > num_launches
+                    num_launches = parent_execution_order
+                end
+
                 (id=parent.id, order=parent_execution_order)
             end,
             tree;
@@ -84,6 +93,7 @@ function as_array(
         feature,
         op,
         execution_order,
+        num_launches,
         idx_self,
         idx_l,
         idx_r,

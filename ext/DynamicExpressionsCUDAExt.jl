@@ -35,10 +35,15 @@ function eval_tree_array(
     buffer=nothing,
     gpu_workspace=nothing,
     gpu_buffer=nothing,
+    roots=nothing,
+    num_nodes=nothing,
+    num_launches=nothing,
+    update_buffers::Val{_update_buffers}=Val(true),
     kws...,
-) where {T<:Number,N<:AbstractExpressionNode{T}}
-    (; val, execution_order, roots, buffer, num_nodes) = as_array(Int32, trees; buffer)
-    num_launches = maximum(execution_order)
+) where {T<:Number,N<:AbstractExpressionNode{T},_update_buffers}
+    if _update_buffers
+        (; val, roots, buffer, num_nodes, num_launches) = as_array(Int32, trees; buffer)
+    end
     num_elem = size(gcX, 2)
 
     ## The following array is our "workspace" for
@@ -51,10 +56,14 @@ function eval_tree_array(
         gpu_workspace
     end
     gval = @view gworkspace[end, :]
-    copyto!(gval, val)
+    if _update_buffers
+        copyto!(gval, val)
+    end
 
     ## Index arrays (much faster to have `@view` here)
-    gbuffer = if gpu_buffer === nothing
+    gbuffer = if !_update_buffers
+        gpu_buffer
+    elseif gpu_buffer === nothing
         to_device(buffer, gcX)
     else
         copyto!(gpu_buffer, buffer)
