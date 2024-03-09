@@ -97,10 +97,10 @@ in the `allocator` keyword argument.
 """
 struct Node{T} <: AbstractExpressionNode{T}
     degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
-    constant::Union{Bool,Nothing}  # false if variable
+    constant::Bool  # false if variable
     val::Base.RefValue{T}  # If is a constant, this stores the actual value
-    feature::Union{UInt16,Nothing}  # If is a variable (e.g., x in cos(x)), this stores the feature index.
-    op::Union{UInt8,Nothing}  # If operator, this is the index of the operator in operators.binops, or operators.unaops
+    feature::UInt16  # If is a variable (e.g., x in cos(x)), this stores the feature index.
+    op::UInt8  # If operator, this is the index of the operator in operators.binops, or operators.unaops
     l::Base.RefValue{Node{T}}  # Left child node. Only defined for degree=1 or degree=2.
     r::Base.RefValue{Node{T}}  # Right child node. Only defined for degree=2. 
 end
@@ -138,10 +138,10 @@ when constructing or setting properties.
 """
 struct GraphNode{T} <: AbstractExpressionNode{T}
     degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
-    constant::Union{Bool,Nothing}  # false if variable
+    constant::Bool  # false if variable
     val::Base.RefValue{T}  # If is a constant, this stores the actual value
-    feature::Union{UInt16,Nothing}  # If is a variable (e.g., x in cos(x)), this stores the feature index.
-    op::Union{UInt8,Nothing}  # If operator, this is the index of the operator in operators.binops, or operators.unaops
+    feature::UInt16  # If is a variable (e.g., x in cos(x)), this stores the feature index.
+    op::UInt8  # If operator, this is the index of the operator in operators.binops, or operators.unaops
     l::Base.RefValue{GraphNode{T}}  # Left child node. Only defined for degree=1 or degree=2.
     r::Base.RefValue{GraphNode{T}}  # Right child node. Only defined for degree=2. 
 end
@@ -191,7 +191,7 @@ end
 ) where {N,T1,T2,F}
     T = node_factory_type(N, T1, T2)
     NT = with_type_parameters(N, T)
-    return allocator(NT, 0, true, Ref{T}(val), nothing, nothing, Ref{NT}(), Ref{NT}())
+    return allocator(NT, 0, true, Ref{T}(val), 0, 0, Ref{NT}(), Ref{NT}())
 end
 """Create a variable leaf, to store data."""
 @inline function node_factory(
@@ -199,7 +199,7 @@ end
 ) where {N,T1,F}
     T = node_factory_type(N, T1, DEFAULT_NODE_TYPE)
     NT = with_type_parameters(N, T)
-    return allocator(NT, 0, false, Ref{T}(), feature, nothing, Ref{NT}(), Ref{NT}())
+    return allocator(NT, 0, false, Ref{T}(), feature, 0, Ref{NT}(), Ref{NT}())
 end
 """Create a unary operator node."""
 @inline function node_factory(
@@ -208,7 +208,7 @@ end
     @assert l isa N
     T = T2  # Always prefer existing nodes, so we don't mess up references from conversion
     NT = with_type_parameters(N, T)
-    return allocator(NT, 1, nothing, Ref{T}(), nothing, op, Ref(l), Ref{NT}())
+    return allocator(NT, 1, false, Ref{T}(), 0, op, Ref(l), Ref{NT}())
 end
 """Create a binary operator node."""
 @inline function node_factory(
@@ -218,7 +218,7 @@ end
     NT = with_type_parameters(N, T)
     l = T2 === T ? l : convert(NT, l)
     r = T3 === T ? r : convert(NT, r)
-    return allocator(NT, 2, nothing, Ref{T}(), nothing, op, Ref(l), Ref(r))
+    return allocator(NT, 2, false, Ref{T}(), 0, op, Ref(l), Ref(r))
 end
 
 @inline function node_factory_type(::Type{N}, ::Type{T1}, ::Type{T2}) where {N,T1,T2}
@@ -236,14 +236,8 @@ end
 
 @inline function Base.getproperty(node::AbstractExpressionNode{T}, name::Symbol) where {T}
     # We assert that the field is always defined, for type stability in code
-    if name == :constant
-        return getfield(node, :constant)::Bool
-    elseif name in (:val, :l, :r)
-        return getfield(node, name)[]
-    elseif name == :feature
-        return getfield(node, :feature)::UInt16
-    elseif name == :op
-        return getfield(node, :op)::UInt8
+    if name in (:val, :l, :r)
+        return getfield(node, name).x
     else
         return getfield(node, name)
     end
@@ -252,7 +246,7 @@ end
     node::AbstractExpressionNode{T}, name::Symbol, value
 ) where {T}
     if name in (:val, :l, :r)
-        getfield(node, name)[] = value
+        getfield(node, name).x = value
     else
         setfield!(node, name, value)
     end
