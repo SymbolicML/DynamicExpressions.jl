@@ -248,7 +248,9 @@ end
         return getfield(node, name)
     end
 end
-@inline function Base.setproperty!(node::AbstractExpressionNode{T}, name::Symbol, value) where {T}
+@inline function Base.setproperty!(
+    node::AbstractExpressionNode{T}, name::Symbol, value
+) where {T}
     if name in (:val, :l, :r)
         getfield(node, name)[] = value
     else

@@ -2,7 +2,8 @@ import Base: @deprecate
 import .EquationModule: Node, GraphNode
 
 @deprecate set_constants set_constants!
-@deprecate simplify_tree simplify_tree!
+@deprecate simplify_tree! simplify_tree
+@deprecate combine_operators combine_operators!
 
 for N in (:Node, :GraphNode)
     @eval begin

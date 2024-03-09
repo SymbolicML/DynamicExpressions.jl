@@ -44,7 +44,7 @@ import .EquationModule: constructorof, preserve_sharing
 @reexport import .EvaluateEquationModule: eval_tree_array, differentiable_eval_tree_array
 @reexport import .EvaluateEquationDerivativeModule:
     eval_diff_tree_array, eval_grad_tree_array
-@reexport import .SimplifyEquationModule: combine_operators, simplify_tree!
+@reexport import .SimplifyEquationModule: combine_operators!, simplify_tree
 @reexport import .EvaluationHelpersModule
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 @reexport import .RandomModule: NodeSampler

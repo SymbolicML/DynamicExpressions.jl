@@ -253,7 +253,7 @@ end
 
     @testset "Simplification" begin
         base_tree, tree = make_tree()
-        simplify_tree!(base_tree, operators)
+        simplify_tree(base_tree, operators)
         # Simplifies both sides without error:
         @test string_tree(tree, operators) ==
             "sin((cos(x1 - (3.2 * x2)) - ({x1} ^ 3.5)) + 0.27) + {((cos(x1 - (3.2 * x2)) - ({x1} ^ 3.5)) + 0.27)}"

@@ -17,8 +17,8 @@ is_subtraction(_) = false
 
 # This is only defined for `Node` as it is not possible for
 # `GraphNode`.
-function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
-    # NOTE: (const (+*-) const) already accounted for. Call simplify_tree! before.
+function combine_operators!(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
+    # NOTE: (const (+*-) const) already accounted for. Call simplify_tree before.
     # ((const + var) + const) => (const + var)
     # ((const * var) * const) => (const * var)
     # ((const - var) - const) => (const - var)
@@ -27,10 +27,10 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
     if tree.degree == 0
         return tree
     elseif tree.degree == 1
-        tree.l = combine_operators(tree.l, operators)
+        tree.l = combine_operators!(tree.l, operators)
     elseif tree.degree == 2
-        tree.l = combine_operators(tree.l, operators)
-        tree.r = combine_operators(tree.r, operators)
+        tree.l = combine_operators!(tree.l, operators)
+        tree.r = combine_operators!(tree.r, operators)
     end
 
     top_level_constant =
@@ -105,22 +105,29 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
     return tree
 end
 
-function combine_children(operators, p::N, c::N...) where {T,N<:AbstractExpressionNode{T}}
-    all(is_node_constant, c) || return p
+function combine_children(
+    operators, p::N, c::Vararg{N,M}
+) where {T,N<:AbstractExpressionNode{T},M}
+    if !all(is_node_constant, c)
+        return p
+    end
     vals = map(n -> n.val, c)
-    all(isgood, vals) || return p
+    if !all(isgood, vals)
+        return p
+    end
     out = if length(c) == 1
         _una_op_kernel(operators.unaops[p.op], vals...)
     else
         _bin_op_kernel(operators.binops[p.op], vals...)
     end
-    isgood(out) || return p
-    new_node = constructorof(N)(T; val=convert(T, out))
-    return new_node
+    if !isgood(out)
+        return p
+    end
+    return constructorof(N)(T; val=convert(T, out))
 end
 
 # Simplify tree
-function simplify_tree!(tree::AbstractExpressionNode, operators::AbstractOperatorEnum)
+function simplify_tree(tree::AbstractExpressionNode, operators::AbstractOperatorEnum)
     return tree_mapreduce(
         identity, (p, c...) -> combine_children(operators, p, c...), tree, typeof(tree);
     )
