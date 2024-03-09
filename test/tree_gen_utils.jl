@@ -1,28 +1,6 @@
-import DynamicExpressions: Node, copy_node, count_nodes, has_constants, has_operators
+import DynamicExpressions: Node, NodeSampler, copy_node, count_nodes, has_constants, has_operators
 
 # This code is copied from SymbolicRegression.jl and modified
-
-# Return a random node from the tree
-function random_node(tree::Node{T})::Node{T} where {T}
-    if tree.degree == 0
-        return tree
-    end
-    b = count_nodes(tree.l)
-    c = if tree.degree == 2
-        count_nodes(tree.r)
-    else
-        0
-    end
-
-    i = rand(1:(1 + b + c))
-    if i <= b
-        return random_node(tree.l)
-    elseif i == b + 1
-        return tree
-    end
-
-    return random_node(tree.r)
-end
 
 function make_random_leaf(nfeatures::Integer, ::Type{T})::Node{T} where {T}
     if rand() > 0.5
@@ -34,27 +12,30 @@ end
 
 # Add a random unary/binary operation to the end of a tree
 function append_random_op(
-    tree::Node{T}, operators, nfeatures::Integer; makeNewBinOp::Union{Bool,Nothing}=nothing
+    tree::Node{T}, operators, nfeatures::Integer; make_new_bin_op::Union{Bool,Nothing}=nothing
 )::Node{T} where {T}
     nuna = length(operators.unaops)
     nbin = length(operators.binops)
 
-    node = random_node(tree)
-    while node.degree != 0
-        node = random_node(tree)
-    end
+    choice = rand()
+    make_new_bin_op = make_new_bin_op === nothing ? choice < nbin / (nuna + nbin) : make_new_bin_op
 
-    if makeNewBinOp === nothing
-        choice = rand()
-        makeNewBinOp = choice < nbin / (nuna + nbin)
-    end
-
-    if makeNewBinOp
-        newnode = Node(
+    new_node = if make_new_bin_op
+        Node(
             rand(1:nbin), make_random_leaf(nfeatures, T), make_random_leaf(nfeatures, T)
         )
     else
-        newnode = Node(rand(1:nuna), make_random_leaf(nfeatures, T))
+        Node(rand(1:nuna), make_random_leaf(nfeatures, T))
+    end
+
+    tree.degree == 0 && return new_node
+
+    has_child_leaf(t) = (t.degree > 0 && t.l.degree == 0) || (t.degree > 1 && t.r.degree == 0)
+    node = rand(NodeSampler(; tree, filter=has_child_leaf))
+    if node.degree == 1 || node.r.degree != 0 || (node.l.degree == 0 && rand(Bool))
+        node.l = new_node
+    else
+        node.r = new_node
     end
 
     return tree
@@ -68,7 +49,7 @@ function gen_random_tree_fixed_size(
     while cur_size < node_count
         if cur_size == node_count - 1  # only unary operator allowed.
             length(operators.unaops) == 0 && break # We will go over the requested amount, so we must break.
-            tree = append_random_op(tree, operators, nfeatures; makeNewBinOp=false)
+            tree = append_random_op(tree, operators, nfeatures; make_new_bin_op=false)
         else
             tree = append_random_op(tree, operators, nfeatures)
         end
