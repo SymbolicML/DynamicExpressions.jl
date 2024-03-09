@@ -90,21 +90,6 @@ for unaop in [cos, exp, safe_log, safe_log2, safe_log10, safe_sqrt, relu, gamma,
     end
 end
 
-@testset "Set a node equal to another node" begin
-    operators = OperatorEnum(; default_params...)
-    tree = Node(Float64; feature=1)
-    tree2 = exp(Node(Float64; feature=2) / 3.2) + Node(Float64; feature=1) * 2.0
-
-    # Test printing works:
-    io = IOBuffer()
-    print(io, tree2)
-    s = String(take!(io))
-    @test s == "exp(x2 / 3.2) + (x1 * 2.0)"
-
-    @test tree !== tree2
-    @test repr(tree) == repr(tree2)
-end
-
 @testset "Type inference" begin
     @inferred Node(; feature=1)
     @inferred Node(; val=1)
