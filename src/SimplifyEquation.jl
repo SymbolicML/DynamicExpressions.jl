@@ -109,11 +109,11 @@ function combine_children(
     operators, p::N, c::Vararg{N,M}
 ) where {T,N<:AbstractExpressionNode{T},M}
     if !all(is_node_constant, c)
-        return p
+        return constructorof(N)(T; op=p.op, children=c)
     end
     vals = map(n -> n.val, c)
     if !all(isgood, vals)
-        return p
+        return constructorof(N)(T; op=p.op, children=c)
     end
     out = if length(c) == 1
         _una_op_kernel(operators.unaops[p.op], vals...)
@@ -121,9 +121,9 @@ function combine_children(
         _bin_op_kernel(operators.binops[p.op], vals...)
     end
     if !isgood(out)
-        return p
+        return constructorof(N)(T; op=p.op, children=c)
     end
-    return constructorof(N)(T; val=convert(T, out))
+    return constructorof(N)(T; val=out)
 end
 
 # Simplify tree
