@@ -191,7 +191,7 @@ end
 ) where {N,T1,T2,F}
     T = node_factory_type(N, T1, T2)
     NT = with_type_parameters(N, T)
-    return allocator(NT, 0, true, Ref(convert(T, val)), nothing, nothing, Ref{NT}(), Ref{NT}())
+    return allocator(NT, 0, true, Ref{T}(val), nothing, nothing, Ref{NT}(), Ref{NT}())
 end
 """Create a variable leaf, to store data."""
 @inline function node_factory(
