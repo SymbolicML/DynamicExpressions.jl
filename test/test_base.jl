@@ -1,7 +1,6 @@
 using DynamicExpressions
 using Random
 using Test
-using Zygote
 
 operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[cos, sin]);
 x1, x2, x3 = (i -> Node(Float64; feature=i)).(1:3)
@@ -104,7 +103,7 @@ end
     ctree = copy(tree)
     vals = map(t -> t.val, ctree)
     vals = [v for v in vals if v !== nothing]
-    @test sum(vals) == 11.6
+    @test sum(vals) ≈ 11.6
     @test sum(map(_ -> 1, ctree)) == 24
     @test sum(map(_ -> 2, ctree)) == 24 * 2
     @test sum(map(t -> t.degree == 1, ctree)) == 1
@@ -152,11 +151,11 @@ end
 
 @testset "sum" begin
     ctree = copy(tree)
-    @test sum(t -> t.degree == 0 && t.constant ? t.val : 0.0, ctree) == 11.6
+    @test sum(t -> t.degree == 0 && t.constant ? t.val : 0.0, ctree) ≈ 11.6
     @test sum(t -> t.degree == 0 && !t.constant ? t.feature : 0, ctree) ==
         3 * 1 + 1 * 2 + 2 * 3
     @test sum(t -> t.degree == 1 ? t.op : 0, ctree) == 1
-    @test sum(t -> (t.degree == 0 && t.constant) ? t.val * 2 : 0.0, ctree) == 11.6 * 2
+    @test sum(t -> (t.degree == 0 && t.constant) ? t.val * 2 : 0.0, ctree) ≈ 11.6 * 2
     for t in ctree
         if t.degree == 0 && t.constant
             t.val *= 1.5
