@@ -174,46 +174,52 @@ function _deg2_fallback(
     cond_lock = Threads.SpinLock()
     ch = Channel{Nothing}(1)
 
-    check_l = Threads.@spawn begin
-        result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
+    check_l = Threads.@spawn let
+        out = _eval_tree_array(tree.l, cX, operators, Val(turbo))
         if trylock(cond_lock)
             push!(ch, nothing)
             unlock(cond_lock)
         end
-        result_l
+        out
     end
-    check_r = Threads.@spawn begin
-        result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
+    check_r = Threads.@spawn let
+        out = _eval_tree_array(tree.r, cX, operators, Val(turbo))
         if trylock(cond_lock)
             push!(ch, nothing)
             unlock(cond_lock)
         end
-        result_r
+        out
     end
 
     take!(ch)
 
-    (result_l, result_r) = if istaskdone(check_l)
-        result_l = fetch(check_l)::R
-        !result_l.ok && return result_l
-        @return_on_nonfinite_array result_l.x
-        result_r = fetch(check_r)::R
-        !result_r.ok && return result_r
-        @return_on_nonfinite_array result_r.x
-        (result_l, result_r)
+    (out_result_l, out_result_r) = if istaskdone(check_l)
+        let
+            result_l = fetch(check_l)::R
+            !result_l.ok && return result_l
+            @return_on_nonfinite_array result_l.x
+            result_r = fetch(check_r)::R
+            !result_r.ok && return result_r
+            @return_on_nonfinite_array result_r.x
+
+            (result_l, result_r)
+        end
     else
-        @assert istaskdone(check_r) || istaskfailed(check_l) || istaskfailed(check_r)
-        result_r = fetch(check_r)::R
-        !result_r.ok && return result_r
-        @return_on_nonfinite_array result_r.x
-        result_l = fetch(check_l)::R
-        !result_l.ok && return result_l
-        @return_on_nonfinite_array result_l.x
-        (result_l, result_r)
+        let
+            @assert istaskdone(check_r) || istaskfailed(check_l) || istaskfailed(check_r)
+            result_r = fetch(check_r)::R
+            !result_r.ok && return result_r
+            @return_on_nonfinite_array result_r.x
+            result_l = fetch(check_l)::R
+            !result_l.ok && return result_l
+            @return_on_nonfinite_array result_l.x
+
+            (result_l, result_r)
+        end
     end
 
     # op(x, y), for any x or y
-    return deg2_eval(result_l.x, result_r.x, op, Val(turbo))::R
+    return deg2_eval(out_result_l.x, out_result_r.x, op, Val(turbo))::R
 end
 
 @generated function dispatch_deg2_eval(
