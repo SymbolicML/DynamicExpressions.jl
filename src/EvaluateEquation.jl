@@ -157,6 +157,61 @@ function deg0_eval(
     end
 end
 
+function _deg2_fallback(
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    op::F,
+    operators::OperatorEnum,
+    ::Val{turbo},
+) where {T<:Number,F,turbo}
+    # Evaluate branches in parallel
+    # and look at the first one that finishes
+    # cond = Base.Condition()
+    cond_lock = Threads.SpinLock()
+    ch = Channel{Nothing}(1)
+
+    check_l = Threads.@spawn begin
+        result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
+        if trylock(cond_lock)
+            push!(ch, nothing)
+            unlock(cond_lock)
+        end
+        result_l
+    end
+    check_r = Threads.@spawn begin
+        result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
+        if trylock(cond_lock)
+            push!(ch, nothing)
+            unlock(cond_lock)
+        end
+        result_r
+    end
+
+    take!(ch)
+
+    (result_l, result_r) = if istaskdone(check_l)
+        result_l = fetch(check_l)
+        !result_l.ok && return result_l
+        @return_on_nonfinite_array result_l.x
+        result_r = fetch(check_r)
+        !result_r.ok && return result_r
+        @return_on_nonfinite_array result_r.x
+        (result_l, result_r)
+    else
+        @assert istaskdone(check_r) || istaskfailed(check_l) || istaskfailed(check_r)
+        result_r = fetch(check_r)
+        !result_r.ok && return result_r
+        @return_on_nonfinite_array result_r.x
+        result_l = fetch(check_l)
+        !result_l.ok && return result_l
+        @return_on_nonfinite_array result_l.x
+        (result_l, result_r)
+    end
+
+    # op(x, y), for any x or y
+    return deg2_eval(result_l.x, result_r.x, op, Val(turbo))
+end
+
 @generated function dispatch_deg2_eval(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
@@ -168,14 +223,7 @@ end
     long_compilation_time = nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     if long_compilation_time
         return quote
-            result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
-            !result_l.ok && return result_l
-            @return_on_nonfinite_array result_l.x
-            result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
-            !result_r.ok && return result_r
-            @return_on_nonfinite_array result_r.x
-            # op(x, y), for any x or y
-            deg2_eval(result_l.x, result_r.x, operators.binops[op_idx], Val(turbo))
+            _deg2_fallback(tree, cX, operators.binops[op_idx], operators, Val(turbo))
         end
     end
     return quote
@@ -198,14 +246,7 @@ end
                     # op(x, y), where x is a constant or variable but y is not.
                     deg2_l0_eval(tree, result_r.x, cX, op, Val(turbo))
                 else
-                    result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
-                    !result_l.ok && return result_l
-                    @return_on_nonfinite_array result_l.x
-                    result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
-                    !result_r.ok && return result_r
-                    @return_on_nonfinite_array result_r.x
-                    # op(x, y), for any x or y
-                    deg2_eval(result_l.x, result_r.x, op, Val(turbo))
+                    _deg2_fallback(tree, cX, op, operators, Val(turbo))
                 end
             end
         )
