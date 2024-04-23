@@ -157,6 +157,9 @@ function deg0_eval(
     end
 end
 
+_return_types(cX::AbstractMatrix) = typeof(similar(cX, axes(cX, 2)))
+_return_types(::Matrix{T}) where {T} = Vector{T}
+
 function _deg2_fallback(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
@@ -164,9 +167,10 @@ function _deg2_fallback(
     operators::OperatorEnum,
     ::Val{turbo},
 ) where {T<:Number,F,turbo}
+    R = ResultOk{_return_types(cX)}
+
     # Evaluate branches in parallel
     # and look at the first one that finishes
-    # cond = Base.Condition()
     cond_lock = Threads.SpinLock()
     ch = Channel{Nothing}(1)
 
@@ -190,26 +194,26 @@ function _deg2_fallback(
     take!(ch)
 
     (result_l, result_r) = if istaskdone(check_l)
-        result_l = fetch(check_l)
+        result_l = fetch(check_l)::R
         !result_l.ok && return result_l
         @return_on_nonfinite_array result_l.x
-        result_r = fetch(check_r)
+        result_r = fetch(check_r)::R
         !result_r.ok && return result_r
         @return_on_nonfinite_array result_r.x
         (result_l, result_r)
     else
         @assert istaskdone(check_r) || istaskfailed(check_l) || istaskfailed(check_r)
-        result_r = fetch(check_r)
+        result_r = fetch(check_r)::R
         !result_r.ok && return result_r
         @return_on_nonfinite_array result_r.x
-        result_l = fetch(check_l)
+        result_l = fetch(check_l)::R
         !result_l.ok && return result_l
         @return_on_nonfinite_array result_l.x
         (result_l, result_r)
     end
 
     # op(x, y), for any x or y
-    return deg2_eval(result_l.x, result_r.x, op, Val(turbo))
+    return deg2_eval(result_l.x, result_r.x, op, Val(turbo))::R
 end
 
 @generated function dispatch_deg2_eval(
