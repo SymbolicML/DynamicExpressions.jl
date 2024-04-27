@@ -22,8 +22,9 @@ import Base:
     mapreduce,
     reduce,
     sum
-import Compat: @inline, Returns
-import ..UtilsModule: @memoize_on, @with_memoize, Undefined
+
+using Compat: @inline, Returns
+using ..UtilsModule: @memoize_on, @with_memoize, Undefined
 
 """
     tree_mapreduce(
