@@ -1,7 +1,6 @@
 module DynamicExpressionsOptimExt
 
-using DynamicExpressions:
-    AbstractExpressionNode, eval_tree_array, get_constant_refs, set_constant_refs!
+using DynamicExpressions: AbstractExpressionNode, filter_map, eval_tree_array
 using Compat: @inline
 
 import Optim: Optim, OptimizationResults, NLSolversBase
@@ -39,7 +38,9 @@ function wrap_func(
     function wrapped_f(args::Vararg{Any,M}) where {M}
         first_args = args[1:(end - 1)]
         x = last(args)
-        set_constant_refs!(constant_refs, x)
+        @inbounds for i in eachindex(constant_refs, x)
+            constant_refs[i][].val = x[i]
+        end
         return @inline(f(first_args..., tree))
     end
     return wrapped_f
@@ -87,8 +88,10 @@ function Optim.optimize(
     if make_copy
         tree = copy(tree)
     end
-    constant_refs = get_constant_refs(tree)
-    x0 = map(t -> t.x, constant_refs)
+    constant_refs = filter_map(
+        t -> t.degree == 0 && t.constant, t -> Ref(t), tree, Ref{typeof(tree)}
+    )
+    x0 = T[copy(t[].val) for t in constant_refs]
     if !isnothing(h!)
         throw(
             ArgumentError(
@@ -108,7 +111,10 @@ function Optim.optimize(
             kwargs...,
         )
     end
-    set_constant_refs!(constant_refs, Optim.minimizer(base_res))
+    minimizer = Optim.minimizer(base_res)
+    @inbounds for i in eachindex(constant_refs, minimizer)
+        constant_refs[i][].val = minimizer[i]
+    end
     return ExpressionOptimizationResults(base_res, tree)
 end
 

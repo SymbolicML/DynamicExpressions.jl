@@ -98,60 +98,6 @@ function set_constants!(
     return nothing
 end
 
-"""
-    NodeConstantRef{T,N<:AbstractExpressionNode{T}}
-
-A reference to a constant in an expression tree. Use `.x` to access
-the value of the constant for setting or getting.
-"""
-struct NodeConstantRef{T,N<:AbstractExpressionNode{T}}
-    _node::Ref{N}
-
-    function NodeConstantRef(node::_N) where {_T,_N<:AbstractExpressionNode{_T}}
-        return new{_T,_N}(Ref(node))
-    end
-end
-function Base.getproperty(cr::NodeConstantRef{T}, s::Symbol) where {T}
-    s != :x && error("Only :x is a valid property for NodeConstantRef")
-
-    return getfield(cr, :_node).x.val
-end
-function Base.setproperty!(cr::NodeConstantRef{T}, s::Symbol, v) where {T}
-    s != :x && error("Only :x is a valid property for NodeConstantRef")
-
-    return getfield(cr, :_node).x.val = v
-end
-Base.propertynames(::NodeConstantRef) = (:x,)
-
-"""
-    get_constant_refs(tree::AbstractExpressionNode)
-
-Get references to all constants in a tree, in depth-first order. Using the output of this lets
-you quickly modify the constants in the tree in-place.
-"""
-function get_constant_refs(tree::AbstractExpressionNode)
-    return filter_map(
-        is_node_constant,
-        t -> NodeConstantRef(t),
-        tree,
-        NodeConstantRef{eltype(tree),typeof(tree)},
-    )
-end
-
-"""
-    set_constant_refs!(crs::AbstractArray{C}, xs::AbstractArray{T}) where {T,C<:NodeConstantRef{T}}
-
-Set the constants in a tree to the values in a vector.
-"""
-@inline function set_constant_refs!(
-    constant_refs::AbstractArray{C}, xs::AbstractArray{T}
-) where {T,C<:NodeConstantRef{T}}
-    for (cr, x) in zip(constant_refs, xs)
-        cr.x = x
-    end
-    return nothing
-end
-
 ## Assign index to nodes of a tree
 # This will mirror a Node struct, rather
 # than adding a new attribute to Node.
