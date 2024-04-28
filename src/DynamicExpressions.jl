@@ -35,9 +35,7 @@ import .EquationModule: constructorof, preserve_sharing
     has_operators,
     has_constants,
     get_constants,
-    set_constants!,
-    get_constant_refs,
-    set_constant_refs!
+    set_constants!
 @reexport import .StringsModule: string_tree, print_tree
 @reexport import .OperatorEnumModule: AbstractOperatorEnum
 @reexport import .OperatorEnumConstructionModule:
