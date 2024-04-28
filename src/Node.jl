@@ -275,18 +275,11 @@ function (::Type{N})(var_string::String) where {N<:AbstractExpressionNode}
     )
     return N(; feature=parse(UInt16, var_string[2:end]))
 end
-for S in (:String, :Symbol)
-    @eval function (::Type{N})(
-        var_string::$S, variable_names::AbstractVector{$S}
-    ) where {N<:AbstractExpressionNode}
-        i = findfirst(==(var_string), variable_names)::Int
-        return N(; feature=i)
-    end
-end
 function (::Type{N})(
-    var_string::Symbol, variable_names::AbstractVector{String}
+    var_string::String, variable_names::AbstractVector{String}
 ) where {N<:AbstractExpressionNode}
-    return N(string(var_string), variable_names)
+    i = findfirst(==(var_string), variable_names)::Int
+    return N(; feature=i)
 end
 
 function Base.promote_rule(::Type{Node{T1}}, ::Type{Node{T2}}) where {T1,T2}

@@ -139,12 +139,32 @@ function _parse_expression(
                 r=_parse_expression(args[3], operators, variable_names, N, calling_module),
             )
         end
+    elseif head in (:vect, :tuple)
+        return N(; val=Core.eval(calling_module, ex))
+    else
+        error("Unrecognized expression head: $(ex)")
     end
 end
 function _parse_expression(
-    ex::Symbol, ::AbstractOperatorEnum, variable_names::AbstractVector, ::Type{N}, _
+    ex::Symbol,
+    operators::AbstractOperatorEnum,
+    variable_names::AbstractVector,
+    ::Type{N},
+    calling_module,
 ) where {N<:AbstractExpressionNode}
-    return N(ex, variable_names)
+    i = if eltype(variable_names) == String
+        findfirst(==(string(ex)), variable_names)
+    else
+        findfirst(==(ex), variable_names)
+    end
+    if i !== nothing
+        return N(; feature=i)
+    else
+        # If symbol not found in variable_names, then try interpolating
+        evaluated = Core.eval(calling_module, ex)
+        @show evaluated
+        return _parse_expression(evaluated, operators, variable_names, N, calling_module)
+    end
 end
 function _parse_expression(
     val, ::AbstractOperatorEnum, ::AbstractVector, ::Type{N}, _

@@ -479,12 +479,12 @@ function convert(
     end
     return tree_mapreduce(
         t -> if t.constant
-            constructorof(N1)(; val=convert(T1, t.val::T2))
+            constructorof(N1)(T1; val=convert(T1, t.val::T2))
         else
             constructorof(N1)(T1; feature=t.feature)
         end,
         identity,
-        (p, children...) -> constructorof(N1)(; op=p.op, children),
+        (p, children...) -> constructorof(N1)(T1; op=p.op, children),
         tree,
         N1,
     )
