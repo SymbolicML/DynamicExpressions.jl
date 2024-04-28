@@ -46,8 +46,7 @@ import .NodeModule: constructorof, preserve_sharing
 @reexport import .OperatorEnumConstructionModule:
     OperatorEnum, GenericOperatorEnum, @extend_operators, set_default_variable_names!
 @reexport import .EvaluateModule: eval_tree_array, differentiable_eval_tree_array
-@reexport import .EvaluateDerivativeModule:
-    eval_diff_tree_array, eval_grad_tree_array
+@reexport import .EvaluateDerivativeModule: eval_diff_tree_array, eval_grad_tree_array
 @reexport import .SimplifyModule: combine_operators, simplify_tree!
 @reexport import .EvaluationHelpersModule
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
