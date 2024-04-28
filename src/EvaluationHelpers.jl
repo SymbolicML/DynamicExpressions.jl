@@ -2,9 +2,9 @@ module EvaluationHelpersModule
 
 import Base: adjoint
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
-import ..EquationModule: AbstractExpressionNode
-import ..EvaluateEquationModule: eval_tree_array
-import ..EvaluateEquationDerivativeModule: eval_grad_tree_array
+import ..NodeModule: AbstractExpressionNode
+import ..EvaluateModule: eval_tree_array
+import ..EvaluateDerivativeModule: eval_grad_tree_array
 
 # Evaluation:
 """

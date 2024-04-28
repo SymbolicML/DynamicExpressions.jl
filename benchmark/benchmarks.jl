@@ -1,5 +1,4 @@
 using DynamicExpressions, BenchmarkTools, Random
-using DynamicExpressions.EquationUtilsModule: is_constant
 
 # Trigger extensions:
 using LoopVectorization
@@ -11,6 +10,12 @@ if PACKAGE_VERSION < v"0.14.0"
     @eval using DynamicExpressions: Node as GraphNode
 else
     @eval using DynamicExpressions: GraphNode
+end
+
+if PACKAGE_VERSION < v"0.17.0"
+    @eval using DynamicExpressions.EquationUtilsModule: is_constant
+else
+    @eval using DynamicExpressions.NodeUtilsModule: is_constant
 end
 
 include("../test/tree_gen_utils.jl")

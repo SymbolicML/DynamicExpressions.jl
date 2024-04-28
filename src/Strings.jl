@@ -2,7 +2,7 @@ module StringsModule
 
 using ..UtilsModule: deprecate_varmap
 using ..OperatorEnumModule: AbstractOperatorEnum
-using ..EquationModule: AbstractExpressionNode, tree_mapreduce
+using ..NodeModule: AbstractExpressionNode, tree_mapreduce
 
 const OP_NAMES = Base.ImmutableDict(
     "safe_log" => "log",

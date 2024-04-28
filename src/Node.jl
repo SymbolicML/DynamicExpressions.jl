@@ -1,4 +1,4 @@
-module EquationModule
+module NodeModule
 
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..UtilsModule: @memoize_on, @with_memoize, deprecate_varmap, Undefined

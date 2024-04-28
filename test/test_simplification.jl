@@ -15,8 +15,8 @@ function Base.:≈(a::String, b::String)
     return a == b
 end
 
-simplify_tree! = DynamicExpressions.SimplifyEquationModule.simplify_tree!
-combine_operators = DynamicExpressions.SimplifyEquationModule.combine_operators
+simplify_tree! = DynamicExpressions.SimplifyModule.simplify_tree!
+combine_operators = DynamicExpressions.SimplifyModule.combine_operators
 
 binary_operators = (+, -, /, *)
 

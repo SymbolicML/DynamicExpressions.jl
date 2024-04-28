@@ -3,7 +3,7 @@ module RandomModule
 import Compat: Returns, @inline
 import Random: AbstractRNG
 import Base: rand
-import ..EquationModule: AbstractNode, tree_mapreduce, filter_map
+import ..NodeModule: AbstractNode, tree_mapreduce, filter_map
 
 """
     NodeSampler(; tree, filter::Function=Returns(true), weighting::Union{Nothing,Function}=nothing, break_sharing::Val=Val(false))

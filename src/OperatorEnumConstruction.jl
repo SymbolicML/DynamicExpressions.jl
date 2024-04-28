@@ -1,10 +1,10 @@
 module OperatorEnumConstructionModule
 
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
-import ..EquationModule: Node, GraphNode, AbstractExpressionNode, constructorof
+import ..NodeModule: Node, GraphNode, AbstractExpressionNode, constructorof
 import ..StringsModule: string_tree
-import ..EvaluateEquationModule: eval_tree_array, OPERATOR_LIMIT_BEFORE_SLOWDOWN
-import ..EvaluateEquationDerivativeModule: eval_grad_tree_array, _zygote_gradient
+import ..EvaluateModule: eval_tree_array, OPERATOR_LIMIT_BEFORE_SLOWDOWN
+import ..EvaluateDerivativeModule: eval_grad_tree_array, _zygote_gradient
 import ..EvaluationHelpersModule: _grad_evaluator
 
 """Used to set a default value for `operators` for ease of use."""
@@ -110,8 +110,8 @@ function _extend_unary_operator(f::Symbol, type_requirements, internal)
         @gensym _constructorof _AbstractExpressionNode
         quote
             if $$internal
-                import ..EquationModule.constructorof as $_constructorof
-                import ..EquationModule.AbstractExpressionNode as $_AbstractExpressionNode
+                import ..NodeModule.constructorof as $_constructorof
+                import ..NodeModule.AbstractExpressionNode as $_AbstractExpressionNode
             else
                 using DynamicExpressions:
                     constructorof as $_constructorof,
@@ -137,8 +137,8 @@ function _extend_binary_operator(f::Symbol, type_requirements, build_converters,
         @gensym _constructorof _AbstractExpressionNode
         quote
             if $$internal
-                import ..EquationModule.constructorof as $_constructorof
-                import ..EquationModule.AbstractExpressionNode as $_AbstractExpressionNode
+                import ..NodeModule.constructorof as $_constructorof
+                import ..NodeModule.AbstractExpressionNode as $_AbstractExpressionNode
             else
                 using DynamicExpressions:
                     constructorof as $_constructorof,

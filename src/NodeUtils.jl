@@ -1,7 +1,7 @@
-module EquationUtilsModule
+module NodeUtilsModule
 
 import Compat: Returns
-import ..EquationModule:
+import ..NodeModule:
     AbstractNode,
     AbstractExpressionNode,
     Node,

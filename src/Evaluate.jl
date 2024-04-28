@@ -1,10 +1,10 @@
-module EvaluateEquationModule
+module EvaluateModule
 
-import ..EquationModule: AbstractExpressionNode, constructorof
+import ..NodeModule: AbstractExpressionNode, constructorof
 import ..StringsModule: string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: is_bad_array, fill_similar, counttuple, ResultOk
-import ..EquationUtilsModule: is_constant
+import ..NodeUtilsModule: is_constant
 import ..ExtensionInterfaceModule: bumper_eval_tree_array, _is_loopvectorization_loaded
 
 const OPERATOR_LIMIT_BEFORE_SLOWDOWN = 15
