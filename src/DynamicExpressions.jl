@@ -8,6 +8,7 @@ include("NodeUtils.jl")
 include("Strings.jl")
 include("Evaluate.jl")
 include("EvaluateDerivative.jl")
+include("ChainRules.jl")
 include("EvaluationHelpers.jl")
 include("Simplify.jl")
 include("OperatorEnumConstruction.jl")
@@ -42,6 +43,7 @@ import .NodeModule: constructorof, preserve_sharing
     OperatorEnum, GenericOperatorEnum, @extend_operators, set_default_variable_names!
 @reexport import .EvaluateModule: eval_tree_array, differentiable_eval_tree_array
 @reexport import .EvaluateDerivativeModule: eval_diff_tree_array, eval_grad_tree_array
+@reexport import .ChainRulesModule: NodeTangent
 @reexport import .SimplifyModule: combine_operators, simplify_tree!
 @reexport import .EvaluationHelpersModule
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node

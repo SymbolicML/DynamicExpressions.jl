@@ -31,6 +31,10 @@ end
     include("test_derivatives.jl")
 end
 
+@safetestset "Test chain rules" begin
+    include("test_chainrules.jl")
+end
+
 @safetestset "Test undefined derivatives" begin
     include("test_undefined_derivatives.jl")
 end
