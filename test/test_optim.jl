@@ -12,6 +12,11 @@ original_tree = exp(x1 * 0.8 - 0.0) + 5.2 * x2
 target_tree = exp(x1 * 2.1 - 0.9) + -0.9 * x2
 
 f(tree) = sum(abs2, tree(X, operators) .- y)
+function g!(G, tree)
+    dy = only(gradient(f, tree))
+    G .= dy.gradient
+    return nothing
+end
 
 @testset "Basic optimization" begin
     tree = copy(original_tree)
@@ -26,7 +31,14 @@ f(tree) = sum(abs2, tree(X, operators) .- y)
     @test isapprox(get_constants(res.minimizer), get_constants(target_tree); atol=0.01)
 end
 
-@testset "With gradients" begin
+@testset "With gradients, using Zygote" begin
+    tree = copy(original_tree)
+    res = optimize(f, g!, tree, BFGS())
+    @test tree == original_tree
+    @test isapprox(get_constants(res.minimizer), get_constants(target_tree); atol=0.01)
+end
+
+@testset "With gradients, manually" begin
     tree = copy(original_tree)
     did_i_run = Ref(false)
     # Now, try with gradients too (via Zygote and our hand-rolled forward-mode AD)

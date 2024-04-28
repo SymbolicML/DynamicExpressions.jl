@@ -4,17 +4,13 @@ include("Utils.jl")
 include("ExtensionInterface.jl")
 include("OperatorEnum.jl")
 include("Node.jl")
-Base.@deprecate_binding EquationModule NodeModule
 include("NodeUtils.jl")
-Base.@deprecate_binding EquationUtilsModule NodeUtilsModule
 include("Strings.jl")
 include("Evaluate.jl")
-Base.@deprecate_binding EvaluateEquationModule EvaluateModule
 include("EvaluateDerivative.jl")
-Base.@deprecate_binding EvaluateEquationDerivativeModule EvaluateDerivativeModule
+include("ChainRules.jl")
 include("EvaluationHelpers.jl")
 include("Simplify.jl")
-Base.@deprecate_binding SimplifyEquationModule SimplifyModule
 include("OperatorEnumConstruction.jl")
 include("Random.jl")
 include("Expression.jl")
@@ -49,6 +45,7 @@ import .NodeModule: constructorof, preserve_sharing
     OperatorEnum, GenericOperatorEnum, @extend_operators, set_default_variable_names!
 @reexport import .EvaluateModule: eval_tree_array, differentiable_eval_tree_array
 @reexport import .EvaluateDerivativeModule: eval_diff_tree_array, eval_grad_tree_array
+@reexport import .ChainRulesModule: NodeTangent
 @reexport import .SimplifyModule: combine_operators, simplify_tree!
 @reexport import .EvaluationHelpersModule
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node

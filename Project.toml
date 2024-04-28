@@ -4,6 +4,7 @@ authors = ["MilesCranmer <miles.cranmer@gmail.com>"]
 version = "0.17.0"
 
 [deps]
+ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 PackageExtensionCompat = "65ce6f38-6b18-4e1d-a461-8949797d7930"
@@ -29,6 +30,7 @@ DynamicExpressionsZygoteExt = "Zygote"
 [compat]
 Aqua = "0.7"
 Bumper = "0.6"
+ChainRulesCore = "1"
 Compat = "3.37, 4"
 Enzyme = "^0.11.12"
 LoopVectorization = "0.12"
@@ -58,4 +60,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [targets]
-test = ["Test", "SafeTestsets", "Aqua", "Bumper", "Enzyme", "ForwardDiff", "LinearAlgebra", "LoopVectorization", "Optim", "SpecialFunctions", "StaticArrays", "SymbolicUtils", "Suppressor", "Zygote"]
+test = ["Test", "SafeTestsets", "Aqua", "Bumper", "Enzyme", "ForwardDiff", "LinearAlgebra", "LoopVectorization", "Optim", "SpecialFunctions", "StaticArrays", "Suppressor", "SymbolicUtils", "Zygote"]
