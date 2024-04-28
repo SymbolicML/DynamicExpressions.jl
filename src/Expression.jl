@@ -31,26 +31,26 @@ function options(::AbstractExpression)
     )
 end
 
-struct Expression{T,N,O<:AbstractOperatorEnum,V<:AbstractVector{<:AbstractString}} <:
-       AbstractExpression{T,N}
+struct Expression{
+    T,
+    N<:AbstractExpressionNode{T},
+    O<:AbstractOperatorEnum,
+    V<:AbstractVector{<:AbstractString},
+} <: AbstractExpression{T,N}
     tree::N
     operators::O
     variable_names::V
-    display_variable_names::V
 
     function Expression(
-        tree::_N, operators::_O, variable_names::_V, display_variable_names::_V
-    ) where {_T,_N<:AbstractExpressionNode{_T},_O,_V}
-        return new{_T,_N,_O,_V}(tree, operators, variable_names, display_variable_names)
+        tree::AbstractExpressionNode{_T},
+        operators::AbstractOperatorEnum,
+        variable_names::AbstractVector{_S},
+    ) where {_T,_S}
+        variable_names = isa(_S, AbstractString) ? variable_names : string.(variable_names)
+        return new{_T,typeof(tree),typeof(operators),typeof(variable_names)}(
+            tree, operators, variable_names
+        )
     end
-end
-function Expression(
-    tree::AbstractExpressionNode,
-    operators::AbstractOperatorEnum,
-    variable_names::AbstractVector{S},
-) where {S}
-    variable_names = isa(S, AbstractString) ? variable_names : string.(variable_names)
-    return Expression(tree, operators, variable_names, copy(variable_names))
 end
 
 options(ex::Expression) = ex.operators
@@ -181,15 +181,10 @@ end
 import Base: copy, hash
 
 function copy(ex::Expression)
-    return Expression(
-        copy(ex.tree),
-        copy(ex.operators),
-        copy(ex.variable_names),
-        copy(ex.display_variable_names),
-    )
+    return Expression(copy(ex.tree), copy(ex.operators), copy(ex.variable_names))
 end
 function hash(ex::Expression, h::UInt)
-    return hash((ex.tree, ex.operators, ex.variable_names, ex.display_variable_names), h)
+    return hash((ex.tree, ex.operators, ex.variable_names), h)
 end
 
 end
