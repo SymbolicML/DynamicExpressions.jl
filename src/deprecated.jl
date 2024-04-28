@@ -69,3 +69,9 @@ for N in (:Node, :GraphNode)
         end
     end
 end
+
+Base.@deprecate_binding EquationModule NodeModule
+Base.@deprecate_binding EquationUtilsModule NodeUtilsModule
+Base.@deprecate_binding EvaluateEquationModule EvaluateModule
+Base.@deprecate_binding EvaluateEquationDerivativeModule EvaluateDerivativeModule
+Base.@deprecate_binding SimplifyEquationModule SimplifyModule

@@ -4,17 +4,12 @@ include("Utils.jl")
 include("ExtensionInterface.jl")
 include("OperatorEnum.jl")
 include("Node.jl")
-Base.@deprecate_binding EquationModule NodeModule
 include("NodeUtils.jl")
-Base.@deprecate_binding EquationUtilsModule NodeUtilsModule
 include("Strings.jl")
 include("Evaluate.jl")
-Base.@deprecate_binding EvaluateEquationModule EvaluateModule
 include("EvaluateDerivative.jl")
-Base.@deprecate_binding EvaluateEquationDerivativeModule EvaluateDerivativeModule
 include("EvaluationHelpers.jl")
 include("Simplify.jl")
-Base.@deprecate_binding SimplifyEquationModule SimplifyModule
 include("OperatorEnumConstruction.jl")
 include("Random.jl")
 
