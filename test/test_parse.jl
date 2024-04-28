@@ -138,7 +138,7 @@ let
         x * (1.0, 2.0im) - cos(y),
         operators = GenericOperatorEnum(; binary_operators=[*, -], unary_operators=[cos]),
         variable_names = ["x", "y"],
-        node_type=Node{Tuple{Float64,ComplexF64}}
+        node_type = Node{Tuple{Float64,ComplexF64}}
     )
     s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
     @test s == "(x * ((1.0, 0.0 + 2.0im))) - cos(y)"

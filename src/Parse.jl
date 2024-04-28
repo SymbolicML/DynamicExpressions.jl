@@ -1,5 +1,7 @@
 module ParseModule
 
+using ArgCheck: @argcheck
+
 using ..NodeModule: AbstractExpressionNode, Node
 using ..OperatorEnumModule: AbstractOperatorEnum
 using ..ExpressionModule: AbstractExpression, Expression
@@ -76,8 +78,8 @@ macro parse_expression(ex, kws...)
     end
 
     # Ensure that operators and variable_names are provided
-    @assert operators !== nothing "The 'operators' keyword argument must be provided."
-    @assert variable_names !== nothing "The 'variable_names' keyword argument must be provided."
+    @argcheck operators !== nothing "The 'operators' keyword argument must be provided."
+    @argcheck variable_names !== nothing "The 'variable_names' keyword argument must be provided."
 
     # We want to expand the expression in the calling module to parse the functions
     # correctly

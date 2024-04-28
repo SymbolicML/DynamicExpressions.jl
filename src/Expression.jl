@@ -1,6 +1,8 @@
 """This module defines a user-facing `Expression` type"""
 module ExpressionModule
 
+using ArgCheck: @argcheck
+
 using ..NodeModule: AbstractExpressionNode
 using ..OperatorEnumModule: AbstractOperatorEnum
 using ..UtilsModule: Undefined
@@ -166,28 +168,48 @@ end
 
 import ..EvaluateModule: eval_tree_array, differentiable_eval_tree_array
 
+function max_feature(ex::AbstractExpression)
+    return tree_mapreduce(
+        leaf -> leaf.constant ? zero(UInt16) : leaf.feature,
+        branch -> zero(UInt16),
+        max,
+        ex.tree,
+        UInt16,
+    )
+end
+
+function _validate_input(ex::AbstractExpression, X::AbstractMatrix)
+    @argcheck max_feature(ex) <= size(X, 1)
+end
+
 function eval_tree_array(ex::AbstractExpression, cX::AbstractMatrix; kws...)
+    _validate_input(ex, cX)
     return eval_tree_array(ex.tree, cX, options(ex); kws...)
 end
 function differentiable_eval_tree_array(ex::AbstractExpression, cX::AbstractMatrix; kws...)
+    _validate_input(ex, cX)
     return differentiable_eval_tree_array(ex.tree, cX, options(ex); kws...)
 end
 
 import ..EvaluateDerivativeModule: eval_diff_tree_array, eval_grad_tree_array
 
 function eval_diff_tree_array(ex::AbstractExpression, cX::AbstractMatrix; kws...)
+    _validate_input(ex, cX)
     return eval_diff_tree_array(ex.tree, cX, options(ex); kws...)
 end
 function eval_grad_tree_array(ex::AbstractExpression, cX::AbstractMatrix; kws...)
+    _validate_input(ex, cX)
     return eval_grad_tree_array(ex.tree, cX, options(ex); kws...)
 end
 
 import ..EvaluationHelpersModule: _grad_evaluator
 
 function _grad_evaluator(ex::AbstractExpression, cX::AbstractMatrix; kws...)
+    _validate_input(ex, cX)
     return _grad_evaluator(ex.tree, cX, options(ex); kws...)
 end
 function (ex::AbstractExpression)(X; kws...)
+    _validate_input(ex, X)
     return ex.tree(X, options(ex); kws...)
 end
 
