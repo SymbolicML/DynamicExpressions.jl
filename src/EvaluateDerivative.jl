@@ -1,11 +1,10 @@
-module EvaluateEquationDerivativeModule
+module EvaluateDerivativeModule
 
-import ..EquationModule: AbstractExpressionNode, constructorof
+import ..NodeModule: AbstractExpressionNode, constructorof
 import ..OperatorEnumModule: OperatorEnum
 import ..UtilsModule: is_bad_array, fill_similar, ResultOk2
-import ..EquationUtilsModule: count_constants, index_constants, NodeIndex
-import ..EvaluateEquationModule:
-    deg0_eval, get_nuna, get_nbin, OPERATOR_LIMIT_BEFORE_SLOWDOWN
+import ..NodeUtilsModule: count_constants, index_constants, NodeIndex
+import ..EvaluateModule: deg0_eval, get_nuna, get_nbin, OPERATOR_LIMIT_BEFORE_SLOWDOWN
 import ..ExtensionInterfaceModule: _zygote_gradient
 
 """

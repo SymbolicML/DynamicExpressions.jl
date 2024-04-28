@@ -1,7 +1,7 @@
 module DynamicExpressionsSymbolicUtilsExt
 
 using SymbolicUtils
-import DynamicExpressions.EquationModule:
+import DynamicExpressions.NodeModule:
     AbstractExpressionNode, Node, constructorof, DEFAULT_NODE_TYPE
 import DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
 import DynamicExpressions.UtilsModule: isgood, isbad, deprecate_varmap

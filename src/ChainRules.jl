@@ -3,9 +3,9 @@ module ChainRulesModule
 using ChainRulesCore:
     ChainRulesCore, AbstractTangent, NoTangent, ZeroTangent, Tangent, @thunk, canonicalize
 using ..OperatorEnumModule: OperatorEnum
-using ..EquationModule: AbstractExpressionNode, with_type_parameters, tree_mapreduce
-using ..EvaluateEquationModule: eval_tree_array
-using ..EvaluateEquationDerivativeModule: eval_grad_tree_array
+using ..NodeModule: AbstractExpressionNode, with_type_parameters, tree_mapreduce
+using ..EvaluateModule: eval_tree_array
+using ..EvaluateDerivativeModule: eval_grad_tree_array
 
 struct NodeTangent{T,N<:AbstractExpressionNode{T},A<:AbstractArray{T}} <: AbstractTangent
     tree::N
