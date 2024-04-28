@@ -1,7 +1,7 @@
-module SimplifyEquationModule
+module SimplifyModule
 
-import ..EquationModule: AbstractExpressionNode, constructorof, Node, copy_node, set_node!
-import ..EquationUtilsModule: tree_mapreduce, is_node_constant
+import ..NodeModule: AbstractExpressionNode, constructorof, Node, copy_node, set_node!
+import ..NodeUtilsModule: tree_mapreduce, is_node_constant
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..UtilsModule: isbad, isgood
 

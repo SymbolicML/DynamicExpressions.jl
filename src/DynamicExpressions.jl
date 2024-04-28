@@ -3,19 +3,24 @@ module DynamicExpressions
 include("Utils.jl")
 include("ExtensionInterface.jl")
 include("OperatorEnum.jl")
-include("Equation.jl")
-include("EquationUtils.jl")
+include("Node.jl")
+Base.@deprecate_binding EquationModule NodeModule
+include("NodeUtils.jl")
+Base.@deprecate_binding EquationUtilsModule NodeUtilsModule
 include("Strings.jl")
-include("EvaluateEquation.jl")
-include("EvaluateEquationDerivative.jl")
+include("Evaluate.jl")
+Base.@deprecate_binding EvaluateEquationModule EvaluateModule
+include("EvaluateDerivative.jl")
+Base.@deprecate_binding EvaluateEquationDerivativeModule EvaluateDerivativeModule
 include("EvaluationHelpers.jl")
-include("SimplifyEquation.jl")
+include("Simplify.jl")
+Base.@deprecate_binding SimplifyEquationModule SimplifyModule
 include("OperatorEnumConstruction.jl")
 include("Random.jl")
 
 import PackageExtensionCompat: @require_extensions
 import Reexport: @reexport
-@reexport import .EquationModule:
+@reexport import .NodeModule:
     AbstractNode,
     AbstractExpressionNode,
     GraphNode,
@@ -25,8 +30,8 @@ import Reexport: @reexport
     tree_mapreduce,
     filter_map,
     filter_map!
-import .EquationModule: constructorof, preserve_sharing
-@reexport import .EquationUtilsModule:
+import .NodeModule: constructorof, preserve_sharing
+@reexport import .NodeUtilsModule:
     count_nodes,
     count_constants,
     count_depth,
@@ -40,10 +45,10 @@ import .EquationModule: constructorof, preserve_sharing
 @reexport import .OperatorEnumModule: AbstractOperatorEnum
 @reexport import .OperatorEnumConstructionModule:
     OperatorEnum, GenericOperatorEnum, @extend_operators, set_default_variable_names!
-@reexport import .EvaluateEquationModule: eval_tree_array, differentiable_eval_tree_array
-@reexport import .EvaluateEquationDerivativeModule:
+@reexport import .EvaluateModule: eval_tree_array, differentiable_eval_tree_array
+@reexport import .EvaluateDerivativeModule:
     eval_diff_tree_array, eval_grad_tree_array
-@reexport import .SimplifyEquationModule: combine_operators, simplify_tree!
+@reexport import .SimplifyModule: combine_operators, simplify_tree!
 @reexport import .EvaluationHelpersModule
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 @reexport import .RandomModule: NodeSampler

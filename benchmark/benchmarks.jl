@@ -1,5 +1,5 @@
 using DynamicExpressions, BenchmarkTools, Random
-using DynamicExpressions.EquationUtilsModule: is_constant
+using DynamicExpressions.NodeUtilsModule: is_constant
 
 # Trigger extensions:
 using LoopVectorization

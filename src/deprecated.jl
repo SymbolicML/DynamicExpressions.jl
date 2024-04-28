@@ -1,5 +1,5 @@
 import Base: @deprecate
-import .EquationModule: Node, GraphNode
+import .NodeModule: Node, GraphNode
 
 @deprecate set_constants set_constants!
 @deprecate simplify_tree simplify_tree!

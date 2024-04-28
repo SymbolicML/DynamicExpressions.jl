@@ -1,6 +1,7 @@
 using DynamicExpressions
 using Test
 using Zygote
+using Suppressor: @capture_err
 
 operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[cos, sin])
 x1, x2 = Node{Float64}(; feature=1), Node{Float64}(; feature=2)
@@ -43,3 +44,11 @@ if VERSION >= v"1.9"
         @assert (n.op == 1 && n.l === x1 && n.r === x2)
     )
 end
+
+# Test deprecated modules
+logs = @capture_err begin
+    @eval using DynamicExpressions.EquationModule
+end
+@test contains(logs, "The `DynamicExpressions.EquationModule` is deprecated.")
+
+DynamicExpressions.EquationModule.Node === DynamicExpressions.NodeModule.Node
