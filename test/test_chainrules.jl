@@ -1,6 +1,7 @@
 using Test
 using DynamicExpressions
 using Random: MersenneTwister
+using ChainRulesCore: ChainRulesCore, ZeroTangent, NoTangent
 using ForwardDiff: gradient as fd_gradient
 using Zygote: gradient as zg_gradient
 using Suppressor: @suppress_err
@@ -51,4 +52,81 @@ let
 
     @test evaluated_gradient.tree == tree
     @test isapprox(evaluated_gradient.gradient, true_gradient)
+
+    # Misc tests of uncovered portions
+    let tree = tree,
+        X = X,
+        evaluated_gradient = evaluated_gradient,
+        true_gradient = true_gradient
+
+        evaluated_gradient_2 = zg_gradient(tree -> eval_tree(X, tree), tree)[1]
+        true_gradient_2 = fd_gradient(c -> true_eval_tree(X, c), [3.2, 0.9, 0.2])
+
+        evaluated_aggregate = evaluated_gradient + evaluated_gradient_2
+        true_aggregate = true_gradient + true_gradient_2
+        @test evaluated_aggregate.tree == tree
+        @test isapprox(evaluated_aggregate.gradient, true_aggregate)
+
+        scalar_prod = evaluated_gradient * 2.0
+        scalar_prod2 = 2.0 * (1.0 * evaluated_gradient)
+        true_scalar_prod = true_gradient * 2.0
+        @test scalar_prod.tree == tree
+        @test isapprox(scalar_prod.gradient, true_scalar_prod)
+        @test isapprox(scalar_prod2.gradient, true_scalar_prod)
+
+        # Should be able to use with other types
+        @test zero(evaluated_gradient) == ZeroTangent()
+
+        @test evaluated_gradient + ZeroTangent() == evaluated_gradient
+        @test evaluated_gradient + NoTangent() == evaluated_gradient
+    end
+end
+
+# Operator that is NaN for forward pass
+bad_op(x) = x > 0.0 ? log(x) : convert(typeof(x), NaN)
+# And operator that is undefined for backward pass
+undefined_grad_op(x) = x >= 0.0 ? x : zero(x)
+# And operator that gives a NaN for backward pass
+bad_grad_op(x) = x
+
+function ChainRulesCore.rrule(::typeof(bad_grad_op), x)
+    return bad_grad_op(x), (_) -> (NoTangent(), convert(typeof(x), NaN))
+end
+
+# Also test NaN modes
+let
+    operators = OperatorEnum(;
+        binary_operators=(+, *, -),
+        unary_operators=(sin, bad_op, bad_grad_op, undefined_grad_op),
+    )
+    @extend_operators operators
+    x1 = Node(Float64; feature=1)
+
+    nan_forward = bad_op(x1 + 0.5)
+    undefined_grad = undefined_grad_op(x1 + 0.5)
+    nan_grad = bad_grad_op(x1)
+
+    function eval_tree(X, tree)
+        y, _ = eval_tree_array(tree, X, operators)
+        return mean(y)
+    end
+    X = ones(1, 1) * -1.0
+
+    # Forward pass is NaN; Gradient will also be NaN
+    @test isnan(only(eval_tree(X, nan_forward)))
+    evaluated_gradient = zg_gradient(X -> eval_tree(X, nan_forward), X)[1]
+    @test isnan(only(evaluated_gradient))
+
+    # Both forward and gradient are not NaN despite giving `nothing` back
+    @test !isnan(only(eval_tree(X, undefined_grad)))
+    evaluated_gradient = zg_gradient(X -> eval_tree(X, undefined_grad), X)[1]
+    @test iszero(only(evaluated_gradient))
+
+    # Finally, the operator with a NaN gradient but non-NaN forward
+    @test !isnan(only(eval_tree(X, nan_grad)))
+    evaluated_gradient = zg_gradient(X -> eval_tree(X, nan_grad), X)[1]
+    @test isnan(only(evaluated_gradient))
+    evaluated_gradient = zg_gradient(t -> eval_tree(X, t), nan_grad)[1]
+    @show evaluated_gradient
+    # @test isnan(only(evaluated_gradient.gradient))
 end

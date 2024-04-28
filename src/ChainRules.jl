@@ -35,7 +35,7 @@ function ChainRulesCore.rrule(
 
     # TODO: Preferable to use the primal in the pullback somehow
     function pullback((dY, _))
-        dtree = let dY = dY, tree = tree, operators = operators
+        dtree = let X = X, dY = dY, tree = tree, operators = operators
             @thunk(
                 let
                     _, gradient, complete = eval_grad_tree_array(
@@ -52,7 +52,7 @@ function ChainRulesCore.rrule(
                 end
             )
         end
-        dX = let dY = dY, tree = tree, operators = operators
+        dX = let X = X, dY = dY, tree = tree, operators = operators
             @thunk(
                 let
                     _, gradient, complete = eval_grad_tree_array(
