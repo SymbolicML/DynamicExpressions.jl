@@ -17,6 +17,8 @@ include("Simplify.jl")
 Base.@deprecate_binding SimplifyEquationModule SimplifyModule
 include("OperatorEnumConstruction.jl")
 include("Random.jl")
+include("Expression.jl")
+include("Parse.jl")
 
 import PackageExtensionCompat: @require_extensions
 import Reexport: @reexport
@@ -51,6 +53,8 @@ import .NodeModule: constructorof, preserve_sharing
 @reexport import .EvaluationHelpersModule
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 @reexport import .RandomModule: NodeSampler
+@reexport import .ExpressionModule: AbstractExpression, Expression, with_tree
+@reexport import .ParseModule: @parse_expression
 
 function __init__()
     @require_extensions
