@@ -49,6 +49,6 @@ end
 logs = @capture_err begin
     @eval using DynamicExpressions.EquationModule
 end
-@test contains(logs, "The `DynamicExpressions.EquationModule` is deprecated.")
+@test contains(logs, "DynamicExpressions.EquationModule is deprecated,")
 
 DynamicExpressions.EquationModule.Node === DynamicExpressions.NodeModule.Node
