@@ -207,7 +207,6 @@ function parse_expression(
     else
         # If symbol not found in variable_names, then try interpolating
         evaluated = Core.eval(calling_module, ex)
-        @show evaluated
         return parse_expression(
             evaluated, operators, variable_names, N, evaluate_on, calling_module
         )
