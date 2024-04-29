@@ -12,18 +12,21 @@ using ..ExpressionModule: AbstractExpression, Expression
 Parse a symbolic expression `expr` into a computational graph where nodes represent operations or variables.
 
 ## Arguments
+
 - `expr`: An expression to parse into an `AbstractExpression`.
+
+## Keyword Arguments
+
 - `operators`: An instance of `OperatorEnum` specifying the available unary and binary operators.
 - `variable_names`: A list of variable names as strings or symbols that are allowed in the expression.
 - `evaluate_on`: A list of external functions to evaluate explicitly when encountered.
-
-## Keyword Arguments
 - `node_type`: The type of the nodes in the resulting expression tree. Defaults to `Node`.
 
 ## Usage
+
 The macro is used to convert a high-level symbolic expression into a structured expression tree that can be manipulated or evaluated. Here are some examples of how to use `parse_expression`:
 
-- Parsing a simple mathematical expression involving custom operations:
+### Parsing from a custom operator
 
 ```julia
 julia> my_custom_op(x, y) = x + y^3;
@@ -44,7 +47,7 @@ julia> ex(ones(2, 1))
  2.487286478935302
 ```
 
-- Handling expressions with symbolic variable names, and custom node types:
+### Handling expressions with symbolic variable names
 
 ```julia
 julia> ex = @parse_expression(
@@ -57,6 +60,24 @@ cos(exp(α))
 
 julia> typeof(ex.tree)
 GraphNode{Float32}
+```
+
+### Using external functions and variables
+
+```
+julia> c = 5.0
+5.0
+
+julia> show_type(x) = (@show typeof(x); x);
+
+julia> ex = @parse_expression(
+           c * 2.5 - show_type(cos(x)),
+           operators = OperatorEnum(; binary_operators=[*, -], unary_operators=[cos]),
+           variable_names = [:x],
+           evaluate_on = [show_type],
+       )
+typeof(x) = Node{Float32}
+(5.0 * 2.5) - cos(x)
 ```
 """
 macro parse_expression(ex, kws...)
