@@ -125,8 +125,6 @@ macro parse_expression(ex, kws...)
                     $calling_module,
                 )
 
-                $(empty_all_globals!)()
-
                 $(Expression)(node, $_operators, $_variable_names)
             end
         end,
