@@ -199,11 +199,14 @@ include("base.jl")
     end
     return node_factory(N, T1, val, feature, op, l, r, allocator)
 end
-function validate_not_all_defaults(::Type{N}, val, feature, op, l, r, children) where {N}
+function validate_not_all_defaults(::Type{N}, val, feature, op, l, r, children) where {N<:AbstractExpressionNode}
+    return nothing
+end
+function validate_not_all_defaults(::Type{N}, val, feature, op, l, r, children) where {T,N<:AbstractExpressionNode{T}}
     if val === nothing && feature === nothing && op === nothing && l === nothing && r === nothing && children === nothing
         error(
             "Encountered the call for $N() inside the generic constructor. "
-            * "Did you forget to define `$(Base.typename(N).wrapper){T}() = new{T}()`?"
+            * "Did you forget to define `$(Base.typename(N).wrapper){T}() where {T} = new{T}()`?"
         )
     end
     return nothing

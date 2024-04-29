@@ -4,7 +4,7 @@ module ExpressionModule
 using ArgCheck: @argcheck
 
 using ..NodeModule: AbstractExpressionNode
-using ..OperatorEnumModule: AbstractOperatorEnum
+using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..UtilsModule: Undefined
 
 """
@@ -179,8 +179,12 @@ function max_feature(ex::AbstractExpression)
     )
 end
 
-function _validate_input(ex::AbstractExpression, X::AbstractMatrix)
-    @argcheck max_feature(ex) <= size(X, 1)
+function _validate_input(ex::AbstractExpression, X)
+    if options(ex) isa OperatorEnum
+        @argcheck X isa AbstractMatrix
+        @argcheck max_feature(ex) <= size(X, 1)
+    end
+    return nothing
 end
 
 function eval_tree_array(ex::AbstractExpression, cX::AbstractMatrix; kws...)
