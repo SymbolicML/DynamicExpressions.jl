@@ -4,6 +4,7 @@ using ArgCheck: @argcheck
 
 using ..NodeModule: AbstractExpressionNode, Node
 using ..OperatorEnumModule: AbstractOperatorEnum
+using ..OperatorEnumConstructionModule: empty_all_globals!
 using ..ExpressionModule: AbstractExpression, Expression
 
 """
@@ -109,18 +110,24 @@ macro parse_expression(ex, kws...)
     # We want to expand the expression in the calling module to parse the functions
     # correctly
     calling_module = __module__
+    @gensym _operators _variable_names
     return esc(
         quote
-            let
+            # We enclose in a let so that if a user passes an expression here,
+            # it only gets evaluated the first time.
+            let $_operators = $operators, $_variable_names = $variable_names
                 node = $(parse_expression)(
                     $(Meta.quot(ex)),
-                    $operators,
-                    $variable_names,
+                    $_operators,
+                    $_variable_names,
                     $node_type,
                     $evaluate_on,
                     $calling_module,
                 )
-                $(Expression)(node, $operators, $variable_names)
+
+                $(empty_all_globals!)()
+
+                $(Expression)(node, $_operators, $_variable_names)
             end
         end,
     )
@@ -128,6 +135,18 @@ end
 
 """Parse an expression into a Node from a Julia expression."""
 function parse_expression(
+    ex::Expr,
+    operators::AbstractOperatorEnum,
+    variable_names::AbstractVector,
+    ::Type{N},
+    evaluate_on::Union{Nothing,AbstractVector},
+    calling_module,
+) where {N<:AbstractExpressionNode}
+    empty_all_globals!()
+    return _parse_expression(ex, operators, variable_names, N, evaluate_on, calling_module)
+end
+
+function _parse_expression(
     ex::Expr,
     operators::AbstractOperatorEnum,
     variable_names::AbstractVector,
@@ -153,7 +172,7 @@ function parse_expression(
             # Regular unary operator
             return N(;
                 op=op::Int,
-                l=parse_expression(
+                l=_parse_expression(
                     args[2], operators, variable_names, N, evaluate_on, calling_module
                 ),
             )
@@ -161,19 +180,18 @@ function parse_expression(
             # Regular binary operator
             return N(;
                 op=op::Int,
-                l=parse_expression(
+                l=_parse_expression(
                     args[2], operators, variable_names, N, evaluate_on, calling_module
                 ),
-                r=parse_expression(
+                r=_parse_expression(
                     args[3], operators, variable_names, N, evaluate_on, calling_module
                 ),
             )
-        elseif evaluate_on !== nothing &&
-            (op = findfirst(==(func), evaluate_on)) !== nothing
+        elseif evaluate_on !== nothing && func in evaluate_on
             # External function
             func(
                 map(
-                    arg -> parse_expression(
+                    arg -> _parse_expression(
                         arg, operators, variable_names, N, evaluate_on, calling_module
                     ),
                     args[2:end],
@@ -210,7 +228,7 @@ function parse_expression(
         return N(; val=Core.eval(calling_module, ex))
     end
 end
-function parse_expression(
+function _parse_expression(
     ex::Symbol,
     operators::AbstractOperatorEnum,
     variable_names::AbstractVector,
@@ -228,12 +246,12 @@ function parse_expression(
     else
         # If symbol not found in variable_names, then try interpolating
         evaluated = Core.eval(calling_module, ex)
-        return parse_expression(
+        return _parse_expression(
             evaluated, operators, variable_names, N, evaluate_on, calling_module
         )
     end
 end
-function parse_expression(
+function _parse_expression(
     val,
     ::AbstractOperatorEnum,
     ::AbstractVector,
