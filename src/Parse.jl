@@ -108,20 +108,17 @@ macro parse_expression(ex, kws...)
     @argcheck variable_names !== nothing "The 'variable_names' keyword argument must be provided."
 
     # We want to expand the expression in the calling module to parse the functions
-    # correctly
+    # correctly.
+    # We also evaluate all expressions in a `let` to ensure internal
+    # variable names don't collide.
     calling_module = __module__
     return esc(
         quote
-            let
-                operators = $operators
-                variable_names = $variable_names
+            let (ex, operators, variable_names, node_type, evaluate_on) = (
+                    $(Meta.quot(ex)), $operators, $variable_names, $node_type, $evaluate_on
+                )
                 tree = $(parse_expression)(
-                    $(Meta.quot(ex)),
-                    operators,
-                    variable_names,
-                    $node_type,
-                    $evaluate_on,
-                    $calling_module,
+                    ex, operators, variable_names, node_type, evaluate_on, $calling_module
                 )
                 $(Expression)(tree, operators, variable_names)
             end
