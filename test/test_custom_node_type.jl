@@ -35,3 +35,22 @@ node2 = MyCustomNode(1.5, 3, node1, node1)
 @test sum(t -> t.val1, node2) == 1.5 + 1.0 + 1.0
 @test sum(t -> t.val2, node2) == 3 + 2 + 2
 @test count(t -> t.degree == 0, node2) == 2
+
+# If we have a bad definition, it should get caught with a helpful message
+mutable struct MyCustomNode2{T} <: AbstractExpressionNode{T}
+    degree::UInt8
+    constant::Bool
+    val::T
+    feature::UInt16
+    op::UInt8
+    l::MyNode{T}
+    r::MyNode{T}
+end
+
+@test_throws ErrorException MyCustomNode2()
+@test_throws ErrorException MyCustomNode2{Float64}()
+
+if VERSION >= v"1.9"
+    @test_throws "Encountered the call for" MyCustomNode2()
+    @test_throws "Encountered the call for" MyCustomNode2{Float64}()
+end

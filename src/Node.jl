@@ -188,6 +188,7 @@ include("base.jl")
 @inline function (::Type{N})(
     ::Type{T1}=Undefined; val=nothing, feature=nothing, op=nothing, l=nothing, r=nothing, children=nothing, allocator::F=default_allocator,
 ) where {T1,N<:AbstractExpressionNode,F}
+    validate_not_all_defaults(N, val, feature, op, l, r, children)
     if children !== nothing
         @assert l === nothing && r === nothing
         if length(children) == 1
@@ -197,6 +198,15 @@ include("base.jl")
         end
     end
     return node_factory(N, T1, val, feature, op, l, r, allocator)
+end
+function validate_not_all_defaults(::Type{N}, val, feature, op, l, r, children) where {N}
+    if val === nothing && feature === nothing && op === nothing && l === nothing && r === nothing && children === nothing
+        error(
+            "Encountered the call for $N() inside the generic constructor. "
+            * "Did you forget to define `$(Base.typename(N).wrapper){T}() = new{T}()`?"
+        )
+    end
+    return nothing
 end
 """Create a constant leaf."""
 @inline function node_factory(
