@@ -174,7 +174,7 @@ function max_feature(ex::AbstractExpression)
         branch -> zero(UInt16),
         max,
         ex.tree,
-        UInt16,
+        UInt16;
         break_sharing=Val(true),
     )
 end
