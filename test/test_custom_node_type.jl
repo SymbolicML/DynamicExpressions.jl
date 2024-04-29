@@ -43,8 +43,8 @@ mutable struct MyCustomNode2{T} <: AbstractExpressionNode{T}
     val::T
     feature::UInt16
     op::UInt8
-    l::MyNode{T}
-    r::MyNode{T}
+    l::MyCustomNode2{T}
+    r::MyCustomNode2{T}
 end
 
 @test_throws ErrorException MyCustomNode2()
