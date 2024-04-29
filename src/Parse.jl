@@ -7,7 +7,7 @@ using ..OperatorEnumModule: AbstractOperatorEnum
 using ..ExpressionModule: AbstractExpression, Expression
 
 """
-    @parse_expression(expr; operators, variable_names, node_type=Node)
+    @parse_expression(expr; operators, variable_names, node_type=Node, evaluate_on=[])
 
 Parse a symbolic expression `expr` into a computational graph where nodes represent operations or variables.
 
@@ -15,6 +15,7 @@ Parse a symbolic expression `expr` into a computational graph where nodes repres
 - `expr`: An expression to parse into an `AbstractExpression`.
 - `operators`: An instance of `OperatorEnum` specifying the available unary and binary operators.
 - `variable_names`: A list of variable names as strings or symbols that are allowed in the expression.
+- `evaluate_on`: A list of external functions to evaluate explicitly when encountered.
 
 ## Keyword Arguments
 - `node_type`: The type of the nodes in the resulting expression tree. Defaults to `Node`.
@@ -63,6 +64,7 @@ macro parse_expression(ex, kws...)
     operators = nothing
     variable_names = nothing
     node_type = Node
+    evaluate_on = nothing
 
     # Iterate over keyword arguments to extract operators and variable_names
     for kw in kws
@@ -73,6 +75,8 @@ macro parse_expression(ex, kws...)
                 variable_names = kw.args[2]
             elseif kw.args[1] == :node_type
                 node_type = kw.args[2]
+            elseif kw.args[1] == :evaluate_on
+                evaluate_on = kw.args[2]
             end
         end
     end
@@ -87,11 +91,12 @@ macro parse_expression(ex, kws...)
     return esc(
         quote
             let
-                node = $(_parse_expression)(
+                node = $(parse_expression)(
                     $(Meta.quot(ex)),
                     $operators,
                     $variable_names,
                     $node_type,
+                    $evaluate_on,
                     $calling_module,
                 )
                 $(Expression)(node, $operators, $variable_names)
@@ -101,57 +106,95 @@ macro parse_expression(ex, kws...)
 end
 
 """Parse an expression into a Node from a Julia expression."""
-function _parse_expression(
+function parse_expression(
     ex::Expr,
     operators::AbstractOperatorEnum,
     variable_names::AbstractVector,
     ::Type{N},
+    evaluate_on::Union{Nothing,AbstractVector},
     calling_module,
 ) where {N<:AbstractExpressionNode}
     head = ex.head
     args = ex.args
     if head == :call
-        length(args) ∈ (2, 3) || throw(
-            ArgumentError(
-                "`parse_expression` only parses 1- or 2-argument operators but got $(ex)",
-            ),
-        )
-        func = Core.eval(calling_module, first(ex.args))
-        if length(args) == 2
-            op = findfirst(==(func), operators.unaops)
-            op === nothing && throw(
+        func = try
+            Core.eval(calling_module, first(ex.args))
+        catch
+            throw(
                 ArgumentError(
-                    "Unrecognized operator: $(func) with no matches in enum $(operators.unaops).",
+                    "Failed to evaluate function `$(first(ex.args))` within `$(calling_module)`. " *
+                    "Make sure the function is defined in that module.",
                 ),
             )
+            () -> ()
+        end
+        if length(args) == 2 && (op = findfirst(==(func), operators.unaops)) !== nothing
+            # Regular unary operator
             return N(;
                 op=op::Int,
-                l=_parse_expression(args[2], operators, variable_names, N, calling_module),
+                l=parse_expression(
+                    args[2], operators, variable_names, N, evaluate_on, calling_module
+                ),
+            )
+        elseif length(args) == 3 && (op = findfirst(==(func), operators.binops)) !== nothing
+            # Regular binary operator
+            return N(;
+                op=op::Int,
+                l=parse_expression(
+                    args[2], operators, variable_names, N, evaluate_on, calling_module
+                ),
+                r=parse_expression(
+                    args[3], operators, variable_names, N, evaluate_on, calling_module
+                ),
+            )
+        elseif evaluate_on !== nothing &&
+            (op = findfirst(==(func), evaluate_on)) !== nothing
+            # External function
+            func(
+                map(
+                    arg -> parse_expression(
+                        arg, operators, variable_names, N, evaluate_on, calling_module
+                    ),
+                    args[2:end],
+                )...,
             )
         else
-            op = findfirst(==(func), operators.binops)
-            op === nothing && throw(
+            matching_s = let
+                s = if length(args) == 2
+                    "`" * string(operators.unaops) * "`"
+                elseif length(args) == 3
+                    "`" * string(operators.binops) * "`"
+                else
+                    ""
+                end
+                if evaluate_on !== nothing
+                    if length(s) > 0
+                        s *= " or " * "`" * string(evaluate_on) * "`"
+                    else
+                        s *= "`" * string(evaluate_on) * "`"
+                    end
+                end
+                s
+            end
+            throw(
                 ArgumentError(
-                    "Unrecognized operator: $(func) with no matches in enum $(operators.binops).",
+                    "Unrecognized operator: `$(func)` with no matches in $(matching_s). " *
+                    "If you meant to call an external function, please pass the function to the `evaluate_on` keyword argument.",
                 ),
             )
-            return N(;
-                op=op::Int,
-                l=_parse_expression(args[2], operators, variable_names, N, calling_module),
-                r=_parse_expression(args[3], operators, variable_names, N, calling_module),
-            )
+            N()
         end
-    elseif head in (:vect, :tuple)
-        return N(; val=Core.eval(calling_module, ex))
     else
-        error("Unrecognized expression head: $(ex)")
+        @argcheck head in (:vect, :tuple)
+        return N(; val=Core.eval(calling_module, ex))
     end
 end
-function _parse_expression(
+function parse_expression(
     ex::Symbol,
     operators::AbstractOperatorEnum,
     variable_names::AbstractVector,
     ::Type{N},
+    evaluate_on::Union{Nothing,AbstractVector},
     calling_module,
 ) where {N<:AbstractExpressionNode}
     i = if eltype(variable_names) == String
@@ -165,11 +208,18 @@ function _parse_expression(
         # If symbol not found in variable_names, then try interpolating
         evaluated = Core.eval(calling_module, ex)
         @show evaluated
-        return _parse_expression(evaluated, operators, variable_names, N, calling_module)
+        return parse_expression(
+            evaluated, operators, variable_names, N, evaluate_on, calling_module
+        )
     end
 end
-function _parse_expression(
-    val, ::AbstractOperatorEnum, ::AbstractVector, ::Type{N}, _
+function parse_expression(
+    val,
+    ::AbstractOperatorEnum,
+    ::AbstractVector,
+    ::Type{N},
+    ::Union{Nothing,AbstractVector},
+    _,
 ) where {N<:AbstractExpressionNode}
     return N(; val)
 end

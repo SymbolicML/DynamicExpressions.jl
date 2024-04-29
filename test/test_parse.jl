@@ -1,5 +1,6 @@
 using DynamicExpressions
 using Test
+using Suppressor
 
 function my_custom_op(x, y)
     return x + y
@@ -143,4 +144,81 @@ let
     s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
     @test s == "(x * ((1.0, 0.0 + 2.0im))) - cos(y)"
     @test typeof(ex.tree) <: Node{Tuple{Float64,ComplexF64}}
+end
+
+show_type(x) = (show(typeof(x)); x)
+
+let
+    logged_out = @capture_out begin
+        ex = @parse_expression(
+            x * 2.5 - show_type(cos(y)),
+            operators = OperatorEnum(; binary_operators=[*, -], unary_operators=[cos]),
+            variable_names = [:x, :y],
+            evaluate_on = [show_type],
+        )
+        s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
+        @test s == "(x * 2.5) - cos(y)"
+    end
+    @test logged_out == "Node{Float32}"
+end
+
+# Helpful errors for missing operator
+let
+    operators = OperatorEnum(; unary_operators=[sin])
+    @test_throws ArgumentError @parse_expression(
+        cos(x), operators = operators, variable_names = [:x]
+    )
+    if VERSION >= v"1.9"
+        @test_throws "Unrecognized operator: `cos` with no matches in `(sin,)`." @parse_expression(
+            cos(x), operators = operators, variable_names = [:x]
+        )
+    end
+    operators = OperatorEnum(; binary_operators=[+])
+    @test_throws ArgumentError @parse_expression(
+        x * y, operators = operators, variable_names = [:x, :y]
+    )
+    if VERSION >= v"1.9"
+        @test_throws "Unrecognized operator: `*` with no matches in `(+,)`." @parse_expression(
+            x * y, operators = operators, variable_names = [:x, :y]
+        )
+    end
+    operators = OperatorEnum(; binary_operators=[+])
+    if VERSION >= v"1.9"
+        @test_throws "Unrecognized operator: `*` with no matches in `(+,)` or `[show]`." @parse_expression(
+            x * y, operators = operators, variable_names = [:x, :y], evaluate_on = [show]
+        )
+    end
+    operators = OperatorEnum(; unary_operators=[cos])
+    @eval blah(x...) = first(x)
+    if VERSION >= v"1.9"
+        @test_throws "Unrecognized operator: `blah` with no matches in `[show]`." @parse_expression(
+            blah(x, x, y),
+            operators = operators,
+            variable_names = [:x, :y],
+            evaluate_on = [show]
+        )
+    end
+end
+
+# Helpful error for missing function in scope
+let
+    my_badly_scoped_function(x) = x
+    @test_throws ArgumentError begin
+        ex = @parse_expression(
+            my_badly_scoped_function(x),
+            operators = operators,
+            variable_names = ["x"],
+            evaluate_on = [my_badly_scoped_function]
+        )
+    end
+    if VERSION >= v"1.9"
+        @test_throws "Make sure the function is defined in that module." begin
+            ex = @parse_expression(
+                my_badly_scoped_function(x),
+                operators = operators,
+                variable_names = ["x"],
+                evaluate_on = [my_badly_scoped_function]
+            )
+        end
+    end
 end
