@@ -110,22 +110,20 @@ macro parse_expression(ex, kws...)
     # We want to expand the expression in the calling module to parse the functions
     # correctly
     calling_module = __module__
-    @gensym _operators _variable_names
     return esc(
         quote
-            # We enclose in a let so that if a user passes an expression here,
-            # it only gets evaluated the first time.
-            let $_operators = $operators, $_variable_names = $variable_names
-                node = $(parse_expression)(
+            let
+                operators = $operators
+                variable_names = $variable_names
+                tree = $(parse_expression)(
                     $(Meta.quot(ex)),
-                    $_operators,
-                    $_variable_names,
+                    operators,
+                    variable_names,
                     $node_type,
                     $evaluate_on,
                     $calling_module,
                 )
-
-                $(Expression)(node, $_operators, $_variable_names)
+                $(Expression)(tree, operators, variable_names)
             end
         end,
     )
