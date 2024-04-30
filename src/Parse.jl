@@ -114,9 +114,14 @@ macro parse_expression(ex, kws...)
     calling_module = __module__
     return esc(
         quote
-            let (ex, operators, variable_names, node_type, evaluate_on) = (
+            let (ex, operators, s_variable_names, node_type, evaluate_on) = (
                     $(Meta.quot(ex)), $operators, $variable_names, $node_type, $evaluate_on
                 )
+                variable_names = if eltype(s_variable_names) isa AbstractString
+                    s_variable_names
+                else
+                    string.(s_variable_names)
+                end
                 tree = $(parse_expression)(
                     ex, operators, variable_names, node_type, evaluate_on, $calling_module
                 )
@@ -229,11 +234,7 @@ function _parse_expression(
     evaluate_on::Union{Nothing,AbstractVector},
     calling_module,
 ) where {N<:AbstractExpressionNode}
-    i = if eltype(variable_names) == String
-        findfirst(==(string(ex)), variable_names)
-    else
-        findfirst(==(ex), variable_names)
-    end
+    i = findfirst(==(string(ex)), variable_names)
     if i !== nothing
         return N(; feature=i)
     else
