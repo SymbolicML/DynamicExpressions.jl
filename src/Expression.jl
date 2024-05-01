@@ -7,17 +7,20 @@ using ..NodeModule: AbstractExpressionNode
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..UtilsModule: Undefined
 
+"""A wrapper for a named tuple to avoid piracy."""
+struct Metadata{NT<:NamedTuple}
+    _data::NT
+end
+
+Base.getproperty(x::Metadata, f::Symbol) = (@inline; getfield(getfield(x, :_data), f))
+Base.show(io::IO, x::Metadata) = print(io, "Metadata(", string(getfield(x, :_data)), ")")
+
 """
-    AbstractExpression{T,N<:AbstractExpressionNode{T}}
+    AbstractExpression{T}
 
 Abstract type for user-facing expression types, which contain
-both the raw expression tree, as well as associated metadata
-to evaluate and render the expression. You should avoid using
-these types for internal operations, as they result in extra allocations.
-
-# Fields
-
-- `tree::N`: the raw expression tree
+both the raw expression tree operating on a value type of `T`,
+as well as associated metadata to evaluate and render the expression.
 
 # Interface
 
@@ -26,22 +29,22 @@ An `AbstractExpression` must declare:
 1.
 
 ```julia
-get_settings(ex::AbstractExpression, cur_settings::Union{Nothing,Any})
+get_operators(ex::AbstractExpression, cur_operators::Union{Nothing,Any})
 ```
 
-which will return the settings to be passed to internal functions
+which will return the operators to be passed to internal functions
 such as `eval_tree_array` or `string_tree`, either from the expression itself,
-or `cur_settings` if it is not `nothing`. If left as default,
-it requires `cur_settings` to not be `nothing`.
-`cur_settings` would typically be an `OperatorEnum`.
+or `cur_operators` if it is not `nothing`. If left as default,
+it requires `cur_operators` to not be `nothing`.
+`cur_operators` would typically be an `OperatorEnum`.
 
 2.
 
 ```julia
-variable_names(ex::AbstractExpression, cur_variable_names::Union{Nothing,AbstractVector{<:AbstractString}})
+get_variable_names(ex::AbstractExpression, cur_variable_names::Union{Nothing,AbstractVector{<:AbstractString}})
 ```
 
-The same as `settings`, but for variable names.
+The same as `operators`, but for variable names.
 
 3.
 
@@ -52,10 +55,10 @@ get_tree(ex::AbstractExpression)
 A method that extracts the expression tree from `AbstractExpression`
 and should return an `AbstractExpressionNode`.
 """
-abstract type AbstractExpression{T,N<:AbstractExpressionNode{T}} end
+abstract type AbstractExpression{T} end
 
 """
-    Expression{T, N, O, V} <: AbstractExpression{T, N}
+    Expression{T, N, D} <: AbstractExpression{T}
 
 Defines a high level, user-facing, expression type that encapsulates an
 expression tree (like `Node`) along with associated metadata for evaluation and rendering.
@@ -63,12 +66,12 @@ expression tree (like `Node`) along with associated metadata for evaluation and 
 # Fields
 
 - `tree::N`: The root node of the raw expression tree.
-- `settings::S`: Settings for the expression, such as the operators.
-- `variable_names::V`: A vector of variable names used when printing the expression.
+- `metadata::Metadata{D}`: A named tuple of settings for the expression,
+   such as the operators and variable names.
 
 # Constructors
 
-- Expression(tree::AbstractExpressionNode, operators::AbstractOperatorEnum, variable_names::AbstractVector): Construct from the fields
+- Expression(tree::AbstractExpressionNode, metadata::NamedTuple): Construct from the fields
 - @parse_expression(expr, operators=operators, variable_names=variable_names, node_type=Node): Parse a Julia expression with a given context and create an Expression object.
 
 # Usage
@@ -76,16 +79,43 @@ expression tree (like `Node`) along with associated metadata for evaluation and 
 This type is intended for end-users to interact with and manipulate expressions at a high level,
 abstracting away the complexities of the underlying expression tree operations.
 """
-struct Expression{T,N<:AbstractExpressionNode{T},S,V} <: AbstractExpression{T,N}
+struct Expression{T,N<:AbstractExpressionNode{T},D<:NamedTuple} <: AbstractExpression{T}
     tree::N
-    settings::S
-    variable_names::V
+    metadata::Metadata{D}
 end
+
+@inline function Expression(tree::AbstractExpressionNode{T}, metadata::NamedTuple) where {T}
+    return Expression(tree, Metadata(metadata))
+end
+
+# TODO: Use-cases:
+# 1. Multi-tree expressions with constraints
+#
+#   Can store as a NamedTuple of scalar trees.
+#
+#   `get_operators` returns both the options and also constraints.
+#   `get_tree` can stitch trees together into one larger expression?
+#      - Could also have it set the feature indices to a global set,
+#        which would let you do things like `f(x) + f(y)`.
+#   `string_tree` can be overloaded to print them separately?
+#
+# 2. Parametric expressions
+#
+#   Metadata would store an additional `parameters`. Those parameters
+#   could be stored as a separate `extra.parameter` field. Would then
+#   overload `get`
+#   of such an expression would create additional feature axes.
+#
+# 3. Freezing parts of expression
+#
+#  I think this might require modifying the tree type itself
+#  to hold an `extra::E` property.
+#
 
 ########################################################
 # Abstract interface ###################################
 ########################################################
-for f in (:get_settings, :get_variable_names, :get_tree)
+for f in (:get_operators, :get_variable_names, :get_tree)
     args = f == :get_tree ? () : (:(_),)
     @eval function $f(ex::AbstractExpression, $(args...))
         throw(
@@ -98,11 +128,11 @@ for f in (:get_settings, :get_variable_names, :get_tree)
 end
 ########################################################
 
-function get_settings(ex::Expression, settings)
-    return settings === nothing ? ex.settings : settings
+function get_operators(ex::Expression, operators)
+    return operators === nothing ? ex.metadata.operators : operators
 end
 function get_variable_names(ex::Expression, variable_names)
-    return variable_names === nothing ? ex.variable_names : variable_names
+    return variable_names === nothing ? ex.metadata.variable_names : variable_names
 end
 function get_tree(ex::Expression)
     return ex.tree
@@ -115,10 +145,9 @@ constructorof(::Type{<:Expression}) = Expression
 # return an entire tree. Methods that only return the nodes are *not* overloaded, so
 # that the user must use the low-level interface.
 
-import ..NodeModule: preserve_sharing, copy_node, set_node!, count_nodes, tree_mapreduce
+import ..NodeModule: copy_node, set_node!, count_nodes, tree_mapreduce
 
 #! format: off
-preserve_sharing(::Type{<:AbstractExpression{T,N}}) where {T,N} = preserve_sharing(N)
 copy_node(ex::AbstractExpression; kws...) = copy(ex)
 count_nodes(ex::AbstractExpression; kws...) = count_nodes(get_tree(ex); kws...)
 
@@ -166,24 +195,24 @@ set_constants!(ex::AbstractExpression, constants) = set_constants!(get_tree(ex),
 import ..StringsModule: string_tree, print_tree
 
 function string_tree(
-    ex::AbstractExpression, settings=nothing; variable_names=nothing, kws...
+    ex::AbstractExpression, operators=nothing; variable_names=nothing, kws...
 )
     return string_tree(
         get_tree(ex),
-        get_settings(ex, settings);
-        variable_names=get_variable_names(ex, settings),
+        get_operators(ex, operators);
+        variable_names=get_variable_names(ex, variable_names),
         kws...,
     )
 end
 for io in ((), (:(io::IO),))
     @eval function print_tree(
-        $(io...), ex::AbstractExpression, settings=nothing; variable_names=nothing, kws...
+        $(io...), ex::AbstractExpression, operators=nothing; variable_names=nothing, kws...
     )
         return print_tree(
             $(io...),
             get_tree(ex),
-            get_settings(ex, settings);
-            variable_names=get_variable_names(ex, settings),
+            get_operators(ex, operators);
+            variable_names=get_variable_names(ex, variable_names),
             kws...,
         )
     end
@@ -194,7 +223,7 @@ function Base.show(io::IO, ::MIME"text/plain", ex::AbstractExpression)
         io,
         string_tree(
             get_tree(ex),
-            get_settings(ex, nothing);
+            get_operators(ex, nothing);
             variable_names=get_variable_names(ex, nothing),
         ),
     )
@@ -213,8 +242,8 @@ function max_feature(ex::AbstractExpression)
     )
 end
 
-function _validate_input(ex::AbstractExpression, X, settings)
-    if get_settings(ex, settings) isa OperatorEnum
+function _validate_input(ex::AbstractExpression, X, operators)
+    if get_operators(ex, operators) isa OperatorEnum
         @argcheck X isa AbstractMatrix
         @argcheck max_feature(ex) <= size(X, 1)
     end
@@ -222,60 +251,66 @@ function _validate_input(ex::AbstractExpression, X, settings)
 end
 
 function eval_tree_array(
-    ex::AbstractExpression, cX::AbstractMatrix, settings=nothing; kws...
+    ex::AbstractExpression, cX::AbstractMatrix, operators=nothing; kws...
 )
-    _validate_input(ex, cX, settings)
-    return eval_tree_array(get_tree(ex), cX, get_settings(ex, settings); kws...)
+    _validate_input(ex, cX, operators)
+    return eval_tree_array(get_tree(ex), cX, get_operators(ex, operators); kws...)
 end
 function differentiable_eval_tree_array(
-    ex::AbstractExpression, cX::AbstractMatrix, settings=nothing; kws...
+    ex::AbstractExpression, cX::AbstractMatrix, operators=nothing; kws...
 )
-    _validate_input(ex, cX, settings)
+    _validate_input(ex, cX, operators)
     return differentiable_eval_tree_array(
-        get_tree(ex), cX, get_settings(ex, settings); kws...
+        get_tree(ex), cX, get_operators(ex, operators); kws...
     )
 end
 
 import ..EvaluateDerivativeModule: eval_diff_tree_array, eval_grad_tree_array
 
 function eval_diff_tree_array(
-    ex::AbstractExpression, cX::AbstractMatrix, settings=nothing; kws...
+    ex::AbstractExpression, cX::AbstractMatrix, operators=nothing; kws...
 )
-    _validate_input(ex, cX, settings)
-    return eval_diff_tree_array(get_tree(ex), cX, get_settings(ex, settings); kws...)
+    _validate_input(ex, cX, operators)
+    return eval_diff_tree_array(get_tree(ex), cX, get_operators(ex, operators); kws...)
 end
 function eval_grad_tree_array(
-    ex::AbstractExpression, cX::AbstractMatrix, settings=nothing; kws...
+    ex::AbstractExpression, cX::AbstractMatrix, operators=nothing; kws...
 )
-    _validate_input(ex, cX, settings)
-    return eval_grad_tree_array(get_tree(ex), cX, get_settings(ex, settings); kws...)
+    _validate_input(ex, cX, operators)
+    return eval_grad_tree_array(get_tree(ex), cX, get_operators(ex, operators); kws...)
 end
 
 import ..EvaluationHelpersModule: _grad_evaluator
 
 function _grad_evaluator(
-    ex::AbstractExpression, cX::AbstractMatrix, settings=nothing; kws...
+    ex::AbstractExpression, cX::AbstractMatrix, operators=nothing; kws...
 )
-    _validate_input(ex, cX, settings)
-    return _grad_evaluator(get_tree(ex), cX, get_settings(ex, settings); kws...)
+    _validate_input(ex, cX, operators)
+    return _grad_evaluator(get_tree(ex), cX, get_operators(ex, operators); kws...)
 end
-function (ex::AbstractExpression)(X, settings=nothing; kws...)
-    _validate_input(ex, X, settings)
-    return get_tree(ex)(X, get_settings(ex, settings); kws...)
+function (ex::AbstractExpression)(X, operators=nothing; kws...)
+    _validate_input(ex, X, operators)
+    return get_tree(ex)(X, get_operators(ex, operators); kws...)
 end
 
 import ..SimplifyModule: combine_operators, simplify_tree!
 import Base: copy, hash
 
 # Avoid implementing a generic version for these, as it is less likely to generalize
-function combine_operators(ex::Expression, settings=nothing; kws...)
-    return combine_operators(get_tree(ex), get_settings(ex, settings); kws...)
+function combine_operators(ex::Expression, operators=nothing; kws...)
+    return combine_operators(get_tree(ex), get_operators(ex, operators); kws...)
 end
-function simplify_tree!(ex::Expression, settings=nothing; kws...)
-    return simplify_tree!(get_tree(ex), get_settings(ex, settings); kws...)
+function simplify_tree!(ex::Expression, operators=nothing; kws...)
+    return simplify_tree!(get_tree(ex), get_operators(ex, operators); kws...)
 end
 function copy(ex::Expression)
-    return Expression(copy(ex.tree), copy(ex.settings), copy(ex.variable_names))
+    return Expression(copy(ex.tree), copy(ex.metadata))
+end
+@inline function copy(metadata::Metadata)
+    # Generic copy of any namedtuple
+    nt = getfield(metadata, :_data)
+    copied_nt = (; (keys(nt) .=> copy.(values(nt)))...)
+    return Metadata(copied_nt)
 end
 
 end

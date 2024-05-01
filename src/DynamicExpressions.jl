@@ -50,8 +50,9 @@ import .NodeModule: constructorof, with_type_parameters, preserve_sharing
 @reexport import .EvaluationHelpersModule
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 @reexport import .RandomModule: NodeSampler
-@reexport import .ExpressionModule:
-    AbstractExpression, Expression, get_tree, get_settings, get_variable_names
+@reexport import .ExpressionModule: AbstractExpression, Expression
+# Not for export; just for overloading
+import .ExpressionModule: get_tree, get_operators, get_variable_names
 @reexport import .ParseModule: @parse_expression
 
 function __init__()

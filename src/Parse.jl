@@ -125,7 +125,7 @@ macro parse_expression(ex, kws...)
                 tree = $(parse_expression)(
                     ex, operators, variable_names, node_type, evaluate_on, $calling_module
                 )
-                $(Expression)(tree, operators, variable_names)
+                $(Expression)(tree, (; operators, variable_names))
             end
         end,
     )

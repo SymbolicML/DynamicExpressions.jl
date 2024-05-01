@@ -114,3 +114,7 @@ end
 @safetestset "Test random sampling" begin
     include("test_random.jl")
 end
+
+@safetestset "Test expressions" begin
+    include("test_expressions.jl")
+end
