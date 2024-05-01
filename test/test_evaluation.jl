@@ -133,33 +133,35 @@ if VERSION >= v"1.7"
         x1 = Node(Float64; feature=1)
         tree = sin(x1 / 0.0)
         X = randn(Float32, 10)
-        local stack
-        try
-            tree(X, operators)[1]
-            @test false
-        catch e
-            @test e isa ErrorException
-            # Check that "Failed to evaluate" is in the message:
-            @test occursin("Failed to evaluate", e.msg)
-            stack = current_exceptions()
-        end
-        @test length(stack) == 2
-        @test stack[1].exception isa DomainError
+        let
+            local stack
+            try
+                tree(X, operators)[1]
+                @test false
+            catch e
+                @test e isa ErrorException
+                # Check that "Failed to evaluate" is in the message:
+                @test occursin("Failed to evaluate", e.msg)
+                stack = current_exceptions()
+            end
+            @test length(stack) == 2
+            @test stack[1].exception isa DomainError
 
-        # If a method is not defined, we should get a nothing:
-        X = randn(Float32, 1, 10)
-        @test tree(X, operators; throw_errors=false) === nothing
-        # or a MethodError:
-        try
-            tree(X, operators; throw_errors=true)
-            @test false
-        catch e
-            @test e isa ErrorException
-            @test occursin("Failed to evaluate", e.msg)
-            stack = current_exceptions()
+            # If a method is not defined, we should get a nothing:
+            X = randn(Float32, 1, 10)
+            @test tree(X, operators; throw_errors=false) === nothing
+            # or a MethodError:
+            try
+                tree(X, operators; throw_errors=true)
+                @test false
+            catch e
+                @test e isa ErrorException
+                @test occursin("Failed to evaluate", e.msg)
+                stack = current_exceptions()
+            end
+            @test length(stack) == 2
+            @test stack[1].exception isa MethodError
         end
-        @test length(stack) == 2
-        @test stack[1].exception isa MethodError
     end
 end
 
