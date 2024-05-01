@@ -288,7 +288,8 @@ function _parse_expression(
         throw(
             ArgumentError(
                 "Cannot parse an expression as a value in another expression. " *
-                "Instead, you should unpack it into the tree.",
+                "Instead, you should unpack it into the tree (and make sure they " *
+                "have the same metadata where relevant).",
             ),
         )
     elseif val isa AbstractExpressionNode
