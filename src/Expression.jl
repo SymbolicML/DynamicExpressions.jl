@@ -12,8 +12,16 @@ struct Metadata{NT<:NamedTuple}
     _data::NT
 end
 
-Base.getproperty(x::Metadata, f::Symbol) = (@inline; getfield(getfield(x, :_data), f))
-Base.show(io::IO, x::Metadata) = print(io, "Metadata(", string(getfield(x, :_data)), ")")
+_data(x::Metadata) = getfield(x, :_data)
+Base.propertynames(x::Metadata) = propertynames(_data(x))
+Base.getproperty(x::Metadata, f::Symbol) = (@inline; getfield(_data(x), f))
+Base.show(io::IO, x::Metadata) = print(io, "Metadata(", string(_data(x)), ")")
+@inline function Base.copy(metadata::Metadata)
+    # Generic copy of any namedtuple
+    nt = _data(metadata)
+    copied_nt = (; (keys(nt) .=> copy.(values(nt)))...)
+    return Metadata(copied_nt)
+end
 
 """
     AbstractExpression{T}
@@ -282,11 +290,14 @@ end
 
 import ..EvaluationHelpersModule: _grad_evaluator
 
+function Base.adjoint(ex::AbstractExpression)
+    return ((args...; kws...) -> _grad_evaluator(ex, args...; kws...))
+end
 function _grad_evaluator(
-    ex::AbstractExpression, cX::AbstractMatrix, operators=nothing; kws...
+    ex::AbstractExpression, cX::AbstractMatrix, operators=nothing; variable=Val(true), kws...
 )
     _validate_input(ex, cX, operators)
-    return _grad_evaluator(get_tree(ex), cX, get_operators(ex, operators); kws...)
+    return _grad_evaluator(get_tree(ex), cX, get_operators(ex, operators); variable, kws...)
 end
 function (ex::AbstractExpression)(X, operators=nothing; kws...)
     _validate_input(ex, X, operators)
@@ -294,7 +305,6 @@ function (ex::AbstractExpression)(X, operators=nothing; kws...)
 end
 
 import ..SimplifyModule: combine_operators, simplify_tree!
-import Base: copy, hash
 
 # Avoid implementing a generic version for these, as it is less likely to generalize
 function combine_operators(ex::Expression, operators=nothing; kws...)
@@ -303,14 +313,11 @@ end
 function simplify_tree!(ex::Expression, operators=nothing; kws...)
     return simplify_tree!(get_tree(ex), get_operators(ex, operators); kws...)
 end
-function copy(ex::Expression)
+function Base.copy(ex::Expression)
     return Expression(copy(ex.tree), copy(ex.metadata))
 end
-@inline function copy(metadata::Metadata)
-    # Generic copy of any namedtuple
-    nt = getfield(metadata, :_data)
-    copied_nt = (; (keys(nt) .=> copy.(values(nt)))...)
-    return Metadata(copied_nt)
+function Base.hash(ex::Expression, h::UInt)
+    return hash(ex.tree, hash(ex.metadata, h))
 end
 
 end

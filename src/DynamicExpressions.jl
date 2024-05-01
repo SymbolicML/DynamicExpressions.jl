@@ -54,6 +54,7 @@ import .NodeModule: constructorof, with_type_parameters, preserve_sharing
 # Not for export; just for overloading
 import .ExpressionModule: get_tree, get_operators, get_variable_names
 @reexport import .ParseModule: @parse_expression
+import .ParseModule: parse_expression
 
 function __init__()
     @require_extensions

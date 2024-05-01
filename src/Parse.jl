@@ -245,8 +245,16 @@ function _parse_expression(
             N()
         end
     else
-        @argcheck head in (:vect, :tuple)
-        return N(; val=Core.eval(calling_module, ex))
+        if head in (:vect, :tuple)
+            return N(; val=Core.eval(calling_module, ex))
+        else
+            throw(
+                ArgumentError(
+                    "Unrecognized expression type: `Expr(:$(head), ...)`. " *
+                    "Please only a function call or a variable.",
+                ),
+            )
+        end
     end
 end
 function _parse_expression(
@@ -276,6 +284,16 @@ function _parse_expression(
     ::Union{Nothing,AbstractVector},
     _,
 ) where {N<:AbstractExpressionNode}
+    if val isa AbstractExpression
+        throw(
+            ArgumentError(
+                "Cannot parse an expression as a value in another expression. " *
+                "Instead, you should unpack it into the tree.",
+            ),
+        )
+    elseif val isa AbstractExpressionNode
+        return val
+    end
     return N(; val)
 end
 
