@@ -1,8 +1,6 @@
 """This module defines a user-facing `Expression` type"""
 module ExpressionModule
 
-using ArgCheck: @argcheck
-
 using ..NodeModule: AbstractExpressionNode
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..UtilsModule: Undefined
@@ -252,8 +250,8 @@ end
 
 function _validate_input(ex::AbstractExpression, X, operators)
     if get_operators(ex, operators) isa OperatorEnum
-        @argcheck X isa AbstractMatrix
-        @argcheck max_feature(ex) <= size(X, 1)
+        @assert X isa AbstractMatrix
+        @assert max_feature(ex) <= size(X, 1)
     end
     return nothing
 end
