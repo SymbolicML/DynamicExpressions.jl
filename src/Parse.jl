@@ -185,6 +185,29 @@ function _parse_expression(
                     args[3], operators, variable_names, N, evaluate_on, calling_module
                 ),
             )
+        elseif length(args) > 3 &&
+            func in (+, -) &&
+            (op = findfirst(==(func), operators.binops)) !== nothing
+            # Either + or - but used with more than two arguments
+            inner = N(;
+                op=op::Int,
+                l=_parse_expression(
+                    args[2], operators, variable_names, N, evaluate_on, calling_module
+                ),
+                r=_parse_expression(
+                    args[3], operators, variable_names, N, evaluate_on, calling_module
+                ),
+            )
+            for arg in args[4:end]
+                inner = N(;
+                    op=op::Int,
+                    l=inner,
+                    r=_parse_expression(
+                        arg, operators, variable_names, N, evaluate_on, calling_module
+                    ),
+                )
+            end
+            return inner
         elseif evaluate_on !== nothing && func in evaluate_on
             # External function
             func(
