@@ -10,7 +10,7 @@ using Test
         operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
         variable_names = ["x"]
 
-        expr = Expression(tree, (;operators, variable_names))
+        expr = Expression(tree, (; operators, variable_names))
 
         @test get_tree(expr) === tree
         @test get_operators(expr, nothing) === operators

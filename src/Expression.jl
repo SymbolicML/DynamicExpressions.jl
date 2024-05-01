@@ -14,8 +14,8 @@ end
 
 _data(x::Metadata) = getfield(x, :_data)
 Base.propertynames(x::Metadata) = propertynames(_data(x))
-Base.getproperty(x::Metadata, f::Symbol) = (@inline; getfield(_data(x), f))
-Base.show(io::IO, x::Metadata) = print(io, "Metadata(", string(_data(x)), ")")
+Base.getproperty(x::Metadata, f::Symbol) = (@inline; getproperty(_data(x), f))
+Base.show(io::IO, x::Metadata) = print(io, "Metadata(", _data(x), ")")
 @inline function Base.copy(metadata::Metadata)
     # Generic copy of any namedtuple
     nt = _data(metadata)
@@ -294,7 +294,11 @@ function Base.adjoint(ex::AbstractExpression)
     return ((args...; kws...) -> _grad_evaluator(ex, args...; kws...))
 end
 function _grad_evaluator(
-    ex::AbstractExpression, cX::AbstractMatrix, operators=nothing; variable=Val(true), kws...
+    ex::AbstractExpression,
+    cX::AbstractMatrix,
+    operators=nothing;
+    variable=Val(true),
+    kws...,
 )
     _validate_input(ex, cX, operators)
     return _grad_evaluator(get_tree(ex), cX, get_operators(ex, operators); variable, kws...)
