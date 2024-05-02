@@ -59,7 +59,7 @@ import .NodeModule:
 @reexport import .EvaluationHelpersModule
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 @reexport import .RandomModule: NodeSampler
-@reexport import .ExpressionModule: AbstractExpression, Expression
+@reexport import .ExpressionModule: AbstractExpression, Expression, Metadata
 # Not for export; just for overloading
 import .ExpressionModule: get_tree, get_operators, get_variable_names
 @reexport import .ParseModule: @parse_expression
