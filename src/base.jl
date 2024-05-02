@@ -160,11 +160,11 @@ end
 function inner_is_equal(a, b)
     (degree = a.degree) != b.degree && return false
     if degree == 0
-        return isequal_deg0(a, b)
+        return leaf_equal(a, b)
     elseif degree == 1
-        return isequal_deg1(a, b) && inner_is_equal(a.l, b.l)
+        return branch_equal(a, b) && inner_is_equal(a.l, b.l)
     else
-        return isequal_deg2(a, b) && inner_is_equal(a.l, b.l) && inner_is_equal(a.r, b.r)
+        return branch_equal(a, b) && inner_is_equal(a.l, b.l) && inner_is_equal(a.r, b.r)
     end
 end
 function inner_is_equal_shared(a, b, id_map_a, id_map_b)
@@ -182,11 +182,11 @@ function inner_is_equal_shared(a, b, id_map_a, id_map_b)
     (degree = a.degree) != b.degree && return false
 
     result = if degree == 0
-        isequal_deg0(a, b)
+        leaf_equal(a, b)
     elseif degree == 1
-        isequal_deg1(a, b) && inner_is_equal_shared(a.l, b.l, id_map_a, id_map_b)
+        branch_equal(a, b) && inner_is_equal_shared(a.l, b.l, id_map_a, id_map_b)
     else
-        isequal_deg2(a, b) &&
+        branch_equal(a, b) &&
             inner_is_equal_shared(a.l, b.l, id_map_a, id_map_b) &&
             inner_is_equal_shared(a.r, b.r, id_map_a, id_map_b)
     end
@@ -197,9 +197,10 @@ function inner_is_equal_shared(a, b, id_map_a, id_map_b)
     return result
 end
 
-@inline isequal_deg1(a::AbstractExpressionNode, b::AbstractExpressionNode) = a.op == b.op
-@inline isequal_deg2(a::AbstractExpressionNode, b::AbstractExpressionNode) = a.op == b.op
-@inline function isequal_deg0(
+@inline function branch_equal(a::AbstractExpressionNode, b::AbstractExpressionNode)
+    return a.op == b.op
+end
+@inline function leaf_equal(
     a::AbstractExpressionNode{T1}, b::AbstractExpressionNode{T2}
 ) where {T1,T2}
     (constant = a.constant) != b.constant && return false
@@ -412,15 +413,21 @@ function hash(
     tree::AbstractExpressionNode{T}, h::UInt=zero(UInt); break_sharing::Val=Val(false)
 ) where {T}
     return tree_mapreduce(
-        t -> t.constant ? hash((0, t.val), h) : hash((1, t.feature), h),
-        t -> hash((t.degree + 1, t.op), h),
-        (n...) -> hash(n, h),
+        t -> leaf_hash(h, t),
+        identity,
+        (p, c...) -> branch_hash(h, p, c...),
         tree,
         UInt;
         f_on_shared=(cur_hash, is_shared) ->
             is_shared ? hash((:shared, cur_hash), h) : cur_hash,
         break_sharing,
     )
+end
+function leaf_hash(h::UInt, t::AbstractExpressionNode)
+    return t.constant ? hash((0, t.val), h) : hash((1, t.feature), h)
+end
+function branch_hash(h::UInt, t::AbstractExpressionNode, children::Vararg{Any,M}) where {M}
+    return hash((t.degree + 1, t.op, children), h)
 end
 
 """
@@ -434,18 +441,17 @@ If `break_sharing` is set to `Val(true)`, sharing in a tree will be ignored.
 function copy_node(
     tree::N; break_sharing::Val=Val(false)
 ) where {T,N<:AbstractExpressionNode{T}}
-    return tree_mapreduce(
-        t -> if t.constant
-            constructorof(N)(; val=t.val)
-        else
-            constructorof(N)(T; feature=t.feature)
-        end,
-        identity,
-        (p, children...) -> constructorof(N)(; op=p.op, children),
-        tree,
-        N;
-        break_sharing,
-    )
+    return tree_mapreduce(leaf_copy, identity, branch_copy, tree, N; break_sharing)
+end
+function leaf_copy(t::N) where {N<:AbstractExpressionNode}
+    if t.constant
+        return constructorof(N)(; val=t.val)
+    else
+        return constructorof(N)(; feature=t.feature)
+    end
+end
+function branch_copy(t::N, children::Vararg{Any,M}) where {N<:AbstractExpressionNode,M}
+    return constructorof(N)(; op=t.op, children)
 end
 
 """

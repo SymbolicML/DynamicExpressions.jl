@@ -99,6 +99,10 @@ end
     include("test_base.jl")
 end
 
+@safetestset "Test extra node fields" begin
+    include("test_extra_node_fields.jl")
+end
+
 @safetestset "Test containers preserved" begin
     include("test_container_preserved.jl")
 end

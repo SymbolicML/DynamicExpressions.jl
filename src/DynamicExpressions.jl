@@ -28,7 +28,16 @@ import Reexport: @reexport
     tree_mapreduce,
     filter_map,
     filter_map!
-import .NodeModule: constructorof, with_type_parameters, preserve_sharing
+import .NodeModule:
+    constructorof,
+    with_type_parameters,
+    preserve_sharing,
+    leaf_copy,
+    branch_copy,
+    leaf_hash,
+    branch_hash,
+    leaf_equal,
+    branch_equal
 @reexport import .NodeUtilsModule:
     count_nodes,
     count_constants,
