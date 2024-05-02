@@ -108,14 +108,18 @@ end
 # 2. Parametric expressions
 #
 #   Metadata would store an additional `parameters`. Those parameters
-#   could be stored as a separate `extra.parameter` field. Would then
-#   overload `get`
-#   of such an expression would create additional feature axes.
+#   could be stored as a separate `metadata.parameters` field. Would then
+#   overload `get` of such an expression would create additional feature axes.
+#
+#   Perhaps the `eval_tree_array` would take an extra `class` argument?
 #
 # 3. Freezing parts of expression
 #
 #  I think this might require modifying the tree type itself
-#  to hold an `extra::E` property.
+#  to hold an `extra::E` property. Then a `canfreeze` argument
+#  for the node type, and `frozen(_) = false` for individual nodes.
+#  Or, perhaps we simply extend `AbstractExpressionNode` to accommodate
+#  extra fields?
 #
 
 ########################################################
