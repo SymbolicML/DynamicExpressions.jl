@@ -15,9 +15,8 @@ Base.propertynames(x::Metadata) = propertynames(_data(x))
 Base.getproperty(x::Metadata, f::Symbol) = (@inline; getproperty(_data(x), f))
 Base.show(io::IO, x::Metadata) = print(io, "Metadata(", _data(x), ")")
 @inline function Base.copy(metadata::Metadata)
-    # Generic copy of any namedtuple
     nt = _data(metadata)
-    copied_nt = (; (keys(nt) .=> copy.(values(nt)))...)
+    copied_nt = NamedTuple{keys(nt)}(map(copy, values(nt)))
     return Metadata(copied_nt)
 end
 
