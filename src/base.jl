@@ -443,15 +443,15 @@ function copy_node(
 ) where {T,N<:AbstractExpressionNode{T}}
     return tree_mapreduce(leaf_copy, identity, branch_copy, tree, N; break_sharing)
 end
-function leaf_copy(t::N) where {N<:AbstractExpressionNode}
+function leaf_copy(t::N) where {T,N<:AbstractExpressionNode{T}}
     if t.constant
         return constructorof(N)(; val=t.val)
     else
-        return constructorof(N)(; feature=t.feature)
+        return constructorof(N)(T; feature=t.feature)
     end
 end
-function branch_copy(t::N, children::Vararg{Any,M}) where {N<:AbstractExpressionNode,M}
-    return constructorof(N)(; op=t.op, children)
+function branch_copy(t::N, children::Vararg{Any,M}) where {T,N<:AbstractExpressionNode{T},M}
+    return constructorof(N)(T; op=t.op, children)
 end
 
 """

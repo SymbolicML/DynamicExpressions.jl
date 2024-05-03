@@ -28,6 +28,9 @@ using DynamicExpressions: Metadata
     end
 end
 
+operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[sin, cos, exp])
+variable_names = ["a", "b", "c"]
+
 ex1 = @parse_expression(c * 2.5 - cos(a), operators, variable_names)
 ex2 = @parse_expression(b * b * b + c / 0.2, operators, variable_names)
 
@@ -62,9 +65,6 @@ end
 @eval function DE.get_variable_names(ex::$(MultiScalarExpression), variable_names)
     return variable_names === nothing ? ex.metadata.variable_names : variable_names
 end
-
-operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[sin, cos, exp])
-variable_names = ["a", "b", "c"]
 
 s = sprint((io, ex) -> show(io, MIME"text/plain"(), ex), multi_ex)
 
