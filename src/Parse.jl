@@ -130,27 +130,20 @@ macro parse_expression(ex, kws...)
     # variable names don't collide.
     calling_module = __module__
     return esc(
-        quote
-            let (ex, operators, s_variable_names, node_type, evaluate_on) = (
-                    $(Meta.quot(ex)), $operators, $variable_names, $node_type, $evaluate_on
-                )
-                variable_names = if eltype(s_variable_names) isa AbstractString
-                    s_variable_names
-                else
-                    string.(s_variable_names)
-                end
-                tree = $(parse_expression)(
-                    ex, operators, variable_names, node_type, evaluate_on, $calling_module
-                )
-                $(Expression)(tree, (; operators, variable_names))
-            end
-        end,
+        :($(parse_expression)(
+            $(Meta.quot(ex)),
+            $operators,
+            $variable_names,
+            $node_type,
+            $evaluate_on,
+            $calling_module,
+        )),
     )
 end
 
-"""Parse an expression into a Node from a Julia expression."""
+"""Parse an expression Julia `Expr` object."""
 function parse_expression(
-    ex::Expr,
+    ex,
     operators::AbstractOperatorEnum,
     variable_names::AbstractVector,
     ::Type{N},
@@ -158,120 +151,136 @@ function parse_expression(
     calling_module,
 ) where {N<:AbstractExpressionNode}
     empty_all_globals!()
-    return _parse_expression(ex, operators, variable_names, N, evaluate_on, calling_module)
+    let variable_names = if eltype(variable_names) isa AbstractString
+            variable_names
+        else
+            string.(variable_names)
+        end
+        tree = _parse_expression(
+            ex, operators, variable_names, N, evaluate_on, calling_module
+        )
+
+        return Expression(tree, (; operators, variable_names))
+    end
 end
 
 function _parse_expression(
     ex::Expr,
     operators::AbstractOperatorEnum,
-    variable_names::AbstractVector,
+    variable_names::AbstractVector{<:AbstractString},
     ::Type{N},
     evaluate_on::Union{Nothing,AbstractVector},
     calling_module,
 ) where {N<:AbstractExpressionNode}
-    head = ex.head
+    ex.head != :call && throw(
+        ArgumentError(
+            "Unrecognized expression type: `Expr(:$(ex.head), ...)`. " *
+            "Please only a function call or a variable.",
+        ),
+    )
     args = ex.args
-    if head == :call
-        func = try
-            Core.eval(calling_module, first(ex.args))
-        catch
-            throw(
-                ArgumentError(
-                    "Failed to evaluate function `$(first(ex.args))` within `$(calling_module)`. " *
-                    "Make sure the function is defined in that module.",
-                ),
-            )
-            () -> ()
-        end
-        if length(args) == 2 && (op = findfirst(==(func), operators.unaops)) !== nothing
-            # Regular unary operator
-            return N(;
-                op=op::Int,
-                l=_parse_expression(
-                    args[2], operators, variable_names, N, evaluate_on, calling_module
-                ),
-            )
-        elseif length(args) == 3 && (op = findfirst(==(func), operators.binops)) !== nothing
-            # Regular binary operator
-            return N(;
-                op=op::Int,
-                l=_parse_expression(
-                    args[2], operators, variable_names, N, evaluate_on, calling_module
-                ),
-                r=_parse_expression(
-                    args[3], operators, variable_names, N, evaluate_on, calling_module
-                ),
-            )
-        elseif length(args) > 3 &&
-            func in (+, -, *) &&
-            (op = findfirst(==(func), operators.binops)) !== nothing
-            # Either + or - but used with more than two arguments
+    func = try
+        Core.eval(calling_module, first(ex.args))::Function
+    catch
+        throw(
+            ArgumentError(
+                "Failed to evaluate function `$(first(ex.args))` within `$(calling_module)`. " *
+                "Make sure the function is defined in that module.",
+            ),
+        )
+        () -> ()
+    end
+    return _parse_expression(
+        func, args, operators, variable_names, N, evaluate_on, calling_module
+    )
+end
+function _parse_expression(
+    func::F,
+    args,
+    operators::AbstractOperatorEnum,
+    variable_names::AbstractVector{<:AbstractString},
+    ::Type{N},
+    evaluate_on::Union{Nothing,AbstractVector},
+    calling_module,
+)::N where {F<:Function,N<:AbstractExpressionNode}
+    if length(args) == 2 && func ∈ operators.unaops
+        # Regular unary operator
+        op = findfirst(==(func), operators.unaops)::Int
+        return N(;
+            op=op::Int,
+            l=_parse_expression(
+                args[2], operators, variable_names, N, evaluate_on, calling_module
+            ),
+        )
+    elseif length(args) == 3 && func ∈ operators.binops
+        # Regular binary operator
+        op = findfirst(==(func), operators.binops)::Int
+        return N(;
+            op=op::Int,
+            l=_parse_expression(
+                args[2], operators, variable_names, N, evaluate_on, calling_module
+            ),
+            r=_parse_expression(
+                args[3], operators, variable_names, N, evaluate_on, calling_module
+            ),
+        )
+    elseif length(args) > 3 && func in (+, -, *) && func ∈ operators.binops
+        # Either + or - but used with more than two arguments
+        op = findfirst(==(func), operators.binops)::Int
+        inner = N(;
+            op=op::Int,
+            l=_parse_expression(
+                args[2], operators, variable_names, N, evaluate_on, calling_module
+            ),
+            r=_parse_expression(
+                args[3], operators, variable_names, N, evaluate_on, calling_module
+            ),
+        )
+        for arg in args[4:end]
             inner = N(;
                 op=op::Int,
-                l=_parse_expression(
-                    args[2], operators, variable_names, N, evaluate_on, calling_module
-                ),
+                l=inner,
                 r=_parse_expression(
-                    args[3], operators, variable_names, N, evaluate_on, calling_module
+                    arg, operators, variable_names, N, evaluate_on, calling_module
                 ),
             )
-            for arg in args[4:end]
-                inner = N(;
-                    op=op::Int,
-                    l=inner,
-                    r=_parse_expression(
-                        arg, operators, variable_names, N, evaluate_on, calling_module
-                    ),
-                )
-            end
-            return inner
-        elseif evaluate_on !== nothing && func in evaluate_on
-            # External function
-            func(
-                map(
-                    arg -> _parse_expression(
-                        arg, operators, variable_names, N, evaluate_on, calling_module
-                    ),
-                    args[2:end],
-                )...,
-            )
-        else
-            matching_s = let
-                s = if length(args) == 2
-                    "`" * string(operators.unaops) * "`"
-                elseif length(args) == 3
-                    "`" * string(operators.binops) * "`"
-                else
-                    ""
-                end
-                if evaluate_on !== nothing
-                    if length(s) > 0
-                        s *= " or " * "`" * string(evaluate_on) * "`"
-                    else
-                        s *= "`" * string(evaluate_on) * "`"
-                    end
-                end
-                s
-            end
-            throw(
-                ArgumentError(
-                    "Unrecognized operator: `$(func)` with no matches in $(matching_s). " *
-                    "If you meant to call an external function, please pass the function to the `evaluate_on` keyword argument.",
-                ),
-            )
-            N()
         end
+        return inner
+    elseif evaluate_on !== nothing && func in evaluate_on
+        # External function
+        func(
+            map(
+                arg -> _parse_expression(
+                    arg, operators, variable_names, N, evaluate_on, calling_module
+                ),
+                args[2:end],
+            )...,
+        )
     else
-        if head in (:vect, :tuple)
-            return N(; val=Core.eval(calling_module, ex))
-        else
-            throw(
-                ArgumentError(
-                    "Unrecognized expression type: `Expr(:$(head), ...)`. " *
-                    "Please only a function call or a variable.",
-                ),
-            )
+        matching_s = let
+            s = if length(args) == 2
+                "`" * string(operators.unaops) * "`"
+            elseif length(args) == 3
+                "`" * string(operators.binops) * "`"
+            else
+                ""
+            end
+            if evaluate_on !== nothing
+                if length(s) > 0
+                    s *= " or " * "`" * string(evaluate_on) * "`"
+                else
+                    s *= "`" * string(evaluate_on) * "`"
+                end
+            end
+            s
         end
+        throw(
+            ArgumentError(
+                "Unrecognized operator: `$(func)` with no matches in $(matching_s). " *
+                "If you meant to call an external function, please pass the function to the `evaluate_on` keyword argument.",
+            ),
+        )
+        N()
     end
 end
 function _parse_expression(
@@ -281,7 +290,7 @@ function _parse_expression(
     ::Type{N},
     evaluate_on::Union{Nothing,AbstractVector},
     calling_module,
-) where {N<:AbstractExpressionNode}
+)::N where {N<:AbstractExpressionNode}
     i = findfirst(==(string(ex)), variable_names)
     if i !== nothing
         return N(; feature=i)
@@ -300,7 +309,7 @@ function _parse_expression(
     ::Type{N},
     ::Union{Nothing,AbstractVector},
     _,
-) where {N<:AbstractExpressionNode}
+)::N where {N<:AbstractExpressionNode}
     if val isa AbstractExpression
         throw(
             ArgumentError(

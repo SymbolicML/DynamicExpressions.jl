@@ -15,11 +15,9 @@ operators = OperatorEnum(;
 # Clear operators
 OperatorEnum(; binary_operators=[/])
 
-let
-    ex = @parse_expression(
+let ex = @parse_expression(
         my_custom_op(x, sin(y) + 0.3), operators = operators, variable_names = ["x", "y"],
     )
-
     @test typeof(ex) <: Expression
 
     s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
@@ -43,36 +41,31 @@ let
 end
 
 # Can also parse just a float
-let
-    ex = @parse_expression(1.0, operators = operators, variable_names = [])
+let ex = @parse_expression(1.0, operators = operators, variable_names = [])
     @test typeof(ex) <: Expression
     @test ex.tree.val == 1.0
     @test typeof(ex.tree) <: Node{Float64}
 end
 
 # Or an int
-let
-    ex = @parse_expression(1, operators = operators, variable_names = [])
+let ex = @parse_expression(1, operators = operators, variable_names = [])
     @test typeof(ex.tree) <: Node{Int64}
 end
 
 # Or just a variable
-let
-    ex = @parse_expression(x, operators = operators, variable_names = ["x"])
+let ex = @parse_expression(x, operators = operators, variable_names = ["x"])
     @test typeof(ex.tree) <: Node{Float32}
 end
 
 # Or, with custom node types
-let
-    ex = @parse_expression(
+let ex = @parse_expression(
         x, operators = operators, variable_names = ["x"], node_type = GraphNode
     )
     @test typeof(ex.tree) <: GraphNode{Float32}
 end
 
 # Should work with symbols for variable names too
-let
-    ex = @parse_expression(
+let ex = @parse_expression(
         cos(exp(α)),
         operators = OperatorEnum(; unary_operators=[cos, exp]),
         variable_names = [:α]
@@ -83,22 +76,24 @@ let
 end
 
 # This also works for parsing mixed types
-let
+let v = [1, 2, 3],
     ex = @parse_expression(
-        [1, 2, 3] * tan(cos(5 + x)),
+        $v * tan(cos(5 + x)),
         operators = GenericOperatorEnum(;
             binary_operators=[*, +], unary_operators=[tan, cos]
         ),
         variable_names = ["x"],
     )
+
     @test typeof(ex.tree) === Node{Any}
-    @test typeof(ex.operators) <: GenericOperatorEnum
+    @test typeof(ex.metadata.operators) <: GenericOperatorEnum
     s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
     @test s == "[1, 2, 3] * tan(cos(5.0 + x))"
 
     # Can also force this to be a union type
+    v = [1, 2, 3]
     ex = @parse_expression(
-        [1, 2, 3] * tan(cos(5 + x)),
+        $v * tan(cos(5 + x)),
         operators = GenericOperatorEnum(;
             binary_operators=[*, +], unary_operators=[tan, cos]
         ),
@@ -106,10 +101,27 @@ let
         node_type = Node{Union{Int,Vector{Int}}}
     )
     @test typeof(ex.tree) === Node{Union{Int,Vector{Int}}}
-    @test typeof(ex.operators) <: GenericOperatorEnum
+    @test typeof(ex.metadata.operators) <: GenericOperatorEnum
     s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
     @test s == "[1, 2, 3] * tan(cos(5 + x))"
     # ^ Note how it does not convert to Float32 anymore
+
+    # However, we refuse to parse tuples and vectors
+    let operators = GenericOperatorEnum(;
+            binary_operators=[*, +], unary_operators=[tan, cos]
+        ),
+        variable_names = ["x"]
+
+        @test_throws ArgumentError @parse_expression(
+            [1, 2, 3] * tan(cos(5 + x)), operators, variable_names
+        )
+        if VERSION >= v"1.9"
+            @test_throws(
+                "Unrecognized expression type: `Expr(:vect, ...)`. ",
+                @parse_expression([1, 2, 3] * tan(cos(5 + x)), operators, variable_names)
+            )
+        end
+    end
 
     # Nice error message:
     if VERSION >= v"1.9"
@@ -118,15 +130,18 @@ let
         # Goes down to the first failure:
         @test_throws "Failed to evaluate tree [1, 2, 3] * tan(cos(5 + x1))" ex(randn(1, 1))
 
-        stacktrace = try
-            ex(randn(1, 1))
-            @test false
-        catch e
-            sprint(show, current_exceptions())
+        let stacktrace = try
+                ex(randn(1, 1))
+                @test false
+            catch e
+                sprint(show, current_exceptions())
+            end
+            @test occursin(
+                "Failed to evaluate tree [1, 2, 3] * tan(cos(5 + x1))", stacktrace
+            )
+            @test occursin("Failed to evaluate tree tan(cos(5 + x1))", stacktrace)
+            @test occursin("Failed to evaluate tree 5 + x1", stacktrace)
         end
-        @test occursin("Failed to evaluate tree [1, 2, 3] * tan(cos(5 + x1))", stacktrace)
-        @test occursin("Failed to evaluate tree tan(cos(5 + x1))", stacktrace)
-        @test occursin("Failed to evaluate tree 5 + x1", stacktrace)
     end
 
     # But, we can actually evaluate it for simple input
@@ -134,14 +149,15 @@ let
 end
 
 # Also check with tuple inputs
-let
+let tu = (1.0, 2.0im),
     ex = @parse_expression(
-        x * (1.0, 2.0im) - cos(y),
+        x * $tu - cos(y),
         operators = GenericOperatorEnum(; binary_operators=[*, -], unary_operators=[cos]),
         variable_names = ["x", "y"],
         node_type = Node{Tuple{Float64,ComplexF64}}
-    )
+    ),
     s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
+
     @test s == "(x * ((1.0, 0.0 + 2.0im))) - cos(y)"
     @test typeof(ex.tree) <: Node{Tuple{Float64,ComplexF64}}
 end
@@ -163,8 +179,7 @@ let
 end
 
 # Helpful errors for missing operator
-let
-    operators = OperatorEnum(; unary_operators=[sin])
+let operators = OperatorEnum(; unary_operators=[sin])
     @test_throws ArgumentError @parse_expression(
         cos(x), operators = operators, variable_names = [:x]
     )
@@ -201,8 +216,7 @@ let
 end
 
 # Helpful error for missing function in scope
-let
-    my_badly_scoped_function(x) = x
+let my_badly_scoped_function(x) = x
     @test_throws ArgumentError begin
         ex = @parse_expression(
             my_badly_scoped_function(x),
