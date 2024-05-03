@@ -126,3 +126,7 @@ end
 @safetestset "Test expressions" begin
     include("test_expressions.jl")
 end
+
+@safetestset "Test parsing" begin
+    include("test_parse.jl")
+end

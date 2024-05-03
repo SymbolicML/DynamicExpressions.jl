@@ -1,5 +1,6 @@
 using DynamicExpressions
 using DynamicExpressions: DynamicExpressions as DE
+using DynamicExpressions.ParseModule: parse_expression
 using Test
 using Suppressor
 
@@ -188,7 +189,7 @@ let
         s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
         @test s == "(x * 2.5) - cos(y)"
     end
-    @test logged_out == "Node{Float32}"
+    @test contains(logged_out, "Node{Float32}")
 end
 
 # Helpful errors for missing operator

@@ -280,27 +280,24 @@ function _parse_expression(
                 "If you meant to call an external function, please pass the function to the `evaluate_on` keyword argument.",
             ),
         )
-        N()
     end
 end
 function _parse_expression(
     ex::Symbol,
-    operators::AbstractOperatorEnum,
+    _::AbstractOperatorEnum,
     variable_names::AbstractVector,
     ::Type{N},
     evaluate_on::Union{Nothing,AbstractVector},
     calling_module,
 )::N where {N<:AbstractExpressionNode}
     i = findfirst(==(string(ex)), variable_names)
-    if i !== nothing
-        return N(; feature=i)
-    else
-        # If symbol not found in variable_names, then try interpolating
-        evaluated = Core.eval(calling_module, ex)
-        return _parse_expression(
-            evaluated, operators, variable_names, N, evaluate_on, calling_module
+    if i === nothing
+        error(
+            "Variable $(ex) not found in `variable_names`. " *
+            "Try interpolating with \$ if passing a variable.",
         )
     end
+    return N(; feature=i::Int)
 end
 function _parse_expression(
     val,

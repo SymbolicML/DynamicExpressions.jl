@@ -78,8 +78,19 @@ end
             ),
             variable_names = [:c],
         )
-        simplify_tree!(ex)
+        out = simplify_tree!(ex)
+        @test typeof(out) === typeof(ex)
         @test string_tree(ex) == "sin(3.0 + c)"
+
+        # ((const + var) + const) => (const + var)
+        ex = @parse_expression(
+            (2.0 + x) + 3.0,
+            operators = OperatorEnum(; binary_operators=[+, -]),
+            variable_names = [:x],
+        )
+        out = combine_operators(ex)
+        @test typeof(out) === typeof(ex)
+        @test string_tree(out) == "x + 5.0"
     end
 end
 

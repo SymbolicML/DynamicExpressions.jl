@@ -313,10 +313,14 @@ import ..SimplifyModule: combine_operators, simplify_tree!
 
 # Avoid implementing a generic version for these, as it is less likely to generalize
 function combine_operators(ex::Expression, operators=nothing; kws...)
-    return combine_operators(get_tree(ex), get_operators(ex, operators); kws...)
+    return Expression(
+        combine_operators(get_tree(ex), get_operators(ex, operators); kws...), ex.metadata
+    )
 end
 function simplify_tree!(ex::Expression, operators=nothing; kws...)
-    return simplify_tree!(get_tree(ex), get_operators(ex, operators); kws...)
+    return Expression(
+        simplify_tree!(get_tree(ex), get_operators(ex, operators); kws...), ex.metadata
+    )
 end
 
 end
