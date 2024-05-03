@@ -103,6 +103,10 @@ end
     include("test_extra_node_fields.jl")
 end
 
+@safetestset "Test multi expression" begin
+    include("test_multi_expression.jl")
+end
+
 @safetestset "Test containers preserved" begin
     include("test_container_preserved.jl")
 end
