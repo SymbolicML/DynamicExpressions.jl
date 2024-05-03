@@ -184,7 +184,7 @@ function _parse_expression(
                 ),
             )
         elseif length(args) > 3 &&
-            func in (+, -) &&
+            func in (+, -, *) &&
             (op = findfirst(==(func), operators.binops)) !== nothing
             # Either + or - but used with more than two arguments
             inner = N(;
