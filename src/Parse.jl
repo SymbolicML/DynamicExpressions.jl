@@ -80,15 +80,15 @@ typeof(x) = Node{Float32}
 ```
 """
 macro parse_expression(ex, kws...)
-    (; operators, variable_names, node_type, evaluate_on) = _parse_kws(kws)
+    parsed_kws = _parse_kws(kws)
     calling_module = __module__
     return esc(
         :($(parse_expression)(
             $(Meta.quot(ex));
-            operators=$operators,
-            variable_names=$variable_names,
-            node_type=$node_type,
-            evaluate_on=$evaluate_on,
+            operators=$(parsed_kws.operators),
+            variable_names=$(parsed_kws.variable_names),
+            node_type=$(parsed_kws.node_type),
+            evaluate_on=$(parsed_kws.evaluate_on),
             calling_module=$calling_module,
         )),
     )
