@@ -29,36 +29,33 @@ as well as associated metadata to evaluate and render the expression.
 
 # Interface
 
-An `AbstractExpression` must declare:
+## Required methods
 
-1.
+- `get_tree`
+- `get_operators`
+- `get_variable_names`
 
-```julia
-get_operators(ex::AbstractExpression, cur_operators::Union{Nothing,Any})
-```
+## Optional methods
 
-which will return the operators to be passed to internal functions
-such as `eval_tree_array` or `string_tree`, either from the expression itself,
-or `cur_operators` if it is not `nothing`. If left as default,
-it requires `cur_operators` to not be `nothing`.
-`cur_operators` would typically be an `OperatorEnum`.
+Many of these optional methods will use
+the three required methods, but for custom behavior,
+you can overload them.
 
-2.
-
-```julia
-get_variable_names(ex::AbstractExpression, cur_variable_names::Union{Nothing,AbstractVector{<:AbstractString}})
-```
-
-The same as `operators`, but for variable names.
-
-3.
-
-```
-get_tree(ex::AbstractExpression)
-```
-
-A method that extracts the expression tree from `AbstractExpression`
-and should return an `AbstractExpressionNode`.
+- `Base.copy`
+- `Base.hash`
+- `count_nodes`
+- `count_constants`
+- `count_depth`
+- `index_constants`
+- `has_operators`
+- `has_constants`
+- `get_constants`
+- `set_constants!`
+- `string_tree`
+- `max_feature`
+- `eval_tree_array`
+- `eval_grad_tree_array`
+- `_grad_evaluator`
 """
 abstract type AbstractExpression{T} end
 
@@ -93,41 +90,41 @@ end
     return Expression(tree, Metadata(metadata))
 end
 
-# TODO: Use-cases:
-# 1. Multi-tree expressions with constraints
-#
-#   Can store as a NamedTuple of scalar trees. See `test/test_multi_expression.jl`
-#
-# 2. Parametric expressions
-#
-#   Metadata would store an additional `parameters`. Those parameters
-#   could be stored as a separate `metadata.parameters` field. Would then
-#   overload `get` of such an expression would create additional feature axes.
-#
-#   Perhaps the `eval_tree_array` would take an extra `class` argument?
-#
-# 3. Freezing parts of expression
-#
-#   We can create a `FreezableNode`, see `test/test_extra_node_fields.jl`
-#
-
 ########################################################
 # Abstract interface ###################################
 ########################################################
-for f in (:get_operators, :get_variable_names, :get_tree)
-    args = f == :get_tree ? () : (:(_),)
-    @eval function $f(ex::AbstractExpression, $(args...))
-        throw(
-            MethodError(
-                $f,
-                "`" *
-                string($f) *
-                "` function must be implemented for " *
-                string(typeof(ex)) *
-                " types.",
-            ),
-        )
-    end
+"""
+    get_operators(ex::AbstractExpression, operators::Union{Nothing,Any})
+
+which will return the operators to be passed to internal functions
+such as `eval_tree_array` or `string_tree`, either from the expression itself,
+or `cur_operators` if it is not `nothing`. If left as default,
+it requires `cur_operators` to not be `nothing`.
+`cur_operators` would typically be an `OperatorEnum`.
+"""
+function get_operators(ex::AbstractExpression, operators)
+    return error("`get_operators` function must be implemented for $(typeof(ex)) types.")
+end
+
+"""
+    get_variable_names(ex::AbstractExpression, variable_names::Union{Nothing,AbstractVector{<:AbstractString}})
+
+The same as `operators`, but for variable names.
+"""
+function get_variable_names(ex::AbstractExpression, variable_names)
+    return error(
+        "`get_variable_names` function must be implemented for $(typeof(ex)) types."
+    )
+end
+
+"""
+    get_tree(ex::AbstractExpression)
+
+A method that extracts the expression tree from `AbstractExpression`
+and should return an `AbstractExpressionNode`.
+"""
+function get_tree(ex::AbstractExpression)
+    return error("`get_tree` function must be implemented for $(typeof(ex)) types.")
 end
 ########################################################
 
@@ -192,7 +189,7 @@ index_constants(ex::AbstractExpression, ::Type{T}=UInt16) where {T} = index_cons
 has_operators(ex::AbstractExpression) = has_operators(get_tree(ex))
 has_constants(ex::AbstractExpression) = has_constants(get_tree(ex))
 get_constants(ex::AbstractExpression) = get_constants(get_tree(ex))
-set_constants!(ex::AbstractExpression, constants) = set_constants!(get_tree(ex), constants)
+set_constants!(ex::AbstractExpression{T}, constants::AbstractVector{T}) where {T} = set_constants!(get_tree(ex), constants)
 #! format: on
 
 import ..StringsModule: string_tree, print_tree
@@ -259,16 +256,12 @@ function eval_tree_array(
     _validate_input(ex, cX, operators)
     return eval_tree_array(get_tree(ex), cX, get_operators(ex, operators); kws...)
 end
-function differentiable_eval_tree_array(
-    ex::AbstractExpression, cX::AbstractMatrix, operators=nothing; kws...
-)
-    _validate_input(ex, cX, operators)
-    return differentiable_eval_tree_array(
-        get_tree(ex), cX, get_operators(ex, operators); kws...
-    )
-end
 
-import ..EvaluateDerivativeModule: eval_diff_tree_array, eval_grad_tree_array
+import ..EvaluateDerivativeModule: eval_grad_tree_array
+
+# skipped (not used much)
+#  - eval_diff_tree_array
+#  - differentiable_eval_tree_array
 
 function eval_diff_tree_array(
     ex::AbstractExpression, cX::AbstractMatrix, operators=nothing; kws...
