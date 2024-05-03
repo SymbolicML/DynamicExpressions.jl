@@ -19,6 +19,8 @@ Base.show(io::IO, x::Metadata) = print(io, "Metadata(", _data(x), ")")
     copied_nt = NamedTuple{keys(nt)}(map(copy, values(nt)))
     return Metadata(copied_nt)
 end
+@inline Base.:(==)(x::Metadata, y::Metadata) = _data(x) == _data(y)
+@inline Base.hash(x::Metadata, h::UInt) = hash(_data(x), h)
 
 """
     AbstractExpression{T}
@@ -34,6 +36,9 @@ as well as associated metadata to evaluate and render the expression.
 - `get_tree`
 - `get_operators`
 - `get_variable_names`
+- `Base.copy`
+- `Base.hash`
+- `Base.:(==)`
 
 ## Optional methods
 
@@ -41,8 +46,6 @@ Many of these optional methods will use
 the three required methods, but for custom behavior,
 you can overload them.
 
-- `Base.copy`
-- `Base.hash`
 - `count_nodes`
 - `count_constants`
 - `count_depth`
@@ -126,6 +129,16 @@ and should return an `AbstractExpressionNode`.
 function get_tree(ex::AbstractExpression)
     return error("`get_tree` function must be implemented for $(typeof(ex)) types.")
 end
+
+function Base.copy(ex::AbstractExpression; break_sharing::Val=Val(false))
+    return error("`copy` function must be implemented for $(typeof(ex)) types.")
+end
+function Base.hash(ex::AbstractExpression, h::UInt)
+    return error("`hash` function must be implemented for $(typeof(ex)) types.")
+end
+function Base.:(==)(x::AbstractExpression, y::AbstractExpression)
+    return error("`==` function must be implemented for $(typeof(ex)) types.")
+end
 ########################################################
 
 function get_operators(ex::Expression, operators)
@@ -136,6 +149,15 @@ function get_variable_names(ex::Expression, variable_names)
 end
 function get_tree(ex::Expression)
     return ex.tree
+end
+function Base.copy(ex::Expression; break_sharing::Val=Val(false))
+    return Expression(copy(ex.tree; break_sharing), copy(ex.metadata))
+end
+function Base.hash(ex::Expression, h::UInt)
+    return hash(ex.tree, hash(ex.metadata, h))
+end
+function Base.:(==)(x::Expression, y::Expression)
+    return x.tree == y.tree && x.metadata == y.metadata
 end
 
 import ..NodeModule: constructorof
@@ -263,12 +285,6 @@ import ..EvaluateDerivativeModule: eval_grad_tree_array
 #  - eval_diff_tree_array
 #  - differentiable_eval_tree_array
 
-function eval_diff_tree_array(
-    ex::AbstractExpression, cX::AbstractMatrix, operators=nothing; kws...
-)
-    _validate_input(ex, cX, operators)
-    return eval_diff_tree_array(get_tree(ex), cX, get_operators(ex, operators); kws...)
-end
 function eval_grad_tree_array(
     ex::AbstractExpression, cX::AbstractMatrix, operators=nothing; kws...
 )
@@ -304,12 +320,6 @@ function combine_operators(ex::Expression, operators=nothing; kws...)
 end
 function simplify_tree!(ex::Expression, operators=nothing; kws...)
     return simplify_tree!(get_tree(ex), get_operators(ex, operators); kws...)
-end
-function Base.copy(ex::Expression; break_sharing::Val=Val(false))
-    return Expression(copy(ex.tree; break_sharing), copy(ex.metadata))
-end
-function Base.hash(ex::Expression, h::UInt)
-    return hash(ex.tree, hash(ex.metadata, h))
 end
 
 end

@@ -21,6 +21,14 @@ using Test
 
         @test get_operators(expr, copy_operators) === copy_operators
         @test get_variable_names(expr, copy_variable_names) === copy_variable_names
+
+        @inferred copy_node(expr)
+        @test copy(expr) == expr
+        @test hash(copy(expr)) == hash(expr)
+
+        expr2 = Expression(Node(; op=1, l=tree), (; operators, variable_names))
+        @test copy_node(expr2) != expr
+        @test hash(copy(expr2)) != hash(expr)
     end
 end
 
