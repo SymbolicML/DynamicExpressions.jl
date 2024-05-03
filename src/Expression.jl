@@ -305,8 +305,8 @@ end
 function simplify_tree!(ex::Expression, operators=nothing; kws...)
     return simplify_tree!(get_tree(ex), get_operators(ex, operators); kws...)
 end
-function Base.copy(ex::Expression)
-    return Expression(copy(ex.tree), copy(ex.metadata))
+function Base.copy(ex::Expression; break_sharing::Val=Val(false))
+    return Expression(copy(ex.tree; break_sharing), copy(ex.metadata))
 end
 function Base.hash(ex::Expression, h::UInt)
     return hash(ex.tree, hash(ex.metadata, h))
