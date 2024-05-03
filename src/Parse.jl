@@ -88,17 +88,36 @@ macro parse_expression(ex, kws...)
 
     # Iterate over keyword arguments to extract operators and variable_names
     for kw in kws
-        if kw.head == :(=)
+        if kw isa Symbol
+            if kw == :operators
+                operators = kw
+                continue
+            elseif kw == :variable_names
+                variable_names = kw
+                continue
+            elseif kw == :node_type
+                node_type = kw
+                continue
+            elseif kw == :evaluate_on
+                evaluate_on = kw
+                continue
+            end
+        elseif kw isa Expr && kw.head == :(=)
             if kw.args[1] == :operators
                 operators = kw.args[2]
+                continue
             elseif kw.args[1] == :variable_names
                 variable_names = kw.args[2]
+                continue
             elseif kw.args[1] == :node_type
                 node_type = kw.args[2]
+                continue
             elseif kw.args[1] == :evaluate_on
                 evaluate_on = kw.args[2]
+                continue
             end
         end
+        throw(ArgumentError("Unrecognized argument: $kw"))
     end
 
     # Ensure that operators and variable_names are provided

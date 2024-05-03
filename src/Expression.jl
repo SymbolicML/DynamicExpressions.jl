@@ -9,8 +9,8 @@ using ..UtilsModule: Undefined
 struct Metadata{NT<:NamedTuple}
     _data::NT
 end
-
 _data(x::Metadata) = getfield(x, :_data)
+
 Base.propertynames(x::Metadata) = propertynames(_data(x))
 Base.getproperty(x::Metadata, f::Symbol) = (@inline; getproperty(_data(x), f))
 Base.show(io::IO, x::Metadata) = print(io, "Metadata(", _data(x), ")")
@@ -96,13 +96,7 @@ end
 # TODO: Use-cases:
 # 1. Multi-tree expressions with constraints
 #
-#   Can store as a NamedTuple of scalar trees.
-#
-#   `get_operators` returns both the options and also constraints.
-#   `get_tree` can stitch trees together into one larger expression?
-#      - Could also have it set the feature indices to a global set,
-#        which would let you do things like `f(x) + f(y)`.
-#   `string_tree` can be overloaded to print them separately?
+#   Can store as a NamedTuple of scalar trees. See `test/test_multi_expression.jl`
 #
 # 2. Parametric expressions
 #
@@ -114,11 +108,7 @@ end
 #
 # 3. Freezing parts of expression
 #
-#  I think this might require modifying the tree type itself
-#  to hold an `extra::E` property. Then a `canfreeze` argument
-#  for the node type, and `frozen(_) = false` for individual nodes.
-#  Or, perhaps we simply extend `AbstractExpressionNode` to accommodate
-#  extra fields?
+#   We can create a `FreezableNode`, see `test/test_extra_node_fields.jl`
 #
 
 ########################################################
@@ -130,7 +120,11 @@ for f in (:get_operators, :get_variable_names, :get_tree)
         throw(
             MethodError(
                 $f,
-                "`$f` function must be implemented for " * string(typeof(ex)) * " types.",
+                "`" *
+                string($f) *
+                "` function must be implemented for " *
+                string(typeof(ex)) *
+                " types.",
             ),
         )
     end
