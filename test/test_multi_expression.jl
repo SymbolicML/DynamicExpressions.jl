@@ -52,6 +52,9 @@ if VERSION >= v"1.9"
         multi_ex, nothing
     )
     @test_throws "`get_tree` function must be implemented for" DE.get_tree(multi_ex)
+    @test_throws "`copy` function must be implemented for" copy(multi_ex)
+    @test_throws "`hash` function must be implemented for" hash(multi_ex, UInt(0))
+    @test_throws "`==` function must be implemented for" multi_ex == multi_ex
 end
 
 tree_factory(f::F, trees) where {F} = f(; trees...)
@@ -69,3 +72,7 @@ end
 s = sprint((io, ex) -> show(io, MIME"text/plain"(), ex), multi_ex)
 
 @test s == "((c * 2.5) - cos(a)) + (((b * b) * b) + (c / 0.2))"
+
+s = sprint((io, ex) -> print_tree(io, ex), multi_ex)
+
+@test s == "((c * 2.5) - cos(a)) + (((b * b) * b) + (c / 0.2))\n"

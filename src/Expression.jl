@@ -12,7 +12,7 @@ end
 _data(x::Metadata) = getfield(x, :_data)
 
 Base.propertynames(x::Metadata) = propertynames(_data(x))
-Base.getproperty(x::Metadata, f::Symbol) = (@inline; getproperty(_data(x), f))
+@inline Base.getproperty(x::Metadata, f::Symbol) = getproperty(_data(x), f)
 Base.show(io::IO, x::Metadata) = print(io, "Metadata(", _data(x), ")")
 @inline function Base.copy(metadata::Metadata)
     nt = _data(metadata)
@@ -137,7 +137,7 @@ function Base.hash(ex::AbstractExpression, h::UInt)
     return error("`hash` function must be implemented for $(typeof(ex)) types.")
 end
 function Base.:(==)(x::AbstractExpression, y::AbstractExpression)
-    return error("`==` function must be implemented for $(typeof(ex)) types.")
+    return error("`==` function must be implemented for $(typeof(x)) types.")
 end
 ########################################################
 
@@ -159,9 +159,6 @@ end
 function Base.:(==)(x::Expression, y::Expression)
     return x.tree == y.tree && x.metadata == y.metadata
 end
-
-import ..NodeModule: constructorof
-constructorof(::Type{<:Expression}) = Expression
 
 # Overload all methods on AbstractExpressionNode that return an aggregation, or can
 # return an entire tree. Methods that only return the nodes are *not* overloaded, so

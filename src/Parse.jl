@@ -80,6 +80,21 @@ typeof(x) = Node{Float32}
 ```
 """
 macro parse_expression(ex, kws...)
+    (; operators, variable_names, node_type, evaluate_on) = _parse_kws(kws)
+    calling_module = __module__
+    return esc(
+        :($(parse_expression)(
+            $(Meta.quot(ex));
+            operators=$operators,
+            variable_names=$variable_names,
+            node_type=$node_type,
+            evaluate_on=$evaluate_on,
+            calling_module=$calling_module,
+        )),
+    )
+end
+
+function _parse_kws(kws)
     # Initialize default values for operators and variable_names
     operators = nothing
     variable_names = nothing
@@ -117,38 +132,23 @@ macro parse_expression(ex, kws...)
                 continue
             end
         end
-        throw(ArgumentError("Unrecognized argument: $kw"))
+        throw(ArgumentError("Unrecognized argument: `$kw`"))
     end
 
     # Ensure that operators and variable_names are provided
     @assert operators !== nothing "The 'operators' keyword argument must be provided."
     @assert variable_names !== nothing "The 'variable_names' keyword argument must be provided."
-
-    # We want to expand the expression in the calling module to parse the functions
-    # correctly.
-    # We also evaluate all expressions in a `let` to ensure internal
-    # variable names don't collide.
-    calling_module = __module__
-    return esc(
-        :($(parse_expression)(
-            $(Meta.quot(ex)),
-            $operators,
-            $variable_names,
-            $node_type,
-            $evaluate_on,
-            $calling_module,
-        )),
-    )
+    return (; operators, variable_names, node_type, evaluate_on)
 end
 
 """Parse an expression Julia `Expr` object."""
 function parse_expression(
-    ex,
+    ex;
+    calling_module,
     operators::AbstractOperatorEnum,
     variable_names::AbstractVector,
-    ::Type{N},
-    evaluate_on::Union{Nothing,AbstractVector},
-    calling_module,
+    node_type::Type{N}=Node,
+    evaluate_on::Union{Nothing,AbstractVector}=nothing,
 ) where {N<:AbstractExpressionNode}
     empty_all_globals!()
     let variable_names = if eltype(variable_names) isa AbstractString

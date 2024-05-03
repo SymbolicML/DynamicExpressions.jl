@@ -29,6 +29,14 @@ using Test
         expr2 = Expression(Node(; op=1, l=tree), (; operators, variable_names))
         @test copy_node(expr2) != expr
         @test hash(copy(expr2)) != hash(expr)
+
+        @test propertynames(expr.metadata) == (:operators, :variable_names)
+
+        @test count_nodes(expr2) == 2
+
+        @test tree_mapreduce(_ -> 2, +, expr2) == 4
+        @test tree_mapreduce(_ -> 2, _ -> 3, +, expr2) == 5
+        @test count_depth(expr2) == 2
     end
 end
 
@@ -50,10 +58,28 @@ end
             @test_nowarn begin
                 result = ex(X)
                 @test result ≈ expected
+                result, _ = eval_tree_array(ex, X)
+                @test result ≈ expected
                 result_grad = ex'(X)
+                @test result_grad[1, :] ≈ expected_dy_dx1
+                _, result_grad, _ = eval_grad_tree_array(ex, X; variable=Val(true))
                 @test result_grad[1, :] ≈ expected_dy_dx1
             end
         end
+    end
+end
+
+@testset "Simplification" begin
+    let
+        ex = @parse_expression(
+            sin(2.0 + 1.0 + c),
+            operators = OperatorEnum(;
+                binary_operators=[+, -, *, /], unary_operators=[sin, cos, exp]
+            ),
+            variable_names = [:c],
+        )
+        simplify_tree!(ex)
+        @test string_tree(ex) == "sin(3.0 + c)"
     end
 end
 
@@ -92,6 +118,35 @@ end
         s2 = sprint((io, ex) -> show(io, MIME"text/plain"(), ex), modified_ex)
         @test s2 == "($s1) + 1.5"
         @test hash(ex) != hash(modified_ex)
+
+        variable_names = []
+        ex = @parse_expression(
+            1.5 + 2.5, operators = OperatorEnum(; binary_operators=[+]), variable_names
+        )
+        @test has_operators(ex) == true
+        ex = @parse_expression(
+            1.5, operators = OperatorEnum(; binary_operators=[+]), variable_names
+        )
+        @test has_operators(ex) == false
+        @test count_constants(ex) == 1
+        node_index = index_constants(ex)
+        @test node_index isa NodeIndex
+        @test node_index.val == 1
+        ex = @parse_expression(
+            1.5 + 2.5, operators = OperatorEnum(; binary_operators=[+]), variable_names
+        )
+        node_index = index_constants(ex)
+        @test node_index.l.val == 1
+        @test node_index.r.val == 2
+        @test get_constants(ex) == [1.5, 2.5]
+        set_constants!(ex, [3.5, 4.5])
+        @test get_constants(ex) == [3.5, 4.5]
+        @test count_constants(ex) == 2
+        @test has_constants(ex) == true
+        ex = @parse_expression(
+            a, operators = OperatorEnum(; binary_operators=[+]), variable_names = [:a]
+        )
+        @test has_constants(ex) == false
     end
 end
 
