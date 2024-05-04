@@ -180,7 +180,7 @@ function _parse_expression(
     )
     args = ex.args
     func = try
-        Core.eval(calling_module, first(ex.args))::Function
+        Core.eval(calling_module, first(ex.args))
     catch
         throw(
             ArgumentError(
@@ -188,8 +188,7 @@ function _parse_expression(
                 "Make sure the function is defined in that module.",
             ),
         )
-        () -> ()
-    end
+    end::Function
     return _parse_expression(
         func, args, operators, variable_names, N, evaluate_on, calling_module
     )

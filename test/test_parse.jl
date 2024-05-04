@@ -324,3 +324,14 @@ let
         ])
     end
 end
+
+# Misc tests
+let
+    ex = parse_expression(
+        :(x);
+        operators=OperatorEnum(; binary_operators=[+, -, *, /]),
+        variable_names=["x"],
+        calling_module=@__MODULE__,
+    )
+    @test string_tree(ex) == "x"
+end
