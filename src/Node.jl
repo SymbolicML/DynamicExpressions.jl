@@ -61,7 +61,6 @@ You likely do not need to, but you could choose to override the following:
 - `constructorof`
 - `with_type_parameters`
 
-```
 """
 abstract type AbstractExpressionNode{T} <: AbstractNode end
 
