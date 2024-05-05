@@ -151,7 +151,7 @@ function parse_expression(
     evaluate_on::Union{Nothing,AbstractVector}=nothing,
 ) where {N<:AbstractExpressionNode}
     empty_all_globals!()
-    let variable_names = if eltype(variable_names) isa AbstractString
+    let variable_names = if eltype(variable_names) <: AbstractString
             variable_names
         else
             string.(variable_names)
@@ -291,9 +291,11 @@ function _parse_expression(
 )::N where {N<:AbstractExpressionNode}
     i = findfirst(==(string(ex)), variable_names)
     if i === nothing
-        error(
-            "Variable $(ex) not found in `variable_names`. " *
-            "Try interpolating with \$ if passing a variable.",
+        throw(
+            ArgumentError(
+                "Variable `$(ex)` not found in `variable_names`. " *
+                "Consider interpolating with \$ if passing a value.",
+            ),
         )
     end
     return N(; feature=i::Int)

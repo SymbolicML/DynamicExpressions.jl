@@ -278,6 +278,19 @@ let my_badly_scoped_function(x) = x
     end
 end
 
+# Helpful error for missing variable name
+let
+    @test_throws ArgumentError @parse_expression(
+        x + y, operators = operators, variable_names = ["x"],
+    )
+    if VERSION >= v"1.9"
+        # "Variable $(ex) not found in `variable_names`. " *
+        @test_throws "Variable `y` not found in `variable_names`." parse_expression(
+            :(x + y); operators=operators, variable_names=["x"], calling_module=@__MODULE__
+        )
+    end
+end
+
 # Helpful error for bad keyword
 let
     @test_throws LoadError @eval @parse_expression(x, variable_names = [:x], bad_arg = true)
