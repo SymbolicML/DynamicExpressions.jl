@@ -1,5 +1,7 @@
 module ParseModule
 
+using TestItems: @testitem
+
 using ..NodeModule: AbstractExpressionNode, Node
 using ..OperatorEnumModule: AbstractOperatorEnum
 using ..OperatorEnumConstructionModule: empty_all_globals!
@@ -139,6 +141,36 @@ function _parse_kws(kws)
     @assert operators !== nothing "The 'operators' keyword argument must be provided."
     @assert variable_names !== nothing "The 'variable_names' keyword argument must be provided."
     return (; operators, variable_names, node_type, evaluate_on)
+end
+
+@testitem "Test parsing of keywords" begin
+    using DynamicExpressions
+    using DynamicExpressions: DynamicExpressions as DE
+
+    kws = [
+        :(operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])),
+        :(variable_names = [:x, :y]),
+        :(node_type = GraphNode),
+        :(evaluate_on = [show]),
+    ]
+    result = DE.ParseModule._parse_kws(kws)
+    @test result.operators ==
+        :(OperatorEnum(; binary_operators=[+, *], unary_operators=[sin]))
+    @test result.variable_names == :([:x, :y])
+    @test result.node_type == :(GraphNode)
+    @test result.evaluate_on == :([show])
+    kws = [:(operators), :(variable_names), :(node_type), :(evaluate_on)]
+    result = DE.ParseModule._parse_kws(kws)
+    @test result.operators == :(operators)
+    @test result.variable_names == :(variable_names)
+    @test result.node_type == :(node_type)
+    @test result.evaluate_on == :(evaluate_on)
+
+    if VERSION >= v"1.9"
+        @test_throws "Unrecognized argument: `bad_keyword`" DE.ParseModule._parse_kws([
+            :bad_keyword
+        ])
+    end
 end
 
 """Parse an expression Julia `Expr` object."""
