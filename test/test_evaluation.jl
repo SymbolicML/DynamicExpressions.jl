@@ -1,4 +1,6 @@
 using DynamicExpressions
+using Bumper
+using LoopVectorization
 using Random
 using Test
 include("test_params.jl")
