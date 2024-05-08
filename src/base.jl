@@ -494,6 +494,7 @@ function convert(
         tree,
         N1,
     )
+    # TODO: Need to allow user to overload this!
 end
 function convert(
     ::Type{N1}, tree::N2

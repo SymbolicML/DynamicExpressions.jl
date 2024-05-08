@@ -10,7 +10,7 @@ using Test
         operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
         variable_names = ["x"]
 
-        expr = Expression(tree, (; operators, variable_names))
+        expr = Expression(tree; operators, variable_names)
 
         @test get_tree(expr) === tree
         @test get_operators(expr, nothing) === operators
@@ -26,7 +26,7 @@ using Test
         @test copy(expr) == expr
         @test hash(copy(expr)) == hash(expr)
 
-        expr2 = Expression(Node(; op=1, l=tree), (; operators, variable_names))
+        expr2 = Expression(Node(; op=1, l=tree); operators, variable_names)
         @test copy_node(expr2) != expr
         @test hash(copy(expr2)) != hash(expr)
 

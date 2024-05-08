@@ -131,3 +131,7 @@ end
 @testitem "Test parsing" begin
     include("test_parse.jl")
 end
+
+@testitem "Test parametric expression" begin
+    include("test_parametric_expression.jl")
+end
