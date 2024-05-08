@@ -84,10 +84,10 @@ function DE.leaf_equal(a::ParametricNode, b::ParametricNode)
     if a.constant
         return b.constant && a.val == b.val
     else
-        if a.is_parameter
-            return b.is_parameter && a.parameter == b.parameter
+        if a.feature
+            return b.feature && a.feature == b.feature
         else
-            return b.is_parameter && a.feature == b.feature
+            return b.is_parameter && a.parameter == b.parameter
         end
     end
 end
