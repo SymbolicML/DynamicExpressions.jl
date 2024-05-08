@@ -63,7 +63,7 @@ import .NodeModule:
 # Not for export; just for overloading
 import .ExpressionModule: get_tree, get_operators, get_variable_names, Metadata
 @reexport import .ParseModule: @parse_expression
-import .ParseModule: parse_expression
+import .ParseModule: parse_expression, parse_leaf
 
 function __init__()
     @require_extensions

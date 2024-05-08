@@ -1,6 +1,6 @@
 module ParseModule
 
-using ..NodeModule: AbstractExpressionNode, Node
+using ..NodeModule: AbstractExpressionNode, Node, constructorof
 using ..OperatorEnumModule: AbstractOperatorEnum
 using ..OperatorEnumConstructionModule: empty_all_globals!
 using ..ExpressionModule: AbstractExpression, Expression
@@ -20,6 +20,7 @@ Parse a symbolic expression `expr` into a computational graph where nodes repres
 - `variable_names`: A list of variable names as strings or symbols that are allowed in the expression.
 - `evaluate_on`: A list of external functions to evaluate explicitly when encountered.
 - `node_type`: The type of the nodes in the resulting expression tree. Defaults to `Node`.
+- `expression_type`: The type of the resulting expression. Defaults to `Expression`.
 
 ## Usage
 
@@ -88,8 +89,10 @@ macro parse_expression(ex, kws...)
             operators=$(parsed_kws.operators),
             variable_names=$(parsed_kws.variable_names),
             node_type=$(parsed_kws.node_type),
+            expression_type=$(parsed_kws.expression_type),
             evaluate_on=$(parsed_kws.evaluate_on),
             calling_module=$calling_module,
+            $(parsed_kws.extra_metadata)...,
         )),
     )
 end
@@ -99,7 +102,9 @@ function _parse_kws(kws)
     operators = nothing
     variable_names = nothing
     node_type = Node
+    expression_type = Expression
     evaluate_on = nothing
+    extra_metadata = ()
 
     # Iterate over keyword arguments to extract operators and variable_names
     for kw in kws
@@ -113,8 +118,14 @@ function _parse_kws(kws)
             elseif kw == :node_type
                 node_type = kw
                 continue
+            elseif kw == :expression_type
+                expression_type = kw
+                continue
             elseif kw == :evaluate_on
                 evaluate_on = kw
+                continue
+            elseif kw == :extra_metadata
+                extra_metadata = kw
                 continue
             end
         elseif kw isa Expr && kw.head == :(=)
@@ -127,18 +138,29 @@ function _parse_kws(kws)
             elseif kw.args[1] == :node_type
                 node_type = kw.args[2]
                 continue
+            elseif kw.args[1] == :expression_type
+                expression_type = kw.args[2]
+                continue
             elseif kw.args[1] == :evaluate_on
                 evaluate_on = kw.args[2]
                 continue
+            elseif kw.args[1] == :extra_metadata
+                extra_metadata = kw.args[2]
+                continue
             end
         end
-        throw(ArgumentError("Unrecognized argument: `$kw`"))
+        throw(
+            ArgumentError(
+                "Unrecognized argument: `$kw`. The available arguments are `operators`, `variable_names`, `node_type`, `expression_type`, `evaluate_on`, and `extra_metadata`.",
+            ),
+        )
     end
 
-    # Ensure that operators and variable_names are provided
+    # Ensure that operators are provided
     @assert operators !== nothing "The 'operators' keyword argument must be provided."
-    @assert variable_names !== nothing "The 'variable_names' keyword argument must be provided."
-    return (; operators, variable_names, node_type, evaluate_on)
+    return (;
+        operators, variable_names, node_type, expression_type, evaluate_on, extra_metadata
+    )
 end
 
 """Parse an expression Julia `Expr` object."""
@@ -146,32 +168,38 @@ function parse_expression(
     ex;
     calling_module,
     operators::AbstractOperatorEnum,
-    variable_names::AbstractVector,
+    variable_names::Union{AbstractVector,Nothing}=nothing,
     node_type::Type{N}=Node,
+    expression_type::Type{E}=Expression,
     evaluate_on::Union{Nothing,AbstractVector}=nothing,
-) where {N<:AbstractExpressionNode}
+    kws...,
+) where {N<:AbstractExpressionNode,E<:AbstractExpression}
     empty_all_globals!()
-    let variable_names = if eltype(variable_names) <: AbstractString
+    let variable_names = if variable_names === nothing
+            nothing
+        elseif eltype(variable_names) <: AbstractString
             variable_names
         else
             string.(variable_names)
         end
         tree = _parse_expression(
-            ex, operators, variable_names, N, evaluate_on, calling_module
+            ex, operators, variable_names, N, E, evaluate_on, calling_module; kws...
         )
 
-        return Expression(tree, (; operators, variable_names))
+        return constructorof(E)(tree; operators, variable_names, kws...)
     end
 end
 
 function _parse_expression(
     ex::Expr,
     operators::AbstractOperatorEnum,
-    variable_names::AbstractVector{<:AbstractString},
+    variable_names::Union{AbstractVector{<:AbstractString},Nothing},
     ::Type{N},
+    ::Type{E},
     evaluate_on::Union{Nothing,AbstractVector},
-    calling_module,
-) where {N<:AbstractExpressionNode}
+    calling_module;
+    kws...,
+) where {N<:AbstractExpressionNode,E<:AbstractExpression}
     ex.head != :call && throw(
         ArgumentError(
             "Unrecognized expression type: `Expr(:$(ex.head), ...)`. " *
@@ -190,25 +218,34 @@ function _parse_expression(
         )
     end::Function
     return _parse_expression(
-        func, args, operators, variable_names, N, evaluate_on, calling_module
+        func, args, operators, variable_names, N, E, evaluate_on, calling_module; kws...
     )
 end
 function _parse_expression(
     func::F,
     args,
     operators::AbstractOperatorEnum,
-    variable_names::AbstractVector{<:AbstractString},
+    variable_names::Union{AbstractVector{<:AbstractString},Nothing},
     ::Type{N},
+    ::Type{E},
     evaluate_on::Union{Nothing,AbstractVector},
-    calling_module,
-)::N where {F<:Function,N<:AbstractExpressionNode}
+    calling_module;
+    kws...,
+)::N where {F<:Function,N<:AbstractExpressionNode,E<:AbstractExpression}
     if length(args) == 2 && func ∈ operators.unaops
         # Regular unary operator
         op = findfirst(==(func), operators.unaops)::Int
         return N(;
             op=op::Int,
             l=_parse_expression(
-                args[2], operators, variable_names, N, evaluate_on, calling_module
+                args[2],
+                operators,
+                variable_names,
+                N,
+                E,
+                evaluate_on,
+                calling_module;
+                kws...,
             ),
         )
     elseif length(args) == 3 && func ∈ operators.binops
@@ -217,10 +254,24 @@ function _parse_expression(
         return N(;
             op=op::Int,
             l=_parse_expression(
-                args[2], operators, variable_names, N, evaluate_on, calling_module
+                args[2],
+                operators,
+                variable_names,
+                N,
+                E,
+                evaluate_on,
+                calling_module;
+                kws...,
             ),
             r=_parse_expression(
-                args[3], operators, variable_names, N, evaluate_on, calling_module
+                args[3],
+                operators,
+                variable_names,
+                N,
+                E,
+                evaluate_on,
+                calling_module;
+                kws...,
             ),
         )
     elseif length(args) > 3 && func in (+, -, *) && func ∈ operators.binops
@@ -229,10 +280,24 @@ function _parse_expression(
         inner = N(;
             op=op::Int,
             l=_parse_expression(
-                args[2], operators, variable_names, N, evaluate_on, calling_module
+                args[2],
+                operators,
+                variable_names,
+                N,
+                E,
+                evaluate_on,
+                calling_module;
+                kws...,
             ),
             r=_parse_expression(
-                args[3], operators, variable_names, N, evaluate_on, calling_module
+                args[3],
+                operators,
+                variable_names,
+                N,
+                E,
+                evaluate_on,
+                calling_module;
+                kws...,
             ),
         )
         for arg in args[4:end]
@@ -240,7 +305,14 @@ function _parse_expression(
                 op=op::Int,
                 l=inner,
                 r=_parse_expression(
-                    arg, operators, variable_names, N, evaluate_on, calling_module
+                    arg,
+                    operators,
+                    variable_names,
+                    N,
+                    E,
+                    evaluate_on,
+                    calling_module;
+                    kws...,
                 ),
             )
         end
@@ -250,7 +322,14 @@ function _parse_expression(
         func(
             map(
                 arg -> _parse_expression(
-                    arg, operators, variable_names, N, evaluate_on, calling_module
+                    arg,
+                    operators,
+                    variable_names,
+                    N,
+                    E,
+                    evaluate_on,
+                    calling_module;
+                    kws...,
                 ),
                 args[2:end],
             )...,
@@ -282,33 +361,22 @@ function _parse_expression(
     end
 end
 function _parse_expression(
-    ex::Symbol,
-    _::AbstractOperatorEnum,
-    variable_names::AbstractVector,
-    ::Type{N},
+    ex,
+    operators::AbstractOperatorEnum,
+    variable_names::Union{AbstractVector{<:AbstractString},Nothing},
+    node_type::Type{<:AbstractExpressionNode},
+    expression_type::Type{<:AbstractExpression},
     evaluate_on::Union{Nothing,AbstractVector},
-    calling_module,
-)::N where {N<:AbstractExpressionNode}
-    i = findfirst(==(string(ex)), variable_names)
-    if i === nothing
-        throw(
-            ArgumentError(
-                "Variable `$(ex)` not found in `variable_names`. " *
-                "Consider interpolating with \$ if passing a value.",
-            ),
-        )
-    end
-    return N(; feature=i::Int)
+    calling_module;
+    kws...,
+)
+    return parse_leaf(
+        ex, variable_names, node_type, expression_type, calling_module; kws...
+    )
 end
-function _parse_expression(
-    val,
-    ::AbstractOperatorEnum,
-    ::AbstractVector,
-    ::Type{N},
-    ::Union{Nothing,AbstractVector},
-    _,
-)::N where {N<:AbstractExpressionNode}
-    if val isa AbstractExpression
+
+function parse_leaf(ex, variable_names, node_type, expression_type, calling_module; kws...)
+    if ex isa AbstractExpression
         throw(
             ArgumentError(
                 "Cannot parse an expression as a value in another expression. " *
@@ -316,10 +384,24 @@ function _parse_expression(
                 "have the same metadata where relevant).",
             ),
         )
-    elseif val isa AbstractExpressionNode
-        return val
     end
-    return N(; val)
+
+    if ex isa Symbol
+        i = variable_names === nothing ? nothing : findfirst(==(string(ex)), variable_names)
+        if i === nothing
+            throw(
+                ArgumentError(
+                    "Variable `$(ex)` not found in `variable_names`. " *
+                    "Consider interpolating with \$ if passing a value.",
+                ),
+            )
+        end
+        return node_type(; feature=i::Int)
+    elseif ex isa AbstractExpressionNode
+        return ex
+    else
+        return node_type(; val=ex)
+    end
 end
 
 end
