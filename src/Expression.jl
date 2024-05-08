@@ -59,6 +59,12 @@ you can overload them.
 - `eval_grad_tree_array`
 - `Optim.optimize`
 - `_grad_evaluator`
+- `(ex::AbstractExpression)(X, operators=nothing; kws...)`
+
+If you wish to use `@parse_expression`, you can also
+customize the parsing behavior with
+
+- `parse_leaf`
 """
 abstract type AbstractExpression{T} end
 
@@ -89,8 +95,9 @@ struct Expression{T,N<:AbstractExpressionNode{T},D<:NamedTuple} <: AbstractExpre
     metadata::Metadata{D}
 end
 
-@inline function Expression(tree::AbstractExpressionNode{T}, metadata::NamedTuple) where {T}
-    return Expression(tree, Metadata(metadata))
+@inline function Expression(tree::AbstractExpressionNode{T}; metadata...) where {T}
+    d = (; metadata...)
+    return Expression(tree, Metadata(d))
 end
 
 ########################################################
@@ -229,10 +236,7 @@ for io in ((), (:(io::IO),))
     @eval function print_tree(
         $(io...), ex::AbstractExpression, operators=nothing; variable_names=nothing, kws...
     )
-        return println(
-            $(io...),
-            string_tree(ex, operators; variable_names, kws...)
-        )
+        return println($(io...), string_tree(ex, operators; variable_names, kws...))
     end
 end
 
