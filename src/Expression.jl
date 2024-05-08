@@ -229,25 +229,15 @@ for io in ((), (:(io::IO),))
     @eval function print_tree(
         $(io...), ex::AbstractExpression, operators=nothing; variable_names=nothing, kws...
     )
-        return print_tree(
+        return println(
             $(io...),
-            get_tree(ex),
-            get_operators(ex, operators);
-            variable_names=get_variable_names(ex, variable_names),
-            kws...,
+            string_tree(ex, operators; variable_names, kws...)
         )
     end
 end
 
 function Base.show(io::IO, ::MIME"text/plain", ex::AbstractExpression)
-    return print(
-        io,
-        string_tree(
-            get_tree(ex),
-            get_operators(ex, nothing);
-            variable_names=get_variable_names(ex, nothing),
-        ),
-    )
+    return print(io, string_tree(ex))
 end
 
 import ..EvaluateModule: eval_tree_array, differentiable_eval_tree_array
