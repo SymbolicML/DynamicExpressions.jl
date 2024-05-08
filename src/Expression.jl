@@ -55,9 +55,9 @@ you can overload them.
 - `get_constants`
 - `set_constants!`
 - `string_tree`
-- `max_feature`
 - `eval_tree_array`
 - `eval_grad_tree_array`
+- `Optim.optimize`
 - `_grad_evaluator`
 """
 abstract type AbstractExpression{T} end
@@ -164,9 +164,11 @@ end
 # return an entire tree. Methods that only return the nodes are *not* overloaded, so
 # that the user must use the low-level interface.
 
-import ..NodeModule: copy_node, set_node!, count_nodes, tree_mapreduce
+import ..NodeModule: copy_node, set_node!, count_nodes, tree_mapreduce, constructorof
 
 #! format: off
+constructorof(::Type{E}) where {E<:AbstractExpression} = Base.typename(E).wrapper
+constructorof(::Type{<:Expression}) = Expression
 copy_node(ex::AbstractExpression; kws...) = copy(ex)
 count_nodes(ex::AbstractExpression; kws...) = count_nodes(get_tree(ex); kws...)
 
