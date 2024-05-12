@@ -76,3 +76,21 @@ m.frozen = !m.frozen
 @test n.frozen != m.frozen
 @test hash(n) != hash(m)
 @test n != m
+
+# Try out an interface for freezing parts of an expression
+freeze!(n) = (n.frozen = true; n)
+thaw!(n) = (n.frozen = false; n)
+
+ex = parse_expression(
+    :(x + freeze!(sin(thaw!(y + 2.1))));
+    operators=OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[sin]),
+    variable_names=[:x, :y],
+    evaluate_on=[freeze!, thaw!],
+    node_type=FrozenNode,
+    calling_module=@__MODULE__
+)
+
+@test string_tree(ex) == "x + sin(y + 2.1)"
+@test ex.tree.frozen == false
+@test ex.tree.r.frozen == true
+@test ex.tree.r.l.frozen == false
