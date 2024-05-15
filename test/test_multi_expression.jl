@@ -33,8 +33,7 @@ ex2 = @parse_expression(b * b * b + c / 0.2, operators, variable_names)
 
 multi_ex = MultiScalarExpression(
     (; f=ex1.tree, g=ex2.tree);
-    tree_factory=(; f, g) -> Node(; op=1, l=f, r=g),
-    # TODO: Can we build the tree factory from another expression maybe?
+    tree_factory=(; f, g) -> :($f + cos($g)),
     # TODO: Can we have a custom evaluation routine here, to enable aggregations in the middle part?
     operators,
     variable_names,
@@ -55,9 +54,16 @@ if VERSION >= v"1.9"
 end
 
 tree_factory(f::F, trees) where {F} = f(; trees...)
-function DE.get_tree(ex::MultiScalarExpression)
-    # `tree_factory` should stitch the nodes together
-    return tree_factory(ex.metadata.tree_factory, ex.trees)
+function DE.get_tree(ex::MultiScalarExpression{N}) where {N}
+    fused_expression = parse_expression(
+        tree_factory(ex.metadata.tree_factory, ex.trees)::Expr;
+        calling_module=@__MODULE__,  # TODO: Not needed
+        operators=DE.get_operators(ex, nothing),
+        variable_names=nothing,
+        node_type=typeof(first(values(ex.trees))),
+        expression_type=Expression,
+    )
+    return fused_expression.tree
 end
 function DE.get_operators(ex::MultiScalarExpression, operators)
     return operators === nothing ? ex.metadata.operators : operators
@@ -68,8 +74,8 @@ end
 
 s = sprint((io, ex) -> show(io, MIME"text/plain"(), ex), multi_ex)
 
-@test s == "((c * 2.5) - cos(a)) + (((b * b) * b) + (c / 0.2))"
+@test s == "((c * 2.5) - cos(a)) + cos(((b * b) * b) + (c / 0.2))"
 
 s = sprint((io, ex) -> print_tree(io, ex), multi_ex)
 
-@test s == "((c * 2.5) - cos(a)) + (((b * b) * b) + (c / 0.2))\n"
+@test s == "((c * 2.5) - cos(a)) + cos(((b * b) * b) + (c / 0.2))\n"
