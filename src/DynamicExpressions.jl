@@ -16,6 +16,8 @@ include("Random.jl")
 include("Expression.jl")
 include("Parse.jl")
 
+include("ParametricExpression.jl")
+
 import PackageExtensionCompat: @require_extensions
 import Reexport: @reexport
 @reexport import .NodeModule:
@@ -64,6 +66,8 @@ import .NodeModule:
 import .ExpressionModule: get_tree, get_operators, get_variable_names, Metadata
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
+
+@reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode
 
 function __init__()
     @require_extensions
