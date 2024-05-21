@@ -14,9 +14,11 @@ _data(x::Metadata) = getfield(x, :_data)
 Base.propertynames(x::Metadata) = propertynames(_data(x))
 @inline Base.getproperty(x::Metadata, f::Symbol) = getproperty(_data(x), f)
 Base.show(io::IO, x::Metadata) = print(io, "Metadata(", _data(x), ")")
+@inline _copy(x) = copy(x)
+@inline _copy(x::Nothing) = nothing
 @inline function Base.copy(metadata::Metadata)
     nt = _data(metadata)
-    copied_nt = NamedTuple{keys(nt)}(map(copy, values(nt)))
+    copied_nt = NamedTuple{keys(nt)}(map(_copy, values(nt)))
     return Metadata(copied_nt)
 end
 @inline Base.:(==)(x::Metadata, y::Metadata) = _data(x) == _data(y)
