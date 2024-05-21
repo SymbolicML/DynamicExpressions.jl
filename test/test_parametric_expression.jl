@@ -252,8 +252,7 @@ function DE.parse_leaf(
     ex,
     variable_names,
     node_type::Type{<:ParametricNode},
-    expression_type::Type{<:ParametricExpression},
-    evaluate_on;
+    expression_type::Type{<:ParametricExpression};
     parameter_names,
     kws...,
 )

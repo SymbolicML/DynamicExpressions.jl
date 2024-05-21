@@ -18,7 +18,9 @@ operators = OperatorEnum(;
 OperatorEnum(; binary_operators=[/])
 
 let ex = @parse_expression(
-        my_custom_op(x, sin(y) + 0.3), operators = operators, variable_names = ["x", "y"],
+        $(my_custom_op)(x, sin(y) + 0.3),
+        operators = operators,
+        variable_names = ["x", "y"],
     )
     @test typeof(ex) <: Expression
 
@@ -181,7 +183,7 @@ show_type(x) = (show(typeof(x)); x)
 let
     logged_out = @capture_out begin
         ex = @parse_expression(
-            x * 2.5 - show_type(cos(y)),
+            x * 2.5 - $(show_type)(cos(y)),
             operators = OperatorEnum(; binary_operators=[*, -], unary_operators=[cos]),
             variable_names = [:x, :y],
             evaluate_on = [show_type],
@@ -238,7 +240,7 @@ let operators = OperatorEnum(; unary_operators=[sin])
     @eval blah(x...) = first(x)
     if VERSION >= v"1.9"
         @test_throws "Unrecognized operator: `blah` with no matches in `[show]`." parse_expression(
-            :(blah(x, x, y));
+            :($blah(x, x, y));
             operators=operators,
             variable_names=[:x, :y],
             evaluate_on=[show],
@@ -248,33 +250,23 @@ let operators = OperatorEnum(; unary_operators=[sin])
 end
 
 # Helpful error for missing function in scope
-let my_badly_scoped_function(x) = x
-    @test_throws ArgumentError begin
+my_badly_scoped_function(x) = x
+@test_throws ArgumentError begin
+    ex = @parse_expression(
+        my_badly_scoped_function(x),
+        operators = operators,
+        variable_names = ["x"],
+        evaluate_on = [my_badly_scoped_function]
+    )
+end
+if VERSION >= v"1.9"
+    @test_throws "Tried to interpolate function `my_badly_scoped_function` but failed." begin
         ex = @parse_expression(
             my_badly_scoped_function(x),
             operators = operators,
             variable_names = ["x"],
             evaluate_on = [my_badly_scoped_function]
         )
-    end
-    @test_throws ArgumentError begin
-        ex = parse_expression(
-            :(my_badly_scoped_function(x));
-            operators,
-            variable_names=["x"],
-            evaluate_on=[my_badly_scoped_function],
-            calling_module=@__MODULE__,
-        )
-    end
-    if VERSION >= v"1.9"
-        @test_throws "Make sure the function is defined in that module." begin
-            ex = @parse_expression(
-                my_badly_scoped_function(x),
-                operators = operators,
-                variable_names = ["x"],
-                evaluate_on = [my_badly_scoped_function]
-            )
-        end
     end
 end
 
@@ -348,3 +340,5 @@ let
     )
     @test string_tree(ex) == "x"
 end
+
+# TODO: Test parsing with custom operators

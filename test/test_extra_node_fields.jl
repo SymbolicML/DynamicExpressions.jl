@@ -82,7 +82,7 @@ freeze!(n) = (n.frozen = true; n)
 thaw!(n) = (n.frozen = false; n)
 
 ex = parse_expression(
-    :(x + freeze!(sin(thaw!(y + 2.1))));
+    :(x + $freeze!(sin($thaw!(y + 2.1))));
     operators=OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[sin]),
     variable_names=[:x, :y],
     evaluate_on=[freeze!, thaw!],
