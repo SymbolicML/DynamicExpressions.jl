@@ -40,12 +40,16 @@ mutable struct ParametricNode{T} <: AbstractExpressionNode{T}
         return n
     end
 end
+@inline _data(x::Metadata) = getfield(x, :_data)
 """An expression to store parameters for a tree"""
 struct ParametricExpression{T,N<:AbstractExpressionNode{T},D<:NamedTuple} <:
        AbstractExpression{T,N}
     tree::N
     metadata::Metadata{D}
 
+    function ParametricExpression(tree::ParametricNode, metadata::Metadata)
+        return new{eltype(tree),typeof(tree),typeof(_data(metadata))}(tree, metadata)
+    end
     function ParametricExpression(
         tree::_N;
         operators,
@@ -75,7 +79,7 @@ function leaf_copy(t::ParametricNode{T}) where {T}
     elseif !t.is_parameter
         constructorof(typeof(t))(T; feature=t.feature)
     else
-        n = constructorof(typeof(t))(T)
+        n = constructorof(typeof(t))(; val=zero(T))
         n.is_parameter = true
         n.parameter = t.parameter
         n
@@ -97,10 +101,10 @@ function leaf_equal(a::ParametricNode, b::ParametricNode)
     if a.constant
         return b.constant && a.val == b.val
     else
-        if a.feature
-            return b.feature && a.feature == b.feature
-        else
+        if a.is_parameter
             return b.is_parameter && a.parameter == b.parameter
+        else
+            return a.feature == b.feature
         end
     end
 end
@@ -118,13 +122,15 @@ end
 function get_variable_names(ex::ParametricExpression, variable_names)
     return variable_names === nothing ? ex.metadata.variable_names : variable_names
 end
+@inline _copy(x) = copy(x)
+@inline _copy(::Nothing) = nothing
 function Base.copy(ex::ParametricExpression; break_sharing::Val=Val(false))
     return ParametricExpression(
         copy(ex.tree; break_sharing=break_sharing);
-        operators=copy(ex.metadata.operators),
-        variable_names=copy(ex.metadata.variable_names),
-        parameters=copy(ex.metadata.parameters),
-        parameter_names=copy(ex.metadata.parameter_names),
+        operators=_copy(ex.metadata.operators),
+        variable_names=_copy(ex.metadata.variable_names),
+        parameters=_copy(ex.metadata.parameters),
+        parameter_names=_copy(ex.metadata.parameter_names),
     )
 end
 function Base.hash(ex::ParametricExpression, h::UInt)
