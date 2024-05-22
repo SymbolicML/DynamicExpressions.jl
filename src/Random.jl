@@ -1,9 +1,11 @@
 module RandomModule
 
-import Compat: Returns, @inline
-import Random: AbstractRNG
+using Compat: Returns, @inline
+using Random: AbstractRNG
+using ..NodeModule: AbstractNode, tree_mapreduce, filter_map
+using ..ExpressionModule: AbstractExpression, get_tree
+
 import Base: rand
-import ..NodeModule: AbstractNode, tree_mapreduce, filter_map
 
 """
     NodeSampler(; tree, filter::Function=Returns(true), weighting::Union{Nothing,Function}=nothing, break_sharing::Val=Val(false))
@@ -28,7 +30,7 @@ Defines a sampler of nodes in a tree.
   from the tree.
 """
 Base.@kwdef struct NodeSampler{
-    N<:AbstractNode,F<:Function,W<:Union{Nothing,Function},B<:Val
+    N<:Union{AbstractNode,AbstractExpression},F<:Function,W<:Union{Nothing,Function},B<:Val
 }
     tree::N
     weighting::W = nothing
@@ -41,7 +43,8 @@ end
 
 Sample a node from a tree according to the default sampler `NodeSampler(; tree)`.
 """
-rand(rng::AbstractRNG, tree::AbstractNode) = rand(rng, NodeSampler(; tree))
+rand(rng::AbstractRNG, tree::Union{AbstractNode,AbstractExpression}) =
+    rand(rng, NodeSampler(; tree))
 
 """
     rand(rng::AbstractRNG, sampler::NodeSampler)
@@ -49,22 +52,23 @@ rand(rng::AbstractRNG, tree::AbstractNode) = rand(rng, NodeSampler(; tree))
 Sample a node from a tree according to the sampler `sampler`.
 """
 function rand(rng::AbstractRNG, sampler::NodeSampler{N,F,Nothing}) where {N,F}
-    n = count(sampler.filter, sampler.tree; sampler.break_sharing)
+    n = count(sampler.filter, get_tree(sampler.tree); sampler.break_sharing)
     if n == 0
         error("No nodes matching $(sampler.filter) were found in $(sampler.tree).")
     end
     idx = rand(rng, 1:n)
-    return _get_node(sampler.tree, sampler.filter, idx, sampler.break_sharing)
+    return _get_node(get_tree(sampler.tree), sampler.filter, idx, sampler.break_sharing)
 end
 function rand(rng::AbstractRNG, sampler::NodeSampler{N,F,W}) where {N,F,W<:Function}
+    t = get_tree(sampler.tree)
     weights = filter_map(
-        sampler.filter, sampler.weighting, sampler.tree, Float64; sampler.break_sharing
+        sampler.filter, sampler.weighting, t, Float64; sampler.break_sharing
     )
     if length(weights) == 0
         error("No nodes matching $(sampler.filter) were found in $(sampler.tree).")
     end
     idx = _sample_idx(rng, weights)
-    return _get_node(sampler.tree, sampler.filter, idx, sampler.break_sharing)
+    return _get_node(t, sampler.filter, idx, sampler.break_sharing)
 end
 
 function _get_node(
