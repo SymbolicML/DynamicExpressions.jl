@@ -74,9 +74,11 @@ is_constant(tree::AbstractExpressionNode) = all(t -> t.degree != 0 || t.constant
 Get all the constants inside a tree, in depth-first order.
 The function `set_constants!` sets them in the same order,
 given the output of this function.
+Also return metadata that can will be used in the `set_constants!` function.
 """
 function get_constants(tree::AbstractExpressionNode{T}) where {T}
-    return filter_map(is_node_constant, t -> (t.val), tree, T)
+    refs = filter_map(is_node_constant, t -> Ref(t), tree, Ref{typeof(tree)})
+    return map(ref -> ref[].val, refs), refs
 end
 
 """
@@ -86,16 +88,12 @@ Set the constants in a tree, in depth-first order. The function
 `get_constants` gets them in the same order.
 """
 function set_constants!(
-    tree::AbstractExpressionNode{T}, constants::AbstractVector{T}
+    tree::AbstractExpressionNode{T}, constants::AbstractVector{T}, refs
 ) where {T}
-    Base.require_one_based_indexing(constants)
-    i = Ref(0)
-    foreach(tree) do node
-        if is_node_constant(node)
-            @inbounds node.val = constants[i[] += 1]
-        end
+    @inbounds for i in eachindex(refs, constants)
+        refs[i][].val = constants[i]
     end
-    return nothing
+    return tree
 end
 
 ## Assign index to nodes of a tree
