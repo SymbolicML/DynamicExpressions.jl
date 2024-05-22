@@ -106,13 +106,16 @@ function lookup_op(@nospecialize(f), ::Val{degree}) where {degree}
     return mapping[f]
 end
 
-function empty_all_globals!()
-    lock(LATEST_LOCK) do
-        LATEST_OPERATORS.x = nothing
-        LATEST_OPERATORS_TYPE.x = IsNothing
-        empty!(LATEST_UNARY_OPERATOR_MAPPING)
-        empty!(LATEST_BINARY_OPERATOR_MAPPING)
-        LATEST_VARIABLE_NAMES.x = String[]
+function empty_all_globals!(; force=true)
+    if force || islocked(LATEST_LOCK)
+        lock(LATEST_LOCK) do
+            LATEST_OPERATORS.x = nothing
+            LATEST_OPERATORS_TYPE.x = IsNothing
+            empty!(LATEST_UNARY_OPERATOR_MAPPING)
+            empty!(LATEST_BINARY_OPERATOR_MAPPING)
+            LATEST_VARIABLE_NAMES.x = String[]
+            unlock(LATEST_LOCK)
+        end
     end
     return nothing
 end

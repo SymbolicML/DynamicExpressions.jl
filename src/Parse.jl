@@ -171,7 +171,7 @@ function parse_expression(
     evaluate_on::Union{Nothing,AbstractVector}=nothing,
     kws...,
 ) where {N<:AbstractExpressionNode,E<:AbstractExpression}
-    empty_all_globals!()
+    empty_all_globals!(; force=false)
     let variable_names = if variable_names === nothing
             nothing
         elseif eltype(variable_names) <: AbstractString
