@@ -42,7 +42,7 @@ mutable struct ParametricNode{T} <: AbstractExpressionNode{T}
 end
 """An expression to store parameters for a tree"""
 struct ParametricExpression{T,N<:AbstractExpressionNode{T},D<:NamedTuple} <:
-       AbstractExpression{T}
+       AbstractExpression{T,N}
     tree::N
     metadata::Metadata{D}
 

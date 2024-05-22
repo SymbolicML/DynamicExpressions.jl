@@ -60,9 +60,9 @@ import .NodeModule:
 @reexport import .EvaluationHelpersModule
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 @reexport import .RandomModule: NodeSampler
-@reexport import .ExpressionModule: AbstractExpression, Expression
+@reexport import .ExpressionModule: AbstractExpression, Expression, with_tree
 # Not for export; just for overloading
-import .ExpressionModule: get_tree, get_operators, get_variable_names, Metadata, @set
+import .ExpressionModule: get_tree, get_operators, get_variable_names, Metadata
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
 

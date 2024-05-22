@@ -7,6 +7,8 @@ using ..NodeModule: AbstractExpressionNode
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..UtilsModule: Undefined
 
+import ..NodeModule: preserve_sharing
+
 """A wrapper for a named tuple to avoid piracy."""
 struct Metadata{NT<:NamedTuple}
     _data::NT
@@ -70,10 +72,10 @@ customize the parsing behavior with
 
 - `parse_leaf`
 """
-abstract type AbstractExpression{T} end
+abstract type AbstractExpression{T,N} end
 
 """
-    Expression{T, N, D} <: AbstractExpression{T}
+    Expression{T, N, D} <: AbstractExpression{T, N}
 
 Defines a high level, user-facing, expression type that encapsulates an
 expression tree (like `Node`) along with associated metadata for evaluation and rendering.
@@ -94,7 +96,7 @@ expression tree (like `Node`) along with associated metadata for evaluation and 
 This type is intended for end-users to interact with and manipulate expressions at a high level,
 abstracting away the complexities of the underlying expression tree operations.
 """
-struct Expression{T,N<:AbstractExpressionNode{T},D<:NamedTuple} <: AbstractExpression{T}
+struct Expression{T,N<:AbstractExpressionNode{T},D<:NamedTuple} <: AbstractExpression{T,N}
     tree::N
     metadata::Metadata{D}
 end
@@ -152,38 +154,11 @@ function Base.:(==)(x::AbstractExpression, y::AbstractExpression)
 end
 ########################################################
 
-"""
-    @set ex.tree = tree
-
-Set the tree of an expression and return the new expression as `ex`
-"""
-macro set(expr)
-    return esc(set_tree(expr))
-end
 function with_tree(ex::AbstractExpression, tree::AbstractExpressionNode)
     return constructorof(typeof(ex))(tree, ex.metadata)
 end
-function set_tree(expr::Expr)
-    @assert expr.head == :(=)
-    @assert expr.args[1] isa Expr
-    @assert expr.args[1].head == :(.)
-    @assert expr.args[1].args[2] == :(:tree)
-    ex = expr.args[1].args[1]
-    new_tree = expr.args[2]
-    return :($(ex) = with_tree($(ex), $(new_tree)))
-end
-
-@testitem "@set" begin
-    using DynamicExpressions
-    using DynamicExpressions: @set
-
-    ex = @parse_expression(
-        x,
-        operators = OperatorEnum(; binary_operators=(+, *), unary_operators=(sin, cos)),
-        variable_names = ["x", "y"]
-    )
-    @set ex.tree = Node(; op=1, l=Node(; feature=1), r=Node(; feature=2))
-    @test string_tree(ex) == "x + y"
+function preserve_sharing(::Type{<:AbstractExpression{T,N}}) where {T,N}
+    return preserve_sharing(N)
 end
 
 function get_operators(ex::Expression, operators)

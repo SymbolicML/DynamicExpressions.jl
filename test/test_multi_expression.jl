@@ -5,7 +5,7 @@ using DynamicExpressions
 using DynamicExpressions: DynamicExpressions as DE
 using DynamicExpressions: Metadata
 
-struct MultiScalarExpression{T,TREES<:NamedTuple,D<:NamedTuple} <: AbstractExpression{T}
+struct MultiScalarExpression{T,TREES<:NamedTuple,D<:NamedTuple} <: AbstractExpression{T,N}
     trees::TREES
     metadata::Metadata{D}
 
