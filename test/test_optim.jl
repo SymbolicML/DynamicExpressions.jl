@@ -101,5 +101,7 @@ end
     res = optimize(Optim.only_fg!(fg!), tree, BFGS())
 
     @test did_i_run_2[]
-    @test isapprox(get_constants(res.minimizer), get_constants(target_tree); atol=0.01)
+    @test isapprox(
+        first(get_constants(res.minimizer)), first(get_constants(target_tree)); atol=0.01
+    )
 end
