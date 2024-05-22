@@ -152,6 +152,8 @@ end
 # - `max_feature`
 # - `eval_tree_array`
 # - `eval_grad_tree_array`
+# - `get_constants`
+# - `set_constants!`
 # - `_grad_evaluator`
 
 ## For a parametric struct, we only wish to implement the following
@@ -175,19 +177,21 @@ has_operators(::ParametricExpression) = _interface_error()
 has_constants(::ParametricExpression) = _interface_error()
 #! format: on
 
-# TODO: Should we avoid flattening the array each time?
-# Seems like it will result in extra copies.
-_flatten(ar::AbstractMatrix) = reduce(vcat, eachrow(ar))
-
 function get_constants(ex::ParametricExpression{T}) where {T}
-    return vcat(_flatten(ex.metadata.parameters), get_constants(get_tree(ex)))
+    constants, constant_refs = get_constants(get_tree(ex))
+    parameters = ex.metadata.parameters
+    flat_parameters = parameters[:]
+    num_constants = length(constants)
+    num_parameters = length(flat_parameters)
+    return vcat(constants, flat_parameters),
+    (; constant_refs, parameter_refs=parameters, num_parameters, num_constants)
 end
-function set_constants!(ex::ParametricExpression{T}, constants::AbstractVector{T}) where {T}
-    total_parameters = prod(size(ex.metadata.parameters))
-    ex.metadata.parameters .= @view(constants[1:total_parameters])
-    set_constants!(get_tree(ex), @view(constants[(total_parameters + 1):end]))
-    # ^ The @view is just to reduce memory usage; it's just a slice though
-    return nothing
+function set_constants!(ex::ParametricExpression{T}, x, refs) where {T}
+    # First, set the usual constants
+    set_constants!(get_tree(ex), @view(x[1:(refs.num_constants)]), refs.constant_refs)
+    # Then, copy in the parameters
+    ex.metadata.parameters[:] .= @view(x[(refs.num_constants + 1):end])
+    return ex
 end
 
 function _to_node(ex::ParametricExpression{T}) where {T}
