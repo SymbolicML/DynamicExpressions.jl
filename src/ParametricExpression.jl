@@ -152,8 +152,6 @@ end
 # - `max_feature`
 # - `eval_tree_array`
 # - `eval_grad_tree_array`
-# - `get_constants`
-# - `set_constants!`
 # - `_grad_evaluator`
 
 ## For a parametric struct, we only wish to implement the following
