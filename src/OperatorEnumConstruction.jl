@@ -252,6 +252,7 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
         local $build_converters
         local $binary_exists
         local $unary_exists
+        lock($LATEST_LOCK)
         if isa($operators, $OperatorEnum)
             $type_requirements = Number
             $build_converters = true
@@ -304,6 +305,7 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
                 $(binary_exists)[func] = true
             end
         end
+        unlock($LATEST_LOCK)
     end
 end
 
