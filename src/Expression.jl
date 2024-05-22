@@ -160,6 +160,9 @@ Set the tree of an expression and return the new expression as `ex`
 macro set(expr)
     return esc(set_tree(expr))
 end
+function with_tree(ex::AbstractExpression, tree::AbstractExpressionNode)
+    return constructorof(typeof(ex))(tree, ex.metadata)
+end
 function set_tree(expr::Expr)
     @assert expr.head == :(=)
     @assert expr.args[1] isa Expr
@@ -167,7 +170,7 @@ function set_tree(expr::Expr)
     @assert expr.args[1].args[2] == :(:tree)
     ex = expr.args[1].args[1]
     new_tree = expr.args[2]
-    return :($(ex) = ($(constructorof)(typeof($ex)))($(new_tree), $(ex).metadata))
+    return :($(ex) = with_tree($(ex), $(new_tree)))
 end
 
 @testitem "@set" begin
