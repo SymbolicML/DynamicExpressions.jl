@@ -39,7 +39,7 @@ end
 
 """Wrap function or objective with insertion of values of the constant nodes."""
 function wrap_func(
-    f::F, tree::N, refs::AbstractArray
+    f::F, tree::N, refs
 ) where {F<:Function,T,N<:Union{AbstractExpressionNode{T},AbstractExpression{T}}}
     function wrapped_f(args::Vararg{Any,M}) where {M}
         (first_args..., x) = args
@@ -49,12 +49,12 @@ function wrap_func(
     return wrapped_f
 end
 function wrap_func(
-    ::Nothing, tree::N, refs::AbstractArray
+    ::Nothing, tree::N, refs
 ) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
     return nothing
 end
 function wrap_func(
-    f::NLSolversBase.InplaceObjective, tree::N, refs::AbstractArray
+    f::NLSolversBase.InplaceObjective, tree::N, refs
 ) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
     # Some objectives, like `Optim.only_fg!(fg!)`, are not functions but instead
     # `InplaceObjective`. These contain multiple functions, each of which needs to be

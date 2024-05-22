@@ -13,6 +13,7 @@ import ..NodeUtilsModule:
     get_constants,
     set_constants!
 import ..StringsModule: string_tree
+import ..SimplifyModule: combine_operators, simplify_tree!
 import ..EvaluateModule: eval_tree_array
 import ..EvaluateDerivativeModule: eval_grad_tree_array
 import ..EvaluationHelpersModule: _grad_evaluator
@@ -302,5 +303,16 @@ function (ex::ParametricExpression)(X, classes, operators=nothing; kws...)
     return out
 end
 ###############################################################################
+
+function combine_operators(ex::ParametricExpression, operators=nothing; kws...)
+    return ParametricExpression(
+        combine_operators(get_tree(ex), get_operators(ex, operators); kws...), ex.metadata
+    )
+end
+function simplify_tree!(ex::ParametricExpression, operators=nothing; kws...)
+    return ParametricExpression(
+        simplify_tree!(get_tree(ex), get_operators(ex, operators); kws...), ex.metadata
+    )
+end
 
 end
