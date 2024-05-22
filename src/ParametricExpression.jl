@@ -240,8 +240,16 @@ function eval_tree_array(
     return eval_tree_array(regular_tree, params_and_X, get_operators(ex, operators); kws...)
 end
 function string_tree(
-    ex::ParametricExpression, operators=nothing; variable_names=nothing, kws...
+    ex::ParametricExpression,
+    operators=nothing;
+    variable_names=nothing,
+    display_variable_names=nothing,
+    X_sym_units=nothing,
+    y_sym_units=nothing,
+    raw=false,
+    kws...,
 )
+    # TODO: HACK we ignore display_variable_names and others
     variable_names2 = get_variable_names(ex, variable_names)
     num_params = UInt16(size(ex.metadata.parameters, 1))
     max_feature = maximum(get_tree(ex)) do node
