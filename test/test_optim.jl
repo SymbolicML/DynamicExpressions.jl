@@ -28,14 +28,18 @@ end
         @test res isa ext.ExpressionOptimizationResults
     end
     @test tree == original_tree
-    @test isapprox(get_constants(res.minimizer), get_constants(target_tree); atol=0.01)
+    @test isapprox(
+        first(get_constants(res.minimizer)), first(get_constants(target_tree)); atol=0.01
+    )
 end
 
 @testset "With gradients, using Zygote" begin
     tree = copy(original_tree)
     res = optimize(f, g!, tree, BFGS())
     @test tree == original_tree
-    @test isapprox(get_constants(res.minimizer), get_constants(target_tree); atol=0.01)
+    @test isapprox(
+        first(get_constants(res.minimizer)), first(get_constants(target_tree)); atol=0.01
+    )
 end
 
 @testset "With gradients, manually" begin
