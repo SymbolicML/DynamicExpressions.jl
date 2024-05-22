@@ -65,7 +65,7 @@ function string_constant(val)
 end
 
 function string_variable(feature, variable_names)
-    if variable_names === nothing || feature > lastindex(variable_names)
+    if variable_names === nothing || feature > lastindex(variable_names) || feature < firstindex(variable_names)
         return 'x' * string(feature)
     else
         return variable_names[feature]
