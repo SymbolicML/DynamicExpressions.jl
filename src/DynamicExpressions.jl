@@ -12,10 +12,9 @@ include("ChainRules.jl")
 include("EvaluationHelpers.jl")
 include("Simplify.jl")
 include("OperatorEnumConstruction.jl")
-include("Random.jl")
 include("Expression.jl")
+include("Random.jl")
 include("Parse.jl")
-
 include("ParametricExpression.jl")
 
 import PackageExtensionCompat: @require_extensions
@@ -63,7 +62,7 @@ import .NodeModule:
 @reexport import .RandomModule: NodeSampler
 @reexport import .ExpressionModule: AbstractExpression, Expression
 # Not for export; just for overloading
-import .ExpressionModule: get_tree, get_operators, get_variable_names, Metadata
+import .ExpressionModule: get_tree, get_operators, get_variable_names, Metadata, @set
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
 

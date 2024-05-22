@@ -1,6 +1,8 @@
 """This module defines a user-facing `Expression` type"""
 module ExpressionModule
 
+using TestItems: @testitem
+
 using ..NodeModule: AbstractExpressionNode
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..UtilsModule: Undefined
@@ -150,6 +152,37 @@ function Base.:(==)(x::AbstractExpression, y::AbstractExpression)
 end
 ########################################################
 
+"""
+    @set ex.tree = tree
+
+Set the tree of an expression and return the new expression as `ex`
+"""
+macro set(expr)
+    return esc(set_tree(expr))
+end
+function set_tree(expr::Expr)
+    @assert expr.head == :(=)
+    @assert expr.args[1] isa Expr
+    @assert expr.args[1].head == :(.)
+    @assert expr.args[1].args[2] == :(:tree)
+    ex = expr.args[1].args[1]
+    new_tree = expr.args[2]
+    return :($(ex) = ($(constructorof)(typeof($ex)))($(new_tree), $(ex).metadata))
+end
+
+@testitem "@set" begin
+    using DynamicExpressions
+    using DynamicExpressions: @set
+
+    ex = @parse_expression(
+        x,
+        operators = OperatorEnum(; binary_operators=(+, *), unary_operators=(sin, cos)),
+        variable_names = ["x", "y"]
+    )
+    @set ex.tree = Node(; op=1, l=Node(; feature=1), r=Node(; feature=2))
+    @test string_tree(ex) == "x + y"
+end
+
 function get_operators(ex::Expression, operators)
     return operators === nothing ? ex.metadata.operators : operators
 end
@@ -158,6 +191,9 @@ function get_variable_names(ex::Expression, variable_names)
 end
 function get_tree(ex::Expression)
     return ex.tree
+end
+function get_tree(tree::AbstractExpressionNode)
+    return tree
 end
 function Base.copy(ex::Expression; break_sharing::Val=Val(false))
     return Expression(copy(ex.tree; break_sharing), copy(ex.metadata))
