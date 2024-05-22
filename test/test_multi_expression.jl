@@ -5,7 +5,9 @@ using DynamicExpressions
 using DynamicExpressions: DynamicExpressions as DE
 using DynamicExpressions: Metadata
 
-struct MultiScalarExpression{T,TREES<:NamedTuple,D<:NamedTuple} <: AbstractExpression{T,N}
+struct MultiScalarExpression{
+    T,N<:AbstractExpressionNode{T},TREES<:NamedTuple,D<:NamedTuple
+} <: AbstractExpression{T,N}
     trees::TREES
     metadata::Metadata{D}
 
@@ -18,10 +20,13 @@ struct MultiScalarExpression{T,TREES<:NamedTuple,D<:NamedTuple} <: AbstractExpre
     function MultiScalarExpression(
         trees::NamedTuple; tree_factory::F, operators, variable_names
     ) where {F<:Function}
-        T = eltype(first(values(trees)))
+        first_tree = first(values(trees))
+        T = eltype(first_tree)
         @assert all(t -> eltype(t) == T, values(trees))
         metadata = (; tree_factory, operators, variable_names)
-        return new{T,typeof(trees),typeof(metadata)}(trees, Metadata(metadata))
+        return new{T,typeof(first_tree),typeof(trees),typeof(metadata)}(
+            trees, Metadata(metadata)
+        )
     end
 end
 

@@ -82,14 +82,12 @@ function get_constants(tree::AbstractExpressionNode{T}) where {T}
 end
 
 """
-    set_constants!(tree::AbstractExpressionNode{T}, constants::AbstractVector{T}) where {T}
+    set_constants!(tree::AbstractExpressionNode{T}, constants, refs) where {T}
 
 Set the constants in a tree, in depth-first order. The function
 `get_constants` gets them in the same order.
 """
-function set_constants!(
-    tree::AbstractExpressionNode{T}, constants::AbstractVector{T}, refs
-) where {T}
+function set_constants!(tree::AbstractExpressionNode{T}, constants, refs) where {T}
     @inbounds for i in eachindex(refs, constants)
         refs[i][].val = constants[i]
     end

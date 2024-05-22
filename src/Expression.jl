@@ -233,7 +233,7 @@ index_constants(ex::AbstractExpression, ::Type{T}=UInt16) where {T} = index_cons
 has_operators(ex::AbstractExpression) = has_operators(get_tree(ex))
 has_constants(ex::AbstractExpression) = has_constants(get_tree(ex))
 get_constants(ex::AbstractExpression) = get_constants(get_tree(ex))
-set_constants!(ex::AbstractExpression{T}, constants::AbstractVector{T}) where {T} = set_constants!(get_tree(ex), constants)
+set_constants!(ex::AbstractExpression{T}, constants, refs) where {T} = set_constants!(get_tree(ex), constants, refs)
 #! format: on
 
 import ..StringsModule: string_tree, print_tree
