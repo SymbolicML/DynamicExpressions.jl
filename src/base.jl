@@ -314,7 +314,7 @@ function map(
     f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; break_sharing::Val=Val(false)
 ) where {F<:Function,RT}
     if RT == Nothing
-        return f.(collect(tree; break_sharing))
+        return map(f, collect(tree; break_sharing))
     else
         return filter_map(Returns(true), f, tree, result_type; break_sharing)
     end
