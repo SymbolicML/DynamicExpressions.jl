@@ -38,10 +38,10 @@ function ChainRulesCore.rrule(
         dtree = let X = X, dY = dY, tree = tree, operators = operators
             @thunk(
                 let
-                    _, gradient, complete = eval_grad_tree_array(
+                    _, gradient, complete2 = eval_grad_tree_array(
                         tree, X, operators; variable=Val(false)
                     )
-                    if !complete
+                    if !complete2
                         gradient .= NaN
                     end
 
@@ -55,14 +55,14 @@ function ChainRulesCore.rrule(
         dX = let X = X, dY = dY, tree = tree, operators = operators
             @thunk(
                 let
-                    _, gradient, complete = eval_grad_tree_array(
+                    _, gradient2, complete3 = eval_grad_tree_array(
                         tree, X, operators; variable=Val(true)
                     )
-                    if !complete
-                        gradient .= NaN
+                    if !complete3
+                        gradient2 .= NaN
                     end
 
-                    gradient .* reshape(dY, 1, length(dY))
+                    gradient2 .* reshape(dY, 1, length(dY))
                 end
             )
         end
