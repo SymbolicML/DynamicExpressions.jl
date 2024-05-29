@@ -111,11 +111,7 @@ function _eval_tree_array(
     # we can just return the constant result.
     if tree.degree == 0
         return deg0_eval(tree, cX)
-    elseif is_constant(tree)
-        # Speed hack for constant trees.
-        const_result = dispatch_constant_tree(tree, operators)::ResultOk{Vector{T}}
-        !const_result.ok && return ResultOk(similar(cX, axes(cX, 2)), false)
-        return ResultOk(fill_similar(const_result.x[], cX, axes(cX, 2)), true)
+    # Remove speed hack for constant trees, renders stochastic nodes w/ only constants non-stochastic
     elseif tree.degree == 1
         op_idx = tree.op
         return dispatch_deg1_eval(tree, cX, op_idx, operators, Val(turbo))
