@@ -1,5 +1,12 @@
 module DynamicExpressions
 
+using DispatchDoctor: @stable, @unstable
+import PackageExtensionCompat: @require_extensions
+import Reexport: @reexport
+macro ignore(args...) end
+
+@stable default_mode="disable" begin
+
 include("Utils.jl")
 include("ExtensionInterface.jl")
 include("OperatorEnum.jl")
@@ -10,12 +17,10 @@ include("Evaluate.jl")
 include("EvaluateDerivative.jl")
 include("ChainRules.jl")
 include("EvaluationHelpers.jl")
-include("Simplify.jl")
-include("OperatorEnumConstruction.jl")
+@unstable include("Simplify.jl")
+@unstable include("OperatorEnumConstruction.jl")
 include("Random.jl")
 
-import PackageExtensionCompat: @require_extensions
-import Reexport: @reexport
 @reexport import .NodeModule:
     AbstractNode,
     AbstractExpressionNode,
@@ -62,11 +67,11 @@ const PACKAGE_VERSION = let
     VersionNumber(project["version"])
 end
 
-macro ignore(args...) end
 # To get LanguageServer to register library within tests
 @ignore include("../test/runtests.jl")
 
 include("precompile.jl")
 do_precompilation(; mode=:precompile)
 
+end
 end

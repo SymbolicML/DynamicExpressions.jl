@@ -1,5 +1,7 @@
 module OperatorEnumConstructionModule
 
+using DispatchDoctor: @unstable
+
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
 import ..NodeModule: Node, GraphNode, AbstractExpressionNode, constructorof
 import ..StringsModule: string_tree
@@ -355,7 +357,7 @@ redefine operators for `AbstractExpressionNode` types, as well as `show`, `print
    are *not* needed for the package to work; they are purely for convenience.
 - `empty_old_operators::Bool=true`: Whether to clear the old operators.
 """
-function OperatorEnum(;
+@unstable function OperatorEnum(;
     binary_operators=Function[],
     unary_operators=Function[],
     define_helper_functions::Bool=true,

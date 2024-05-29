@@ -104,7 +104,7 @@ end
     ctree = copy(tree)
     vals = map(t -> t.val, ctree)
     vals = [v for v in vals if v !== nothing]
-    @test sum(vals) == 11.6
+    @test sum(vals) ≈ 11.6
     @test sum(map(_ -> 1, ctree)) == 24
     @test sum(map(_ -> 2, ctree)) == 24 * 2
     @test sum(map(t -> t.degree == 1, ctree)) == 1
@@ -144,7 +144,7 @@ end
     @test mapreduce(_ -> 2, *, tree) == 2^24
     @test mapreduce(t -> t.degree, *, tree) == 0
     @test mapreduce(t -> t.degree + 1, *, tree) == 354294
-    @test mapreduce(t -> t.degree, (l, r) -> (max(l, 1) * max(r, 1)), tree) == 2048
+    @test mapreduce(t -> Int(t.degree), (l, r) -> (max(l, 1) * max(r, 1)), tree) == 2048
     @test mapreduce(+, tree) do t
         1
     end == 24
@@ -153,9 +153,9 @@ end
 @testset "sum" begin
     ctree = copy(tree)
     @test sum(t -> t.degree == 0 && t.constant ? t.val : 0.0, ctree) == 11.6
-    @test sum(t -> t.degree == 0 && !t.constant ? t.feature : 0, ctree) ==
+    @test sum(t -> t.degree == 0 && !t.constant ? Int(t.feature) : 0, ctree) ==
         3 * 1 + 1 * 2 + 2 * 3
-    @test sum(t -> t.degree == 1 ? t.op : 0, ctree) == 1
+    @test sum(t -> t.degree == 1 ? Int(t.op) : 0, ctree) == 1
     @test sum(t -> (t.degree == 0 && t.constant) ? t.val * 2 : 0.0, ctree) == 11.6 * 2
     for t in ctree
         if t.degree == 0 && t.constant

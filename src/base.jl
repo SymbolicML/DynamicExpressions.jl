@@ -23,6 +23,7 @@ import Base:
     reduce,
     sum
 
+using DispatchDoctor: @unstable
 using Compat: @inline, Returns
 using ..UtilsModule: @memoize_on, @with_memoize, Undefined
 
@@ -396,7 +397,8 @@ isempty(::AbstractNode) = false
 function iterate(root::AbstractNode)
     return (root, collect(root; break_sharing=Val(true))[(begin + 1):end])
 end
-iterate(::AbstractNode, stack) = isempty(stack) ? nothing : (popfirst!(stack), stack)
+@unstable iterate(::AbstractNode, stack) =
+    isempty(stack) ? nothing : (popfirst!(stack), stack)
 in(item, tree::AbstractNode) = any(t -> t == item, tree)
 function length(tree::AbstractNode; break_sharing::Val=Val(false))
     return count_nodes(tree; break_sharing)
