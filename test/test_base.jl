@@ -109,7 +109,7 @@ end
     @test sum(map(_ -> 2, ctree)) == 24 * 2
     @test sum(map(t -> t.degree == 1, ctree)) == 1
     @test length(unique(map(objectid, copy_node(tree)))) == 24
-    map(t -> (t.degree == 0 && t.constant) ? (t.val *= 2) : nothing, ctree)
+    map(t -> (t.degree == 0 && t.constant) ? (t.val *= 2; nothing) : nothing, ctree)
     @test sum(t -> t.val, filter(t -> t.degree == 0 && t.constant, ctree)) ≈ 11.6 * 2
     local T = fieldtype(typeof(ctree), :degree)
     @test typeof(map(t -> t.degree, ctree, T)) == Vector{T}
