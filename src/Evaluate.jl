@@ -309,11 +309,14 @@ function deg1_l2_ll0_lr0_eval(
         val_lr = tree.l.r.val
         @return_on_check val_ll cX
         @return_on_check val_lr cX
-        x_l = op_l(val_ll, val_lr)::T
-        @return_on_check x_l cX
-        x = op(x_l)::T
-        @return_on_check x cX
-        return ResultOk(fill_similar(x, cX, axes(cX, 2)), true)
+
+        cumulator = similar(cX, axes(cX, 2))
+        @inbounds @simd for j in axes(cX, 2)
+            x_l = op_l(val_ll, val_lr)::T
+            x = isfinite(x_l) ? op(x_l)::T : T(Inf)
+            cumulator[j] = x
+        end
+        return ResultOk(cumulator, true)
     elseif tree.l.l.constant
         val_ll = tree.l.l.val
         @return_on_check val_ll cX
@@ -356,11 +359,13 @@ function deg1_l1_ll0_eval(
     if tree.l.l.constant
         val_ll = tree.l.l.val
         @return_on_check val_ll cX
-        x_l = op_l(val_ll)::T
-        @return_on_check x_l cX
-        x = op(x_l)::T
-        @return_on_check x cX
-        return ResultOk(fill_similar(x, cX, axes(cX, 2)), true)
+        cumulator = similar(cX, axes(cX, 2))
+        @inbounds @simd for j in axes(cX, 2)
+            x_l = op_l(val_ll)::T
+            x = isfinite(x_l) ? op(x_l)::T : T(Inf)
+            cumulator[j] = x
+        end
+        return ResultOk(cumulator, true)
     else
         feature_ll = tree.l.l.feature
         cumulator = similar(cX, axes(cX, 2))
