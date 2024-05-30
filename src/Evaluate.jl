@@ -9,6 +9,12 @@ import ..ExtensionInterfaceModule: bumper_eval_tree_array, _is_loopvectorization
 
 const OPERATOR_LIMIT_BEFORE_SLOWDOWN = 15
 
+# Function for testing
+function std(v)
+    mn = sum(v) / length(v)
+    return sqrt(sum((v .- mn) .^ 2) / length(v))
+end
+
 macro return_on_check(val, X)
     :(
         if !isfinite($(esc(val)))
@@ -376,9 +382,16 @@ function deg2_l0_r0_eval(
         @return_on_check val_l cX
         val_r = tree.r.val
         @return_on_check val_r cX
-        x = op(val_l, val_r)::T
-        @return_on_check x cX
-        return ResultOk(fill_similar(x, cX, axes(cX, 2)), true)
+
+        # Note: This used to be highly optimized using fill_similar, but we can't do that now 
+        # due to the presence of stochastic operators.
+        cumulator = similar(cX, axes(cX, 2))
+        @inbounds @simd for j in axes(cX, 2)
+            x = op(val_l, val_r)::T
+            cumulator[j] = x
+        end
+
+        return ResultOk(cumulator, true)
     elseif tree.l.constant
         cumulator = similar(cX, axes(cX, 2))
         val_l = tree.l.val
