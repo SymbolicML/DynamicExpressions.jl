@@ -164,7 +164,7 @@ end
 end
 
 """Parse an expression Julia `Expr` object."""
-function parse_expression(
+@unstable function parse_expression(
     ex;
     operators::AbstractOperatorEnum,
     variable_names::Union{AbstractVector,Nothing}=nothing,
@@ -190,7 +190,7 @@ end
 """An empty module for evaluation without collisions."""
 module EmptyModule end
 
-function _parse_expression(
+@unstable function _parse_expression(
     ex::Expr,
     operators::AbstractOperatorEnum,
     variable_names::Union{AbstractVector{<:AbstractString},Nothing},
@@ -217,7 +217,7 @@ function _parse_expression(
         func, args, operators, variable_names, N, E, evaluate_on; kws...
     )
 end
-function _parse_expression(
+@unstable function _parse_expression(
     func::F,
     args,
     operators::AbstractOperatorEnum,
@@ -306,7 +306,7 @@ function _parse_expression(
         )
     end
 end
-function _parse_expression(
+@unstable function _parse_expression(
     ex,
     operators::AbstractOperatorEnum,
     variable_names::Union{AbstractVector{<:AbstractString},Nothing},
@@ -318,7 +318,7 @@ function _parse_expression(
     return parse_leaf(ex, variable_names, node_type, expression_type; kws...)
 end
 
-function parse_leaf(
+@unstable function parse_leaf(
     ex,
     variable_names,
     node_type::Type{<:AbstractExpressionNode},
