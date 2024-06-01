@@ -2,7 +2,7 @@ module DynamicExpressions
 
 using DispatchDoctor: @stable, @unstable
 
-@stable default_mode="disable" begin
+@stable default_mode = "disable" begin
     include("Utils.jl")
     include("ExtensionInterface.jl")
     include("OperatorEnum.jl")

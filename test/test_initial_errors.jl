@@ -33,14 +33,17 @@ if VERSION >= v"1.9"
         symbolic_to_node(tree, operators)
     )
 
-    @test_throws("Please load the Zygote.jl package.", tree'(ones(2, 10)))
+    @test_throws(
+        "Please load the Zygote.jl package.", allow_unstable(() -> tree'(ones(2, 10)))
+    )
 
     @test_throws(
-        "Please load the Bumper.jl package", tree(ones(2, 10), operators; bumper=Val(true))
+        "Please load the Bumper.jl package",
+        allow_unstable(() -> tree(ones(2, 10), operators; bumper=Val(true)))
     )
 
     @test_throws(
         "Please load the LoopVectorization.jl package",
-        tree(ones(2, 10), operators; turbo=Val(true))
+        allow_unstable(() -> tree(ones(2, 10), operators; turbo=Val(true)))
     )
 end

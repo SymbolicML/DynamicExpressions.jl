@@ -45,7 +45,7 @@ function Base.show(io::IO, tree::AbstractExpressionNode)
         return print(io, string_tree(tree, latest_operators; kwargs...))
     end
 end
-function (tree::AbstractExpressionNode)(X; kws...)
+@unstable function (tree::AbstractExpressionNode)(X; kws...)
     Base.depwarn(
         "The `tree(X; kws...)` syntax is deprecated. Use `tree(X, operators; kws...)` instead.",
         :AbstractExpressionNode,
@@ -64,7 +64,7 @@ function (tree::AbstractExpressionNode)(X; kws...)
     end
 end
 
-function _grad_evaluator(tree::AbstractExpressionNode, X; kws...)
+@unstable function _grad_evaluator(tree::AbstractExpressionNode, X; kws...)
     Base.depwarn(
         "The `tree'(X; kws...)` syntax is deprecated. Use `tree'(X, operators; kws...)` instead.",
         :AbstractExpressionNode,
@@ -95,7 +95,7 @@ function set_default_operators!(operators::GenericOperatorEnum)
     return LATEST_OPERATORS_TYPE.x = IsGenericOperatorEnum
 end
 
-function lookup_op(@nospecialize(f), ::Val{degree}) where {degree}
+@unstable function lookup_op(@nospecialize(f), ::Val{degree}) where {degree}
     mapping = degree == 1 ? LATEST_UNARY_OPERATOR_MAPPING : LATEST_BINARY_OPERATOR_MAPPING
     if !haskey(mapping, f)
         error(
@@ -420,7 +420,7 @@ and `(::AbstractExpressionNode)(X)`.
    are *not* needed for the package to work; they are purely for convenience.
 - `empty_old_operators::Bool=true`: Whether to clear the old operators.
 """
-function GenericOperatorEnum(;
+@unstable function GenericOperatorEnum(;
     binary_operators=Function[],
     unary_operators=Function[],
     define_helper_functions::Bool=true,
