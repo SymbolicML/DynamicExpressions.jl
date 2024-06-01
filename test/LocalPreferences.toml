@@ -1,0 +1,2 @@
+[DynamicExpressions]
+instability_check = "error"

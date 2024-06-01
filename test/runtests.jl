@@ -1,7 +1,4 @@
 using SafeTestsets
-using Preferences: set_preferences!
-
-set_preferences!("DynamicExpressions", "instability_check" => "error")
 
 # Check if SR_ENZYME_TEST is set in env
 test_name = get(ENV, "SR_TEST", "main")
