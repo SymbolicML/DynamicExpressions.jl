@@ -1,4 +1,5 @@
 using DynamicExpressions
+using DispatchDoctor: allow_unstable
 using Test
 
 # Before defining OperatorEnum, calling the implicit (deprecated)
@@ -6,10 +7,10 @@ using Test
 tree = Node{Float64}(; feature=1)
 
 if VERSION >= v"1.8"
-    @test_throws ErrorException tree([1.0; 2.0;;])
-    @test_throws "Please use the " tree([1.0; 2.0;;])
-    @test_throws ErrorException tree'([1.0; 2.0;;])
-    @test_throws "Please use the " tree'([1.0; 2.0;;])
+    @test_throws ErrorException allow_unstable(() -> tree([1.0; 2.0;;]))
+    @test_throws "Please use the " allow_unstable(() -> tree([1.0; 2.0;;]))
+    @test_throws ErrorException allow_unstable(() -> tree'([1.0; 2.0;;]))
+    @test_throws "Please use the " allow_unstable(() -> tree'([1.0; 2.0;;]))
 end
 
 # Initial strings are still somewhat useful
