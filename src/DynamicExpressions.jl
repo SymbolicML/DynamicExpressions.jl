@@ -16,8 +16,9 @@ using DispatchDoctor: @stable, @unstable
     include("Simplify.jl")
     include("OperatorEnumConstruction.jl")
     include("Random.jl")
+    include("Expression.jl")
+    include("Parse.jl")
 end
-
 
 import PackageExtensionCompat: @require_extensions
 import Reexport: @reexport
@@ -33,7 +34,16 @@ macro ignore(args...) end
     tree_mapreduce,
     filter_map,
     filter_map!
-import .NodeModule: constructorof, preserve_sharing
+import .NodeModule:
+    constructorof,
+    with_type_parameters,
+    preserve_sharing,
+    leaf_copy,
+    branch_copy,
+    leaf_hash,
+    branch_hash,
+    leaf_equal,
+    branch_equal
 @reexport import .NodeUtilsModule:
     count_nodes,
     count_constants,
@@ -55,6 +65,11 @@ import .NodeModule: constructorof, preserve_sharing
 @reexport import .EvaluationHelpersModule
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 @reexport import .RandomModule: NodeSampler
+@reexport import .ExpressionModule: AbstractExpression, Expression
+# Not for export; just for overloading
+import .ExpressionModule: get_tree, get_operators, get_variable_names, Metadata
+@reexport import .ParseModule: @parse_expression, parse_expression
+import .ParseModule: parse_leaf
 
 function __init__()
     @require_extensions

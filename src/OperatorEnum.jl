@@ -28,4 +28,7 @@ struct GenericOperatorEnum{B,U} <: AbstractOperatorEnum
     unaops::U
 end
 
+Base.copy(op::AbstractOperatorEnum) = op
+# TODO: Is this safe? What if a vector is passed here?
+
 end

@@ -107,6 +107,15 @@ function lookup_op(@nospecialize(f), ::Val{degree}) where {degree}
     return mapping[f]
 end
 
+function empty_all_globals!()
+    LATEST_OPERATORS.x = nothing
+    LATEST_OPERATORS_TYPE.x = IsNothing
+    empty!(LATEST_UNARY_OPERATOR_MAPPING)
+    empty!(LATEST_BINARY_OPERATOR_MAPPING)
+    LATEST_VARIABLE_NAMES.x = String[]
+    return nothing
+end
+
 function _extend_unary_operator(f::Symbol, type_requirements, internal)
     quote
         @gensym _constructorof _AbstractExpressionNode

@@ -42,7 +42,25 @@ this additionally must have fields for:
     operator in `operators.binops`. In other words, this is an enum
     of the operators, and is dependent on the specific `OperatorEnum`
     object. Only defined if `degree >= 1`
-```
+
+# Interface
+
+You *must* define `CustomNode{_T} where {_T} = new{_T}()` for each custom node type.
+
+In addition, you *may* choose to define the following functions, to override
+the defaults behavior, in particular if you wish to add additional fields
+to your type.
+
+- `leaf_copy` and `branch_copy`
+- `leaf_equal` and `branch_equal`
+- `leaf_hash` and `branch_hash`
+- `preserve_sharing`
+
+You likely do not need to, but you could choose to override the following:
+
+- `constructorof`
+- `with_type_parameters`
+
 """
 abstract type AbstractExpressionNode{T} <: AbstractNode end
 
@@ -188,6 +206,7 @@ include("base.jl")
 @inline function (::Type{N})(
     ::Type{T1}=Undefined; val=nothing, feature=nothing, op=nothing, l=nothing, r=nothing, children=nothing, allocator::F=default_allocator,
 ) where {T1,N<:AbstractExpressionNode,F}
+    validate_not_all_defaults(N, val, feature, op, l, r, children)
     if children !== nothing
         @assert l === nothing && r === nothing
         if length(children) == 1
@@ -197,6 +216,18 @@ include("base.jl")
         end
     end
     return node_factory(N, T1, val, feature, op, l, r, allocator)
+end
+function validate_not_all_defaults(::Type{N}, val, feature, op, l, r, children) where {N<:AbstractExpressionNode}
+    return nothing
+end
+function validate_not_all_defaults(::Type{N}, val, feature, op, l, r, children) where {T,N<:AbstractExpressionNode{T}}
+    if val === nothing && feature === nothing && op === nothing && l === nothing && r === nothing && children === nothing
+        error(
+            "Encountered the call for $N() inside the generic constructor. "
+            * "Did you forget to define `$(Base.typename(N).wrapper){T}() where {T} = new{T}()`?"
+        )
+    end
+    return nothing
 end
 """Create a constant leaf."""
 @inline function node_factory(
@@ -276,7 +307,7 @@ function (::Type{N})(var_string::String) where {N<:AbstractExpressionNode}
     return N(; feature=parse(UInt16, var_string[2:end]))
 end
 function (::Type{N})(
-    var_string::String, variable_names::Array{String,1}
+    var_string::String, variable_names::AbstractVector{String}
 ) where {N<:AbstractExpressionNode}
     i = findfirst(==(var_string), variable_names)::Int
     return N(; feature=i)

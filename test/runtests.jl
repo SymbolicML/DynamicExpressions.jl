@@ -1,4 +1,5 @@
 using SafeTestsets
+using TestItemRunner
 
 # Check if SR_ENZYME_TEST is set in env
 test_name = get(ENV, "SR_TEST", "main")
@@ -8,9 +9,8 @@ if test_name == "enzyme"
         include("test_enzyme.jl")
     end
 elseif test_name == "main"
-    @safetestset "Unit tests" begin
-        include("unittest.jl")
-    end
+    include("unittest.jl")
+    @run_package_tests
 else
     error("Unknown test name: $test_name")
 end
