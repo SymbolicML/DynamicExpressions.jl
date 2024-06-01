@@ -1,5 +1,7 @@
 module ParseModule
 
+using DispatchDoctor: @unstable
+
 using ..NodeModule: AbstractExpressionNode, Node, constructorof
 using ..OperatorEnumModule: AbstractOperatorEnum
 using ..OperatorEnumConstructionModule: empty_all_globals!
@@ -95,7 +97,7 @@ macro parse_expression(ex, kws...)
     )
 end
 
-function _parse_kws(kws)
+@unstable function _parse_kws(kws)
     # Initialize default values for operators and variable_names
     operators = nothing
     variable_names = nothing
