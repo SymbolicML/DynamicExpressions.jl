@@ -52,8 +52,6 @@ end
     @test typeof(ex.tree) <: Node{Float64}
 end
 
-# # Or an int
-# let ex = @parse_expression(1, operators = operators, variable_names = [])
 @testitem "Or an int" begin
     using DynamicExpressions
     operators = OperatorEnum()
@@ -61,7 +59,6 @@ end
     @test typeof(ex.tree) <: Node{Int64}
 end
 
-# Or just a variable
 @testitem "Or just a variable" begin
     using DynamicExpressions
     operators = OperatorEnum()
@@ -69,7 +66,6 @@ end
     @test typeof(ex.tree) <: Node{Float32}
 end
 
-# Or, with custom node types
 @testitem "Or, with custom node types" begin
     using DynamicExpressions
     operators = OperatorEnum()
@@ -78,7 +74,6 @@ end
     )
     @test typeof(ex.tree) <: GraphNode{Float32}
 end
-
 
 @testitem "With GraphNode" begin
     using DynamicExpressions
@@ -90,8 +85,8 @@ end
 end
 
 @testitem "Should work with symbols for variable names too" begin
-using DynamicExpressions
-let ex = @parse_expression(
+    using DynamicExpressions
+    ex = @parse_expression(
         cos(exp(α)),
         operators = OperatorEnum(; unary_operators=[cos, exp]),
         variable_names = [:α]
@@ -100,11 +95,10 @@ let ex = @parse_expression(
     s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
     @test s == "cos(exp(α))"
 end
-end
 
 @testitem "This also works for parsing mixed types" begin
-using DynamicExpressions
-let v = [1, 2, 3],
+    using DynamicExpressions
+    v = [1, 2, 3]
     ex = @parse_expression(
         $v * tan(cos(5 + x)),
         operators = GenericOperatorEnum(;
@@ -182,26 +176,24 @@ let v = [1, 2, 3],
 end
 
 @testitem "Also check with tuple inputs" begin
-let tu = (1.0, 2.0im),
+    tu = (1.0, 2.0im)
     ex = @parse_expression(
         x * $tu - cos(y),
         operators = GenericOperatorEnum(; binary_operators=[*, -], unary_operators=[cos]),
         variable_names = ["x", "y"],
         node_type = Node{Tuple{Float64,ComplexF64}}
-    ),
+    )
     s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
 
     @test s == "(x * ((1.0, 0.0 + 2.0im))) - cos(y)"
     @test typeof(ex.tree) <: Node{Tuple{Float64,ComplexF64}}
 end
-end
 
 @testitem "interpolating custom function" begin
-using DynamicExpressions
-using Suppressor
-show_type(x) = (show(typeof(x)); x)
+    using DynamicExpressions
+    using Suppressor
+    show_type(x) = (show(typeof(x)); x)
 
-let
     logged_out = @capture_out begin
         ex = @parse_expression(
             x * 2.5 - $(show_type)(cos(y)),
@@ -214,11 +206,10 @@ let
     end
     @test contains(logged_out, "Node{Float32}")
 end
-end
 
 @testitem "Helpful errors for missing operator" begin
-using DynamicExpressions
-let operators = OperatorEnum(; unary_operators=[sin])
+    using DynamicExpressions
+    operators = OperatorEnum(; unary_operators=[sin])
     @test_throws ArgumentError @parse_expression(
         cos(x), operators = operators, variable_names = [:x]
     )
@@ -271,26 +262,16 @@ let operators = OperatorEnum(; unary_operators=[sin])
         )
     end
 end
-end
 
 @testitem "Helpful error for missing function in scope" begin
-using DynamicExpressions
-operators = OperatorEnum(;
-    binary_operators=[+, -, *, /],
-    unary_operators=[cos, sin],
-    define_helper_functions=false,
-)
-my_badly_scoped_function(x) = x
-@test_throws ArgumentError begin
-    ex = @parse_expression(
-        my_badly_scoped_function(x),
-        operators = operators,
-        variable_names = ["x"],
-        evaluate_on = [my_badly_scoped_function]
+    using DynamicExpressions
+    operators = OperatorEnum(;
+        binary_operators=[+, -, *, /],
+        unary_operators=[cos, sin],
+        define_helper_functions=false,
     )
-end
-if VERSION >= v"1.9"
-    @test_throws "Tried to interpolate function `my_badly_scoped_function` but failed." begin
+    my_badly_scoped_function(x) = x
+    @test_throws ArgumentError begin
         ex = @parse_expression(
             my_badly_scoped_function(x),
             operators = operators,
@@ -298,15 +279,21 @@ if VERSION >= v"1.9"
             evaluate_on = [my_badly_scoped_function]
         )
     end
-end
+    if VERSION >= v"1.9"
+        @test_throws "Tried to interpolate function `my_badly_scoped_function` but failed." begin
+            ex = @parse_expression(
+                my_badly_scoped_function(x),
+                operators = operators,
+                variable_names = ["x"],
+                evaluate_on = [my_badly_scoped_function]
+            )
+        end
+    end
 end
 
 @testitem "Helpful error for missing variable name" begin
     using DynamicExpressions
-    operators = OperatorEnum(
-        binary_operators=[+, -, *, /],
-        unary_operators=[cos, sin],
-    )
+    operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[cos, sin])
     @test_throws ArgumentError @parse_expression(
         x + y, operators = operators, variable_names = ["x"],
     )
