@@ -372,7 +372,6 @@ function OperatorEnum(;
     # Deprecated:
     enable_autodiff=nothing,
 )
-    @assert length(binary_operators) > 0 || length(unary_operators) > 0
     enable_autodiff !== nothing && Base.depwarn(
         "The option `enable_autodiff` has been deprecated. " *
         "Differential operators are now automatically computed within the gradient call.",
