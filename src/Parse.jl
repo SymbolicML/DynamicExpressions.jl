@@ -2,13 +2,13 @@ module ParseModule
 
 using ..NodeModule: AbstractExpressionNode, Node, constructorof
 using ..OperatorEnumModule: AbstractOperatorEnum
-using ..OperatorEnumConstructionModule: empty_all_globals!
+using ..OperatorEnumConstructionModule: OperatorEnum, empty_all_globals!
 using ..ExpressionModule: AbstractExpression, Expression
 
 """
     @parse_expression(expr; operators, variable_names, node_type=Node, evaluate_on=[])
 
-Parse a symbolic expression `expr` into a computational graph where nodes represent operations or variables.
+(Experimental) Parse a symbolic expression `expr` into a computational graph where nodes represent operations or variables.
 
 ## Arguments
 

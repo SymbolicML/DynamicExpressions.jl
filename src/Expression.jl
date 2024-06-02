@@ -27,7 +27,7 @@ end
 """
     AbstractExpression{T}
 
-Abstract type for user-facing expression types, which contain
+(Experimental) Abstract type for user-facing expression types, which contain
 both the raw expression tree operating on a value type of `T`,
 as well as associated metadata to evaluate and render the expression.
 
@@ -73,7 +73,7 @@ abstract type AbstractExpression{T} end
 """
     Expression{T, N, D} <: AbstractExpression{T}
 
-Defines a high level, user-facing, expression type that encapsulates an
+(Experimental) Defines a high-level, user-facing, expression type that encapsulates an
 expression tree (like `Node`) along with associated metadata for evaluation and rendering.
 
 # Fields
