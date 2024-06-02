@@ -1,23 +1,20 @@
-using DynamicExpressions
-using DynamicExpressions: DynamicExpressions as DE
-using DynamicExpressions.ParseModule: parse_expression
-using Test
-using Suppressor
+@testitem "custom operator" begin
+    using DynamicExpressions
 
-function my_custom_op(x, y)
-    return x + y
-end
+    function my_custom_op(x, y)
+        return x + y
+    end
 
-operators = OperatorEnum(;
-    binary_operators=[+, -, *, /, my_custom_op],
-    unary_operators=[cos, sin],
-    define_helper_functions=false,
-)
+    operators = OperatorEnum(;
+        binary_operators=[+, -, *, /, my_custom_op],
+        unary_operators=[cos, sin],
+        define_helper_functions=false,
+    )
 
-# Clear operators
-OperatorEnum(; binary_operators=[/])
+    # Clears operators (which should not affect the outcome!)
+    OperatorEnum(; binary_operators=[/])
 
-let ex = @parse_expression(
+    ex = @parse_expression(
         $(my_custom_op)(x, sin(y) + 0.3),
         operators = operators,
         variable_names = ["x", "y"],
@@ -46,36 +43,54 @@ let ex = @parse_expression(
     end
 end
 
-# Can also parse just a float
-let ex = @parse_expression(1.0, operators = operators, variable_names = [])
+@testitem "Can also parse just a float" begin
+    using DynamicExpressions
+    operators = OperatorEnum()  # Tests empty operators
+    ex = @parse_expression(1.0, operators = operators, variable_names = [])
     @test typeof(ex) <: Expression
     @test ex.tree.val == 1.0
     @test typeof(ex.tree) <: Node{Float64}
 end
 
-# Or an int
-let ex = @parse_expression(1, operators = operators, variable_names = [])
+# # Or an int
+# let ex = @parse_expression(1, operators = operators, variable_names = [])
+@testitem "Or an int" begin
+    using DynamicExpressions
+    operators = OperatorEnum()
+    ex = @parse_expression(1, operators = operators, variable_names = [])
     @test typeof(ex.tree) <: Node{Int64}
 end
 
 # Or just a variable
-let ex = @parse_expression(x, operators = operators, variable_names = ["x"])
+@testitem "Or just a variable" begin
+    using DynamicExpressions
+    operators = OperatorEnum()
+    ex = @parse_expression(x, operators = operators, variable_names = ["x"])
     @test typeof(ex.tree) <: Node{Float32}
 end
 
 # Or, with custom node types
-let ex = @parse_expression(
+@testitem "Or, with custom node types" begin
+    using DynamicExpressions
+    operators = OperatorEnum()
+    ex = @parse_expression(
         x, operators = operators, variable_names = ["x"], node_type = GraphNode
     )
     @test typeof(ex.tree) <: GraphNode{Float32}
 end
-let node_type = GraphNode,
-    ex = @parse_expression(x, operators = operators, variable_names = ["x"], node_type)
 
+
+@testitem "With GraphNode" begin
+    using DynamicExpressions
+
+    node_type = GraphNode
+    operators = OperatorEnum()
+    ex = @parse_expression(x, operators = operators, variable_names = ["x"], node_type)
     @test typeof(ex.tree) <: GraphNode{Float32}
 end
 
-# Should work with symbols for variable names too
+@testitem "Should work with symbols for variable names too" begin
+using DynamicExpressions
 let ex = @parse_expression(
         cos(exp(α)),
         operators = OperatorEnum(; unary_operators=[cos, exp]),
@@ -85,8 +100,10 @@ let ex = @parse_expression(
     s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
     @test s == "cos(exp(α))"
 end
+end
 
-# This also works for parsing mixed types
+@testitem "This also works for parsing mixed types" begin
+using DynamicExpressions
 let v = [1, 2, 3],
     ex = @parse_expression(
         $v * tan(cos(5 + x)),
@@ -164,7 +181,7 @@ let v = [1, 2, 3],
     @test ex([1.0]) ≈ [1, 2, 3] * tan(cos(5 + 1.0))
 end
 
-# Also check with tuple inputs
+@testitem "Also check with tuple inputs" begin
 let tu = (1.0, 2.0im),
     ex = @parse_expression(
         x * $tu - cos(y),
@@ -177,7 +194,11 @@ let tu = (1.0, 2.0im),
     @test s == "(x * ((1.0, 0.0 + 2.0im))) - cos(y)"
     @test typeof(ex.tree) <: Node{Tuple{Float64,ComplexF64}}
 end
+end
 
+@testitem "interpolating custom function" begin
+using DynamicExpressions
+using Suppressor
 show_type(x) = (show(typeof(x)); x)
 
 let
@@ -193,8 +214,10 @@ let
     end
     @test contains(logged_out, "Node{Float32}")
 end
+end
 
-# Helpful errors for missing operator
+@testitem "Helpful errors for missing operator" begin
+using DynamicExpressions
 let operators = OperatorEnum(; unary_operators=[sin])
     @test_throws ArgumentError @parse_expression(
         cos(x), operators = operators, variable_names = [:x]
@@ -248,8 +271,15 @@ let operators = OperatorEnum(; unary_operators=[sin])
         )
     end
 end
+end
 
-# Helpful error for missing function in scope
+@testitem "Helpful error for missing function in scope" begin
+using DynamicExpressions
+operators = OperatorEnum(;
+    binary_operators=[+, -, *, /],
+    unary_operators=[cos, sin],
+    define_helper_functions=false,
+)
 my_badly_scoped_function(x) = x
 @test_throws ArgumentError begin
     ex = @parse_expression(
@@ -269,9 +299,14 @@ if VERSION >= v"1.9"
         )
     end
 end
+end
 
-# Helpful error for missing variable name
-let
+@testitem "Helpful error for missing variable name" begin
+    using DynamicExpressions
+    operators = OperatorEnum(
+        binary_operators=[+, -, *, /],
+        unary_operators=[cos, sin],
+    )
     @test_throws ArgumentError @parse_expression(
         x + y, operators = operators, variable_names = ["x"],
     )
@@ -283,14 +318,14 @@ let
     end
 end
 
-# Helpful error for bad keyword
-let
+@testitem "Helpful error for bad keyword" begin
+    using DynamicExpressions
     @test_throws LoadError @eval @parse_expression(x, variable_names = [:x], bad_arg = true)
 end
 
-# Call function explicitly to get coverage
-let
-    operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
+@testitem "Call function explicitly to get coverage" begin
+    import DynamicExpressions as DE
+    operators = DE.OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
     d = 1
     ex = DE.parse_expression(
         :(a + $d * b * b * b * b + 1.5 * c + identity(sin(a)));
@@ -299,11 +334,12 @@ let
         variable_names=[:a, :b, :c],
         calling_module=@__MODULE__,
     )
-    @test string_tree(ex) == "((a + ((((1.0 * b) * b) * b) * b)) + (1.5 * c)) + sin(a)"
+    @test DE.string_tree(ex) == "((a + ((((1.0 * b) * b) * b) * b)) + (1.5 * c)) + sin(a)"
 end
 
-# Test parsing of kws
-let
+@testitem "Test parsing of kws" begin
+    using DynamicExpressions
+    import DynamicExpressions as DE
     kws = [
         :(operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])),
         :(variable_names = [:x, :y]),
@@ -343,6 +379,9 @@ end
     s = sprint((io, e) -> show(io, MIME"text/plain"(), e), ex)
     @test s == "(x * x) - cos((0.3 * y) - 0.9)"
 end
+
+@testitem "Misc tests" begin
+    using DynamicExpressions
     ex = parse_expression(
         :(x);
         operators=OperatorEnum(; binary_operators=[+, -, *, /]),
@@ -351,5 +390,3 @@ end
     )
     @test string_tree(ex) == "x"
 end
-
-# TODO: Test parsing with custom operators
