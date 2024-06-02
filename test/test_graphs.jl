@@ -339,9 +339,9 @@ end
         @test length(tree; break_sharing=Val(true)) == 3
         @test map(t -> t.degree == 0 ? 1 : 0, tree) == [0, 1]
         @test map(t -> t.degree == 0 ? 1 : 0, tree; break_sharing=Val(true)) == [0, 1, 1]
-        @test mapreduce(t -> t.degree == 0 ? 1 : 0, +, tree; return_type=Int) == 1
+        @test mapreduce(t -> t.degree == 0 ? 1 : 0, +, tree; result_type=Val(Int)) == 1
         @test mapreduce(t -> t.degree == 0 ? 1 : 0, +, tree; break_sharing=Val(true)) == 2
-        @test sum(t -> t.degree == 0 ? 1 : 0, tree; return_type=Int) == 1
+        @test sum(t -> t.degree == 0 ? 1 : 0, tree; result_type=Val(Int)) == 1
         @test sum(t -> t.degree == 0 ? 1 : 0, tree; break_sharing=Val(true)) == 2
         @test filter_map(t -> t.degree == 0, t -> 1, tree, Int) == [1]
         @test filter_map(t -> t.degree == 0, t -> 1, tree, Int; break_sharing=Val(true)) ==
