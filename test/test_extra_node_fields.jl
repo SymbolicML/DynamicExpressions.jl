@@ -20,11 +20,11 @@ mutable struct FrozenNode{T} <: AbstractExpressionNode{T}
         return n
     end
 end
-function DynamicExpressions.leaf_copy(t::FrozenNode)
+function DynamicExpressions.leaf_copy(t::FrozenNode{T}) where {T}
     out = if t.constant
         constructorof(typeof(t))(; val=t.val)
     else
-        constructorof(typeof(t))(; feature=t.feature)
+        constructorof(typeof(t))(T; feature=t.feature)
     end
     out.frozen = t.frozen
     return out
