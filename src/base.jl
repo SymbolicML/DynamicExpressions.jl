@@ -342,7 +342,7 @@ function count(
 end
 
 """
-    sum(f::Function, tree::AbstractNode; return_type=Undefined, f_on_shared=_default_shared_aggregation, break_sharing::Val=Val(false)) where {F<:Function}
+    sum(f::Function, tree::AbstractNode; result_type=Undefined, f_on_shared=_default_shared_aggregation, break_sharing::Val=Val(false)) where {F<:Function}
 
 Sum the results of a function over a tree. For graphs with shared nodes
 such as `GraphNode`, the function `f_on_shared` is called on the result
@@ -352,17 +352,11 @@ behavior).
 function sum(
     f::F,
     tree::AbstractNode;
-    return_type=Undefined,
-    f_on_shared=_default_shared_aggregation,
-    break_sharing::Val=Val(false),
-) where {F<:Function}
-    if preserve_sharing(typeof(tree))
-        @assert typeof(return_type) !== Undefined "Must specify `return_type` as a keyword argument to `sum` if `preserve_sharing` is true."
-    end
-    return tree_mapreduce(f, +, tree, return_type; f_on_shared, break_sharing)
-end
-function _default_shared_aggregation(c, is_shared)
-    return is_shared ? (false * c) : c
+    result_type::Union{Type{RT},Val{RT}}=Val(Undefined),
+    f_on_shared::H=(c, is_shared) -> is_shared ? (false * c) : c,
+    break_sharing::Val{BS}=Val(false),
+) where {F<:Function,RT,H<:Function,BS}
+    return mapreduce(f, +, tree; result_type, f_on_shared, break_sharing)
 end
 
 """
@@ -374,7 +368,7 @@ function returns `true` for all nodes, `false` otherwise.
 all(f::F, tree::AbstractNode) where {F<:Function} = !any(t -> !@inline(f(t)), tree)
 
 """
-    mapreduce(f::Function, op::Function, tree::AbstractNode; return_type, f_on_shared, break_sharing)
+    mapreduce(f::Function, op::Function, tree::AbstractNode; result_type, f_on_shared, break_sharing)
 
 Map a function over a tree and aggregate the result using an operator `op`.
 """
@@ -382,16 +376,17 @@ function mapreduce(
     f::F,
     op::G,
     tree::AbstractNode;
-    return_type::Type{T}=Undefined,
-    f_on_shared=(c, is_shared) -> is_shared ? (false * c) : c,
-    break_sharing::Val=Val(false),
-) where {T,F<:Function,G<:Function}
-    if preserve_sharing(typeof(tree)) && break_sharing === Val(false)
-        @assert T !== Undefined "Must specify `return_type` as a keyword argument to `mapreduce` if `preserve_sharing` is true."
+    result_type::Union{Type{RT},Val{RT}}=Val(Undefined),
+    f_on_shared::H=(c, is_shared) -> is_shared ? (false * c) : c,
+    break_sharing::Val{BS}=Val(false),
+) where {F<:Function,G<:Function,RT,H<:Function,BS}
+    if preserve_sharing(typeof(tree)) && !BS
+        @assert(
+            RT !== Undefined,
+            "Must specify `result_type` as a keyword argument to `mapreduce` if `preserve_sharing` is true."
+        )
     end
-    return tree_mapreduce(
-        f, (p, c...) -> reduce(op, (p, c...)), tree, T; f_on_shared, break_sharing
-    )
+    return tree_mapreduce(f, op, tree, RT; f_on_shared, break_sharing)
 end
 
 isempty(::AbstractNode) = false
