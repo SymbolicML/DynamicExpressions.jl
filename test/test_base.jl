@@ -144,7 +144,9 @@ end
     @test mapreduce(_ -> 2, *, tree) == 2^24
     @test mapreduce(t -> t.degree, *, tree) == 0
     @test mapreduce(t -> t.degree + 1, *, tree) == 354294
-    @test mapreduce(t -> Int(t.degree), (l, r) -> (max(l, 1) * max(r, 1)), tree) == 2048
+    @test mapreduce(
+        t -> Int(t.degree), (p, c...) -> prod(x -> max(x, 1), (p, c...)), tree
+    ) == 2048
     @test mapreduce(+, tree) do t
         1
     end == 24
