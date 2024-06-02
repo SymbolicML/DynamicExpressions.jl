@@ -30,8 +30,8 @@ using DynamicExpressions
 
 operators = OperatorEnum(; binary_operators=[+, -, *], unary_operators=[cos])
 
-x1 = Node(; feature=1)
-x2 = Node(; feature=2)
+x1 = Node{Float64}(feature=1)
+x2 = Node{Float64}(feature=2)
 
 expression = x1 * cos(x2 - 3.2)
 
