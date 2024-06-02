@@ -16,11 +16,13 @@ using ..ExpressionModule: AbstractExpression, Expression
 
 ## Keyword Arguments
 
-- `operators`: An instance of `OperatorEnum` specifying the available unary and binary operators.
+- `operators`: An instance of `AbstractOperatorEnum` specifying the available unary and binary operators.
 - `variable_names`: A list of variable names as strings or symbols that are allowed in the expression.
 - `evaluate_on`: A list of external functions to evaluate explicitly when encountered.
 - `node_type`: The type of the nodes in the resulting expression tree. Defaults to `Node`.
 - `expression_type`: The type of the resulting expression. Defaults to `Expression`.
+- `binary_operators`: Convenience syntax for creating an `OperatorEnum`.
+- `unary_operators`: Convenience syntax for creating an `OperatorEnum`.
 
 ## Usage
 
@@ -103,6 +105,8 @@ function _parse_kws(kws)
     expression_type = Expression
     evaluate_on = nothing
     extra_metadata = ()
+    binops = nothing
+    unaops = nothing
 
     # Iterate over keyword arguments to extract operators and variable_names
     for kw in kws
@@ -125,6 +129,12 @@ function _parse_kws(kws)
             elseif kw == :extra_metadata
                 extra_metadata = kw
                 continue
+            elseif kw == :binary_operators
+                binops = kw
+                continue
+            elseif kw == :unary_operators
+                unaops = kw
+                continue
             end
         elseif kw isa Expr && kw.head == :(=)
             if kw.args[1] == :operators
@@ -145,6 +155,12 @@ function _parse_kws(kws)
             elseif kw.args[1] == :extra_metadata
                 extra_metadata = kw.args[2]
                 continue
+            elseif kw.args[1] == :binary_operators
+                binops = kw.args[2]
+                continue
+            elseif kw.args[1] == :unary_operators
+                unaops = kw.args[2]
+                continue
             end
         end
         throw(
@@ -154,8 +170,19 @@ function _parse_kws(kws)
         )
     end
 
-    # Ensure that operators are provided
-    @assert operators !== nothing "The 'operators' keyword argument must be provided."
+    if operators === nothing
+        @assert(
+            binops !== nothing || unaops !== nothing,
+            "You must specify the operators using either `operators`, or `binary_operators` and `unary_operators`"
+        )
+        operators = :($(OperatorEnum)(;
+            binary_operators=$(binops === nothing ? :(Function[]) : binops),
+            unary_operators=$(unaops === nothing ? :(Function[]) : unaops),
+        ))
+    else
+        @assert (binops === nothing && unaops === nothing)
+    end
+
     return (;
         operators, variable_names, node_type, expression_type, evaluate_on, extra_metadata
     )
