@@ -330,8 +330,19 @@ let
     end
 end
 
-# Misc tests
-let
+@testitem "Test parsing convenience functionality" begin
+    using DynamicExpressions
+
+    ex = @parse_expression(
+        x * x - cos(0.3 * y - 0.9),
+        binary_operators = [+, *, -],
+        unary_operators = [cos],
+        variable_names = [:x, :y]
+    )
+
+    s = sprint((io, e) -> show(io, MIME"text/plain"(), e), ex)
+    @test s == "(x * x) - cos((0.3 * y) - 0.9)"
+end
     ex = parse_expression(
         :(x);
         operators=OperatorEnum(; binary_operators=[+, -, *, /]),
