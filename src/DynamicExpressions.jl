@@ -73,9 +73,17 @@ include("deprecated.jl")
 
 import TOML: parsefile
 
-const PACKAGE_VERSION = let
-    project = parsefile(joinpath(pkgdir(@__MODULE__), "Project.toml"))
-    VersionNumber(project["version"])
+const PACKAGE_VERSION = let d = pkgdir(@__MODULE__)
+    try
+        if d isa String
+            project = parsefile(joinpath(d, "Project.toml"))
+            VersionNumber(project["version"])
+        else
+            v"0.0.0"
+        end
+    catch
+        v"0.0.0"
+    end
 end
 
 macro ignore(args...) end
