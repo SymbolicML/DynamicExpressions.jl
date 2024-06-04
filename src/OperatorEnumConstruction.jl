@@ -82,7 +82,7 @@ function set_default_variable_names!(variable_names::Vector{String})
     return LATEST_VARIABLE_NAMES.x = copy(variable_names)
 end
 
-Base.@deprecate create_evaluation_helpers! set_default_operators!
+Base.@deprecate create_evaluation_helpers!(operators) set_default_operators!(operators)
 
 function set_default_operators!(operators::OperatorEnum)
     LATEST_OPERATORS.x = operators
@@ -103,6 +103,15 @@ function lookup_op(@nospecialize(f), ::Val{degree}) where {degree}
         )
     end
     return mapping[f]
+end
+
+function empty_all_globals!()
+    LATEST_OPERATORS.x = nothing
+    LATEST_OPERATORS_TYPE.x = IsNothing
+    empty!(LATEST_UNARY_OPERATOR_MAPPING)
+    empty!(LATEST_BINARY_OPERATOR_MAPPING)
+    LATEST_VARIABLE_NAMES.x = String[]
+    return nothing
 end
 
 function _extend_unary_operator(f::Symbol, type_requirements, internal)
@@ -363,7 +372,6 @@ function OperatorEnum(;
     # Deprecated:
     enable_autodiff=nothing,
 )
-    @assert length(binary_operators) > 0 || length(unary_operators) > 0
     enable_autodiff !== nothing && Base.depwarn(
         "The option `enable_autodiff` has been deprecated. " *
         "Differential operators are now automatically computed within the gradient call.",

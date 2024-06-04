@@ -30,4 +30,4 @@ end
 
 HEADER_GUARD_TEST_PARAMS = true
 
-default_params = (binary_operators=(/, +, *), unary_operators=(exp, custom_cos))
+const default_params = (binary_operators=(/, +, *), unary_operators=(exp, custom_cos))

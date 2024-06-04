@@ -104,7 +104,7 @@ end
     ctree = copy(tree)
     vals = map(t -> t.val, ctree)
     vals = [v for v in vals if v !== nothing]
-    @test sum(vals) == 11.6
+    @test sum(vals) ≈ 11.6
     @test sum(map(_ -> 1, ctree)) == 24
     @test sum(map(_ -> 2, ctree)) == 24 * 2
     @test sum(map(t -> t.degree == 1, ctree)) == 1

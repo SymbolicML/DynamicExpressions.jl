@@ -13,6 +13,8 @@ include("EvaluationHelpers.jl")
 include("Simplify.jl")
 include("OperatorEnumConstruction.jl")
 include("Random.jl")
+include("Expression.jl")
+include("Parse.jl")
 
 import PackageExtensionCompat: @require_extensions
 import Reexport: @reexport
@@ -26,7 +28,16 @@ import Reexport: @reexport
     tree_mapreduce,
     filter_map,
     filter_map!
-import .NodeModule: constructorof, preserve_sharing
+import .NodeModule:
+    constructorof,
+    with_type_parameters,
+    preserve_sharing,
+    leaf_copy,
+    branch_copy,
+    leaf_hash,
+    branch_hash,
+    leaf_equal,
+    branch_equal
 @reexport import .NodeUtilsModule:
     count_nodes,
     count_constants,
@@ -48,6 +59,11 @@ import .NodeModule: constructorof, preserve_sharing
 @reexport import .EvaluationHelpersModule
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 @reexport import .RandomModule: NodeSampler
+@reexport import .ExpressionModule: AbstractExpression, Expression
+# Not for export; just for overloading
+import .ExpressionModule: get_tree, get_operators, get_variable_names, Metadata
+@reexport import .ParseModule: @parse_expression, parse_expression
+import .ParseModule: parse_leaf
 
 function __init__()
     @require_extensions
@@ -57,9 +73,17 @@ include("deprecated.jl")
 
 import TOML: parsefile
 
-const PACKAGE_VERSION = let
-    project = parsefile(joinpath(pkgdir(@__MODULE__), "Project.toml"))
-    VersionNumber(project["version"])
+const PACKAGE_VERSION = let d = pkgdir(@__MODULE__)
+    try
+        if d isa String
+            project = parsefile(joinpath(d, "Project.toml"))
+            VersionNumber(project["version"])
+        else
+            v"0.0.0"
+        end
+    catch
+        v"0.0.0"
+    end
 end
 
 macro ignore(args...) end
