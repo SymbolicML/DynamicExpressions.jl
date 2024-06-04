@@ -10,8 +10,10 @@ if test_name == "enzyme"
     end
 elseif test_name == "jet"
     @safetestset "JET" begin
-        using DynamicExpressions
+        using Preferences
+        set_preferences!("DynamicExpressions", "instability_check" => "disable")
         using JET
+        using DynamicExpressions
         if VERSION >= v"1.10"
             JET.test_package(DynamicExpressions; target_defined_modules=true)
         end
