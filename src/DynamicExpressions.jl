@@ -1,24 +1,30 @@
 module DynamicExpressions
 
-include("Utils.jl")
-include("ExtensionInterface.jl")
-include("OperatorEnum.jl")
-include("Node.jl")
-include("NodeUtils.jl")
-include("Strings.jl")
-include("Evaluate.jl")
-include("EvaluateDerivative.jl")
-include("ChainRules.jl")
-include("EvaluationHelpers.jl")
-include("Simplify.jl")
-include("OperatorEnumConstruction.jl")
-include("Expression.jl")
-include("Random.jl")
-include("Parse.jl")
-include("ParametricExpression.jl")
+using DispatchDoctor: @stable, @unstable
+
+@stable default_mode = "disable" begin
+    include("Utils.jl")
+    include("ExtensionInterface.jl")
+    include("OperatorEnum.jl")
+    include("Node.jl")
+    include("NodeUtils.jl")
+    include("Strings.jl")
+    include("Evaluate.jl")
+    include("EvaluateDerivative.jl")
+    include("ChainRules.jl")
+    include("EvaluationHelpers.jl")
+    include("Simplify.jl")
+    include("OperatorEnumConstruction.jl")
+    include("Expression.jl")
+    include("Random.jl")
+    include("Parse.jl")
+    include("ParametricExpression.jl")
+end
 
 import PackageExtensionCompat: @require_extensions
 import Reexport: @reexport
+macro ignore(args...) end
+
 @reexport import .NodeModule:
     AbstractNode,
     AbstractExpressionNode,
@@ -76,16 +82,22 @@ include("deprecated.jl")
 
 import TOML: parsefile
 
-const PACKAGE_VERSION = let
-    project = parsefile(joinpath(pkgdir(@__MODULE__), "Project.toml"))
-    VersionNumber(project["version"])
+const PACKAGE_VERSION = let d = pkgdir(@__MODULE__)
+    try
+        if d isa String
+            project = parsefile(joinpath(d, "Project.toml"))
+            VersionNumber(project["version"])
+        else
+            v"0.0.0"
+        end
+    catch
+        v"0.0.0"
+    end
 end
 
-macro ignore(args...) end
 # To get LanguageServer to register library within tests
 @ignore include("../test/runtests.jl")
 
 include("precompile.jl")
 do_precompilation(; mode=:precompile)
-
 end

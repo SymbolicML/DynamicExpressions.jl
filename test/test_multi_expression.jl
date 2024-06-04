@@ -20,11 +20,12 @@ struct MultiScalarExpression{
     function MultiScalarExpression(
         trees::NamedTuple; tree_factory::F, operators, variable_names
     ) where {F<:Function}
-        first_tree = first(values(trees))
-        T = eltype(first_tree)
+        example_tree = first(values(trees))
+        N = typeof(example_tree)
+        T = eltype(example_tree)
         @assert all(t -> eltype(t) == T, values(trees))
         metadata = (; tree_factory, operators, variable_names)
-        return new{T,typeof(first_tree),typeof(trees),typeof(metadata)}(
+        return new{T,N,typeof(first_tree),typeof(trees),typeof(metadata)}(
             trees, Metadata(metadata)
         )
     end
@@ -59,15 +60,15 @@ if VERSION >= v"1.9"
 end
 
 tree_factory(f::F, trees) where {F} = f(; trees...)
-function DE.get_tree(ex::MultiScalarExpression{N}) where {N}
+function DE.get_tree(ex::MultiScalarExpression{T,N}) where {T,N}
     fused_expression = parse_expression(
         tree_factory(ex.metadata.tree_factory, ex.trees)::Expr;
         calling_module=@__MODULE__,  # TODO: Not needed
         operators=DE.get_operators(ex, nothing),
         variable_names=nothing,
-        node_type=typeof(first(values(ex.trees))),
+        node_type=N,
         expression_type=Expression,
-    )
+    )::Expression{T,N}
     return fused_expression.tree
 end
 function DE.get_operators(ex::MultiScalarExpression, operators)

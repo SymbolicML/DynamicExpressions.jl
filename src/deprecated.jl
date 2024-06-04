@@ -1,8 +1,8 @@
 import Base: @deprecate
 import .NodeModule: Node, GraphNode
 
-@deprecate set_constants set_constants!
-@deprecate simplify_tree simplify_tree!
+@deprecate set_constants(tree, constants) set_constants!(tree, constants)
+@deprecate simplify_tree(tree, operators) simplify_tree!(tree, operators)
 
 for N in (:Node, :GraphNode)
     @eval begin
