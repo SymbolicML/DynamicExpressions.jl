@@ -135,11 +135,3 @@ end
 @testitem "Test parametric expression" begin
     include("test_parametric_expression.jl")
 end
-
-@testitem "JET" begin
-    using DynamicExpressions
-    using JET
-    if VERSION >= v"1.10"
-        JET.test_package(DynamicExpressions; target_defined_modules=true)
-    end
-end

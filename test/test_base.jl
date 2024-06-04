@@ -109,7 +109,7 @@ end
     @test sum(map(_ -> 2, ctree)) == 24 * 2
     @test sum(map(t -> t.degree == 1, ctree)) == 1
     @test length(unique(map(objectid, copy_node(tree)))) == 24
-    map(t -> (t.degree == 0 && t.constant) ? (t.val *= 2) : nothing, ctree)
+    map(t -> (t.degree == 0 && t.constant) ? (t.val *= 2; nothing) : nothing, ctree)
     @test sum(t -> t.val, filter(t -> t.degree == 0 && t.constant, ctree)) ≈ 11.6 * 2
     local T = fieldtype(typeof(ctree), :degree)
     @test typeof(map(t -> t.degree, ctree, T)) == Vector{T}
@@ -144,7 +144,9 @@ end
     @test mapreduce(_ -> 2, *, tree) == 2^24
     @test mapreduce(t -> t.degree, *, tree) == 0
     @test mapreduce(t -> t.degree + 1, *, tree) == 354294
-    @test mapreduce(t -> t.degree, (l, r) -> (max(l, 1) * max(r, 1)), tree) == 2048
+    @test mapreduce(
+        t -> Int(t.degree), (p, c...) -> prod(x -> max(x, 1), (p, c...)), tree
+    ) == 2048
     @test mapreduce(+, tree) do t
         1
     end == 24
@@ -153,9 +155,9 @@ end
 @testset "sum" begin
     ctree = copy(tree)
     @test sum(t -> t.degree == 0 && t.constant ? t.val : 0.0, ctree) == 11.6
-    @test sum(t -> t.degree == 0 && !t.constant ? t.feature : 0, ctree) ==
+    @test sum(t -> t.degree == 0 && !t.constant ? Int(t.feature) : 0, ctree) ==
         3 * 1 + 1 * 2 + 2 * 3
-    @test sum(t -> t.degree == 1 ? t.op : 0, ctree) == 1
+    @test sum(t -> t.degree == 1 ? Int(t.op) : 0, ctree) == 1
     @test sum(t -> (t.degree == 0 && t.constant) ? t.val * 2 : 0.0, ctree) == 11.6 * 2
     for t in ctree
         if t.degree == 0 && t.constant

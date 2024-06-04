@@ -1,6 +1,7 @@
 """This module defines a user-facing `Expression` type"""
 module ExpressionModule
 
+using DispatchDoctor: @unstable
 using ..NodeModule: AbstractExpressionNode
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..UtilsModule: Undefined
@@ -12,7 +13,7 @@ end
 _data(x::Metadata) = getfield(x, :_data)
 
 Base.propertynames(x::Metadata) = propertynames(_data(x))
-@inline Base.getproperty(x::Metadata, f::Symbol) = getproperty(_data(x), f)
+@unstable @inline Base.getproperty(x::Metadata, f::Symbol) = getproperty(_data(x), f)
 Base.show(io::IO, x::Metadata) = print(io, "Metadata(", _data(x), ")")
 @inline _copy(x) = copy(x)
 @inline _copy(x::Nothing) = nothing
