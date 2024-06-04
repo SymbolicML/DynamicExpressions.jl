@@ -149,9 +149,9 @@ end
         node_index = index_constants(ex)
         @test node_index.l.val == 1
         @test node_index.r.val == 2
-        @test get_constants(ex) == [1.5, 2.5]
-        set_constants!(ex, [3.5, 4.5])
-        @test get_constants(ex) == [3.5, 4.5]
+        @test get_constants(ex)[1] == [1.5, 2.5]
+        set_constants!(ex, [3.5, 4.5], get_constants(ex)[2])
+        @test get_constants(ex)[1] == [3.5, 4.5]
         @test count_constants(ex) == 2
         @test has_constants(ex) == true
         ex = @parse_expression(

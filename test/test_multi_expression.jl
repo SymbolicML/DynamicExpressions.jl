@@ -25,7 +25,7 @@ struct MultiScalarExpression{
         T = eltype(example_tree)
         @assert all(t -> eltype(t) == T, values(trees))
         metadata = (; tree_factory, operators, variable_names)
-        return new{T,N,typeof(first_tree),typeof(trees),typeof(metadata)}(
+        return new{T,N,typeof(trees),typeof(metadata)}(
             trees, Metadata(metadata)
         )
     end
