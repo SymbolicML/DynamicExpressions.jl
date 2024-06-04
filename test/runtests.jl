@@ -11,7 +11,7 @@ if test_name == "enzyme"
 elseif test_name == "jet"
     @safetestset "JET" begin
         using Preferences
-        set_preferences!("DynamicExpressions", "instability_check" => "disable")
+        set_preferences!("DynamicExpressions", "instability_check" => "disable"; force=true)
         using JET
         using DynamicExpressions
         if VERSION >= v"1.10"
