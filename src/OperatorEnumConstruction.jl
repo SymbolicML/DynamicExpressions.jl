@@ -84,7 +84,7 @@ function set_default_variable_names!(variable_names::Vector{String})
     return LATEST_VARIABLE_NAMES.x = copy(variable_names)
 end
 
-Base.@deprecate create_evaluation_helpers! set_default_operators!
+Base.@deprecate create_evaluation_helpers!(operators) set_default_operators!(operators)
 
 function set_default_operators!(operators::OperatorEnum)
     LATEST_OPERATORS.x = operators
@@ -374,7 +374,6 @@ redefine operators for `AbstractExpressionNode` types, as well as `show`, `print
     # Deprecated:
     enable_autodiff=nothing,
 )
-    @assert length(binary_operators) > 0 || length(unary_operators) > 0
     enable_autodiff !== nothing && Base.depwarn(
         "The option `enable_autodiff` has been deprecated. " *
         "Differential operators are now automatically computed within the gradient call.",

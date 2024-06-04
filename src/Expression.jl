@@ -28,7 +28,7 @@ end
 """
     AbstractExpression{T}
 
-Abstract type for user-facing expression types, which contain
+(Experimental) Abstract type for user-facing expression types, which contain
 both the raw expression tree operating on a value type of `T`,
 as well as associated metadata to evaluate and render the expression.
 
@@ -74,7 +74,7 @@ abstract type AbstractExpression{T} end
 """
     Expression{T, N, D} <: AbstractExpression{T}
 
-Defines a high level, user-facing, expression type that encapsulates an
+(Experimental) Defines a high-level, user-facing, expression type that encapsulates an
 expression tree (like `Node`) along with associated metadata for evaluation and rendering.
 
 # Fields
@@ -214,8 +214,8 @@ import ..NodeUtilsModule:
     set_constants!
 
 #! format: off
-count_constants(ex::AbstractExpression; kws...) = count_constants(get_tree(ex); kws...)
-count_depth(ex::AbstractExpression; kws...) = count_depth(get_tree(ex); kws...)
+count_constants(ex::AbstractExpression) = count_constants(get_tree(ex))
+count_depth(ex::AbstractExpression) = count_depth(get_tree(ex))
 index_constants(ex::AbstractExpression, ::Type{T}=UInt16) where {T} = index_constants(get_tree(ex), T)
 has_operators(ex::AbstractExpression) = has_operators(get_tree(ex))
 has_constants(ex::AbstractExpression) = has_constants(get_tree(ex))
@@ -311,14 +311,14 @@ end
 import ..SimplifyModule: combine_operators, simplify_tree!
 
 # Avoid implementing a generic version for these, as it is less likely to generalize
-function combine_operators(ex::Expression, operators=nothing; kws...)
+function combine_operators(ex::Expression, operators=nothing)
     return Expression(
-        combine_operators(get_tree(ex), get_operators(ex, operators); kws...), ex.metadata
+        combine_operators(get_tree(ex), get_operators(ex, operators)), ex.metadata
     )
 end
-function simplify_tree!(ex::Expression, operators=nothing; kws...)
+function simplify_tree!(ex::Expression, operators=nothing)
     return Expression(
-        simplify_tree!(get_tree(ex), get_operators(ex, operators); kws...), ex.metadata
+        simplify_tree!(get_tree(ex), get_operators(ex, operators)), ex.metadata
     )
 end
 

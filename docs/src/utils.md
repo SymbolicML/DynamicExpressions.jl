@@ -1,11 +1,5 @@
 # Node utilities
 
-## Creating trees
-
-```@docs
-@parse_expression
-```
-
 ## `Base`
 
 Various functions in `Base` are overloaded to treat an `AbstractNode` as a
