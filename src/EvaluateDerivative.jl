@@ -80,7 +80,9 @@ end
         end
     end
     deg2_branch = if nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
-        diff_deg2_eval(tree, cX, operators.binops[op_idx], operators, direction)
+        quote
+            diff_deg2_eval(tree, cX, operators.binops[op_idx], operators, direction)
+        end
     else
         quote
             Base.Cartesian.@nif(

@@ -1,5 +1,7 @@
 module EvaluateModule
 
+using DispatchDoctor: @unstable
+
 import ..NodeModule: AbstractExpressionNode, constructorof
 import ..StringsModule: string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
@@ -657,7 +659,7 @@ function eval(current_node)
     A `false` complete means an operator was called on input types
     that it was not defined for.
 """
-function eval_tree_array(
+@unstable function eval_tree_array(
     tree::AbstractExpressionNode,
     cX::AbstractArray,
     operators::GenericOperatorEnum;
@@ -680,7 +682,7 @@ function eval_tree_array(
     end
 end
 
-function _eval_tree_array_generic(
+@unstable function _eval_tree_array_generic(
     tree::AbstractExpressionNode{T1},
     cX::AbstractArray{T2,N},
     operators::GenericOperatorEnum,
@@ -707,7 +709,7 @@ function _eval_tree_array_generic(
     end
 end
 
-function deg1_eval_generic(
+@unstable function deg1_eval_generic(
     tree, cX, op::F, operators::GenericOperatorEnum, ::Val{throw_errors}
 ) where {F,throw_errors}
     left, complete = eval_tree_array(tree.l, cX, operators)
@@ -716,7 +718,7 @@ function deg1_eval_generic(
     return op(left), true
 end
 
-function deg2_eval_generic(
+@unstable function deg2_eval_generic(
     tree, cX, op::F, operators::GenericOperatorEnum, ::Val{throw_errors}
 ) where {F,throw_errors}
     left, complete = eval_tree_array(tree.l, cX, operators)

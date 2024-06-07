@@ -2,6 +2,7 @@ using DynamicExpressions
 using StaticArrays
 using Test
 using Zygote
+using DispatchDoctor: allow_unstable
 
 @testset "StaticArrays type preserved" begin
     for T in (Float32, Float64)
@@ -16,10 +17,13 @@ using Zygote
         y = tree(X, operators)
         @test typeof(y) == MVector{10,T}
 
-        dy = tree'(X, operators)
+        # These are unstable to the number of elements,
+        # as constant propagation doesn't get the number of features
+        # through all the functions
+        dy = allow_unstable(() -> tree'(X, operators))
         @test typeof(dy) == MMatrix{3,10,T,30}
 
-        dy = tree'(X, operators; variable=false)
+        dy = allow_unstable(() -> tree'(X, operators; variable=false))
         @test typeof(dy) == MMatrix{4,10,T,40}
 
         # Even with NaNs:
@@ -27,10 +31,10 @@ using Zygote
         y = tree(X, operators)
         @test typeof(y) == MVector{10,T}
 
-        dy = tree'(X, operators)
+        dy = allow_unstable(() -> tree'(X, operators))
         @test typeof(dy) == MMatrix{3,10,T,30}
 
-        dy = tree'(X, operators; variable=false)
+        dy = allow_unstable(() -> tree'(X, operators; variable=false))
         @test typeof(dy) == MMatrix{4,10,T,40}
     end
 end

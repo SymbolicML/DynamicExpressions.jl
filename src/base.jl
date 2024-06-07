@@ -23,6 +23,7 @@ import Base:
     reduce,
     sum
 
+using DispatchDoctor: @unstable
 using Compat: @inline, Returns
 using ..UtilsModule: @memoize_on, @with_memoize, Undefined
 
@@ -32,6 +33,7 @@ using ..UtilsModule: @memoize_on, @with_memoize, Undefined
         [f_branch::Function,]
         op::Function,
         tree::AbstractNode,
+        [result_type::Type=Undefined];
         f_on_shared::Function=(result, is_shared) -> result,
         break_sharing::Val=Val(false),
     )
@@ -77,11 +79,11 @@ function tree_mapreduce(
     f::F,
     op::G,
     tree::AbstractNode,
-    result_type::Type=Undefined;
+    result_type::Type{RT}=Undefined;
     f_on_shared::H=(result, is_shared) -> result,
     break_sharing=Val(false),
-) where {F<:Function,G<:Function,H<:Function}
-    return tree_mapreduce(f, f, op, tree, result_type; f_on_shared, break_sharing)
+) where {RT,F<:Function,G<:Function,H<:Function}
+    return tree_mapreduce(f, f, op, tree, RT; f_on_shared, break_sharing)
 end
 function tree_mapreduce(
     f_leaf::F1,
@@ -160,11 +162,11 @@ end
 function inner_is_equal(a, b)
     (degree = a.degree) != b.degree && return false
     if degree == 0
-        return isequal_deg0(a, b)
+        return leaf_equal(a, b)
     elseif degree == 1
-        return isequal_deg1(a, b) && inner_is_equal(a.l, b.l)
+        return branch_equal(a, b) && inner_is_equal(a.l, b.l)
     else
-        return isequal_deg2(a, b) && inner_is_equal(a.l, b.l) && inner_is_equal(a.r, b.r)
+        return branch_equal(a, b) && inner_is_equal(a.l, b.l) && inner_is_equal(a.r, b.r)
     end
 end
 function inner_is_equal_shared(a, b, id_map_a, id_map_b)
@@ -182,11 +184,11 @@ function inner_is_equal_shared(a, b, id_map_a, id_map_b)
     (degree = a.degree) != b.degree && return false
 
     result = if degree == 0
-        isequal_deg0(a, b)
+        leaf_equal(a, b)
     elseif degree == 1
-        isequal_deg1(a, b) && inner_is_equal_shared(a.l, b.l, id_map_a, id_map_b)
+        branch_equal(a, b) && inner_is_equal_shared(a.l, b.l, id_map_a, id_map_b)
     else
-        isequal_deg2(a, b) &&
+        branch_equal(a, b) &&
             inner_is_equal_shared(a.l, b.l, id_map_a, id_map_b) &&
             inner_is_equal_shared(a.r, b.r, id_map_a, id_map_b)
     end
@@ -197,9 +199,10 @@ function inner_is_equal_shared(a, b, id_map_a, id_map_b)
     return result
 end
 
-@inline isequal_deg1(a::AbstractExpressionNode, b::AbstractExpressionNode) = a.op == b.op
-@inline isequal_deg2(a::AbstractExpressionNode, b::AbstractExpressionNode) = a.op == b.op
-@inline function isequal_deg0(
+@inline function branch_equal(a::AbstractExpressionNode, b::AbstractExpressionNode)
+    return a.op == b.op
+end
+@inline function leaf_equal(
     a::AbstractExpressionNode{T1}, b::AbstractExpressionNode{T2}
 ) where {T1,T2}
     (constant = a.constant) != b.constant && return false
@@ -314,7 +317,7 @@ function map(
     f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; break_sharing::Val=Val(false)
 ) where {F<:Function,RT}
     if RT == Nothing
-        return f.(collect(tree; break_sharing))
+        return map(f, collect(tree; break_sharing))
     else
         return filter_map(Returns(true), f, tree, result_type; break_sharing)
     end
@@ -339,7 +342,7 @@ function count(
 end
 
 """
-    sum(f::Function, tree::AbstractNode; init=0, return_type=Undefined, f_on_shared=_default_shared_aggregation, break_sharing::Val=Val(false)) where {F<:Function}
+    sum(f::Function, tree::AbstractNode; result_type=Undefined, f_on_shared=_default_shared_aggregation, break_sharing::Val=Val(false)) where {F<:Function}
 
 Sum the results of a function over a tree. For graphs with shared nodes
 such as `GraphNode`, the function `f_on_shared` is called on the result
@@ -349,18 +352,11 @@ behavior).
 function sum(
     f::F,
     tree::AbstractNode;
-    init=0,
-    return_type=Undefined,
-    f_on_shared=_default_shared_aggregation,
-    break_sharing::Val=Val(false),
-) where {F<:Function}
-    if preserve_sharing(typeof(tree))
-        @assert typeof(return_type) !== Undefined "Must specify `return_type` as a keyword argument to `sum` if `preserve_sharing` is true."
-    end
-    return tree_mapreduce(f, +, tree, return_type; f_on_shared, break_sharing) + init
-end
-function _default_shared_aggregation(c, is_shared)
-    return is_shared ? (false * c) : c
+    result_type::Union{Type{RT},Val{RT}}=Val(Undefined),
+    f_on_shared::H=(c, is_shared) -> is_shared ? (false * c) : c,
+    break_sharing::Val{BS}=Val(false),
+) where {F<:Function,RT,H<:Function,BS}
+    return mapreduce(f, +, tree; result_type, f_on_shared, break_sharing)
 end
 
 """
@@ -372,7 +368,7 @@ function returns `true` for all nodes, `false` otherwise.
 all(f::F, tree::AbstractNode) where {F<:Function} = !any(t -> !@inline(f(t)), tree)
 
 """
-    mapreduce(f::Function, op::Function, tree::AbstractNode; return_type, f_on_shared, break_sharing)
+    mapreduce(f::Function, op::Function, tree::AbstractNode; result_type, f_on_shared, break_sharing)
 
 Map a function over a tree and aggregate the result using an operator `op`.
 """
@@ -380,23 +376,25 @@ function mapreduce(
     f::F,
     op::G,
     tree::AbstractNode;
-    return_type=Undefined,
-    f_on_shared=(c, is_shared) -> is_shared ? (false * c) : c,
-    break_sharing::Val=Val(false),
-) where {F<:Function,G<:Function}
-    if preserve_sharing(typeof(tree))
-        @assert typeof(return_type) !== Undefined "Must specify `return_type` as a keyword argument to `mapreduce` if `preserve_sharing` is true."
+    result_type::Union{Type{RT},Val{RT}}=Val(Undefined),
+    f_on_shared::H=(c, is_shared) -> is_shared ? (false * c) : c,
+    break_sharing::Val{BS}=Val(false),
+) where {F<:Function,G<:Function,RT,H<:Function,BS}
+    if preserve_sharing(typeof(tree)) && !BS
+        @assert(
+            RT !== Undefined,
+            "Must specify `result_type` as a keyword argument to `mapreduce` if `preserve_sharing` is true."
+        )
     end
-    return tree_mapreduce(
-        f, (n...) -> reduce(op, n), tree, return_type; f_on_shared, break_sharing
-    )
+    return tree_mapreduce(f, op, tree, RT; f_on_shared, break_sharing)
 end
 
 isempty(::AbstractNode) = false
 function iterate(root::AbstractNode)
     return (root, collect(root; break_sharing=Val(true))[(begin + 1):end])
 end
-iterate(::AbstractNode, stack) = isempty(stack) ? nothing : (popfirst!(stack), stack)
+@unstable iterate(::AbstractNode, stack) =
+    isempty(stack) ? nothing : (popfirst!(stack), stack)
 in(item, tree::AbstractNode) = any(t -> t == item, tree)
 function length(tree::AbstractNode; break_sharing::Val=Val(false))
     return count_nodes(tree; break_sharing)
@@ -412,15 +410,21 @@ function hash(
     tree::AbstractExpressionNode{T}, h::UInt=zero(UInt); break_sharing::Val=Val(false)
 ) where {T}
     return tree_mapreduce(
-        t -> t.constant ? hash((0, t.val), h) : hash((1, t.feature), h),
-        t -> hash((t.degree + 1, t.op), h),
-        (n...) -> hash(n, h),
+        t -> leaf_hash(h, t),
+        identity,
+        (p, c...) -> branch_hash(h, p, c...),
         tree,
         UInt;
         f_on_shared=(cur_hash, is_shared) ->
             is_shared ? hash((:shared, cur_hash), h) : cur_hash,
         break_sharing,
     )
+end
+function leaf_hash(h::UInt, t::AbstractExpressionNode)
+    return t.constant ? hash((0, t.val), h) : hash((1, t.feature), h)
+end
+function branch_hash(h::UInt, t::AbstractExpressionNode, children::Vararg{Any,M}) where {M}
+    return hash((t.degree + 1, t.op, children), h)
 end
 
 """
@@ -434,18 +438,17 @@ If `break_sharing` is set to `Val(true)`, sharing in a tree will be ignored.
 function copy_node(
     tree::N; break_sharing::Val=Val(false)
 ) where {T,N<:AbstractExpressionNode{T}}
-    return tree_mapreduce(
-        t -> if t.constant
-            constructorof(N)(; val=t.val)
-        else
-            constructorof(N)(T; feature=t.feature)
-        end,
-        identity,
-        (p, children...) -> constructorof(N)(; op=p.op, children),
-        tree,
-        N;
-        break_sharing,
-    )
+    return tree_mapreduce(leaf_copy, identity, branch_copy, tree, N; break_sharing)
+end
+function leaf_copy(t::N) where {T,N<:AbstractExpressionNode{T}}
+    if t.constant
+        return constructorof(N)(; val=t.val)
+    else
+        return constructorof(N)(T; feature=t.feature)
+    end
+end
+function branch_copy(t::N, children::Vararg{Any,M}) where {T,N<:AbstractExpressionNode{T},M}
+    return constructorof(N)(T; op=t.op, children)
 end
 
 """
@@ -479,15 +482,16 @@ function convert(
     end
     return tree_mapreduce(
         t -> if t.constant
-            constructorof(N1)(; val=convert(T1, t.val::T2))
+            constructorof(N1)(T1; val=convert(T1, t.val::T2))
         else
             constructorof(N1)(T1; feature=t.feature)
         end,
         identity,
-        (p, children...) -> constructorof(N1)(; op=p.op, children),
+        (p, children...) -> constructorof(N1)(T1; op=p.op, children),
         tree,
         N1,
     )
+    # TODO: Need to allow user to overload this!
 end
 function convert(
     ::Type{N1}, tree::N2

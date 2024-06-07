@@ -14,17 +14,19 @@ const OP_NAMES = Base.ImmutableDict(
     "safe_pow" => "^",
 )
 
-function dispatch_op_name(::Val{2}, ::Nothing, idx)::Vector{Char}
-    return vcat(collect("binary_operator["), collect(string(idx)), [']'])
+function dispatch_op_name(::Val{deg}, ::Nothing, idx)::Vector{Char} where {deg}
+    if deg == 1
+        return vcat(collect("unary_operator["), collect(string(idx)), [']'])
+    else
+        return vcat(collect("binary_operator["), collect(string(idx)), [']'])
+    end
 end
-function dispatch_op_name(::Val{1}, ::Nothing, idx)::Vector{Char}
-    return vcat(collect("unary_operator["), collect(string(idx)), [']'])
-end
-function dispatch_op_name(::Val{2}, operators::AbstractOperatorEnum, idx)::Vector{Char}
-    return get_op_name(operators.binops[idx])
-end
-function dispatch_op_name(::Val{1}, operators::AbstractOperatorEnum, idx)::Vector{Char}
-    return get_op_name(operators.unaops[idx])
+function dispatch_op_name(::Val{deg}, operators::AbstractOperatorEnum, idx) where {deg}
+    if deg == 1
+        return get_op_name(operators.unaops[idx])::Vector{Char}
+    else
+        return get_op_name(operators.binops[idx])::Vector{Char}
+    end
 end
 
 @generated function get_op_name(op::F)::Vector{Char} where {F}
@@ -131,21 +133,28 @@ function string_tree(
     operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     f_variable::F1=string_variable,
     f_constant::F2=string_constant,
-    variable_names::Union{Array{String,1},Nothing}=nothing,
+    variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
     # Deprecated
     varMap=nothing,
 )::String where {T,F1<:Function,F2<:Function}
     variable_names = deprecate_varmap(variable_names, varMap, :string_tree)
     raw_output = tree_mapreduce(
-        leaf -> if leaf.constant
-            collect(f_constant(leaf.val))
-        else
-            collect(f_variable(leaf.feature, variable_names))
+        let f_constant = f_constant,
+            f_variable = f_variable,
+            variable_names = variable_names
+
+            (leaf,) -> if leaf.constant
+                collect(f_constant(leaf.val))::Vector{Char}
+            else
+                collect(f_variable(leaf.feature, variable_names))::Vector{Char}
+            end
         end,
-        branch -> if branch.degree == 1
-            dispatch_op_name(Val(1), operators, branch.op)
-        else
-            dispatch_op_name(Val(2), operators, branch.op)
+        let operators = operators
+            (branch,) -> if branch.degree == 1
+                dispatch_op_name(Val(1), operators, branch.op)::Vector{Char}
+            else
+                dispatch_op_name(Val(2), operators, branch.op)::Vector{Char}
+            end
         end,
         combine_op_with_inputs,
         tree,
@@ -170,7 +179,7 @@ for io in ((), (:(io::IO),))
         operators::Union{AbstractOperatorEnum,Nothing}=nothing;
         f_variable::F1=string_variable,
         f_constant::F2=string_constant,
-        variable_names::Union{Array{String,1},Nothing}=nothing,
+        variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
         # Deprecated
         varMap=nothing,
     ) where {F1<:Function,F2<:Function}

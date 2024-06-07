@@ -122,13 +122,9 @@ end
 
 # Simplify tree
 function simplify_tree!(tree::AbstractExpressionNode, operators::AbstractOperatorEnum)
-    tree = tree_mapreduce(
-        identity,
-        (p, c...) -> combine_children!(operators, p, c...),
-        tree,
-        constructorof(typeof(tree));
+    return tree_mapreduce(
+        identity, (p, c...) -> combine_children!(operators, p, c...), tree, typeof(tree);
     )
-    return tree
 end
 
 end
