@@ -217,7 +217,7 @@ end
         elseif eltype(variable_names) <: AbstractString
             variable_names
         else
-            string.(variable_names)
+            map(string, variable_names)
         end,
         operators = if operators === nothing
             OperatorEnum(; binary_operators, unary_operators)
