@@ -205,7 +205,7 @@ end
     operators::Union{AbstractOperatorEnum,Nothing}=nothing,
     binary_operators::Union{Vector{<:Function},Nothing}=nothing,
     unary_operators::Union{Vector{<:Function},Nothing}=nothing,
-    variable_names::Union{Vector,Nothing}=nothing,
+    variable_names::Union{AbstractVector,Nothing}=nothing,
     expression_type::Type{E}=Expression,
     node_type::Type{N}=default_node(expression_type),
     evaluate_on::Union{Nothing,AbstractVector}=nothing,
@@ -217,7 +217,7 @@ end
         elseif eltype(variable_names) <: AbstractString
             variable_names
         else
-            map(string, variable_names)
+            map(v -> string(v)::String, variable_names)
         end,
         operators = if operators === nothing
             OperatorEnum(;
