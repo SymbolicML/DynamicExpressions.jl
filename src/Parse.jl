@@ -220,7 +220,18 @@ end
             map(string, variable_names)
         end,
         operators = if operators === nothing
-            OperatorEnum(; binary_operators, unary_operators)
+            OperatorEnum(;
+                binary_operators=if binary_operators === nothing
+                    Function[]
+                else
+                    binary_operators
+                end,
+                unary_operators=if unary_operators === nothing
+                    Function[]
+                else
+                    unary_operators
+                end,
+            )
         else
             operators
         end
