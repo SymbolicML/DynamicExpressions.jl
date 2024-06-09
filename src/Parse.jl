@@ -90,8 +90,8 @@ macro parse_expression(ex, kws...)
         :($(parse_expression)(
             $(Meta.quot(ex));
             operators=$(parsed_kws.operators),
-            binary_operators=$(parsed_kws.binary_operators),
-            unary_operators=$(parsed_kws.unary_operators),
+            binary_operators=nothing,
+            unary_operators=nothing,
             variable_names=$(parsed_kws.variable_names),
             node_type=$(parsed_kws.node_type),
             expression_type=$(parsed_kws.expression_type),
