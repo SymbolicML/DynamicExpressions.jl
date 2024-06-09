@@ -1,11 +1,7 @@
-"""Test what happens if we create an expression with a parametric field."""
+@testitem "Basic evaluation" begin
+    using DynamicExpressions
 
-using Test
-using DynamicExpressions
-using Random: MersenneTwister
-using Optim
-
-let parameters = [1.0 2.0 3.0],
+    parameters = [1.0 2.0 3.0]
     ex = @parse_expression(
         sin(x) + p,
         operators = OperatorEnum(; binary_operators=(+, -), unary_operators=(sin,)),
@@ -13,7 +9,7 @@ let parameters = [1.0 2.0 3.0],
         node_type = ParametricNode,
         expression_type = ParametricExpression,
         extra_metadata = (; parameters, parameter_names=["p"]),
-    ),
+    )
     X = [0.0 π / 2 π 3π / 2 2π]
 
     @test ex isa ParametricExpression{Float64}
@@ -27,11 +23,13 @@ let parameters = [1.0 2.0 3.0],
     @test ex(X, [1, 2, 2, 3, 1]) ≈ [1.0, 3.0, 2.0, 2.0, 1.0]
 end
 
-# With 2 parameters, 2 variables
-let parameters = [
+@testitem "2 parameters, 2 variables" begin
+    using DynamicExpressions
+
+    parameters = [
         1.0 1.0 0.8
         2.0 3.0 5.0
-    ],
+    ]
     ex = @parse_expression(
         sin(x) + y + p1 * p2,
         operators = OperatorEnum(; binary_operators=(+, -, *), unary_operators=(sin,)),
@@ -39,11 +37,11 @@ let parameters = [
         node_type = ParametricNode,
         expression_type = ParametricExpression,
         extra_metadata = (; parameters, parameter_names=["p1", "p2"]),
-    ),
+    )
     X = [
         0.0 π/2 π 1.2
         0.0 0.0 1.5 0.1
-    ],
+    ]
     param_idx = [1, 1, 2, 3]
 
     @test string_tree(ex) == "(sin(x) + y) + (p1 * p2)"
@@ -56,7 +54,11 @@ let parameters = [
     ]
 end
 
-let
+@testitem "Optimization" begin
+    using DynamicExpressions
+    using Optim
+    using Random: MersenneTwister
+
     variable_names = ["x", "y"]
     parameter_names = ["p1", "p2"]
     binary_operators = [+, -, *, /]
