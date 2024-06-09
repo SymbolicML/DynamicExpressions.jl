@@ -229,13 +229,6 @@ end
         return constructorof(E)(tree; operators, variable_names, kws...)
     end
 end
-# function parse_expression(ex, prototype::AbstractExpression; evaluate_on=nothing)
-#     operators = get_operators(prototype, nothing)
-#     variable_names = get_variable_names(prototype, nothing)
-#     E = typeof(prototype)
-#     N = node_type(prototype)
-#     return _parse_expression(ex, operators, variable_names, N, E; evaluate_on)
-# end
 
 """An empty module for evaluation without collisions."""
 module EmptyModule end
