@@ -5,7 +5,13 @@ using DispatchDoctor: @unstable
 using ..NodeModule: AbstractExpressionNode, Node, constructorof
 using ..OperatorEnumModule: AbstractOperatorEnum
 using ..OperatorEnumConstructionModule: OperatorEnum, empty_all_globals!
-using ..ExpressionModule: AbstractExpression, Expression, default_node
+using ..ExpressionModule:
+    AbstractExpression,
+    Expression,
+    default_node,
+    get_operators,
+    get_variable_names,
+    node_type
 
 """
     @parse_expression(expr; operators, variable_names, node_type=Node, evaluate_on=[])
@@ -223,6 +229,13 @@ end
         return constructorof(E)(tree; operators, variable_names, kws...)
     end
 end
+# function parse_expression(ex, prototype::AbstractExpression; evaluate_on=nothing)
+#     operators = get_operators(prototype, nothing)
+#     variable_names = get_variable_names(prototype, nothing)
+#     E = typeof(prototype)
+#     N = node_type(prototype)
+#     return _parse_expression(ex, operators, variable_names, N, E; evaluate_on)
+# end
 
 """An empty module for evaluation without collisions."""
 module EmptyModule end
@@ -239,7 +252,7 @@ module EmptyModule end
     ex.head != :call && throw(
         ArgumentError(
             "Unrecognized expression type: `Expr(:$(ex.head), ...)`. " *
-            "Please only a function call or a variable.",
+            "Please only pass a function call or a variable.",
         ),
     )
     args = ex.args
