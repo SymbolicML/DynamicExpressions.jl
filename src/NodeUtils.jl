@@ -78,7 +78,8 @@ Also return metadata that can will be used in the `set_constants!` function.
 """
 function get_constants(tree::AbstractExpressionNode{T}) where {T}
     refs = filter_map(is_node_constant, t -> Ref(t), tree, Ref{typeof(tree)})
-    return map(ref -> ref[].val, refs), refs
+    return map(ref -> ref[].val::T, refs), refs
+    # NOTE: Do not remove this `::T` as it is required for inference on empty collections
 end
 
 """

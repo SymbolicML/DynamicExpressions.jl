@@ -1,5 +1,7 @@
 module ParametricExpressionModule
 
+using DispatchDoctor: @unstable
+
 using ..NodeModule:
     AbstractExpressionNode, Node, with_type_parameters, constructorof, tree_mapreduce
 using ..ExpressionModule: AbstractExpression, Metadata
@@ -17,17 +19,18 @@ import ..SimplifyModule: combine_operators, simplify_tree!
 import ..EvaluateModule: eval_tree_array
 import ..EvaluateDerivativeModule: eval_grad_tree_array
 import ..EvaluationHelpersModule: _grad_evaluator
-import ..ExpressionModule: get_tree, get_operators, get_variable_names, max_feature
+import ..ExpressionModule:
+    get_tree, get_operators, get_variable_names, max_feature, default_node
 import ..ParseModule: parse_leaf
 
 """A type of expression node that also stores a parameter index"""
 mutable struct ParametricNode{T} <: AbstractExpressionNode{T}
     degree::UInt8
-    constant::Bool
+    constant::Bool  # if true => constant; if false, then check `is_parameter`
     val::T
     feature::UInt16
 
-    is_parameter::Bool  # Whether this is a parameter node
+    is_parameter::Bool  # if true => parameter; if false, then is `feature`
     parameter::UInt16  # Stores index of per-class parameter
 
     op::UInt8
@@ -73,6 +76,7 @@ end
 ###############################################################################
 # Abstract expression node interface ##########################################
 ###############################################################################
+@unstable default_node(::Type{<:ParametricExpression}) = ParametricNode
 preserve_sharing(t::ParametricNode{T}) where {T} = false # TODO: Change this?
 function leaf_copy(t::ParametricNode{T}) where {T}
     out = if t.constant
@@ -81,6 +85,7 @@ function leaf_copy(t::ParametricNode{T}) where {T}
         constructorof(typeof(t))(T; feature=t.feature)
     else
         n = constructorof(typeof(t))(; val=zero(T))
+        n.constant = false
         n.is_parameter = true
         n.parameter = t.parameter
         n
@@ -232,7 +237,10 @@ function eval_tree_array(
     @assert length(classes) == size(X, 2)
     @assert maximum(classes) <= size(ex.metadata.parameters, 2)  # TODO: Remove when comfortable
     parameters = ex.metadata.parameters
-    indexed_parameters = parameters[:, classes]
+    indexed_parameters = [
+        parameters[i_parameter, classes[i_row]] for
+        i_parameter in eachindex(axes(parameters, 1)), i_row in eachindex(classes)
+    ]
     params_and_X = vcat(indexed_parameters, X)
     # Then, we create a normal `Node{T}` type from the `ParametricNode{T}`,
     # with `feature` set to the parameter index + num_features
@@ -321,6 +329,82 @@ function simplify_tree!(ex::ParametricExpression, operators=nothing; kws...)
     return ParametricExpression(
         simplify_tree!(get_tree(ex), get_operators(ex, operators); kws...), ex.metadata
     )
+end
+
+using TestItems: @testitem
+
+@testitem "Optimization with parameters" begin
+    using DynamicExpressions
+    using Random: MersenneTwister
+    using Optim
+
+    let
+        variable_names = ["x", "y"]
+        parameter_names = ["p1", "p2"]
+        binary_operators = [+, -, *, /]
+        unary_operators = [sin]
+        expression_type = ParametricExpression
+
+        rng = MersenneTwister(0)
+        true_parameters = [
+            -0.2 +0.2 +0.3
+            +1.4 +0.5 -0.9
+        ]
+        init_parameters = zero(true_parameters)
+        X = [
+            11 12 13 14 15 16 17 18 19.0
+            21 22 23 24 25 26 27 28 29
+        ]
+        classes = [1, 2, 3, 3, 2, 1, 1, 2, 3]
+
+        (init_ex, true_ex) = map(
+            p -> parse_expression(
+                :((x * p2) + y + p1);
+                variable_names,
+                binary_operators,
+                unary_operators,
+                expression_type,
+                parameters=p,
+                parameter_names,
+            ),
+            (copy(init_parameters), copy(true_parameters)),
+        )
+        s = string_tree(init_ex)
+        @test s == "((x * p2) + y) + p1"
+
+        @test init_ex.metadata.parameters == init_parameters
+        @test true_ex.metadata.parameters == true_parameters
+
+        (init_out, true_out) = map(
+            p -> [
+                (X[1, i] * p[2, classes[i]] + X[2, i] + p[1, classes[i]]) for
+                i in 1:size(X, 2)
+            ],
+            (init_parameters, true_parameters),
+        )
+
+        true_init_out = init_ex(X, classes)
+        true_true_out = true_ex(X, classes)
+
+        @test init_out == true_init_out
+        @test true_out == true_true_out
+
+        true_constants, true_refs = get_constants(true_ex)
+        set_constants!(init_ex, true_constants, true_refs)
+        @test init_ex.metadata.parameters == true_parameters
+
+        init_loss = sum(abs2, init_out - true_out)
+        # # Check if we can optimize this
+        result = optimize(
+            let classes = classes, X = X, true_out = true_out
+                ex -> sum(abs2, ex(X, classes) - true_out)
+            end,
+            init_ex,
+            Optim.BFGS(),
+        )
+        @test result.minimum < 1e-5 && init_loss > 0.1
+        @test result.minimizer.metadata.parameters ≈ true_parameters
+    end
 end
 
 end

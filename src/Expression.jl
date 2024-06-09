@@ -2,7 +2,7 @@
 module ExpressionModule
 
 using DispatchDoctor: @unstable
-using ..NodeModule: AbstractExpressionNode
+using ..NodeModule: AbstractExpressionNode, Node
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..UtilsModule: Undefined
 
@@ -63,6 +63,7 @@ you can overload them.
 - `eval_tree_array`
 - `eval_grad_tree_array`
 - `Optim.optimize`
+- `default_node`
 - `_grad_evaluator`
 - `(ex::AbstractExpression)(X, operators=nothing; kws...)`
 
@@ -104,6 +105,8 @@ end
     d = (; metadata...)
     return Expression(tree, Metadata(d))
 end
+
+@unstable default_node(::Type{<:AbstractExpression}) = Node
 
 ########################################################
 # Abstract interface ###################################
