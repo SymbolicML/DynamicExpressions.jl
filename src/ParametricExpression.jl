@@ -204,7 +204,7 @@ function set_constants!(ex::ParametricExpression{T}, x, refs) where {T}
     return ex
 end
 
-function _to_node(ex::ParametricExpression{T}) where {T}
+function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
     num_params = UInt16(size(ex.metadata.parameters, 1))
     return tree_mapreduce(
         leaf -> if leaf.constant
@@ -244,7 +244,7 @@ function eval_tree_array(
     params_and_X = vcat(indexed_parameters, X)
     # Then, we create a normal `Node{T}` type from the `ParametricNode{T}`,
     # with `feature` set to the parameter index + num_features
-    regular_tree = _to_node(ex)
+    regular_tree = convert(Node, ex)
     return eval_tree_array(regular_tree, params_and_X, get_operators(ex, operators); kws...)
 end
 function string_tree(
@@ -274,7 +274,10 @@ function string_tree(
     end
     @assert length(variable_names3) >= num_params + max_feature
     return string_tree(
-        _to_node(ex), get_operators(ex, operators); variable_names=variable_names3, kws...
+        convert(Node, ex),
+        get_operators(ex, operators);
+        variable_names=variable_names3,
+        kws...,
     )
 end
 
