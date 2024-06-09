@@ -128,8 +128,5 @@ end
     include("test_expressions.jl")
 end
 
-@testitem "Test parsing" begin
-    include("test_parse.jl")
-end
-
+include("test_parse.jl")
 include("test_parametric_expression.jl")
