@@ -1,6 +1,6 @@
 module ParametricExpressionModule
 
-using DispatchDoctor: @unstable
+using DispatchDoctor: @stable, @unstable
 
 using ..NodeModule:
     AbstractExpressionNode, Node, with_type_parameters, constructorof, tree_mapreduce
@@ -54,23 +54,24 @@ struct ParametricExpression{T,N<:AbstractExpressionNode{T},D<:NamedTuple} <:
     function ParametricExpression(tree::ParametricNode, metadata::Metadata)
         return new{eltype(tree),typeof(tree),typeof(_data(metadata))}(tree, metadata)
     end
-    function ParametricExpression(
-        tree::_N;
+end
+function ParametricExpression(
+    tree::ParametricNode{T1};
+    operators,
+    variable_names,
+    parameters::AbstractMatrix{T2},
+    parameter_names,
+) where {T1,T2}
+    @assert size(parameters, 1) == length(parameter_names)
+    T = promote_type(T1, T2)
+    t = T === T1 ? tree : convert(ParametricNode{T}, tree)
+    m = Metadata((;
         operators,
         variable_names,
-        parameters::AbstractMatrix{_T2},
+        parameters=(T === T2 ? parameters : (T.(parameters))),
         parameter_names,
-    ) where {_T1,_T2,_N<:AbstractExpressionNode{_T1}}
-        _T = promote_type(_T1, _T2)
-        NT = with_type_parameters(_N, _T)
-        let tree = _T === _T1 ? tree : convert(NT, tree),
-            parameters = _T === _T2 ? parameters : _T.(parameters)
-            # Assume parameters to have shape (n_parameters, n_fitted_classes)
-            @assert size(parameters, 1) == length(parameter_names)
-            d = (; operators, variable_names, parameters, parameter_names)
-            return new{_T,NT,typeof(d)}(tree, Metadata(d))
-        end
-    end
+    ))
+    return ParametricExpression(t, m)
 end
 
 ###############################################################################
@@ -130,7 +131,7 @@ function get_variable_names(ex::ParametricExpression, variable_names)
 end
 @inline _copy(x) = copy(x)
 @inline _copy(::Nothing) = nothing
-function Base.copy(ex::ParametricExpression; break_sharing::Val{BS}=Val(false)) where {BS}
+function Base.copy(ex::ParametricExpression; break_sharing::Val=Val(false))
     return ParametricExpression(
         copy(ex.tree; break_sharing=break_sharing);
         operators=_copy(ex.metadata.operators),
