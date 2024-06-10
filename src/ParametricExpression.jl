@@ -323,14 +323,14 @@ function (ex::ParametricExpression)(X, classes, operators=nothing; kws...)
 end
 ###############################################################################
 
-function combine_operators(ex::ParametricExpression, operators=nothing; kws...)
+function combine_operators(ex::ParametricExpression, operators=nothing)
     return ParametricExpression(
-        combine_operators(get_tree(ex), get_operators(ex, operators); kws...), ex.metadata
+        combine_operators(get_tree(ex), get_operators(ex, operators)), ex.metadata
     )
 end
-function simplify_tree!(ex::ParametricExpression, operators=nothing; kws...)
+function simplify_tree!(ex::ParametricExpression, operators=nothing)
     return ParametricExpression(
-        simplify_tree!(get_tree(ex), get_operators(ex, operators); kws...), ex.metadata
+        simplify_tree!(get_tree(ex), get_operators(ex, operators)), ex.metadata
     )
 end
 
