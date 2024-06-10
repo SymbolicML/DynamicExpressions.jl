@@ -124,9 +124,6 @@ end
     include("test_random.jl")
 end
 
-@testitem "Test expressions" begin
-    include("test_expressions.jl")
-end
-
+include("test_expressions.jl")
 include("test_parse.jl")
 include("test_parametric_expression.jl")
