@@ -282,7 +282,7 @@ function string_tree(
 end
 
 # We also set up parsing for convenience:
-function parse_leaf(
+@unstable function parse_leaf(
     ex,
     variable_names,
     node_type::Type{<:ParametricNode},
