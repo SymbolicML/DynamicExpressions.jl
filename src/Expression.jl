@@ -106,7 +106,7 @@ end
     return Expression(tree, Metadata(d))
 end
 
-node_type(::Type{<:AbstractExpression{T,N} where {T}}) where {N} = N
+node_type(::Union{E,Type{E}}) where {N,E<:AbstractExpression{<:Any,N}} = N
 @unstable default_node(::Type{<:AbstractExpression}) = Node
 
 ########################################################
