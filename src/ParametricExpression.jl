@@ -129,15 +129,15 @@ end
 function get_variable_names(ex::ParametricExpression, variable_names)
     return variable_names === nothing ? ex.metadata.variable_names : variable_names
 end
-@inline _copy(x) = copy(x)
-@inline _copy(::Nothing) = nothing
+@inline _copy_with_nothing(x) = copy(x)
+@inline _copy_with_nothing(::Nothing) = nothing
 function Base.copy(ex::ParametricExpression; break_sharing::Val=Val(false))
     return ParametricExpression(
         copy(ex.tree; break_sharing=break_sharing);
-        operators=_copy(ex.metadata.operators),
-        variable_names=_copy(ex.metadata.variable_names),
-        parameters=_copy(ex.metadata.parameters),
-        parameter_names=_copy(ex.metadata.parameter_names),
+        operators=_copy_with_nothing(ex.metadata.operators),
+        variable_names=_copy_with_nothing(ex.metadata.variable_names),
+        parameters=_copy_with_nothing(ex.metadata.parameters),
+        parameter_names=_copy_with_nothing(ex.metadata.parameter_names),
     )
 end
 function Base.hash(ex::ParametricExpression, h::UInt)
