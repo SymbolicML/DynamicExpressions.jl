@@ -130,7 +130,7 @@ function get_variable_names(ex::ParametricExpression, variable_names)
 end
 @inline _copy(x) = copy(x)
 @inline _copy(::Nothing) = nothing
-function Base.copy(ex::ParametricExpression; break_sharing::Val=Val(false))
+function Base.copy(ex::ParametricExpression; break_sharing::Val{BS}=Val(false)) where {BS}
     return ParametricExpression(
         copy(ex.tree; break_sharing=break_sharing);
         operators=_copy(ex.metadata.operators),
