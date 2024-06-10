@@ -326,16 +326,4 @@ end
 
 import ..SimplifyModule: combine_operators, simplify_tree!
 
-# Avoid implementing a generic version for these, as it is less likely to generalize
-function combine_operators(ex::Expression, operators=nothing)
-    return Expression(
-        combine_operators(get_tree(ex), get_operators(ex, operators)), ex.metadata
-    )
-end
-function simplify_tree!(ex::Expression, operators=nothing)
-    return Expression(
-        simplify_tree!(get_tree(ex), get_operators(ex, operators)), ex.metadata
-    )
-end
-
 end

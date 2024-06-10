@@ -75,6 +75,10 @@ import .ParseModule: parse_leaf
 
 @reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode
 
+@stable default_mode = "disable" begin
+    include("ExpressionInterfaces.jl")
+end
+
 function __init__()
     @require_extensions
 end
