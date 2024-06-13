@@ -237,6 +237,7 @@ has_operators(ex::AbstractExpression) = has_operators(get_tree(ex))
 has_constants(ex::AbstractExpression) = has_constants(get_tree(ex))
 get_constants(ex::AbstractExpression) = get_constants(get_tree(ex))
 set_constants!(ex::AbstractExpression{T}, constants, refs) where {T} = set_constants!(get_tree(ex), constants, refs)
+Base.isempty(ex::AbstractExpression) = isempty(get_tree(ex))
 #! format: on
 
 import ..StringsModule: string_tree, print_tree
