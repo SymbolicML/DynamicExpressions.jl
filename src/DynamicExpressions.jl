@@ -78,7 +78,8 @@ import .ParseModule: parse_leaf
     include("PatchMethods.jl")
 end
 
-import .InterfacesModule: ExpressionInterface, NodeInterface
+import .InterfacesModule:
+    ExpressionInterface, NodeInterface, all_ei_methods_except, all_ni_methods_except
 
 function __init__()
     @require_extensions

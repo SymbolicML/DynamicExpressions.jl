@@ -165,3 +165,34 @@ which can be used for defining custom types, such as the `ParametricExpression`:
 ParametricExpression
 ParametricNode
 ```
+
+## Interfaces
+
+The interfaces for `AbstractExpression` and `AbstractExpressionNode` are
+tested using Interfaces.jl. You can see the interfaces with:
+
+```@docs
+DynamicExpressions.ExpressionInterface
+DynamicExpressions.NodeInterface
+```
+
+You can declare a new type as implementing these with, e.g.,
+
+```julia
+using DynamicExpressions: ExpressionInterface, all_ei_methods_except
+using Interface: @implements, Arguments, Interface
+
+# Add all optional methods:
+valid_optional_methods = all_ei_methods_except(())
+
+@implements ExpressionInterface{valid_optional_methods} MyCustomExpression [Arguments()]
+```
+
+You can then test the interface is implemented correctly using, for example,
+
+```julia
+@test Interface.test(ExpressionInterface, MyCustomExpression, [ex::MyCustomExpression])
+```
+
+Note that this may not flag all potential issues, so be sure to still read the details about
+what methods can be implemented and customized.
