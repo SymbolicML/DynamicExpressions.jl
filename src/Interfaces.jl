@@ -2,6 +2,7 @@
 module InterfacesModule
 
 using Interfaces: Interfaces, @interface, @implements, Arguments
+using DispatchDoctor: @unstable
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..NodeModule:
     Node,
@@ -138,7 +139,7 @@ ei_description = (
     * "which can store operators, extra parameters, functional forms, "
     * "variable names, etc."
 )
-all_ei_methods_except(t) = Tuple(setdiff(keys(ei_components.optional), t))
+@unstable all_ei_methods_except(t) = Tuple(setdiff(keys(ei_components.optional), t))
 
 @interface(
     ExpressionInterface,
@@ -313,7 +314,7 @@ ni_description = (
     * "as well as tree-specific operations like map-reduce and node manipulation."
 )
 
-all_ni_methods_except(t) = Tuple(setdiff(keys(ni_components.optional), t))
+@unstable all_ni_methods_except(t) = Tuple(setdiff(keys(ni_components.optional), t))
 
 @interface(
     NodeInterface,
