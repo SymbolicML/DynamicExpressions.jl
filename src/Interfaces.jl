@@ -1,4 +1,4 @@
-module Interfaces
+module InterfacesModule
 
 using Interfaces: @interface
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
