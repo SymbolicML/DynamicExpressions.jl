@@ -1,3 +1,18 @@
+@testitem "Interface" begin
+    using DynamicExpressions
+
+    ex = @parse_expression(
+        x + y + p1 * p2,
+        binary_operators = [+, -, *, /],
+        variable_names = ["x", "y"],
+        node_type = ParametricNode,
+        expression_type = ParametricExpression,
+        extra_metadata = (; parameters=ones(2, 5), parameter_names=["p1", "p2"]),
+    )
+    @test DynamicExpressions.check_expression_interface(
+        [ex], (:count_constants, :index_constants, :has_constants)
+    )
+end
 @testitem "Basic evaluation" begin
     using DynamicExpressions
 

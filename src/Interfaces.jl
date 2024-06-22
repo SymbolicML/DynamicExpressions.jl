@@ -18,6 +18,7 @@ using ..NodeModule:
     count_nodes,
     copy_node
 using ..NodeUtilsModule:
+    NodeIndex,
     count_constants,
     count_depth,
     index_constants,
@@ -56,7 +57,7 @@ function _check_count_depth(ex)
     return count_depth(ex) isa Int
 end
 function _check_index_constants(ex)
-    return index_constants(ex) isa AbstractVector{UInt16}
+    return index_constants(ex) isa NodeIndex{UInt16}
 end
 function _check_has_operators(ex)
     return has_operators(ex) isa Bool

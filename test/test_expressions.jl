@@ -35,6 +35,15 @@
     @test count_depth(expr2) == 2
 end
 
+@testitem "Interface" begin
+    using DynamicExpressions
+    tree = Node(Float64; feature=1)
+    operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
+    variable_names = ["x"]
+    expr = Expression(tree; operators, variable_names)
+    @test DynamicExpressions.check_expression_interface([expr])
+end
+
 @testitem "Evaluation" begin
     using DynamicExpressions
     using Zygote
