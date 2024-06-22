@@ -1,6 +1,6 @@
 @testitem "Interface" begin
     using DynamicExpressions
-    using DynamicExpressions: ExpressionInterface
+    using DynamicExpressions: ExpressionInterface, NodeInterface
     using Interfaces: test
 
     ex = @parse_expression(
@@ -12,6 +12,7 @@
         extra_metadata = (; parameters=ones(2, 5), parameter_names=["p1", "p2"]),
     )
     @test test(ExpressionInterface, ParametricExpression, [ex])
+    @test test(NodeInterface, ParametricNode, [ex.tree])
 end
 @testitem "Basic evaluation" begin
     using DynamicExpressions

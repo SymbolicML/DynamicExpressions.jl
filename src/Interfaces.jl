@@ -332,7 +332,14 @@ all_ni_methods_except(t) = Tuple(setdiff(keys(ni_components.optional), t))
     GraphNode,
     [Arguments()]
 )
+@implements(
+    NodeInterface{all_ni_methods_except(())},
+    ParametricNode,
+    [Arguments()]
+)
 
 #! format: on
+
+# TODO: Create an interface for evaluation
 
 end
