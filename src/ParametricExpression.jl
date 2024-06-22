@@ -2,10 +2,10 @@ module ParametricExpressionModule
 
 using DispatchDoctor: @stable, @unstable
 
-using ..NodeModule: AbstractExpressionNode, Node, constructorof, tree_mapreduce
+using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
 using ..ExpressionModule: AbstractExpression, Metadata
 
-import ..NodeModule: preserve_sharing, leaf_copy, leaf_hash, leaf_equal
+import ..NodeModule: constructorof, preserve_sharing, leaf_copy, leaf_hash, leaf_equal
 import ..NodeUtilsModule:
     count_constants,
     index_constants,
@@ -76,6 +76,8 @@ end
 # Abstract expression node interface ##########################################
 ###############################################################################
 @unstable default_node(::Type{<:ParametricExpression}) = ParametricNode
+@unstable constructorof(::Type{<:ParametricNode}) = ParametricNode
+@unstable constructorof(::Type{<:ParametricExpression}) = ParametricExpression
 preserve_sharing(::Union{Type{<:ParametricNode},ParametricNode}) = false # TODO: Change this?
 function leaf_copy(t::ParametricNode{T}) where {T}
     out = if t.constant
