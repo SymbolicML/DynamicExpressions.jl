@@ -171,8 +171,8 @@ end
 @testitem "Expression with_tree" begin
     using DynamicExpressions
 
-    ex = @parse_expression(x1 + 1.5, binary_operators=[+, *], variable_names=["x1"])
-    ex2 = @parse_expression(x1 + 3.0, binary_operators=[+], variable_names=["x1"])
+    ex = @parse_expression(x1 + 1.5, binary_operators = [+, *], variable_names = ["x1"])
+    ex2 = @parse_expression(x1 + 3.0, binary_operators = [+], variable_names = ["x1"])
 
     t2 = DynamicExpressions.get_tree(ex2)
     ex_modified = DynamicExpressions.with_tree(ex, t2)
@@ -182,8 +182,10 @@ end
 @testitem "Expression `preserve_sharing`" begin
     using DynamicExpressions
 
-    ex = @parse_expression(x1 + 1.5, binary_operators=[+, *], variable_names=["x1"])
-    ex_graph = @parse_expression(x1 + 1.5, binary_operators=[+, *], variable_names=["x1"], node_type=GraphNode)
+    ex = @parse_expression(x1 + 1.5, binary_operators = [+, *], variable_names = ["x1"])
+    ex_graph = @parse_expression(
+        x1 + 1.5, binary_operators = [+, *], variable_names = ["x1"], node_type = GraphNode
+    )
     @test !DynamicExpressions.preserve_sharing(ex)
     @test DynamicExpressions.preserve_sharing(ex_graph)
 end
@@ -225,7 +227,7 @@ end
 @testitem "Miscellaneous expression calls" begin
     using DynamicExpressions
 
-    ex = @parse_expression(x1 + 1.5, binary_operators=[+], variable_names=["x1"])
+    ex = @parse_expression(x1 + 1.5, binary_operators = [+], variable_names = ["x1"])
     @test DynamicExpressions.ExpressionModule.node_type(ex) <: Node
 
     @test !isempty(ex)

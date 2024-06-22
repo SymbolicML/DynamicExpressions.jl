@@ -1,4 +1,4 @@
-@testitem "Interface" begin
+@testitem "Interface for parametric expressions" begin
     using DynamicExpressions
     using DynamicExpressions: ExpressionInterface, NodeInterface
     using Interfaces: test
@@ -14,7 +14,7 @@
     @test test(ExpressionInterface, ParametricExpression, [ex])
     @test test(NodeInterface, ParametricNode, [ex.tree])
 end
-@testitem "Basic evaluation" begin
+@testitem "Basic evaluation of parametric expressions" begin
     using DynamicExpressions
 
     parameters = [1.0 2.0 3.0]
@@ -70,7 +70,7 @@ end
     ]
 end
 
-@testitem "Optimization" begin
+@testitem "Optimization of parametric expressions" begin
     using DynamicExpressions
     using Optim
     using Random: MersenneTwister
@@ -139,4 +139,87 @@ end
     )
     @test result.minimum < 1e-5 && init_loss > 0.1
     @test result.minimizer.metadata.parameters ≈ true_parameters
+end
+
+@testitem "Allowed empty operators in parametric expression" begin
+    using DynamicExpressions: ParametricExpression, ParametricNode
+
+    tree = ParametricNode{Float64}()
+    tree.degree = 0
+    tree.constant = true
+    tree.val = 0.0
+
+    ex = ParametricExpression(
+        tree;
+        operators=nothing,
+        variable_names=nothing,
+        parameters=Float32[;;],
+        parameter_names=nothing,
+    )
+    @test ex.metadata.parameters == Float64[;;]
+    @test ex.metadata.parameter_names === nothing
+
+    @test copy(ex) == ex
+end
+
+@testitem "Parametric expression utilities" begin
+    using DynamicExpressions
+
+    ex1 = @parse_expression(
+        x + y + p1 * p2 + 1.5,
+        binary_operators = [+, -, *],
+        variable_names = ["x", "y"],
+        expression_type = ParametricExpression,
+        extra_metadata = (; parameters=[1.0 2.0; 3.0 4.0], parameter_names=["p1", "p2"]),
+    )
+    ex2 = @parse_expression(
+        x + y + p1 * p2 + 1.5,
+        binary_operators = [+, -, *],
+        variable_names = ["x", "y"],
+        expression_type = ParametricExpression,
+        extra_metadata = (; parameters=[1.0 2.0; 3.0 4.0], parameter_names=["p1", "p2"]),
+    )
+    @test ex1 == ex2
+    @test hash(ex1) == hash(ex2)
+    @test hash(ex1, UInt64(0)) != hash(ex2, UInt64(1))
+
+    ex3 = @parse_expression(
+        x + y + p1 * p2 + 1.5,
+        binary_operators = [+, -, *],
+        variable_names = ["x", "y"],
+        expression_type = ParametricExpression,
+        extra_metadata = (; parameters=[1.0 2.0; 3.0 4.1], parameter_names=["p1", "p2"]),
+    )
+    @test ex1 != ex3
+    @test hash(ex1) != hash(ex3)
+
+    ex4 = @parse_expression(
+        x + y + p1 * p2 + 1.6,
+        binary_operators = [+, -, *],
+        variable_names = ["x", "y"],
+        expression_type = ParametricExpression,
+        extra_metadata = (; parameters=[1.0 2.0; 3.0 4.0], parameter_names=["p1", "p2"]),
+    )
+    @test ex1 != ex4
+    @test hash(ex1) != hash(ex4)
+end
+
+@testitem "Parametric expression missing functions" begin
+    using DynamicExpressions
+    using DynamicExpressions.ParametricExpressionModule: InterfaceError
+
+    ex = @parse_expression(
+        x + y + p1 * p2 + 1.5,
+        binary_operators = [+, -, *],
+        variable_names = ["x", "y"],
+        expression_type = ParametricExpression,
+        extra_metadata = (; parameters=[1.0 2.0; 3.0 4.0], parameter_names=["p1", "p2"]),
+    )
+
+    @test_throws InterfaceError count_constants(ex)
+    @test_throws InterfaceError index_constants(ex)
+    @test_throws InterfaceError has_constants(ex)
+    if VERSION >= v"1.9"
+        @test_throws "You should not use this function with `ParametricExpression`." count_constants(ex)
+    end
 end

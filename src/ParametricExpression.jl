@@ -178,15 +178,13 @@ end
 #! format: off
 
 struct InterfaceError <: Exception
-    msg::Union{String,Nothing}
 end
-_interface_error() = throw(InterfaceError(nothing))
+_interface_error() = throw(InterfaceError())
 Base.showerror(io::IO, e::InterfaceError) = print(io,
-    if e === nothing
-        "This function should not have been called. Rewrite the calling function instead to work with parametric expressions."
-    else
-        e.msg
-    end
+    "You should not use this function with `ParametricExpression`. " *
+    "Instead, rewrite the calling function to work directly with parametric expressions, " *
+    "which has two concepts of what constitutes a constant: a static, global constant, " *
+    "as well as a per-instance constant."
 )
 count_constants(::ParametricExpression; kws...) = _interface_error()
 index_constants(::ParametricExpression, ::Type{T}=UInt16) where {T} = _interface_error()
