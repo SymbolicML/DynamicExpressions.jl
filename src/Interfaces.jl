@@ -167,13 +167,13 @@ all_ei_methods_except(t) = Tuple(setdiff(keys(ei_components.optional), t))
 function _check_create_node(tree::AbstractExpressionNode)
     N = typeof(tree)
     NT = with_type_parameters(N, Float16)
-    return constructorof(NT)() isa NT
+    return NT() isa NT
 end
 function _check_copy(tree::AbstractExpressionNode)
     return copy(tree) isa typeof(tree)
 end
 function _check_hash(tree::AbstractExpressionNode)
-    return hash(tree) isa Int
+    return hash(tree) isa UInt64
 end
 function _check_any(tree::AbstractExpressionNode)
     return any(_ -> false, tree) isa Bool && any(_ -> true, tree)
@@ -196,7 +196,8 @@ function _check_with_type_parameters(tree::AbstractExpressionNode{T}) where {T}
     return NT == typeof(tree)
 end
 function _check_default_allocator(tree::AbstractExpressionNode)
-    return default_allocator(Base.typename(typeof(tree)).wrapper, Float64) isa Base.Callable
+    N = Base.typename(typeof(tree)).wrapper
+    return default_allocator(N, Float64) isa with_type_parameters(N, Float64)
 end
 function _check_set_node!(tree::AbstractExpressionNode)
     new_tree = copy(tree)
@@ -207,8 +208,8 @@ function _check_count_nodes(tree::AbstractExpressionNode)
     return count_nodes(tree) isa Int64
 end
 function _check_tree_mapreduce(tree::AbstractExpressionNode)
-    return tree_mapreduce(_ -> 1, +, tree) ==
-           tree_mapreduce(_ -> 1, _ -> 1, +, tree) ==
+    return tree_mapreduce(_ -> 1, +, tree, Int64) ==
+           tree_mapreduce(_ -> 1, _ -> 1, +, tree, Int64) ==
            count_nodes(tree)
 end
 
@@ -226,8 +227,13 @@ function _check_leaf_equal(tree::AbstractExpressionNode)
     return leaf_equal(tree, copy(tree))
 end
 function _check_branch_copy(tree::AbstractExpressionNode)
-    tree.degree == 0 && return true
-    return branch_copy(tree) isa typeof(tree)
+    if tree.degree == 0
+        return true
+    elseif tree.degree == 1
+        return branch_copy(tree, tree.l) isa typeof(tree)
+    else
+        return branch_copy(tree, tree.l, tree.r) isa typeof(tree)
+    end
 end
 function _check_branch_hash(tree::AbstractExpressionNode)
     tree.degree == 0 && return true
@@ -244,7 +250,7 @@ function _check_count_constants(tree::AbstractExpressionNode)
     return count_constants(tree) isa Int64
 end
 function _check_filter_map(tree::AbstractExpressionNode)
-    return filter_map(_ -> true, identity, tree) isa Vector{typeof(tree)}
+    return filter_map(_ -> true, identity, tree, typeof(tree)) isa Vector{typeof(tree)}
 end
 function _check_has_constants(tree::AbstractExpressionNode)
     return has_constants(tree) isa Bool
