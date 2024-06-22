@@ -34,38 +34,7 @@ end
 both the raw expression tree operating on a value type of `T`,
 as well as associated metadata to evaluate and render the expression.
 
-# Interface
-
-## Required methods
-
-- `get_tree`
-- `get_operators`
-- `get_variable_names`
-- `Base.copy`
-- `Base.hash`
-- `Base.:(==)`
-
-## Optional methods
-
-Many of these optional methods will use
-the three required methods, but for custom behavior,
-you can overload them.
-
-- `count_nodes`
-- `count_constants`
-- `count_depth`
-- `index_constants`
-- `has_operators`
-- `has_constants`
-- `get_constants`
-- `set_constants!`
-- `string_tree`
-- `eval_tree_array`
-- `eval_grad_tree_array`
-- `Optim.optimize`
-- `default_node`
-- `_grad_evaluator`
-- `(ex::AbstractExpression)(X, operators=nothing; kws...)`
+See `ExpressionInterface` for a full description of the interface implementation.
 
 If you wish to use `@parse_expression`, you can also
 customize the parsing behavior with
