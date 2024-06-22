@@ -120,6 +120,10 @@ end
     include("test_custom_node_type.jl")
 end
 
+@testitem "Test node interface" begin
+    include("test_node_interface.jl")
+end
+
 @testitem "Test random sampling" begin
     include("test_random.jl")
 end

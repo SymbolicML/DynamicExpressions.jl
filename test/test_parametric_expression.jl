@@ -1,5 +1,7 @@
 @testitem "Interface" begin
     using DynamicExpressions
+    using DynamicExpressions: ExpressionInterface
+    using Interfaces: test
 
     ex = @parse_expression(
         x + y + p1 * p2,
@@ -9,9 +11,7 @@
         expression_type = ParametricExpression,
         extra_metadata = (; parameters=ones(2, 5), parameter_names=["p1", "p2"]),
     )
-    @test DynamicExpressions.check_expression_interface(
-        [ex], (:count_constants, :index_constants, :has_constants)
-    )
+    @test test(ExpressionInterface, ParametricExpression, [ex])
 end
 @testitem "Basic evaluation" begin
     using DynamicExpressions
