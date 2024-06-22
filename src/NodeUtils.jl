@@ -114,7 +114,7 @@ struct NodeIndex{T} <: AbstractNode
 end
 # Sharing is never needed for NodeIndex,
 # as we trace over the node we are indexing on.
-preserve_sharing(::Type{<:NodeIndex}) = false
+preserve_sharing(::Union{Type{<:NodeIndex},NodeIndex}) = false
 
 function index_constants(tree::AbstractExpressionNode, ::Type{T}=UInt16) where {T}
     # Essentially we copy the tree, replacing the values

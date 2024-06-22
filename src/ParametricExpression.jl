@@ -2,8 +2,7 @@ module ParametricExpressionModule
 
 using DispatchDoctor: @stable, @unstable
 
-using ..NodeModule:
-    AbstractExpressionNode, Node, with_type_parameters, constructorof, tree_mapreduce
+using ..NodeModule: AbstractExpressionNode, Node, constructorof, tree_mapreduce
 using ..ExpressionModule: AbstractExpression, Metadata
 
 import ..NodeModule: preserve_sharing, leaf_copy, leaf_hash, leaf_equal
@@ -77,7 +76,7 @@ end
 # Abstract expression node interface ##########################################
 ###############################################################################
 @unstable default_node(::Type{<:ParametricExpression}) = ParametricNode
-preserve_sharing(t::ParametricNode{T}) where {T} = false # TODO: Change this?
+preserve_sharing(::Union{Type{<:ParametricNode},ParametricNode}) = false # TODO: Change this?
 function leaf_copy(t::ParametricNode{T}) where {T}
     out = if t.constant
         constructorof(typeof(t))(; val=t.val)
@@ -122,10 +121,10 @@ end
 function get_tree(ex::ParametricExpression)
     return ex.tree
 end
-function get_operators(ex::ParametricExpression, operators)
+function get_operators(ex::ParametricExpression, operators=nothing)
     return operators === nothing ? ex.metadata.operators : operators
 end
-function get_variable_names(ex::ParametricExpression, variable_names)
+function get_variable_names(ex::ParametricExpression, variable_names=nothing)
     return variable_names === nothing ? ex.metadata.variable_names : variable_names
 end
 @inline _copy_with_nothing(x) = copy(x)
@@ -183,10 +182,10 @@ Base.showerror(io::IO, e::InterfaceError) = print(io,
 )
 count_constants(::ParametricExpression; kws...) = _interface_error()
 index_constants(::ParametricExpression, ::Type{T}=UInt16) where {T} = _interface_error()
-has_operators(::ParametricExpression) = _interface_error()
-has_constants(::ParametricExpression) = _interface_error()
+has_constants(ex::ParametricExpression) = _interface_error()
 #! format: on
 
+has_operators(ex::ParametricExpression) = has_operators(get_tree(ex))
 function get_constants(ex::ParametricExpression{T}) where {T}
     constants, constant_refs = get_constants(get_tree(ex))
     parameters = ex.metadata.parameters

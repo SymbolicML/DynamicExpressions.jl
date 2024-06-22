@@ -78,6 +78,8 @@ import .ParseModule: parse_leaf
     include("InterfaceImplementations.jl")
 end
 
+import .InterfacesModule: ExpressionInterface, check_expression_interface
+
 function __init__()
     @require_extensions
 end

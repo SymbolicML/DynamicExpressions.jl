@@ -133,10 +133,10 @@ function preserve_sharing(::Type{<:AbstractExpression{T,N}}) where {T,N}
     return preserve_sharing(N)
 end
 
-function get_operators(ex::Expression, operators)
+function get_operators(ex::Expression, operators=nothing)
     return operators === nothing ? ex.metadata.operators : operators
 end
-function get_variable_names(ex::Expression, variable_names)
+function get_variable_names(ex::Expression, variable_names=nothing)
     return variable_names === nothing ? ex.metadata.variable_names : variable_names
 end
 function get_tree(ex::Expression)

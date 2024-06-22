@@ -196,9 +196,9 @@ default_allocator(::Type{<:Node}, ::Type{T}) where {T} = Node{T}()
 default_allocator(::Type{<:GraphNode}, ::Type{T}) where {T} = GraphNode{T}()
 
 """Trait declaring whether nodes share children or not."""
-preserve_sharing(::Type{<:AbstractNode}) = false
-preserve_sharing(::Type{<:Node}) = false
-preserve_sharing(::Type{<:GraphNode}) = true
+preserve_sharing(::Union{Type{<:AbstractNode},AbstractNode}) = false
+preserve_sharing(::Union{Type{<:Node},Node}) = false
+preserve_sharing(::Union{Type{<:GraphNode},GraphNode}) = true
 
 include("base.jl")
 
