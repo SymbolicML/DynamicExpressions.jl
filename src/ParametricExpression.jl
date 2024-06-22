@@ -65,13 +65,14 @@ function ParametricExpression(
     parameters::AbstractMatrix{T2},
     parameter_names,
 ) where {T1,T2}
-    @assert size(parameters, 1) == length(parameter_names)
+    @assert (isempty(parameters) && isnothing(parameter_names)) ||
+        size(parameters, 1) == length(parameter_names)
     T = promote_type(T1, T2)
     t = T === T1 ? tree : convert(ParametricNode{T}, tree)
     m = Metadata((;
         operators,
         variable_names,
-        parameters=(T === T2 ? parameters : (T.(parameters))),
+        parameters=convert(AbstractArray{T}, parameters),
         parameter_names,
     ))
     return ParametricExpression(t, m)
