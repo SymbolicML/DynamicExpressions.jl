@@ -226,12 +226,22 @@ function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
         Node{T},
     )
 end
-function eval_tree_array(
-    ::ParametricExpression{T}, ::AbstractMatrix{T}, operators; kws...
+#! format: off
+function (ex::ParametricExpression)(X::AbstractMatrix, operators=nothing; kws...)
+    return eval_tree_array(ex, X, operators; kws...)  # Will error
+end
+function eval_tree_array(::ParametricExpression{T}, ::AbstractMatrix{T}, operators=nothing; kws...) where {T}
+    return error("Incorrect call. You must pass the `classes::Vector` argument when calling `eval_tree_array`.")
+end
+#! format: on
+function (ex::ParametricExpression)(
+    X::AbstractMatrix{T}, classes::AbstractVector{<:Integer}, operators=nothing; kws...
 ) where {T}
-    return error(
-        "Incorrect call. You must pass the `classes::Vector` argument when calling `eval_tree_array`.",
-    )
+    (output, flag) = eval_tree_array(ex, X, classes, operators; kws...)  # Will error
+    if !flag
+        output .= NaN
+    end
+    return output
 end
 function eval_tree_array(
     ex::ParametricExpression{T},

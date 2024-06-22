@@ -37,6 +37,11 @@ end
 
     # Then, with different classes
     @test ex(X, [1, 2, 2, 3, 1]) ≈ [1.0, 3.0, 2.0, 2.0, 1.0]
+
+    # Helpful error if we use it incorrectly
+    if VERSION >= v"1.9"
+        @test_throws "Incorrect call. You must pass" ex(X)
+    end
 end
 
 @testitem "2 parameters, 2 variables" begin
@@ -162,6 +167,22 @@ end
     @test copy(ex) == ex
 end
 
+@testitem "Passing node within ParametricExpression parsing" begin
+    using DynamicExpressions
+
+    tree = ParametricNode{Float32}()
+    tree.degree = 0
+    tree.constant = true
+    tree.val = 1.5
+    ex = parse_expression(
+        :($tree);
+        expression_type=ParametricExpression,
+        parameters=Float32[;;],
+        parameter_names=nothing,
+    )
+    @test ex.tree == tree
+end
+
 @testitem "Parametric expression conversion" begin
     using DynamicExpressions
 
@@ -173,9 +194,7 @@ end
         extra_metadata = (; parameters=Float32[;;], parameter_names=nothing)
     )
     ex = @parse_expression(
-        x1 + 1.5f0,
-        binary_operators = [+, -, *],
-        variable_names = ["x1"],
+        x1 + 1.5f0, binary_operators = [+, -, *], variable_names = ["x1"],
     )
 
     @test pex.tree isa ParametricNode{Float32}
