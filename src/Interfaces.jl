@@ -49,10 +49,10 @@ check_has_operators(ex) = has_operators(ex) isa Bool
 check_has_constants(ex) = has_constants(ex) isa Bool
 check_get_constants(ex::AbstractExpression{T}) where {T} = (output = get_constants(ex); first(output) isa AbstractVector{T} && length(output) == 2)
 check_set_constants(ex) = ((x, refs) = get_constants(ex); x2 = copy(x) .* 2; set_constants!(ex, x2, refs); first(get_constants(ex)) ≈ x2)
-check_string_tree(ex, operators=nothing) = string_tree(ex, operators) isa String
+check_string_tree(ex) = string_tree(ex) isa String
 check_default_node(ex) = default_node(Base.typename(typeof(ex)).wrapper) isa AbstractExpressionNode
 check_preserve_sharing(ex) = preserve_sharing(ex) isa Bool
-check_constructorof(T::Type) = constructorof(T) isa Function
+check_constructorof(ex) = constructorof(typeof(ex)) isa Base.Callable
 check_with_type_parameters(ex, params) = with_type_parameters(ex, params) isa AbstractExpressionNode
 check_tree_mapreduce(ex, func) = tree_mapreduce(func, ex) isa Any
 
