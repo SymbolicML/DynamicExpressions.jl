@@ -148,7 +148,7 @@ Create a new expression based on `ex` but with a different `tree`
 function with_tree(ex::AbstractExpression, tree)
     return constructorof(typeof(ex))(tree, ex.metadata)
 end
-function preserve_sharing(::Type{<:AbstractExpression{T,N}}) where {T,N}
+function preserve_sharing(::Union{E,Type{E}}) where {T,N,E<:AbstractExpression{T,N}}
     return preserve_sharing(N)
 end
 

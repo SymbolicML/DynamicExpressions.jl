@@ -116,7 +116,6 @@ function empty_all_globals!(; force=true)
             empty!(LATEST_UNARY_OPERATOR_MAPPING)
             empty!(LATEST_BINARY_OPERATOR_MAPPING)
             LATEST_VARIABLE_NAMES.x = String[]
-            unlock(LATEST_LOCK)
         end
     end
     return nothing

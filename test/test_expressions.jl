@@ -35,7 +35,7 @@
     @test count_depth(expr2) == 2
 end
 
-@testitem "Interface" begin
+@testitem "Expression interface" begin
     using DynamicExpressions
     using DynamicExpressions: ExpressionInterface
     using Interfaces: test
@@ -46,7 +46,7 @@ end
     @test test(ExpressionInterface, Expression, [expr])
 end
 
-@testitem "Evaluation" begin
+@testitem "Expression evaluation" begin
     using DynamicExpressions
     using Zygote
 
@@ -76,7 +76,7 @@ end
     end
 end
 
-@testitem "Simplification" begin
+@testitem "Expression simplification" begin
     using DynamicExpressions
 
     ex = @parse_expression(
@@ -101,7 +101,7 @@ end
     @test string_tree(out) == "x + 5.0"
 end
 
-@testitem "Nested repeat operators" begin
+@testitem "Nested repeat operators in Expression parsing" begin
     using DynamicExpressions
 
     ex = @parse_expression(
@@ -113,7 +113,7 @@ end
         "((((a + b) + c) + a) + b) + c"
 end
 
-@testitem "Utilities" begin
+@testitem "Expression utilities" begin
     using DynamicExpressions
 
     operators = OperatorEnum(;
@@ -168,7 +168,27 @@ end
     @test has_constants(ex) == false
 end
 
-@testitem "Edge cases" begin
+@testitem "Expression with_tree" begin
+    using DynamicExpressions
+
+    ex = @parse_expression(x1 + 1.5, binary_operators=[+, *], variable_names=["x1"])
+    ex2 = @parse_expression(x1 + 3.0, binary_operators=[+], variable_names=["x1"])
+
+    t2 = DynamicExpressions.get_tree(ex2)
+    ex_modified = DynamicExpressions.with_tree(ex, t2)
+    @test DynamicExpressions.get_tree(ex_modified) == t2
+end
+
+@testitem "Expression `preserve_sharing`" begin
+    using DynamicExpressions
+
+    ex = @parse_expression(x1 + 1.5, binary_operators=[+, *], variable_names=["x1"])
+    ex_graph = @parse_expression(x1 + 1.5, binary_operators=[+, *], variable_names=["x1"], node_type=GraphNode)
+    @test !DynamicExpressions.preserve_sharing(ex)
+    @test DynamicExpressions.preserve_sharing(ex_graph)
+end
+
+@testitem "Expression edge cases" begin
     using DynamicExpressions
 
     operators = OperatorEnum(;
@@ -200,4 +220,13 @@ end
             $(foo).x + 1.5, variable_names = variable_names, operators = operators
         )
     end
+end
+
+@testitem "Miscellaneous expression calls" begin
+    using DynamicExpressions
+
+    ex = @parse_expression(x1 + 1.5, binary_operators=[+], variable_names=["x1"])
+    @test DynamicExpressions.ExpressionModule.node_type(ex) <: Node
+
+    @test !isempty(ex)
 end

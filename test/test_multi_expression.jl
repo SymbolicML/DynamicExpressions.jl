@@ -55,6 +55,8 @@ if VERSION >= v"1.9"
     @test_throws "`copy` function must be implemented for" copy(multi_ex)
     @test_throws "`hash` function must be implemented for" hash(multi_ex, UInt(0))
     @test_throws "`==` function must be implemented for" multi_ex == multi_ex
+    @test_throws "`get_constants` function must be implemented for" get_constants(multi_ex)
+    @test_throws "`set_constants!` function must be implemented for" set_constants!(multi_ex, nothing, nothing)
 end
 
 tree_factory(f::F, trees) where {F} = f(; trees...)
