@@ -44,7 +44,12 @@ mutable struct ParametricNode{T} <: AbstractExpressionNode{T}
     end
 end
 @inline _data(x::Metadata) = getfield(x, :_data)
-"""An expression to store parameters for a tree"""
+
+"""
+    ParametricExpression{T,N<:ParametricNode{T},D<:NamedTuple} <: AbstractExpression{T,N}
+
+An expression to store parameters for a tree
+"""
 struct ParametricExpression{T,N<:ParametricNode{T},D<:NamedTuple} <: AbstractExpression{T,N}
     tree::N
     metadata::Metadata{D}

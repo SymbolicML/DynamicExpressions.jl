@@ -114,7 +114,7 @@ end
 #! format: off
 ei_components = (
     mandatory = (
-        get_tree = "extracts the expression tree from `AbstractExpression`" => _check_get_tree,
+        get_tree = "extracts the expression tree from [`AbstractExpression`](@ref)" => _check_get_tree,
         get_operators = "returns the operators used in the expression (or pass `operators` explicitly to override)" => _check_get_operators,
         get_variable_names = "returns the variable names used in the expression (or pass `variable_names` explicitly to override)" => _check_get_variable_names,
         copy = "returns a copy of the expression" => _check_copy,
@@ -135,7 +135,7 @@ ei_components = (
     )
 )
 ei_description = (
-    "Defines a generic interface for user-facing expression types, "
+    "Defines the interface of [`AbstractExpression`](@ref) for user-facing expression types, "
     * "which can store operators, extra parameters, functional forms, "
     * "variable names, etc."
 )
@@ -309,7 +309,7 @@ ni_components = (
 )
 
 ni_description = (
-    "Defines a generic interface for node types, "
+    "Defines the interface for [`AbstractExpressionNode`](@ref) "
     * "which can include various operations such as copying, hashing, and checking equality, "
     * "as well as tree-specific operations like map-reduce and node manipulation."
 )
