@@ -68,15 +68,14 @@ import .NodeModule:
 @reexport import .RandomModule: NodeSampler
 @reexport import .ExpressionModule:
     AbstractExpression, Expression, with_tree, default_node, node_type
-# Not for export; just for overloading
 import .ExpressionModule: get_tree, get_operators, get_variable_names, Metadata
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
-
 @reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode
 
 @stable default_mode = "disable" begin
-    include("ExpressionInterfaces.jl")
+    include("Interfaces.jl")
+    include("InterfaceImplementations.jl")
 end
 
 function __init__()
