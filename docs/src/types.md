@@ -42,7 +42,7 @@ Note that you are free to use the `Node` constructors directly.
 This is a more robust approach, and should be used when creating libraries
 which use `DynamicExpressions.jl`.
 
-## Equations
+## Nodes
 
 Equations are specified as binary trees with the `Node` type, defined
 as follows:
@@ -75,7 +75,7 @@ You can create a copy of a node with `copy_node`:
 copy_node
 ```
 
-## Graph-Like Equations
+## Graph Nodes
 
 You can describe an equation as a *graph* rather than a tree
 by using the `GraphNode` type:
@@ -143,4 +143,25 @@ which is more generic but does not have all of the same methods:
 
 ```@docs
 AbstractNode{T}
+```
+
+## Expressions
+
+A higher-level user-facing type is the `Expression`:
+
+```@docs
+Expression
+```
+
+This is a subtype of `AbstractExpression`.
+
+```@docs
+AbstractExpression
+```
+
+which can be used for defining custom types, such as the `ParametricExpression`:
+
+```@docs
+ParametricExpression
+ParametricNode
 ```
