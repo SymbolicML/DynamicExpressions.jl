@@ -124,6 +124,12 @@ end
 function Base.:(==)(x::AbstractExpression, y::AbstractExpression)
     return error("`==` function must be implemented for $(typeof(x)) types.")
 end
+function get_constants(ex::AbstractExpression)
+    return error("`get_constants` function must be implemented for $(typeof(ex)) types.")
+end
+function set_constants!(ex::AbstractExpression{T}, constants, refs) where {T}
+    return error("`set_constants!` function must be implemented for $(typeof(ex)) types.")
+end
 ########################################################
 
 function with_tree(ex::AbstractExpression, tree::AbstractExpressionNode)
@@ -204,10 +210,15 @@ count_depth(ex::AbstractExpression) = count_depth(get_tree(ex))
 index_constants(ex::AbstractExpression, ::Type{T}=UInt16) where {T} = index_constants(get_tree(ex), T)
 has_operators(ex::AbstractExpression) = has_operators(get_tree(ex))
 has_constants(ex::AbstractExpression) = has_constants(get_tree(ex))
-get_constants(ex::AbstractExpression) = get_constants(get_tree(ex))
-set_constants!(ex::AbstractExpression{T}, constants, refs) where {T} = set_constants!(get_tree(ex), constants, refs)
 Base.isempty(ex::AbstractExpression) = isempty(get_tree(ex))
 #! format: on
+
+function get_constants(ex::Expression)
+    return get_constants(get_tree(ex))
+end
+function set_constants!(ex::Expression{T}, constants, refs) where {T}
+    return set_constants!(get_tree(ex), constants, refs)
+end
 
 import ..StringsModule: string_tree, print_tree
 
