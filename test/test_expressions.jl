@@ -37,11 +37,13 @@ end
 
 @testitem "Interface" begin
     using DynamicExpressions
+    using DynamicExpressions: ExpressionInterface
+    using Interfaces: test
     tree = Node(Float64; feature=1)
     operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
     variable_names = ["x"]
     expr = Expression(tree; operators, variable_names)
-    @test DynamicExpressions.check_expression_interface([expr])
+    @test test(ExpressionInterface, Expression, [expr])
 end
 
 @testitem "Evaluation" begin
