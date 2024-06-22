@@ -75,7 +75,7 @@ import .ParseModule: parse_leaf
 
 @stable default_mode = "disable" begin
     include("Interfaces.jl")
-    include("InterfaceImplementations.jl")
+    include("PatchMethods.jl")
 end
 
 import .InterfacesModule: ExpressionInterface, NodeInterface

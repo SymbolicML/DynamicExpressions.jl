@@ -1,4 +1,4 @@
-module InterfaceImplementationsModule
+module PatchMethodsModule
 
 using ..NodeModule: constructorof
 using ..ExpressionModule: Expression, get_tree, get_operators
