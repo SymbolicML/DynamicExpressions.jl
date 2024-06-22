@@ -172,10 +172,16 @@ end
         expression_type = ParametricExpression{Float32},
         extra_metadata = (; parameters=Float32[;;], parameter_names=nothing)
     )
+    ex = @parse_expression(
+        x1 + 1.5f0,
+        binary_operators = [+, -, *],
+        variable_names = ["x1"],
+    )
 
     @test pex.tree isa ParametricNode{Float32}
-
     tree = convert(Node, pex)
+    @test tree isa Node{Float32}
+    @test DynamicExpressions.get_tree(ex) == tree
 end
 
 @testitem "Parametric expression utilities" begin
