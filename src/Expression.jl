@@ -132,7 +132,12 @@ function set_constants!(ex::AbstractExpression{T}, constants, refs) where {T}
 end
 ########################################################
 
-function with_tree(ex::AbstractExpression, tree::AbstractExpressionNode)
+"""
+    with_tree(ex::AbstractExpression, tree::AbstractExpressionNode)
+
+Create a new expression based on `ex` but with a different `tree`
+"""
+function with_tree(ex::AbstractExpression, tree)
     return constructorof(typeof(ex))(tree, ex.metadata)
 end
 function preserve_sharing(::Type{<:AbstractExpression{T,N}}) where {T,N}
@@ -157,6 +162,12 @@ end
 function Base.hash(ex::Expression, h::UInt)
     return hash(ex.tree, hash(ex.metadata, h))
 end
+
+"""
+    Base.:(==)(x::Expression, y::Expression)
+
+Check equality of two expressions `x` and `y` by comparing their trees and metadata.
+"""
 function Base.:(==)(x::Expression, y::Expression)
     return x.tree == y.tree && x.metadata == y.metadata
 end
