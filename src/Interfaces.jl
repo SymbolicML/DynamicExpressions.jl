@@ -44,7 +44,7 @@ using ..ExpressionModule:
     get_operators,
     get_variable_names,
     with_tree,
-    default_node
+    default_node_type
 using ..ParametricExpressionModule: ParametricExpression, ParametricNode
 
 ###############################################################################
@@ -100,9 +100,11 @@ end
 function _check_string_tree(ex::AbstractExpression)
     return string_tree(ex) isa String
 end
-function _check_default_node(ex::AbstractExpression)
-    E = Base.typename(typeof(ex)).wrapper
-    return default_node(E) <: AbstractExpressionNode
+function _check_default_node(ex::AbstractExpression{T}) where {T}
+    ET = typeof(ex)
+    E = Base.typename(ET).wrapper
+    return default_node_type(E) <: AbstractExpressionNode &&
+           default_node_type(ET) <: AbstractExpressionNode{T}
 end
 function _check_constructorof(ex::AbstractExpression)
     return constructorof(typeof(ex)) isa Base.Callable
@@ -129,7 +131,7 @@ ei_components = (
         get_constants = "gets constants from the expression tree" => _check_get_constants,
         set_constants! = "sets constants in the expression tree" => _check_set_constants!,
         string_tree = "returns a string representation of the expression tree" => _check_string_tree,
-        default_node = "returns the default node type for the expression" => _check_default_node,
+        default_node_type = "returns the default node type for the expression" => _check_default_node,
         constructorof = "gets the constructor function for a type" => _check_constructorof,
         tree_mapreduce = "applies a function across the tree" => _check_tree_mapreduce
     )

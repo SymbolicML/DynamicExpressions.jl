@@ -120,9 +120,7 @@ end
     include("test_custom_node_type.jl")
 end
 
-@testitem "Test node interface" begin
-    include("test_node_interface.jl")
-end
+@testitem "Test node interface" begin end
 
 @testitem "Test random sampling" begin
     include("test_random.jl")
@@ -132,3 +130,4 @@ include("test_expressions.jl")
 include("test_parse.jl")
 include("test_parametric_expression.jl")
 include("test_operator_construction_edgecases.jl")
+include("test_node_interface.jl")

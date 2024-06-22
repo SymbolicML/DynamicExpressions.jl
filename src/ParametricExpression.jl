@@ -19,7 +19,7 @@ import ..EvaluateModule: eval_tree_array
 import ..EvaluateDerivativeModule: eval_grad_tree_array
 import ..EvaluationHelpersModule: _grad_evaluator
 import ..ExpressionModule:
-    get_tree, get_operators, get_variable_names, max_feature, default_node
+    get_tree, get_operators, get_variable_names, max_feature, default_node_type
 import ..ParseModule: parse_leaf
 
 """A type of expression node that also stores a parameter index"""
@@ -81,9 +81,10 @@ end
 ###############################################################################
 # Abstract expression node interface ##########################################
 ###############################################################################
-@unstable default_node(::Type{<:ParametricExpression}) = ParametricNode
 @unstable constructorof(::Type{<:ParametricNode}) = ParametricNode
 @unstable constructorof(::Type{<:ParametricExpression}) = ParametricExpression
+@unstable default_node_type(::Type{<:ParametricExpression}) = ParametricNode
+default_node_type(::Type{<:ParametricExpression{T}}) where {T} = ParametricNode{T}
 preserve_sharing(::Union{Type{<:ParametricNode},ParametricNode}) = false # TODO: Change this?
 function leaf_copy(t::ParametricNode{T}) where {T}
     out = if t.constant
@@ -297,10 +298,13 @@ end
 )
     @assert !(ex isa AbstractExpression)
     if ex isa Symbol
-        @assert string(ex) ∈ parameter_names || string(ex) ∈ variable_names
-        i = findfirst(==(string(ex)), variable_names)
-        if i !== nothing
-            return node_type(Float64; feature=i::Int)
+        @assert (!isnothing(parameter_names) && string(ex) ∈ parameter_names) ||
+            (!isnothing(variable_names) && string(ex) ∈ variable_names)
+        if !isnothing(variable_names)
+            i = findfirst(==(string(ex)), variable_names)
+            if i !== nothing
+                return node_type(Float64; feature=i::Int)
+            end
         end
         # Special logic for parsing parameter:
         j = findfirst(==(string(ex)), parameter_names)

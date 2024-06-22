@@ -162,6 +162,22 @@ end
     @test copy(ex) == ex
 end
 
+@testitem "Parametric expression conversion" begin
+    using DynamicExpressions
+
+    pex = @parse_expression(
+        x1 + 1.5f0,
+        binary_operators = [+, -, *],
+        variable_names = ["x1"],
+        expression_type = ParametricExpression{Float32},
+        extra_metadata = (; parameters=Float32[;;], parameter_names=nothing)
+    )
+
+    @test pex.tree isa ParametricNode{Float32}
+
+    tree = convert(Node, pex)
+end
+
 @testitem "Parametric expression utilities" begin
     using DynamicExpressions
 
@@ -220,6 +236,8 @@ end
     @test_throws InterfaceError index_constants(ex)
     @test_throws InterfaceError has_constants(ex)
     if VERSION >= v"1.9"
-        @test_throws "You should not use this function with `ParametricExpression`." count_constants(ex)
+        @test_throws "You should not use this function with `ParametricExpression`." count_constants(
+            ex
+        )
     end
 end

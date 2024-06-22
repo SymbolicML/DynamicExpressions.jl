@@ -8,7 +8,7 @@ using ..OperatorEnumConstructionModule: OperatorEnum, empty_all_globals!
 using ..ExpressionModule:
     AbstractExpression,
     Expression,
-    default_node,
+    default_node_type,
     get_operators,
     get_variable_names,
     node_type
@@ -28,7 +28,7 @@ using ..ExpressionModule:
 - `variable_names`: A list of variable names as strings or symbols that are allowed in the expression.
 - `evaluate_on`: A list of external functions to evaluate explicitly when encountered.
 - `expression_type`: The type of the resulting expression. Defaults to `Expression`.
-- `node_type`: The type of the nodes in the resulting expression tree. Defaults to `default_node(expression_type)`.
+- `node_type`: The type of the nodes in the resulting expression tree. Defaults to `default_node_type(expression_type)`.
 - `binary_operators`: Convenience syntax for creating an `OperatorEnum`.
 - `unary_operators`: Convenience syntax for creating an `OperatorEnum`.
 
@@ -179,7 +179,8 @@ end
             ),
         )
     end
-    node_type = node_type === nothing ? :($(default_node)($expression_type)) : node_type
+    node_type =
+        node_type === nothing ? :($(default_node_type)($expression_type)) : node_type
 
     if operators === nothing
         @assert(
@@ -207,7 +208,7 @@ end
     unary_operators::Union{Vector{<:Function},Nothing}=nothing,
     variable_names::Union{AbstractVector,Nothing}=nothing,
     expression_type::Type{E}=Expression,
-    node_type::Type{N}=default_node(expression_type),
+    node_type::Type{N}=default_node_type(expression_type),
     evaluate_on::Union{Nothing,AbstractVector}=nothing,
     kws...,
 ) where {N<:AbstractExpressionNode,E<:AbstractExpression}
