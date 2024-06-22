@@ -6,7 +6,15 @@ using ..NodeModule: AbstractExpressionNode, Node
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..UtilsModule: Undefined
 
-import ..NodeModule: preserve_sharing
+import ..NodeUtilsModule:
+    preserve_sharing,
+    count_constants,
+    count_depth,
+    index_constants,
+    has_operators,
+    has_constants,
+    get_constants,
+    set_constants!
 
 """A wrapper for a named tuple to avoid piracy."""
 struct Metadata{NT<:NamedTuple}
@@ -204,18 +212,6 @@ function tree_mapreduce(
     return tree_mapreduce(f_leaf, f_branch, op, get_tree(ex), result_type; kws...)
 end
 
-#! format: on
-
-import ..NodeUtilsModule:
-    count_constants,
-    count_depth,
-    index_constants,
-    has_operators,
-    has_constants,
-    get_constants,
-    set_constants!
-
-#! format: off
 count_constants(ex::AbstractExpression) = count_constants(get_tree(ex))
 count_depth(ex::AbstractExpression) = count_depth(get_tree(ex))
 index_constants(ex::AbstractExpression, ::Type{T}=UInt16) where {T} = index_constants(get_tree(ex), T)
