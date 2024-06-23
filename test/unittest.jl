@@ -104,10 +104,6 @@ end
     include("test_extra_node_fields.jl")
 end
 
-@testitem "Test multi expression" begin
-    include("test_multi_expression.jl")
-end
-
 @testitem "Test containers preserved" begin
     include("test_container_preserved.jl")
 end
@@ -127,6 +123,7 @@ end
 end
 
 include("test_expressions.jl")
+include("test_multi_expression.jl")
 include("test_parse.jl")
 include("test_parametric_expression.jl")
 include("test_operator_construction_edgecases.jl")

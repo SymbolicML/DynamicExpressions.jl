@@ -331,15 +331,6 @@ end
         return node_type(; val=ex)
     end
 end
-
-# And easy evaluation
-function (ex::ParametricExpression)(X, classes, operators=nothing; kws...)
-    out, complete = eval_tree_array(ex, X, classes, operators; kws...)
-    if !complete
-        out .= NaN
-    end
-    return out
-end
 ###############################################################################
 
 end
