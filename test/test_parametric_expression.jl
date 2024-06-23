@@ -158,10 +158,10 @@ end
         tree;
         operators=nothing,
         variable_names=nothing,
-        parameters=Float32[;;],
+        parameters=Array{Float32}(undef, 0, 0),
         parameter_names=nothing,
     )
-    @test ex.metadata.parameters == Float64[;;]
+    @test ex.metadata.parameters == Array{Float32}(undef, 0, 0)
     @test ex.metadata.parameter_names === nothing
 
     @test copy(ex) == ex
@@ -177,7 +177,7 @@ end
     ex = parse_expression(
         :($tree);
         expression_type=ParametricExpression,
-        parameters=Float32[;;],
+        parameters=Array{Float32}(undef, 0, 0),
         parameter_names=nothing,
     )
     @test ex.tree == tree
@@ -191,7 +191,7 @@ end
         binary_operators = [+, -, *],
         variable_names = ["x1"],
         expression_type = ParametricExpression{Float32},
-        extra_metadata = (; parameters=Float32[;;], parameter_names=nothing)
+        extra_metadata = (; parameters=Array{Float32}(undef, 0, 0), parameter_names=nothing)
     )
     ex = @parse_expression(
         x1 + 1.5f0, binary_operators = [+, -, *], variable_names = ["x1"],
