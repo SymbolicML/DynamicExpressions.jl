@@ -166,7 +166,7 @@ end
         end
     end
 
-    @test check_tree(tree, index_constants(tree), get_constants(tree))
+    @test check_tree(tree, index_constants(tree), first(get_constants(tree)))
 end
 
 @testset "Test many operators" begin

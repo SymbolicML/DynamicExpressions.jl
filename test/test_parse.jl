@@ -1,4 +1,3 @@
-using TestItems: @testitem
 
 @testitem "custom operator" begin
     using DynamicExpressions

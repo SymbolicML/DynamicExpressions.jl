@@ -15,9 +15,10 @@ using DispatchDoctor: @stable, @unstable
     include("EvaluationHelpers.jl")
     include("Simplify.jl")
     include("OperatorEnumConstruction.jl")
-    include("Random.jl")
     include("Expression.jl")
+    include("Random.jl")
     include("Parse.jl")
+    include("ParametricExpression.jl")
 end
 
 import PackageExtensionCompat: @require_extensions
@@ -65,11 +66,20 @@ import .NodeModule:
 @reexport import .EvaluationHelpersModule
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 @reexport import .RandomModule: NodeSampler
-@reexport import .ExpressionModule: AbstractExpression, Expression
-# Not for export; just for overloading
-import .ExpressionModule: get_tree, get_operators, get_variable_names, Metadata
+@reexport import .ExpressionModule: AbstractExpression, Expression, with_tree
+import .ExpressionModule:
+    get_tree, get_operators, get_variable_names, Metadata, default_node_type, node_type
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
+@reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode
+
+@stable default_mode = "disable" begin
+    include("Interfaces.jl")
+    include("PatchMethods.jl")
+end
+
+import .InterfacesModule:
+    ExpressionInterface, NodeInterface, all_ei_methods_except, all_ni_methods_except
 
 function __init__()
     @require_extensions

@@ -74,28 +74,25 @@ is_constant(tree::AbstractExpressionNode) = all(t -> t.degree != 0 || t.constant
 Get all the constants inside a tree, in depth-first order.
 The function `set_constants!` sets them in the same order,
 given the output of this function.
+Also return metadata that can will be used in the `set_constants!` function.
 """
 function get_constants(tree::AbstractExpressionNode{T}) where {T}
-    return filter_map(is_node_constant, t -> (t.val), tree, T)
+    refs = filter_map(is_node_constant, node -> Ref(node), tree, Ref{typeof(tree)})
+    return map(ref -> ref[].val::T, refs), refs
+    # NOTE: Do not remove this `::T` as it is required for inference on empty collections
 end
 
 """
-    set_constants!(tree::AbstractExpressionNode{T}, constants::AbstractVector{T}) where {T}
+    set_constants!(tree::AbstractExpressionNode{T}, constants, refs) where {T}
 
 Set the constants in a tree, in depth-first order. The function
 `get_constants` gets them in the same order.
 """
-function set_constants!(
-    tree::AbstractExpressionNode{T}, constants::AbstractVector{T}
-) where {T}
-    Base.require_one_based_indexing(constants)
-    i = Ref(0)
-    foreach(tree) do node
-        if is_node_constant(node)
-            @inbounds node.val = constants[i[] += 1]
-        end
+function set_constants!(tree::AbstractExpressionNode{T}, constants, refs) where {T}
+    @inbounds for i in eachindex(refs, constants)
+        refs[i][].val = constants[i]
     end
-    return nothing
+    return tree
 end
 
 ## Assign index to nodes of a tree
@@ -117,7 +114,7 @@ struct NodeIndex{T} <: AbstractNode
 end
 # Sharing is never needed for NodeIndex,
 # as we trace over the node we are indexing on.
-preserve_sharing(::Type{<:NodeIndex}) = false
+preserve_sharing(::Union{Type{<:NodeIndex},NodeIndex}) = false
 
 function index_constants(tree::AbstractExpressionNode, ::Type{T}=UInt16) where {T}
     # Essentially we copy the tree, replacing the values

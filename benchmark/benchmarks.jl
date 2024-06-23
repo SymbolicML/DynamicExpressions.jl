@@ -113,9 +113,18 @@ end
     PACKAGE_VERSION < v"0.14.0" && return :(copy_node(t; preserve_sharing=preserve_sharing))
     return :(copy_node(t))  # Assume type used to infer sharing
 end
-@generated function get_set_constants!(tree)
-    !(@isdefined set_constants!) && return :(set_constants(tree, get_constants(tree)))
-    return :(set_constants!(tree, get_constants(tree)))
+@generated function get_set_constants!(tree::N) where {T,N<:AbstractExpressionNode{T}}
+    if !(@isdefined set_constants!)
+        return :(set_constants(tree, get_constants(tree)))
+    elseif hasmethod(set_constants!, Tuple{N, Vector{T}})
+        return :(set_constants!(tree, get_constants(tree)))
+    else
+        return quote
+            let (x, refs) = get_constants(tree)
+                set_constants!(tree, x, refs)
+            end
+        end
+    end
 end
 #! format: on
 

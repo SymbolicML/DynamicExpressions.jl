@@ -6,6 +6,7 @@ import DynamicExpressions.NodeModule:
 import DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
 import DynamicExpressions.UtilsModule: isgood, isbad, deprecate_varmap
 import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
+import DynamicExpressions: AbstractExpression, get_tree, get_operators
 
 const SYMBOLIC_UTILS_TYPES = Union{<:Number,SymbolicUtils.Symbolic{<:Number}}
 const SUPPORTED_OPS = (cos, sin, exp, cot, tan, csc, sec, +, -, *, /)
@@ -109,7 +110,7 @@ end
 
 function Base.convert(
     ::typeof(SymbolicUtils.Symbolic),
-    tree::AbstractExpressionNode,
+    tree::Union{AbstractExpression,AbstractExpressionNode},
     operators::AbstractOperatorEnum;
     variable_names::Union{Array{String,1},Nothing}=nothing,
     index_functions::Bool=false,
@@ -205,6 +206,11 @@ function node_to_symbolic(
         ]...,
     )
     return substitute(expr, subs)
+end
+function node_to_symbolic(
+    tree::AbstractExpression, operators::Union{AbstractOperatorEnum,Nothing}=nothing; kws...
+)
+    return node_to_symbolic(get_tree(tree), get_operators(tree, operators); kws...)
 end
 
 function symbolic_to_node(

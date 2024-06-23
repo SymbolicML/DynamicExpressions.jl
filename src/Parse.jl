@@ -5,7 +5,13 @@ using DispatchDoctor: @unstable
 using ..NodeModule: AbstractExpressionNode, Node, constructorof
 using ..OperatorEnumModule: AbstractOperatorEnum
 using ..OperatorEnumConstructionModule: OperatorEnum, empty_all_globals!
-using ..ExpressionModule: AbstractExpression, Expression
+using ..ExpressionModule:
+    AbstractExpression,
+    Expression,
+    default_node_type,
+    get_operators,
+    get_variable_names,
+    node_type
 
 """
     @parse_expression(expr; operators, variable_names, node_type=Node, evaluate_on=[])
@@ -21,8 +27,8 @@ using ..ExpressionModule: AbstractExpression, Expression
 - `operators`: An instance of `AbstractOperatorEnum` specifying the available unary and binary operators.
 - `variable_names`: A list of variable names as strings or symbols that are allowed in the expression.
 - `evaluate_on`: A list of external functions to evaluate explicitly when encountered.
-- `node_type`: The type of the nodes in the resulting expression tree. Defaults to `Node`.
 - `expression_type`: The type of the resulting expression. Defaults to `Expression`.
+- `node_type`: The type of the nodes in the resulting expression tree. Defaults to `default_node_type(expression_type)`.
 - `binary_operators`: Convenience syntax for creating an `OperatorEnum`.
 - `unary_operators`: Convenience syntax for creating an `OperatorEnum`.
 
@@ -90,6 +96,8 @@ macro parse_expression(ex, kws...)
         :($(parse_expression)(
             $(Meta.quot(ex));
             operators=$(parsed_kws.operators),
+            binary_operators=nothing,
+            unary_operators=nothing,
             variable_names=$(parsed_kws.variable_names),
             node_type=$(parsed_kws.node_type),
             expression_type=$(parsed_kws.expression_type),
@@ -103,8 +111,8 @@ end
     # Initialize default values for operators and variable_names
     operators = nothing
     variable_names = nothing
-    node_type = Node
     expression_type = Expression
+    node_type = nothing
     evaluate_on = nothing
     extra_metadata = ()
     binops = nothing
@@ -171,6 +179,8 @@ end
             ),
         )
     end
+    node_type =
+        node_type === nothing ? :($(default_node_type)($expression_type)) : node_type
 
     if operators === nothing
         @assert(
@@ -193,23 +203,41 @@ end
 """Parse an expression Julia `Expr` object."""
 @unstable function parse_expression(
     ex;
-    operators::AbstractOperatorEnum,
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing,
+    binary_operators::Union{Vector{<:Function},Nothing}=nothing,
+    unary_operators::Union{Vector{<:Function},Nothing}=nothing,
     variable_names::Union{AbstractVector,Nothing}=nothing,
-    node_type::Type{N}=Node,
     expression_type::Type{E}=Expression,
+    node_type::Type{N}=default_node_type(expression_type),
     evaluate_on::Union{Nothing,AbstractVector}=nothing,
     kws...,
 ) where {N<:AbstractExpressionNode,E<:AbstractExpression}
-    empty_all_globals!()
+    empty_all_globals!(; force=false)
     let variable_names = if variable_names === nothing
             nothing
         elseif eltype(variable_names) <: AbstractString
             variable_names
         else
-            string.(variable_names)
+            map(v -> string(v)::String, variable_names)
+        end,
+        operators = if operators === nothing
+            OperatorEnum(;
+                binary_operators=if binary_operators === nothing
+                    Function[]
+                else
+                    binary_operators
+                end,
+                unary_operators=if unary_operators === nothing
+                    Function[]
+                else
+                    unary_operators
+                end,
+            )
+        else
+            operators
         end
-        tree = _parse_expression(ex, operators, variable_names, N, E, evaluate_on; kws...)
 
+        tree = _parse_expression(ex, operators, variable_names, N, E, evaluate_on; kws...)
         return constructorof(E)(tree; operators, variable_names, kws...)
     end
 end
@@ -229,7 +257,7 @@ module EmptyModule end
     ex.head != :call && throw(
         ArgumentError(
             "Unrecognized expression type: `Expr(:$(ex.head), ...)`. " *
-            "Please only a function call or a variable.",
+            "Please only pass a function call or a variable.",
         ),
     )
     args = ex.args

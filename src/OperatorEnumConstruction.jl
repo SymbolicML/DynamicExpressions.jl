@@ -31,6 +31,7 @@ const ALREADY_DEFINED_BINARY_OPERATORS = (;
     operator_enum=Dict{Function,Bool}(), generic_operator_enum=Dict{Function,Bool}()
 )
 const LATEST_VARIABLE_NAMES = Ref{Vector{String}}(String[])
+const LATEST_LOCK = Threads.SpinLock()
 
 function Base.show(io::IO, tree::AbstractExpressionNode)
     latest_operators_type = LATEST_OPERATORS_TYPE.x
@@ -107,12 +108,16 @@ end
     return mapping[f]
 end
 
-function empty_all_globals!()
-    LATEST_OPERATORS.x = nothing
-    LATEST_OPERATORS_TYPE.x = IsNothing
-    empty!(LATEST_UNARY_OPERATOR_MAPPING)
-    empty!(LATEST_BINARY_OPERATOR_MAPPING)
-    LATEST_VARIABLE_NAMES.x = String[]
+function empty_all_globals!(; force=true)
+    if force || islocked(LATEST_LOCK)
+        lock(LATEST_LOCK) do
+            LATEST_OPERATORS.x = nothing
+            LATEST_OPERATORS_TYPE.x = IsNothing
+            empty!(LATEST_UNARY_OPERATOR_MAPPING)
+            empty!(LATEST_BINARY_OPERATOR_MAPPING)
+            LATEST_VARIABLE_NAMES.x = String[]
+        end
+    end
     return nothing
 end
 
@@ -248,6 +253,7 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
         local $build_converters
         local $binary_exists
         local $unary_exists
+        lock($LATEST_LOCK)
         if isa($operators, $OperatorEnum)
             $type_requirements = Number
             $build_converters = true
@@ -300,6 +306,7 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
                 $(binary_exists)[func] = true
             end
         end
+        unlock($LATEST_LOCK)
     end
 end
 

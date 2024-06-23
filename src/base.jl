@@ -44,7 +44,7 @@ both unary and binary operators. `op` will not be called for leafs of the tree.
 This differs from a normal `mapreduce` in that it allows different treatment
 for parent nodes than children nodes. If this is not necessary, you may
 use the regular `mapreduce` instead.
-The argument `break_sharing` can be used to break connections in a `GraphNode`.
+The argument `break_sharing` can be used to break connections in a [`GraphNode`](@ref).
 
 You can also provide separate functions for leaf (variable/constant) nodes
 and branch (operator) nodes.
@@ -270,7 +270,7 @@ end
 """
     filter_map!(filter_fnc::Function, map_fnc::Function, stack::Vector{GT}, tree::AbstractNode)
 
-Equivalent to `filter_map`, but stores the results in a preallocated array.
+Equivalent to [`filter_map`](@ref), but stores the results in a preallocated array.
 """
 function filter_map!(
     filter_fnc::F,
@@ -345,7 +345,7 @@ end
     sum(f::Function, tree::AbstractNode; result_type=Undefined, f_on_shared=_default_shared_aggregation, break_sharing::Val=Val(false)) where {F<:Function}
 
 Sum the results of a function over a tree. For graphs with shared nodes
-such as `GraphNode`, the function `f_on_shared` is called on the result
+such as [`GraphNode`](@ref), the function `f_on_shared` is called on the result
 of each shared node. This is used to avoid double-counting shared nodes (default
 behavior).
 """

@@ -15,7 +15,7 @@ Abstract type for binary trees. Must have the following fields:
     then `r` also needs to be defined as the right child.
 - `l::AbstractNode`: Left child of the current node. Should only be
     defined if `degree >= 1`; otherwise, leave it undefined (see the
-    the constructors of `Node{T}` for an example).
+    the constructors of [`Node{T}`](@ref) for an example).
     Don't use `nothing` to represent an undefined value
     as it will incur a large performance penalty.
 - `r::AbstractNode`: Right child of the current node. Should only
@@ -44,6 +44,9 @@ this additionally must have fields for:
     object. Only defined if `degree >= 1`
 
 # Interface
+
+See [`NodeInterface`](@ref DynamicExpressions.InterfacesModule.NodeInterface) for a full description
+of the interface implementation, as well as tests to verify correctness.
 
 You *must* define `CustomNode{_T} where {_T} = new{_T}()` for each custom node type.
 
@@ -132,7 +135,7 @@ end
 """
     GraphNode{T} <: AbstractExpressionNode{T}
 
-Exactly the same as `Node{T}`, but with the assumption that some
+Exactly the same as [`Node{T}`](@ref), but with the assumption that some
 nodes will be shared. All copies of this graph-like structure will
 be performed with this assumption, to preserve structure of the graph.
 
@@ -156,7 +159,7 @@ cos(sin(x1) + {x1}) * {(sin(x1) + {x1})}
 Note how the `{}` indicates a node is shared, and this
 is the same node as seen earlier in the string.
 
-This has the same constructors as `Node{T}`. Shared nodes
+This has the same constructors as [`Node{T}`](@ref). Shared nodes
 are created simply by using the same node in multiple places
 when constructing or setting properties.
 """
@@ -196,9 +199,9 @@ default_allocator(::Type{<:Node}, ::Type{T}) where {T} = Node{T}()
 default_allocator(::Type{<:GraphNode}, ::Type{T}) where {T} = GraphNode{T}()
 
 """Trait declaring whether nodes share children or not."""
-preserve_sharing(::Type{<:AbstractNode}) = false
-preserve_sharing(::Type{<:Node}) = false
-preserve_sharing(::Type{<:GraphNode}) = true
+preserve_sharing(::Union{Type{<:AbstractNode},AbstractNode}) = false
+preserve_sharing(::Union{Type{<:Node},Node}) = false
+preserve_sharing(::Union{Type{<:GraphNode},GraphNode}) = true
 
 include("base.jl")
 

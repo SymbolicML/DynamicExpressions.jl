@@ -2,9 +2,19 @@
 module ExpressionModule
 
 using DispatchDoctor: @unstable
-using ..NodeModule: AbstractExpressionNode
+using ..NodeModule: AbstractExpressionNode, Node
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..UtilsModule: Undefined
+
+import ..NodeUtilsModule:
+    preserve_sharing,
+    count_constants,
+    count_depth,
+    index_constants,
+    has_operators,
+    has_constants,
+    get_constants,
+    set_constants!
 
 """A wrapper for a named tuple to avoid piracy."""
 struct Metadata{NT<:NamedTuple}
@@ -26,53 +36,24 @@ end
 @inline Base.hash(x::Metadata, h::UInt) = hash(_data(x), h)
 
 """
-    AbstractExpression{T}
+    AbstractExpression{T,N}
 
 (Experimental) Abstract type for user-facing expression types, which contain
 both the raw expression tree operating on a value type of `T`,
 as well as associated metadata to evaluate and render the expression.
 
-# Interface
-
-## Required methods
-
-- `get_tree`
-- `get_operators`
-- `get_variable_names`
-- `Base.copy`
-- `Base.hash`
-- `Base.:(==)`
-
-## Optional methods
-
-Many of these optional methods will use
-the three required methods, but for custom behavior,
-you can overload them.
-
-- `count_nodes`
-- `count_constants`
-- `count_depth`
-- `index_constants`
-- `has_operators`
-- `has_constants`
-- `get_constants`
-- `set_constants!`
-- `string_tree`
-- `eval_tree_array`
-- `eval_grad_tree_array`
-- `Optim.optimize`
-- `_grad_evaluator`
-- `(ex::AbstractExpression)(X, operators=nothing; kws...)`
+See [`ExpressionInterface`](@ref DynamicExpressions.InterfacesModule.ExpressionInterface) for a full description
+of the interface implementation, as well as tests to verify correctness.
 
 If you wish to use `@parse_expression`, you can also
 customize the parsing behavior with
 
 - `parse_leaf`
 """
-abstract type AbstractExpression{T} end
+abstract type AbstractExpression{T,N} end
 
 """
-    Expression{T, N, D} <: AbstractExpression{T}
+    Expression{T, N, D} <: AbstractExpression{T, N}
 
 (Experimental) Defines a high-level, user-facing, expression type that encapsulates an
 expression tree (like `Node`) along with associated metadata for evaluation and rendering.
@@ -85,15 +66,15 @@ expression tree (like `Node`) along with associated metadata for evaluation and 
 
 # Constructors
 
-- Expression(tree::AbstractExpressionNode, metadata::NamedTuple): Construct from the fields
-- @parse_expression(expr, operators=operators, variable_names=variable_names, node_type=Node): Parse a Julia expression with a given context and create an Expression object.
+- `Expression(tree::AbstractExpressionNode, metadata::NamedTuple)`: Construct from the fields
+- `@parse_expression(expr, operators=operators, variable_names=variable_names, node_type=Node)`: Parse a Julia expression with a given context and create an Expression object.
 
 # Usage
 
 This type is intended for end-users to interact with and manipulate expressions at a high level,
 abstracting away the complexities of the underlying expression tree operations.
 """
-struct Expression{T,N<:AbstractExpressionNode{T},D<:NamedTuple} <: AbstractExpression{T}
+struct Expression{T,N<:AbstractExpressionNode{T},D<:NamedTuple} <: AbstractExpression{T,N}
     tree::N
     metadata::Metadata{D}
 end
@@ -102,6 +83,10 @@ end
     d = (; metadata...)
     return Expression(tree, Metadata(d))
 end
+
+node_type(::Union{E,Type{E}}) where {N,E<:AbstractExpression{<:Any,N}} = N
+@unstable default_node_type(::Type{<:AbstractExpression}) = Node
+default_node_type(::Type{<:AbstractExpression{T}}) where {T} = Node{T}
 
 ########################################################
 # Abstract interface ###################################
@@ -149,16 +134,37 @@ end
 function Base.:(==)(x::AbstractExpression, y::AbstractExpression)
     return error("`==` function must be implemented for $(typeof(x)) types.")
 end
+function get_constants(ex::AbstractExpression)
+    return error("`get_constants` function must be implemented for $(typeof(ex)) types.")
+end
+function set_constants!(ex::AbstractExpression{T}, constants, refs) where {T}
+    return error("`set_constants!` function must be implemented for $(typeof(ex)) types.")
+end
 ########################################################
 
-function get_operators(ex::Expression, operators)
+"""
+    with_tree(ex::AbstractExpression, tree::AbstractExpressionNode)
+
+Create a new expression based on `ex` but with a different `tree`
+"""
+function with_tree(ex::AbstractExpression, tree)
+    return constructorof(typeof(ex))(tree, ex.metadata)
+end
+function preserve_sharing(::Union{E,Type{E}}) where {T,N,E<:AbstractExpression{T,N}}
+    return preserve_sharing(N)
+end
+
+function get_operators(ex::Expression, operators=nothing)
     return operators === nothing ? ex.metadata.operators : operators
 end
-function get_variable_names(ex::Expression, variable_names)
+function get_variable_names(ex::Expression, variable_names=nothing)
     return variable_names === nothing ? ex.metadata.variable_names : variable_names
 end
 function get_tree(ex::Expression)
     return ex.tree
+end
+function get_tree(tree::AbstractExpressionNode)
+    return tree
 end
 function Base.copy(ex::Expression; break_sharing::Val=Val(false))
     return Expression(copy(ex.tree; break_sharing), copy(ex.metadata))
@@ -166,6 +172,12 @@ end
 function Base.hash(ex::Expression, h::UInt)
     return hash(ex.tree, hash(ex.metadata, h))
 end
+
+"""
+    Base.:(==)(x::Expression, y::Expression)
+
+Check equality of two expressions `x` and `y` by comparing their trees and metadata.
+"""
 function Base.:(==)(x::Expression, y::Expression)
     return x.tree == y.tree && x.metadata == y.metadata
 end
@@ -202,26 +214,20 @@ function tree_mapreduce(
     return tree_mapreduce(f_leaf, f_branch, op, get_tree(ex), result_type; kws...)
 end
 
-#! format: on
-
-import ..NodeUtilsModule:
-    count_constants,
-    count_depth,
-    index_constants,
-    has_operators,
-    has_constants,
-    get_constants,
-    set_constants!
-
-#! format: off
 count_constants(ex::AbstractExpression) = count_constants(get_tree(ex))
 count_depth(ex::AbstractExpression) = count_depth(get_tree(ex))
 index_constants(ex::AbstractExpression, ::Type{T}=UInt16) where {T} = index_constants(get_tree(ex), T)
 has_operators(ex::AbstractExpression) = has_operators(get_tree(ex))
 has_constants(ex::AbstractExpression) = has_constants(get_tree(ex))
-get_constants(ex::AbstractExpression) = get_constants(get_tree(ex))
-set_constants!(ex::AbstractExpression{T}, constants::AbstractVector{T}) where {T} = set_constants!(get_tree(ex), constants)
+Base.isempty(ex::AbstractExpression) = isempty(get_tree(ex))
 #! format: on
+
+function get_constants(ex::Expression)
+    return get_constants(get_tree(ex))
+end
+function set_constants!(ex::Expression{T}, constants, refs) where {T}
+    return set_constants!(get_tree(ex), constants, refs)
+end
 
 import ..StringsModule: string_tree, print_tree
 
@@ -309,17 +315,5 @@ function (ex::AbstractExpression)(X, operators=nothing; kws...)
 end
 
 import ..SimplifyModule: combine_operators, simplify_tree!
-
-# Avoid implementing a generic version for these, as it is less likely to generalize
-function combine_operators(ex::Expression, operators=nothing)
-    return Expression(
-        combine_operators(get_tree(ex), get_operators(ex, operators)), ex.metadata
-    )
-end
-function simplify_tree!(ex::Expression, operators=nothing)
-    return Expression(
-        simplify_tree!(get_tree(ex), get_operators(ex, operators)), ex.metadata
-    )
-end
 
 end
