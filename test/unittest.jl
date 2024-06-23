@@ -16,9 +16,7 @@ using Zygote, SymbolicUtils, LoopVectorization, Bumper, Optim
     include("test_deprecations.jl")
 end
 
-@testitem "Test Optim.jl" begin
-    include("test_optim.jl")
-end
+include("test_optim.jl")
 
 @testitem "Test tree construction and scoring" begin
     include("test_tree_construction.jl")
