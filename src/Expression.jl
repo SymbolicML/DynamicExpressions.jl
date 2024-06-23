@@ -42,8 +42,8 @@ end
 both the raw expression tree operating on a value type of `T`,
 as well as associated metadata to evaluate and render the expression.
 
-See [`ExpressionInterface`](@ref) for a full description of the interface implementation,
-as well as tests to verify correctness.
+See [`ExpressionInterface`](@ref DynamicExpressions.InterfacesModule.ExpressionInterface) for a full description
+of the interface implementation, as well as tests to verify correctness.
 
 If you wish to use `@parse_expression`, you can also
 customize the parsing behavior with
@@ -66,8 +66,8 @@ expression tree (like `Node`) along with associated metadata for evaluation and 
 
 # Constructors
 
-- Expression(tree::AbstractExpressionNode, metadata::NamedTuple): Construct from the fields
-- @parse_expression(expr, operators=operators, variable_names=variable_names, node_type=Node): Parse a Julia expression with a given context and create an Expression object.
+- `Expression(tree::AbstractExpressionNode, metadata::NamedTuple)`: Construct from the fields
+- `@parse_expression(expr, operators=operators, variable_names=variable_names, node_type=Node)`: Parse a Julia expression with a given context and create an Expression object.
 
 # Usage
 
