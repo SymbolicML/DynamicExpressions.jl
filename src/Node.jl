@@ -45,6 +45,9 @@ this additionally must have fields for:
 
 # Interface
 
+See [`NodeInterface`](@ref) for a full description of the interface implementation,
+as well as tests to verify correctness.
+
 You *must* define `CustomNode{_T} where {_T} = new{_T}()` for each custom node type.
 
 In addition, you *may* choose to define the following functions, to override
