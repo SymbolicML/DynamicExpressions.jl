@@ -1,5 +1,7 @@
 module NodeModule
 
+using DispatchDoctor: @unstable
+
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..UtilsModule: @memoize_on, @with_memoize, deprecate_varmap, Undefined
 
@@ -182,9 +184,9 @@ end
 Base.eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = T
 Base.eltype(::AbstractExpressionNode{T}) where {T} = T
 
-constructorof(::Type{N}) where {N<:AbstractNode} = Base.typename(N).wrapper
-constructorof(::Type{<:Node}) = Node
-constructorof(::Type{<:GraphNode}) = GraphNode
+@unstable constructorof(::Type{N}) where {N<:AbstractNode} = Base.typename(N).wrapper
+@unstable constructorof(::Type{<:Node}) = Node
+@unstable constructorof(::Type{<:GraphNode}) = GraphNode
 
 function with_type_parameters(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNode,T}
     return constructorof(N){T}
