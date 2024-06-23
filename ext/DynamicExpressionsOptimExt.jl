@@ -42,7 +42,8 @@ function wrap_func(
     f::F, tree::N, refs
 ) where {F<:Function,T,N<:Union{AbstractExpressionNode{T},AbstractExpression{T}}}
     function wrapped_f(args::Vararg{Any,M}) where {M}
-        (first_args..., x) = args
+        first_args = args[begin:end-1]
+        x = args[end]
         set_constants!(tree, x, refs)
         return @inline(f(first_args..., tree))
     end
