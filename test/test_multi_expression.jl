@@ -10,6 +10,13 @@
         trees::TREES
         metadata::Metadata{D}
 
+        function MultiScalarExpression(trees::NamedTuple, metadata::Metadata{D}) where {D}
+            example_tree = first(values(trees))
+            N = typeof(example_tree)
+            T = eltype(example_tree)
+            return new{T,N,typeof(trees),D}(trees, metadata)
+        end
+
         """
         Create a multi-expression expression type.
 
@@ -65,6 +72,12 @@
     end
 
     tree_factory(f::F, trees) where {F} = f(; trees...)
+    function DE.get_contents(ex::MultiScalarExpression)
+        return ex.trees
+    end
+    function DE.get_metadata(ex::MultiScalarExpression)
+        return ex.metadata
+    end
     function DE.get_tree(ex::MultiScalarExpression{T,N}) where {T,N}
         fused_expression = parse_expression(
             tree_factory(ex.metadata.tree_factory, ex.trees)::Expr;

@@ -19,7 +19,13 @@ import ..EvaluateModule: eval_tree_array
 import ..EvaluateDerivativeModule: eval_grad_tree_array
 import ..EvaluationHelpersModule: _grad_evaluator
 import ..ExpressionModule:
-    get_tree, get_operators, get_variable_names, max_feature, default_node_type
+    get_contents,
+    get_metadata,
+    get_tree,
+    get_operators,
+    get_variable_names,
+    max_feature,
+    default_node_type
 import ..ParseModule: parse_leaf
 
 """A type of expression node that also stores a parameter index"""
@@ -127,9 +133,9 @@ end
 ###############################################################################
 # Abstract expression interface ###############################################
 ###############################################################################
-function get_tree(ex::ParametricExpression)
-    return ex.tree
-end
+get_contents(ex::ParametricExpression) = ex.tree
+get_metadata(ex::ParametricExpression) = ex.metadata
+get_tree(ex::ParametricExpression) = ex.tree
 function get_operators(ex::ParametricExpression, operators=nothing)
     return operators === nothing ? ex.metadata.operators : operators
 end

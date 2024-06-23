@@ -140,16 +140,46 @@ end
 function set_constants!(ex::AbstractExpression{T}, constants, refs) where {T}
     return error("`set_constants!` function must be implemented for $(typeof(ex)) types.")
 end
+function get_contents(ex::AbstractExpression)
+    return error("`get_contents` function must be implemented for $(typeof(ex)) types.")
+end
+function get_metadata(ex::AbstractExpression)
+    return error("`get_metadata` function must be implemented for $(typeof(ex)) types.")
+end
 ########################################################
 
 """
     with_tree(ex::AbstractExpression, tree::AbstractExpressionNode)
+    with_tree(ex::AbstractExpression, tree::AbstractExpression)
 
 Create a new expression based on `ex` but with a different `tree`
 """
-function with_tree(ex::AbstractExpression, tree)
-    return constructorof(typeof(ex))(tree, ex.metadata)
+function with_tree(ex::AbstractExpression, tree::AbstractExpression)
+    return with_tree(ex, get_contents(tree))
 end
+function with_tree(ex::AbstractExpression, tree)
+    return constructorof(typeof(ex))(tree, get_metadata(ex))
+end
+function get_contents(ex::Expression)
+    return ex.tree
+end
+
+"""
+    with_metadata(ex::AbstractExpression, metadata)
+    with_metadata(ex::AbstractExpression; metadata...)
+
+Create a new expression based on `ex` but with a different `metadata`.
+"""
+function with_metadata(ex::AbstractExpression; metadata...)
+    return with_metadata(get_contents(ex), Metadata(metadata))
+end
+function with_metadata(ex::AbstractExpression, metadata::Metadata)
+    return constructorof(typeof(ex))(get_contents(ex), metadata)
+end
+function get_metadata(ex::Expression)
+    return ex.metadata
+end
+
 function preserve_sharing(::Union{E,Type{E}}) where {T,N,E<:AbstractExpression{T,N}}
     return preserve_sharing(N)
 end
