@@ -189,8 +189,8 @@ end
 import ..NodeModule: copy_node, set_node!, count_nodes, tree_mapreduce, constructorof
 
 #! format: off
-constructorof(::Type{E}) where {E<:AbstractExpression} = Base.typename(E).wrapper
-constructorof(::Type{<:Expression}) = Expression
+@unstable constructorof(::Type{E}) where {E<:AbstractExpression} = Base.typename(E).wrapper
+@unstable constructorof(::Type{<:Expression}) = Expression
 copy_node(ex::AbstractExpression; kws...) = copy(ex)
 count_nodes(ex::AbstractExpression; kws...) = count_nodes(get_tree(ex); kws...)
 
