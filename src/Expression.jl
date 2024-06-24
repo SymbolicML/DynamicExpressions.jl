@@ -6,6 +6,7 @@ using ..NodeModule: AbstractExpressionNode, Node
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..UtilsModule: Undefined
 
+import ..NodeModule: copy_node, set_node!, count_nodes, tree_mapreduce, constructorof
 import ..NodeUtilsModule:
     preserve_sharing,
     count_constants,
@@ -128,12 +129,6 @@ end
 function Base.copy(ex::AbstractExpression; break_sharing::Val=Val(false))
     return error("`copy` function must be implemented for $(typeof(ex)) types.")
 end
-function Base.hash(ex::AbstractExpression, h::UInt)
-    return error("`hash` function must be implemented for $(typeof(ex)) types.")
-end
-function Base.:(==)(x::AbstractExpression, y::AbstractExpression)
-    return error("`==` function must be implemented for $(typeof(x)) types.")
-end
 function get_constants(ex::AbstractExpression)
     return error("`get_constants` function must be implemented for $(typeof(ex)) types.")
 end
@@ -199,24 +194,16 @@ end
 function Base.copy(ex::Expression; break_sharing::Val=Val(false))
     return Expression(copy(ex.tree; break_sharing), copy(ex.metadata))
 end
-function Base.hash(ex::Expression, h::UInt)
-    return hash(ex.tree, hash(ex.metadata, h))
+function Base.hash(ex::AbstractExpression, h::UInt)
+    return hash(get_contents(ex), hash(get_metadata(ex), h))
 end
-
-"""
-    Base.:(==)(x::Expression, y::Expression)
-
-Check equality of two expressions `x` and `y` by comparing their trees and metadata.
-"""
-function Base.:(==)(x::Expression, y::Expression)
-    return x.tree == y.tree && x.metadata == y.metadata
+function Base.:(==)(x::AbstractExpression, y::AbstractExpression)
+    return get_contents(x) == get_contents(y) && get_metadata(x) == get_metadata(y)
 end
 
 # Overload all methods on AbstractExpressionNode that return an aggregation, or can
 # return an entire tree. Methods that only return the nodes are *not* overloaded, so
 # that the user must use the low-level interface.
-
-import ..NodeModule: copy_node, set_node!, count_nodes, tree_mapreduce, constructorof
 
 #! format: off
 @unstable constructorof(::Type{E}) where {E<:AbstractExpression} = Base.typename(E).wrapper

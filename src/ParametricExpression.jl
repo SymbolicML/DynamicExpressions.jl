@@ -153,12 +153,6 @@ function Base.copy(ex::ParametricExpression; break_sharing::Val=Val(false))
         parameter_names=_copy_with_nothing(ex.metadata.parameter_names),
     )
 end
-function Base.hash(ex::ParametricExpression, h::UInt)
-    return hash(ex.tree, hash(ex.metadata, h))
-end
-function Base.:(==)(x::ParametricExpression, y::ParametricExpression)
-    return x.tree == y.tree && x.metadata == y.metadata
-end
 ###############################################################################
 
 ###############################################################################

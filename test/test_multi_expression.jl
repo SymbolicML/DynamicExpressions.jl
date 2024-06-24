@@ -61,8 +61,6 @@
         )
         @test_throws "`get_tree` function must be implemented for" DE.get_tree(multi_ex)
         @test_throws "`copy` function must be implemented for" copy(multi_ex)
-        @test_throws "`hash` function must be implemented for" hash(multi_ex, UInt(0))
-        @test_throws "`==` function must be implemented for" multi_ex == multi_ex
         @test_throws "`get_constants` function must be implemented for" get_constants(
             multi_ex
         )
