@@ -86,7 +86,7 @@ end
 end
 
 node_type(::Union{E,Type{E}}) where {N,E<:AbstractExpression{<:Any,N}} = N
-@unstable default_node_type(::Type{<:AbstractExpression}) = Node
+@unstable default_node_type(_) = Node
 default_node_type(::Type{<:AbstractExpression{T}}) where {T} = Node{T}
 
 ########################################################
