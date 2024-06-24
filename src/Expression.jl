@@ -179,7 +179,18 @@ function preserve_sharing(::Union{E,Type{E}}) where {T,N,E<:AbstractExpression{T
     return preserve_sharing(N)
 end
 
-function get_operators(ex::Expression, operators=nothing)
+function get_operators(
+    tree::AbstractExpressionNode, operators::Union{AbstractOperatorEnum,Nothing}=nothing
+)
+    if operators === nothing
+        throw(ArgumentError("`operators` must be provided for $(typeof(tree)) types."))
+    else
+        return operators
+    end
+end
+function get_operators(
+    ex::Expression, operators::Union{AbstractOperatorEnum,Nothing}=nothing
+)
     return operators === nothing ? ex.metadata.operators : operators
 end
 function get_variable_names(ex::Expression, variable_names=nothing)
@@ -249,7 +260,10 @@ end
 import ..StringsModule: string_tree, print_tree
 
 function string_tree(
-    ex::AbstractExpression, operators=nothing; variable_names=nothing, kws...
+    ex::AbstractExpression,
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+    variable_names=nothing,
+    kws...,
 )
     return string_tree(
         get_tree(ex),
@@ -260,7 +274,11 @@ function string_tree(
 end
 for io in ((), (:(io::IO),))
     @eval function print_tree(
-        $(io...), ex::AbstractExpression, operators=nothing; variable_names=nothing, kws...
+        $(io...),
+        ex::AbstractExpression,
+        operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+        variable_names=nothing,
+        kws...,
     )
         return println($(io...), string_tree(ex, operators; variable_names, kws...))
     end
@@ -283,7 +301,9 @@ function max_feature(ex::AbstractExpression)
     )
 end
 
-function _validate_input(ex::AbstractExpression, X, operators)
+function _validate_input(
+    ex::AbstractExpression, X, operators::Union{AbstractOperatorEnum,Nothing}
+)
     if get_operators(ex, operators) isa OperatorEnum
         @assert X isa AbstractMatrix
         @assert max_feature(ex) <= size(X, 1)
@@ -292,7 +312,10 @@ function _validate_input(ex::AbstractExpression, X, operators)
 end
 
 function eval_tree_array(
-    ex::AbstractExpression, cX::AbstractMatrix, operators=nothing; kws...
+    ex::AbstractExpression,
+    cX::AbstractMatrix,
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+    kws...,
 )
     _validate_input(ex, cX, operators)
     return eval_tree_array(get_tree(ex), cX, get_operators(ex, operators); kws...)
@@ -305,7 +328,10 @@ import ..EvaluateDerivativeModule: eval_grad_tree_array
 #  - differentiable_eval_tree_array
 
 function eval_grad_tree_array(
-    ex::AbstractExpression, cX::AbstractMatrix, operators=nothing; kws...
+    ex::AbstractExpression,
+    cX::AbstractMatrix,
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+    kws...,
 )
     _validate_input(ex, cX, operators)
     return eval_grad_tree_array(get_tree(ex), cX, get_operators(ex, operators); kws...)
@@ -319,14 +345,16 @@ end
 function _grad_evaluator(
     ex::AbstractExpression,
     cX::AbstractMatrix,
-    operators=nothing;
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     variable=Val(true),
     kws...,
 )
     _validate_input(ex, cX, operators)
     return _grad_evaluator(get_tree(ex), cX, get_operators(ex, operators); variable, kws...)
 end
-function (ex::AbstractExpression)(X, operators=nothing; kws...)
+function (ex::AbstractExpression)(
+    X, operators::Union{AbstractOperatorEnum,Nothing}=nothing; kws...
+)
     _validate_input(ex, X, operators)
     return get_tree(ex)(X, get_operators(ex, operators); kws...)
 end
