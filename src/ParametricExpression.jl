@@ -15,7 +15,6 @@ import ..NodeUtilsModule:
     get_constants,
     set_constants!
 import ..StringsModule: string_tree
-import ..SimplifyModule: combine_operators, simplify_tree!
 import ..EvaluateModule: eval_tree_array
 import ..EvaluateDerivativeModule: eval_grad_tree_array
 import ..EvaluationHelpersModule: _grad_evaluator

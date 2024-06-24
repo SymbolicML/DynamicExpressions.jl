@@ -15,7 +15,8 @@ is_commutative(_) = false
 is_subtraction(::typeof(-)) = true
 is_subtraction(_) = false
 
-# This is only defined for `Node` as it is not possible for
+combine_operators(tree::AbstractExpressionNode, ::AbstractOperatorEnum) = tree
+# This is only defined for `Node` as it is not possible for, e.g.,
 # `GraphNode`.
 function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
     # NOTE: (const (+*-) const) already accounted for. Call simplify_tree! before.
