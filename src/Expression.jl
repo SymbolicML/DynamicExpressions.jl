@@ -101,7 +101,9 @@ or `cur_operators` if it is not `nothing`. If left as default,
 it requires `cur_operators` to not be `nothing`.
 `cur_operators` would typically be an `OperatorEnum`.
 """
-function get_operators(ex::AbstractExpression, operators)
+function get_operators(
+    ex::AbstractExpression, operators::Union{AbstractOperatorEnum,Nothing}=nothing
+)
     return error("`get_operators` function must be implemented for $(typeof(ex)) types.")
 end
 
@@ -110,7 +112,10 @@ end
 
 The same as `operators`, but for variable names.
 """
-function get_variable_names(ex::AbstractExpression, variable_names)
+function get_variable_names(
+    ex::AbstractExpression,
+    variable_names::Union{Nothing,AbstractVector{<:AbstractString}}=nothing,
+)
     return error(
         "`get_variable_names` function must be implemented for $(typeof(ex)) types."
     )
@@ -193,7 +198,9 @@ function get_operators(
 )
     return operators === nothing ? ex.metadata.operators : operators
 end
-function get_variable_names(ex::Expression, variable_names=nothing)
+function get_variable_names(
+    ex::Expression, variable_names::Union{Nothing,AbstractVector{<:AbstractString}}=nothing
+)
     return variable_names === nothing ? ex.metadata.variable_names : variable_names
 end
 function get_tree(ex::Expression)

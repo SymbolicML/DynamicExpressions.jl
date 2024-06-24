@@ -142,10 +142,15 @@ end
 get_contents(ex::ParametricExpression) = ex.tree
 get_metadata(ex::ParametricExpression) = ex.metadata
 get_tree(ex::ParametricExpression) = ex.tree
-function get_operators(ex::ParametricExpression, operators=nothing)
+function get_operators(
+    ex::ParametricExpression, operators::Union{AbstractOperatorEnum,Nothing}=nothing
+)
     return operators === nothing ? ex.metadata.operators : operators
 end
-function get_variable_names(ex::ParametricExpression, variable_names=nothing)
+function get_variable_names(
+    ex::ParametricExpression,
+    variable_names::Union{Nothing,AbstractVector{<:AbstractString}}=nothing,
+)
     return variable_names === nothing ? ex.metadata.variable_names : variable_names
 end
 @inline _copy_with_nothing(x) = copy(x)
@@ -241,7 +246,10 @@ function eval_tree_array(::ParametricExpression{T}, ::AbstractMatrix{T}, operato
 end
 #! format: on
 function (ex::ParametricExpression)(
-    X::AbstractMatrix{T}, classes::AbstractVector{<:Integer}, operators=nothing; kws...
+    X::AbstractMatrix{T},
+    classes::AbstractVector{<:Integer},
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+    kws...,
 ) where {T}
     (output, flag) = eval_tree_array(ex, X, classes, operators; kws...)  # Will error
     if !flag
@@ -253,7 +261,7 @@ function eval_tree_array(
     ex::ParametricExpression{T},
     X::AbstractMatrix{T},
     classes::AbstractVector{<:Integer},
-    operators=nothing;
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     kws...,
 ) where {T}
     @assert length(classes) == size(X, 2)
