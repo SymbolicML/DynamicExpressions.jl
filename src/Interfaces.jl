@@ -45,7 +45,7 @@ using ..ExpressionModule:
     get_variable_names,
     get_contents,
     get_metadata,
-    with_tree,
+    with_contents,
     with_metadata,
     default_node_type
 using ..ParametricExpressionModule: ParametricExpression, ParametricNode
@@ -56,7 +56,7 @@ using ..ParametricExpressionModule: ParametricExpression, ParametricNode
 
 ## mandatory
 function _check_get_contents(ex::AbstractExpression)
-    new_ex = with_tree(ex, get_contents(ex))
+    new_ex = with_contents(ex, get_contents(ex))
     return new_ex == ex && new_ex isa typeof(ex)
 end
 function _check_get_metadata(ex::AbstractExpression)
@@ -78,9 +78,9 @@ function _check_copy(ex::AbstractExpression)
     # TODO: Could include checks for aliasing here
     return preserves
 end
-function _check_with_tree(ex::AbstractExpression)
-    new_ex = with_tree(ex, get_contents(ex))
-    new_ex2 = with_tree(ex, ex)
+function _check_with_contents(ex::AbstractExpression)
+    new_ex = with_contents(ex, get_contents(ex))
+    new_ex2 = with_contents(ex, ex)
     return new_ex == ex && new_ex isa typeof(ex) && new_ex2 == ex && new_ex2 isa typeof(ex)
 end
 function _check_with_metadata(ex::AbstractExpression)
@@ -142,7 +142,7 @@ ei_components = (
         get_operators = "returns the operators used in the expression (or pass `operators` explicitly to override)" => _check_get_operators,
         get_variable_names = "returns the variable names used in the expression (or pass `variable_names` explicitly to override)" => _check_get_variable_names,
         copy = "returns a copy of the expression" => _check_copy,
-        with_tree = "returns the expression with different tree" => _check_with_tree,
+        with_contents = "returns the expression with different tree" => _check_with_contents,
         with_metadata = "returns the expression with different metadata" => _check_with_metadata,
     ),
     optional = (

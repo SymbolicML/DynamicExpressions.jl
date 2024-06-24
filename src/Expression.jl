@@ -144,15 +144,15 @@ end
 ########################################################
 
 """
-    with_tree(ex::AbstractExpression, tree::AbstractExpressionNode)
-    with_tree(ex::AbstractExpression, tree::AbstractExpression)
+    with_contents(ex::AbstractExpression, tree::AbstractExpressionNode)
+    with_contents(ex::AbstractExpression, tree::AbstractExpression)
 
 Create a new expression based on `ex` but with a different `tree`
 """
-function with_tree(ex::AbstractExpression, tree::AbstractExpression)
-    return with_tree(ex, get_contents(tree))
+function with_contents(ex::AbstractExpression, tree::AbstractExpression)
+    return with_contents(ex, get_contents(tree))
 end
-function with_tree(ex::AbstractExpression, tree)
+function with_contents(ex::AbstractExpression, tree)
     return constructorof(typeof(ex))(tree, get_metadata(ex))
 end
 function get_contents(ex::Expression)
