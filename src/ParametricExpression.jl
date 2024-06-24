@@ -71,7 +71,7 @@ struct ParametricExpression{
 end
 function ParametricExpression(
     tree::ParametricNode{T1};
-    operators,
+    operators::Union{AbstractOperatorEnum,Nothing},
     variable_names,
     parameters::AbstractMatrix{T2},
     parameter_names,
