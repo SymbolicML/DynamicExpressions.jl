@@ -6,6 +6,7 @@ using ..NodeModule: AbstractExpressionNode, Node
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..UtilsModule: Undefined
 
+import ..NodeModule: copy_node, set_node!, count_nodes, tree_mapreduce, constructorof
 import ..NodeUtilsModule:
     preserve_sharing,
     count_constants,
@@ -85,7 +86,7 @@ end
 end
 
 node_type(::Union{E,Type{E}}) where {N,E<:AbstractExpression{<:Any,N}} = N
-@unstable default_node_type(::Type{<:AbstractExpression}) = Node
+@unstable default_node_type(_) = Node
 default_node_type(::Type{<:AbstractExpression{T}}) where {T} = Node{T}
 
 ########################################################
@@ -128,28 +129,52 @@ end
 function Base.copy(ex::AbstractExpression; break_sharing::Val=Val(false))
     return error("`copy` function must be implemented for $(typeof(ex)) types.")
 end
-function Base.hash(ex::AbstractExpression, h::UInt)
-    return error("`hash` function must be implemented for $(typeof(ex)) types.")
-end
-function Base.:(==)(x::AbstractExpression, y::AbstractExpression)
-    return error("`==` function must be implemented for $(typeof(x)) types.")
-end
 function get_constants(ex::AbstractExpression)
     return error("`get_constants` function must be implemented for $(typeof(ex)) types.")
 end
 function set_constants!(ex::AbstractExpression{T}, constants, refs) where {T}
     return error("`set_constants!` function must be implemented for $(typeof(ex)) types.")
 end
+function get_contents(ex::AbstractExpression)
+    return error("`get_contents` function must be implemented for $(typeof(ex)) types.")
+end
+function get_metadata(ex::AbstractExpression)
+    return error("`get_metadata` function must be implemented for $(typeof(ex)) types.")
+end
 ########################################################
 
 """
-    with_tree(ex::AbstractExpression, tree::AbstractExpressionNode)
+    with_contents(ex::AbstractExpression, tree::AbstractExpressionNode)
+    with_contents(ex::AbstractExpression, tree::AbstractExpression)
 
 Create a new expression based on `ex` but with a different `tree`
 """
-function with_tree(ex::AbstractExpression, tree)
-    return constructorof(typeof(ex))(tree, ex.metadata)
+function with_contents(ex::AbstractExpression, tree::AbstractExpression)
+    return with_contents(ex, get_contents(tree))
 end
+function with_contents(ex::AbstractExpression, tree)
+    return constructorof(typeof(ex))(tree, get_metadata(ex))
+end
+function get_contents(ex::Expression)
+    return ex.tree
+end
+
+"""
+    with_metadata(ex::AbstractExpression, metadata)
+    with_metadata(ex::AbstractExpression; metadata...)
+
+Create a new expression based on `ex` but with a different `metadata`.
+"""
+function with_metadata(ex::AbstractExpression; metadata...)
+    return with_metadata(ex, Metadata((; metadata...)))
+end
+function with_metadata(ex::AbstractExpression, metadata::Metadata)
+    return constructorof(typeof(ex))(get_contents(ex), metadata)
+end
+function get_metadata(ex::Expression)
+    return ex.metadata
+end
+
 function preserve_sharing(::Union{E,Type{E}}) where {T,N,E<:AbstractExpression{T,N}}
     return preserve_sharing(N)
 end
@@ -169,24 +194,16 @@ end
 function Base.copy(ex::Expression; break_sharing::Val=Val(false))
     return Expression(copy(ex.tree; break_sharing), copy(ex.metadata))
 end
-function Base.hash(ex::Expression, h::UInt)
-    return hash(ex.tree, hash(ex.metadata, h))
+function Base.hash(ex::AbstractExpression, h::UInt)
+    return hash(get_contents(ex), hash(get_metadata(ex), h))
 end
-
-"""
-    Base.:(==)(x::Expression, y::Expression)
-
-Check equality of two expressions `x` and `y` by comparing their trees and metadata.
-"""
-function Base.:(==)(x::Expression, y::Expression)
-    return x.tree == y.tree && x.metadata == y.metadata
+function Base.:(==)(x::AbstractExpression, y::AbstractExpression)
+    return get_contents(x) == get_contents(y) && get_metadata(x) == get_metadata(y)
 end
 
 # Overload all methods on AbstractExpressionNode that return an aggregation, or can
 # return an entire tree. Methods that only return the nodes are *not* overloaded, so
 # that the user must use the low-level interface.
-
-import ..NodeModule: copy_node, set_node!, count_nodes, tree_mapreduce, constructorof
 
 #! format: off
 @unstable constructorof(::Type{E}) where {E<:AbstractExpression} = Base.typename(E).wrapper

@@ -19,7 +19,13 @@ import ..EvaluateModule: eval_tree_array
 import ..EvaluateDerivativeModule: eval_grad_tree_array
 import ..EvaluationHelpersModule: _grad_evaluator
 import ..ExpressionModule:
-    get_tree, get_operators, get_variable_names, max_feature, default_node_type
+    get_contents,
+    get_metadata,
+    get_tree,
+    get_operators,
+    get_variable_names,
+    max_feature,
+    default_node_type
 import ..ParseModule: parse_leaf
 
 """A type of expression node that also stores a parameter index"""
@@ -48,9 +54,13 @@ end
 """
     ParametricExpression{T,N<:ParametricNode{T},D<:NamedTuple} <: AbstractExpression{T,N}
 
-An expression to store parameters for a tree
+(Experimental) An expression to store parameters for a tree
 """
-struct ParametricExpression{T,N<:ParametricNode{T},D<:NamedTuple} <: AbstractExpression{T,N}
+struct ParametricExpression{
+    T,
+    N<:ParametricNode{T},
+    D<:NamedTuple{(:operators, :variable_names, :parameters, :parameter_names)},
+} <: AbstractExpression{T,N}
     tree::N
     metadata::Metadata{D}
 
@@ -65,8 +75,9 @@ function ParametricExpression(
     parameters::AbstractMatrix{T2},
     parameter_names,
 ) where {T1,T2}
-    @assert (isempty(parameters) && isnothing(parameter_names)) ||
-        size(parameters, 1) == length(parameter_names)
+    if !isnothing(parameter_names)
+        @assert size(parameters, 1) == length(parameter_names)
+    end
     T = promote_type(T1, T2)
     t = T === T1 ? tree : convert(ParametricNode{T}, tree)
     m = Metadata((;
@@ -127,9 +138,9 @@ end
 ###############################################################################
 # Abstract expression interface ###############################################
 ###############################################################################
-function get_tree(ex::ParametricExpression)
-    return ex.tree
-end
+get_contents(ex::ParametricExpression) = ex.tree
+get_metadata(ex::ParametricExpression) = ex.metadata
+get_tree(ex::ParametricExpression) = ex.tree
 function get_operators(ex::ParametricExpression, operators=nothing)
     return operators === nothing ? ex.metadata.operators : operators
 end
@@ -146,12 +157,6 @@ function Base.copy(ex::ParametricExpression; break_sharing::Val=Val(false))
         parameters=_copy_with_nothing(ex.metadata.parameters),
         parameter_names=_copy_with_nothing(ex.metadata.parameter_names),
     )
-end
-function Base.hash(ex::ParametricExpression, h::UInt)
-    return hash(ex.tree, hash(ex.metadata, h))
-end
-function Base.:(==)(x::ParametricExpression, y::ParametricExpression)
-    return x.tree == y.tree && x.metadata == y.metadata
 end
 ###############################################################################
 
@@ -283,10 +288,16 @@ function string_tree(
             UInt16(0)
         end
     end
-    variable_names3 = if variable_names2 === nothing
-        vcat(["p$(i)" for i in 1:num_params], ["x$(i)" for i in 1:max_feature])
+    _parameter_names = ex.metadata.parameter_names
+    parameter_names = if _parameter_names === nothing
+        ["p$(i)" for i in 1:num_params]
     else
-        vcat(ex.metadata.parameter_names, variable_names2)
+        _parameter_names
+    end
+    variable_names3 = if variable_names2 === nothing
+        vcat(parameter_names, ["x$(i)" for i in 1:max_feature])
+    else
+        vcat(parameter_names, variable_names2)
     end
     @assert length(variable_names3) >= num_params + max_feature
     return string_tree(

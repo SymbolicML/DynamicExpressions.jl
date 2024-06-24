@@ -168,14 +168,14 @@ end
     @test has_constants(ex) == false
 end
 
-@testitem "Expression with_tree" begin
+@testitem "Expression with_contents" begin
     using DynamicExpressions
 
     ex = @parse_expression(x1 + 1.5, binary_operators = [+, *], variable_names = ["x1"])
     ex2 = @parse_expression(x1 + 3.0, binary_operators = [+], variable_names = ["x1"])
 
-    t2 = DynamicExpressions.get_tree(ex2)
-    ex_modified = DynamicExpressions.with_tree(ex, t2)
+    t2 = DynamicExpressions.get_contents(ex2)
+    ex_modified = DynamicExpressions.with_contents(ex, t2)
     @test DynamicExpressions.get_tree(ex_modified) == t2
 end
 

@@ -43,7 +43,10 @@ using ..ExpressionModule:
     get_tree,
     get_operators,
     get_variable_names,
-    with_tree,
+    get_contents,
+    get_metadata,
+    with_contents,
+    with_metadata,
     default_node_type
 using ..ParametricExpressionModule: ParametricExpression, ParametricNode
 
@@ -52,6 +55,14 @@ using ..ParametricExpressionModule: ParametricExpression, ParametricNode
 ###############################################################################
 
 ## mandatory
+function _check_get_contents(ex::AbstractExpression)
+    new_ex = with_contents(ex, get_contents(ex))
+    return new_ex == ex && new_ex isa typeof(ex)
+end
+function _check_get_metadata(ex::AbstractExpression)
+    new_ex = with_metadata(ex, get_metadata(ex))
+    return new_ex == ex && new_ex isa typeof(ex)
+end
 function _check_get_tree(ex::AbstractExpression{T,N}) where {T,N}
     return get_tree(ex) isa N
 end
@@ -66,6 +77,15 @@ function _check_copy(ex::AbstractExpression)
     preserves = typeof(cex) === typeof(ex) && cex == ex
     # TODO: Could include checks for aliasing here
     return preserves
+end
+function _check_with_contents(ex::AbstractExpression)
+    new_ex = with_contents(ex, get_contents(ex))
+    new_ex2 = with_contents(ex, ex)
+    return new_ex == ex && new_ex isa typeof(ex) && new_ex2 == ex && new_ex2 isa typeof(ex)
+end
+function _check_with_metadata(ex::AbstractExpression)
+    new_ex = with_metadata(ex, get_metadata(ex))
+    return new_ex == ex && new_ex isa typeof(ex)
 end
 
 ## optional
@@ -116,10 +136,14 @@ end
 #! format: off
 ei_components = (
     mandatory = (
+        get_contents = "extracts the runtime contents of an expression" => _check_get_contents,
+        get_metadata = "extracts the runtime metadata of an expression" => _check_get_metadata,
         get_tree = "extracts the expression tree from [`AbstractExpression`](@ref)" => _check_get_tree,
         get_operators = "returns the operators used in the expression (or pass `operators` explicitly to override)" => _check_get_operators,
         get_variable_names = "returns the variable names used in the expression (or pass `variable_names` explicitly to override)" => _check_get_variable_names,
         copy = "returns a copy of the expression" => _check_copy,
+        with_contents = "returns the expression with different tree" => _check_with_contents,
+        with_metadata = "returns the expression with different metadata" => _check_with_metadata,
     ),
     optional = (
         count_nodes = "counts the number of nodes in the expression tree" => _check_count_nodes,
