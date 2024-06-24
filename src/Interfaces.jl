@@ -26,6 +26,7 @@ using ..NodeModule:
     filter_map!
 using ..NodeUtilsModule:
     NodeIndex,
+    is_node_constant,
     count_constants,
     count_depth,
     index_constants,
@@ -273,6 +274,9 @@ end
 function _check_count_depth(tree::AbstractExpressionNode)
     return count_depth(tree) isa Int64
 end
+function _check_is_node_constant(tree::AbstractExpressionNode)
+    return is_node_constant(tree) isa Bool
+end
 function _check_count_constants(tree::AbstractExpressionNode)
     return count_constants(tree) isa Int64
 end
@@ -324,6 +328,7 @@ ni_components = (
         branch_hash = "computes the hash of a branch node" => _check_branch_hash,
         branch_equal = "checks equality of two branch nodes" => _check_branch_equal,
         count_depth = "calculates the depth of the tree" => _check_count_depth,
+        is_node_constant = "checks if the node is a constant" => _check_is_node_constant,
         count_constants = "counts the number of constants" => _check_count_constants,
         filter_map = "applies a filter and map function to the tree" => _check_filter_map,
         has_constants = "checks if the tree has constants" => _check_has_constants,
