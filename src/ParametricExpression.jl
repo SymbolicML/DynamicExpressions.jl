@@ -2,6 +2,7 @@ module ParametricExpressionModule
 
 using DispatchDoctor: @stable, @unstable
 
+using ..OperatorEnumModule: AbstractOperatorEnum
 using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
 using ..ExpressionModule: AbstractExpression, Metadata
 
@@ -70,7 +71,7 @@ struct ParametricExpression{
 end
 function ParametricExpression(
     tree::ParametricNode{T1};
-    operators,
+    operators::Union{AbstractOperatorEnum,Nothing},
     variable_names,
     parameters::AbstractMatrix{T2},
     parameter_names,
@@ -141,10 +142,15 @@ end
 get_contents(ex::ParametricExpression) = ex.tree
 get_metadata(ex::ParametricExpression) = ex.metadata
 get_tree(ex::ParametricExpression) = ex.tree
-function get_operators(ex::ParametricExpression, operators=nothing)
+function get_operators(
+    ex::ParametricExpression, operators::Union{AbstractOperatorEnum,Nothing}=nothing
+)
     return operators === nothing ? ex.metadata.operators : operators
 end
-function get_variable_names(ex::ParametricExpression, variable_names=nothing)
+function get_variable_names(
+    ex::ParametricExpression,
+    variable_names::Union{Nothing,AbstractVector{<:AbstractString}}=nothing,
+)
     return variable_names === nothing ? ex.metadata.variable_names : variable_names
 end
 @inline _copy_with_nothing(x) = copy(x)
@@ -232,15 +238,18 @@ function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
     )
 end
 #! format: off
-function (ex::ParametricExpression)(X::AbstractMatrix, operators=nothing; kws...)
+function (ex::ParametricExpression)(X::AbstractMatrix, operators::Union{AbstractOperatorEnum,Nothing}=nothing; kws...)
     return eval_tree_array(ex, X, operators; kws...)  # Will error
 end
-function eval_tree_array(::ParametricExpression{T}, ::AbstractMatrix{T}, operators=nothing; kws...) where {T}
+function eval_tree_array(::ParametricExpression{T}, ::AbstractMatrix{T}, operators::Union{AbstractOperatorEnum,Nothing}=nothing; kws...) where {T}
     return error("Incorrect call. You must pass the `classes::Vector` argument when calling `eval_tree_array`.")
 end
 #! format: on
 function (ex::ParametricExpression)(
-    X::AbstractMatrix{T}, classes::AbstractVector{<:Integer}, operators=nothing; kws...
+    X::AbstractMatrix{T},
+    classes::AbstractVector{<:Integer},
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+    kws...,
 ) where {T}
     (output, flag) = eval_tree_array(ex, X, classes, operators; kws...)  # Will error
     if !flag
@@ -252,7 +261,7 @@ function eval_tree_array(
     ex::ParametricExpression{T},
     X::AbstractMatrix{T},
     classes::AbstractVector{<:Integer},
-    operators=nothing;
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     kws...,
 ) where {T}
     @assert length(classes) == size(X, 2)
@@ -270,7 +279,7 @@ function eval_tree_array(
 end
 function string_tree(
     ex::ParametricExpression,
-    operators=nothing;
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     variable_names=nothing,
     display_variable_names=nothing,
     X_sym_units=nothing,
