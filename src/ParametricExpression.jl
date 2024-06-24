@@ -2,6 +2,7 @@ module ParametricExpressionModule
 
 using DispatchDoctor: @stable, @unstable
 
+using ..OperatorEnumModule: AbstractOperatorEnum
 using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
 using ..ExpressionModule: AbstractExpression, Metadata
 
@@ -232,10 +233,10 @@ function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
     )
 end
 #! format: off
-function (ex::ParametricExpression)(X::AbstractMatrix, operators=nothing; kws...)
+function (ex::ParametricExpression)(X::AbstractMatrix, operators::Union{AbstractOperatorEnum,Nothing}=nothing; kws...)
     return eval_tree_array(ex, X, operators; kws...)  # Will error
 end
-function eval_tree_array(::ParametricExpression{T}, ::AbstractMatrix{T}, operators=nothing; kws...) where {T}
+function eval_tree_array(::ParametricExpression{T}, ::AbstractMatrix{T}, operators::Union{AbstractOperatorEnum,Nothing}=nothing; kws...) where {T}
     return error("Incorrect call. You must pass the `classes::Vector` argument when calling `eval_tree_array`.")
 end
 #! format: on
@@ -270,7 +271,7 @@ function eval_tree_array(
 end
 function string_tree(
     ex::ParametricExpression,
-    operators=nothing;
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     variable_names=nothing,
     display_variable_names=nothing,
     X_sym_units=nothing,
