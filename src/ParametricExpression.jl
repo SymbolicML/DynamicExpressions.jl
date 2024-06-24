@@ -71,8 +71,9 @@ function ParametricExpression(
     parameters::AbstractMatrix{T2},
     parameter_names,
 ) where {T1,T2}
-    @assert (isempty(parameters) && isnothing(parameter_names)) ||
-        size(parameters, 1) == length(parameter_names)
+    if !isnothing(parameter_names)
+        @assert size(parameters, 1) == length(parameter_names)
+    end
     T = promote_type(T1, T2)
     t = T === T1 ? tree : convert(ParametricNode{T}, tree)
     m = Metadata((;
@@ -283,10 +284,16 @@ function string_tree(
             UInt16(0)
         end
     end
-    variable_names3 = if variable_names2 === nothing
-        vcat(["p$(i)" for i in 1:num_params], ["x$(i)" for i in 1:max_feature])
+    _parameter_names = ex.metadata.parameter_names
+    parameter_names = if _parameter_names === nothing
+        ["p$(i)" for i in 1:num_params]
     else
-        vcat(ex.metadata.parameter_names, variable_names2)
+        _parameter_names
+    end
+    variable_names3 = if variable_names2 === nothing
+        vcat(parameter_names, ["x$(i)" for i in 1:max_feature])
+    else
+        vcat(parameter_names, variable_names2)
     end
     @assert length(variable_names3) >= num_params + max_feature
     return string_tree(
