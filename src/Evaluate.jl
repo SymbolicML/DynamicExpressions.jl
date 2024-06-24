@@ -611,6 +611,8 @@ function deg2_diff_eval(
     return ResultOk(out, all(isfinite, out))
 end
 
+get_lower_array_type(T,N) = N==1 ? T : AbstractArray{T,N-1}
+
 """
     eval_tree_array(tree::AbstractExpressionNode, cX::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)
 
@@ -660,53 +662,61 @@ function eval(current_node)
     that it was not defined for.
 """
 @unstable function eval_tree_array(
-    tree::NT,
-    cX::AT,
-    operators::OT;
+    tree::AbstractExpressionNode{T1},
+    cX::AbstractArray{T2, N},
+    operators::GenericOperatorEnum;
     throw_errors::Bool=true,
-) where {B,U,OT<:GenericOperatorEnum{B,U},T,NT<:AbstractExpressionNode{T},AT<:AbstractArray{T}}
+) ::Tuple{get_lower_array_type(T1, N), Bool} where {T1,T2,N}
     !throw_errors && return _eval_tree_array_generic(tree, cX, operators, Val(false))
-    # try
+    try
         return _eval_tree_array_generic(tree, cX, operators, Val(true))
-    # catch e
-    #     tree_s = string_tree(tree, operators)
-    #     error_msg = "Failed to evaluate tree $(tree_s)."
-    #     if isa(e, MethodError)
-    #         error_msg *= (
-    #             " Note that you can efficiently skip MethodErrors" *
-    #             " beforehand by passing `throw_errors=false` to " *
-    #             " `eval_tree_array`."
-    #         )
-    #     end
-    #     throw(ErrorException(error_msg))
-    # end
+    catch e
+        tree_s = string_tree(tree, operators)
+        error_msg = "Failed to evaluate tree $(tree_s)."
+        if isa(e, MethodError)
+            error_msg *= (
+                " Note that you can efficiently skip MethodErrors" *
+                " beforehand by passing `throw_errors=false` to " *
+                " `eval_tree_array`."
+            )
+        end
+        throw(ErrorException(error_msg))
+    end
 end
 
 @unstable function _eval_tree_array_generic(
     tree::AbstractExpressionNode{T1},
     cX::AbstractArray{T2,N},
     operators::GenericOperatorEnum,
-    ::Val{throw_errors},
-) where {T1,T2,N,throw_errors}
+    ::Val{throw_errors}
+) :: Tuple{get_lower_array_type(T1, N), Bool} where {T1,T2,N,throw_errors}
+    global prefix1
     if tree.degree == 0
         if tree.constant
+            #println(prefix1 * "EVAL constant ", tree)
             if N == 1
                 return (tree.val::T1), true
             else
-                return fill(tree.val::T1, size(cX)[2:N])
+                toreturn :: AbstractArray{T2, N-1} = fill(tree.val::T1, size(cX)[2:N])
+                #println(prefix1 * "  > ret ", toreturn)
+                return fill(tree.val::T1, size(cX)[2:N]), true
             end
         else
+            #println(prefix1 * "EVAL x ", tree)
             if N == 1
                 return cX[tree.feature], true
             else
+                #println(prefix1 * "  > ret ", selectdim(cX, 1, tree.feature))
                 return selectdim(cX, 1, tree.feature), true
             end
         end
     elseif tree.degree == 1
+        #println(prefix1 * "EVAL unop ", tree)
         return deg1_eval_generic(
             tree, cX, operators.unaops[tree.op], operators, Val(throw_errors)
         )
     else
+        #println(prefix1 * "EVAL binop ", tree)
         return deg2_eval_generic(
             tree, cX, operators.binops[tree.op], operators, Val(throw_errors)
         )
@@ -714,25 +724,33 @@ end
 end
 
 @unstable function deg1_eval_generic(
-    tree, cX, op::F, operators::GenericOperatorEnum, ::Val{throw_errors}
-) where {F,throw_errors}
+    tree::AbstractExpressionNode{T1}, cX::AbstractArray{T2,N}, op::F, operators::GenericOperatorEnum, ::Val{throw_errors}
+) :: Tuple{get_lower_array_type(T, N), Bool} where {F,T1,T2,N,throw_errors}
     left, complete = eval_tree_array(tree.l, cX, operators)
     !throw_errors && !complete && return nothing, false
-    !throw_errors && !hasmethod(op, Tuple{typeof(left)}) && return nothing, false
-    return op(left), true
+    !throw_errors && !hasmethod(op, N==1 ? Tuple{typeof(left)} : Tuple{eltype(left)}) && return nothing, false
+    if N == 1
+        return op(left), true
+    else
+        return op.(left), true
+    end
 end
 
 @unstable function deg2_eval_generic(
-    tree, cX, op::F, operators::GenericOperatorEnum, ::Val{throw_errors}
-) where {F,throw_errors}
+    tree::AbstractExpressionNode{T1}, cX::AbstractArray{T2,N}, op::F, operators::GenericOperatorEnum, ::Val{throw_errors}
+) :: Tuple{get_lower_array_type(T1, N), Bool} where {F,T1,T2,N,throw_errors}
     left, complete = eval_tree_array(tree.l, cX, operators)
     !throw_errors && !complete && return nothing, false
     right, complete = eval_tree_array(tree.r, cX, operators)
     !throw_errors && !complete && return nothing, false
     !throw_errors &&
-        !hasmethod(op, Tuple{typeof(left),typeof(right)}) &&
+        !hasmethod(op, N == 1 ? Tuple{typeof(left),typeof(right)} : Tuple{eltype(left),eltype(right)}) &&
         return nothing, false
-    return op(left, right), true
+    if N == 1
+        return op(left, right), true
+    else
+        return op.(left, right), true
+    end
 end
 
 end

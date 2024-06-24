@@ -4,6 +4,7 @@ using DispatchDoctor: @stable, @unstable
 
 @stable default_mode = "disable" begin
     include("Utils.jl")
+    include("TypeInterface.jl")
     include("ExtensionInterface.jl")
     include("OperatorEnum.jl")
     include("Node.jl")

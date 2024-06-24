@@ -116,9 +116,13 @@ function _add_idmap_to_call(def::Expr, id_map::Union{Symbol,Expr})
     return Expr(:call, def.args[1], def.args[2:end]..., id_map)
 end
 
-@inline function fill_similar(value, array, args...)
+@inline function fill_similar(value::T, array, args...) where {T}
     out_array = similar(array, args...)
-    out_array .= value
+    if T<:Number
+        out_array .= value
+    else
+        fill!(out_array, value)
+    end
     return out_array
 end
 
