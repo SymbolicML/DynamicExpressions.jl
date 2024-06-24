@@ -660,26 +660,26 @@ function eval(current_node)
     that it was not defined for.
 """
 @unstable function eval_tree_array(
-    tree::AbstractExpressionNode,
-    cX::AbstractArray,
-    operators::GenericOperatorEnum;
+    tree::NT,
+    cX::AT,
+    operators::OT;
     throw_errors::Bool=true,
-)
+) where {B,U,OT<:GenericOperatorEnum{B,U},T,NT<:AbstractExpressionNode{T},AT<:AbstractArray{T}}
     !throw_errors && return _eval_tree_array_generic(tree, cX, operators, Val(false))
-    try
+    # try
         return _eval_tree_array_generic(tree, cX, operators, Val(true))
-    catch e
-        tree_s = string_tree(tree, operators)
-        error_msg = "Failed to evaluate tree $(tree_s)."
-        if isa(e, MethodError)
-            error_msg *= (
-                " Note that you can efficiently skip MethodErrors" *
-                " beforehand by passing `throw_errors=false` to " *
-                " `eval_tree_array`."
-            )
-        end
-        throw(ErrorException(error_msg))
-    end
+    # catch e
+    #     tree_s = string_tree(tree, operators)
+    #     error_msg = "Failed to evaluate tree $(tree_s)."
+    #     if isa(e, MethodError)
+    #         error_msg *= (
+    #             " Note that you can efficiently skip MethodErrors" *
+    #             " beforehand by passing `throw_errors=false` to " *
+    #             " `eval_tree_array`."
+    #         )
+    #     end
+    #     throw(ErrorException(error_msg))
+    # end
 end
 
 @unstable function _eval_tree_array_generic(
@@ -690,7 +690,11 @@ end
 ) where {T1,T2,N,throw_errors}
     if tree.degree == 0
         if tree.constant
-            return (tree.val::T1), true
+            if N == 1
+                return (tree.val::T1), true
+            else
+                return fill(tree.val::T1, size(cX)[2:N])
+            end
         else
             if N == 1
                 return cX[tree.feature], true
