@@ -226,9 +226,13 @@ end
 
 @testitem "Miscellaneous expression calls" begin
     using DynamicExpressions
+    using DynamicExpressions: get_tree, get_operators
 
     ex = @parse_expression(x1 + 1.5, binary_operators = [+], variable_names = ["x1"])
     @test DynamicExpressions.ExpressionModule.node_type(ex) <: Node
 
     @test !isempty(ex)
+
+    tree = get_tree(ex)
+    @test_throws ArgumentError get_operators(tree, nothing)
 end
