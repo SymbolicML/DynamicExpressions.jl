@@ -171,7 +171,7 @@ end
 Create a new expression based on `ex` but with a different `metadata`.
 """
 function with_metadata(ex::AbstractExpression; metadata...)
-    return with_metadata(get_contents(ex), Metadata(metadata))
+    return with_metadata(ex, Metadata((; metadata...)))
 end
 function with_metadata(ex::AbstractExpression, metadata::Metadata)
     return constructorof(typeof(ex))(get_contents(ex), metadata)
