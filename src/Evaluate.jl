@@ -14,7 +14,7 @@ const OPERATOR_LIMIT_BEFORE_SLOWDOWN = 15
 
 macro return_on_check(val, X)
     :(
-        if !isfinite($(esc(val)))
+        if !is_valid($(esc(val)))
             return $(ResultOk)(similar($(esc(X)), axes($(esc(X)), 2)), false)
         end
     )
@@ -22,7 +22,7 @@ end
 
 macro return_on_nonfinite_array(array)
     :(
-        if is_bad_array($(esc(array)))
+        if !is_valid_array($(esc(array)))
             return $(ResultOk)($(esc(array)), false)
         end
     )
@@ -90,19 +90,28 @@ function eval_tree_array(
     result = _eval_tree_array(tree, cX, operators, v_turbo)
     return (result.x, result.ok && is_valid_array(result.x))
 end
-# function eval_tree_array(
-#     tree::AbstractExpressionNode{T1},
-#     cX::AbstractMatrix{T2},
-#     operators::OperatorEnum;
-#     turbo::Union{Bool,Val}=Val(false),
-#     bumper::Union{Bool,Val}=Val(false),
-# ) where {T1,T2}
-#     T = promote_type(T1, T2)
-#     @warn "Warning: eval_tree_array received mixed types: tree=$(T1) and data=$(T2)."
-#     tree = convert(constructorof(typeof(tree)){T}, tree)
-#     cX = Base.Fix1(convert, T).(cX)
-#     return eval_tree_array(tree, cX, operators; turbo, bumper)
-# end
+function eval_tree_array(
+    tree::AbstractExpressionNode{T},
+    cX::AbstractVector{T},
+    operators::OperatorEnum;
+    kws...
+) where {T}
+    return eval_tree_array(tree, reshape(cX, (size(cX)[1], 1))::AbstractMatrix{T}, operators; kws...)
+end
+
+function eval_tree_array(
+    tree::AbstractExpressionNode{T1},
+    cX::AbstractMatrix{T2},
+    operators::OperatorEnum;
+    turbo::Union{Bool,Val}=Val(false),
+    bumper::Union{Bool,Val}=Val(false),
+) where {T1,T2}
+    T = promote_type(T1, T2)
+    @warn "Warning: eval_tree_array received mixed types: tree=$(T1) and data=$(T2)."
+    tree = convert(constructorof(typeof(tree)){T}, tree)
+    cX = Base.Fix1(convert, T).(cX)
+    return eval_tree_array(tree, cX, operators; turbo, bumper)
+end
 
 get_nuna(::Type{<:OperatorEnum{B,U}}) where {B,U} = counttuple(U)
 get_nbin(::Type{<:OperatorEnum{B}}) where {B} = counttuple(B)
@@ -325,7 +334,7 @@ function deg1_l2_ll0_lr0_eval(
         cumulator = similar(cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(val_ll, cX[feature_lr, j])::T
-            x = isfinite(x_l) ? op(x_l)::T : T(Inf)
+            x = is_valid(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
         end
         return ResultOk(cumulator, true)
@@ -336,7 +345,7 @@ function deg1_l2_ll0_lr0_eval(
         cumulator = similar(cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j], val_lr)::T
-            x = isfinite(x_l) ? op(x_l)::T : T(Inf)
+            x = is_valid(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
         end
         return ResultOk(cumulator, true)
@@ -346,7 +355,7 @@ function deg1_l2_ll0_lr0_eval(
         cumulator = similar(cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])::T
-            x = isfinite(x_l) ? op(x_l)::T : T(Inf)
+            x = is_valid(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
         end
         return ResultOk(cumulator, true)
@@ -370,7 +379,7 @@ function deg1_l1_ll0_eval(
         cumulator = similar(cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j])::T
-            x = isfinite(x_l) ? op(x_l)::T : T(Inf)
+            x = is_valid(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
         end
         return ResultOk(cumulator, true)
@@ -539,7 +548,7 @@ function deg1_eval_constant(
     result = dispatch_constant_tree(tree.l, operators)
     !result.ok && return result
     output = op(result.x[])::T
-    return ResultOk([output], isfinite(output))::ResultOk{Vector{T}}
+    return ResultOk([output], is_valid(output))::ResultOk{Vector{T}}
 end
 
 function deg2_eval_constant(
@@ -550,7 +559,7 @@ function deg2_eval_constant(
     result_r = dispatch_constant_tree(tree.r, operators)
     !result_r.ok && return result_r
     output = op(cumulator.x[], result_r.x[])::T
-    return ResultOk([output], isfinite(output))::ResultOk{Vector{T}}
+    return ResultOk([output], is_valid(output))::ResultOk{Vector{T}}
 end
 
 """
@@ -670,11 +679,13 @@ function eval(current_node)
     cX::AbstractArray{T2, N},
     operators::GenericOperatorEnum;
     throw_errors::Bool=true,
-) ::Tuple{get_lower_array_type(T1, N), Bool} where {T1,T2,N}
-    !throw_errors && return _eval_tree_array_generic(tree, cX, operators, Val(false))
+) #=::Tuple{get_lower_array_type(T1, N), Bool}=# where {T1,T2,N}
     try
         return _eval_tree_array_generic(tree, cX, operators, Val(true))
     catch e
+        if !throw_errors
+            return nothing, false
+        end
         tree_s = string_tree(tree, operators)
         error_msg = "Failed to evaluate tree $(tree_s)."
         if isa(e, MethodError)
@@ -693,44 +704,36 @@ end
     cX::AbstractArray{T2,N},
     operators::GenericOperatorEnum,
     ::Val{throw_errors}
-) :: Tuple{get_lower_array_type(T1, N), Bool} where {T1,T2,N,throw_errors}
-    global prefix1
+) #= :: Tuple{get_lower_array_type(T1, N), Bool} =# where {T1,T2,N,throw_errors}
     if tree.degree == 0
         if tree.constant
-            #println(prefix1 * "EVAL constant ", tree)
             if N == 1
                 return (tree.val::T1), true
             else
-                toreturn :: AbstractArray{T2, N-1} = fill(tree.val::T1, size(cX)[2:N])
-                #println(prefix1 * "  > ret ", toreturn)
                 return fill(tree.val::T1, size(cX)[2:N]), true
             end
         else
-            #println(prefix1 * "EVAL x ", tree)
             if N == 1
-                return cX[tree.feature], true
+                return (cX[tree.feature]), true
             else
-                #println(prefix1 * "  > ret ", selectdim(cX, 1, tree.feature))
                 return selectdim(cX, 1, tree.feature), true
             end
         end
     elseif tree.degree == 1
-        #println(prefix1 * "EVAL unop ", tree)
         return deg1_eval_generic(
             tree, cX, operators.unaops[tree.op], operators, Val(throw_errors)
-        )::Tuple{get_lower_array_type(T1, N), Bool}
+        ) #=::Tuple{get_lower_array_type(T1, N), Bool}=#
     else
-        #println(prefix1 * "EVAL binop ", tree)
         return deg2_eval_generic(
             tree, cX, operators.binops[tree.op], operators, Val(throw_errors)
-        )::Tuple{get_lower_array_type(T1, N), Bool}
+        ) #+::Tuple{get_lower_array_type(T1, N), Bool}=#
     end
 end
 
 @unstable function deg1_eval_generic(
     tree::AbstractExpressionNode{T1}, cX::AbstractArray{T2,N}, op::F, operators::GenericOperatorEnum, ::Val{throw_errors}
-) :: Tuple{get_lower_array_type(T, N), Bool} where {F,T1,T2,N,throw_errors}
-    left, complete = eval_tree_array(tree.l, cX, operators)
+) #= :: Tuple{get_lower_array_type(T1, N), Bool} =# where {F,T1,T2,N,throw_errors}
+    left, complete = _eval_tree_array_generic(tree.l, cX, operators, Val(throw_errors))
     !throw_errors && !complete && return nothing, false
     !throw_errors && !hasmethod(op, N==1 ? Tuple{typeof(left)} : Tuple{eltype(left)}) && return nothing, false
     if N == 1
@@ -738,14 +741,15 @@ end
     else
         return op.(left), true
     end
+    
 end
 
 @unstable function deg2_eval_generic(
     tree::AbstractExpressionNode{T1}, cX::AbstractArray{T2,N}, op::F, operators::GenericOperatorEnum, ::Val{throw_errors}
-) :: Tuple{get_lower_array_type(T1, N), Bool} where {F,T1,T2,N,throw_errors}
-    left, complete = eval_tree_array(tree.l, cX, operators)
+) #= :: Tuple{get_lower_array_type(T1, N), Bool} =# where {F,T1,T2,N,throw_errors}
+    left, complete = _eval_tree_array_generic(tree.l, cX, operators, Val(throw_errors))
     !throw_errors && !complete && return nothing, false
-    right, complete = eval_tree_array(tree.r, cX, operators)
+    right, complete = _eval_tree_array_generic(tree.r, cX, operators, Val(throw_errors))
     !throw_errors && !complete && return nothing, false
     !throw_errors &&
         !hasmethod(op, N == 1 ? Tuple{typeof(left),typeof(right)} : Tuple{eltype(left),eltype(right)}) &&

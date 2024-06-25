@@ -3,7 +3,7 @@ module TypeInterfaceModule
 function is_valid(x::T)::Bool where {T} end
 function is_valid_array(x::AbstractArray{T})::Bool where {T} end
 
-is_valid(x::T) where {T <: Number} = !isfinite(x) && !isnan(x)
+is_valid(x::T) where {T <: Number} = isfinite(x) && !isnan(x)
 is_valid(x::T) where {T} = true
 
 # Fastest way to check for NaN in an array.

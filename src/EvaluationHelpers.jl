@@ -53,6 +53,9 @@ end
     setting `throw_errors=false`.
 """
 function (tree::AbstractExpressionNode)(X, operators::GenericOperatorEnum; kws...)
+    # if typeof(X) <: AbstractVector
+    #     throw("Tree only works with a vector. Use eval_tree_array for matrix input")
+    # end
     out, did_finish = eval_tree_array(tree, X, operators; kws...)
     !did_finish && return nothing
     return out
@@ -62,6 +65,9 @@ end
 function _grad_evaluator(
     tree::AbstractExpressionNode, X, operators::OperatorEnum; variable=Val(true), kws...
 )
+    if typeof(X) <: AbstractVector
+        throw("Tree only works with a vector. Use eval_tree_array for matrix input")
+    end
     _, grad, did_complete = eval_grad_tree_array(tree, X, operators; variable, kws...)
     !did_complete && (grad .= convert(eltype(grad), NaN))
     return grad
