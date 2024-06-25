@@ -90,6 +90,7 @@ function eval_tree_array(
     result = _eval_tree_array(tree, cX, operators, v_turbo)
     return (result.x, result.ok && is_valid_array(result.x))
 end
+
 function eval_tree_array(
     tree::AbstractExpressionNode{T},
     cX::AbstractVector{T},
@@ -491,7 +492,7 @@ over an entire array when the values are all the same.
 """
 @generated function dispatch_constant_tree(
     tree::AbstractExpressionNode{T}, operators::OperatorEnum
-) where {T<:Number}
+) where {T}
     nuna = get_nuna(operators)
     nbin = get_nbin(operators)
     deg1_branch = if nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
@@ -537,14 +538,14 @@ over an entire array when the values are all the same.
     end
 end
 
-@inline function deg0_eval_constant(tree::AbstractExpressionNode{T}) where {T<:Number}
+@inline function deg0_eval_constant(tree::AbstractExpressionNode{T}) where {T}
     output = tree.val
     return ResultOk([output], true)::ResultOk{Vector{T}}
 end
 
 function deg1_eval_constant(
     tree::AbstractExpressionNode{T}, op::F, operators::OperatorEnum
-) where {T<:Number,F}
+) where {T,F}
     result = dispatch_constant_tree(tree.l, operators)
     !result.ok && return result
     output = op(result.x[])::T
@@ -553,7 +554,7 @@ end
 
 function deg2_eval_constant(
     tree::AbstractExpressionNode{T}, op::F, operators::OperatorEnum
-) where {T<:Number,F}
+) where {T,F}
     cumulator = dispatch_constant_tree(tree.l, operators)
     !cumulator.ok && return cumulator
     result_r = dispatch_constant_tree(tree.r, operators)
