@@ -25,10 +25,10 @@ const LATEST_OPERATORS_TYPE = Ref{AvailableOperatorTypes}(IsNothing)
 const LATEST_UNARY_OPERATOR_MAPPING = Dict{Function,fieldtype(Node{Float64}, :op)}()
 const LATEST_BINARY_OPERATOR_MAPPING = Dict{Function,fieldtype(Node{Float64}, :op)}()
 const ALREADY_DEFINED_UNARY_OPERATORS = (;
-    operator_enum=Dict{Function,Bool}(), generic_operator_enum=Dict{Function,Bool}()
+    operator_enum=Dict{DataType, Dict{Function,Bool}}(), generic_operator_enum=Dict{DataType, Dict{Function,Bool}}()
 )
 const ALREADY_DEFINED_BINARY_OPERATORS = (;
-    operator_enum=Dict{Function,Bool}(), generic_operator_enum=Dict{Function,Bool}()
+    operator_enum=Dict{DataType, Dict{Function,Bool}}(), generic_operator_enum=Dict{DataType, Dict{Function,Bool}}()
 )
 const LATEST_VARIABLE_NAMES = Ref{Vector{String}}(String[])
 const LATEST_LOCK = Threads.SpinLock()
@@ -197,7 +197,9 @@ function _extend_binary_operator(f::Symbol, type_requirements, build_converters,
             end
             if $($build_converters)
                 # Converters:
-                function $($f)(l::$_AbstractExpressionNode, r::$_AbstractExpressionNode)
+                function $($f)(
+                    l::$_AbstractExpressionNode{T1}, r::$_AbstractExpressionNode{T2}
+                ) where {T1<:$($type_requirements),T2<:$($type_requirements)}
                     if l isa GraphNode || r isa GraphNode
                         error(
                             "Refusing to promote `GraphNode` as it would break the graph structure. " *
@@ -206,6 +208,7 @@ function _extend_binary_operator(f::Symbol, type_requirements, build_converters,
                     end
                     return $($f)(promote(l, r)...)
                 end
+
                 function $($f)(
                     l::$_AbstractExpressionNode{T1}, r::T2
                 ) where {T1<:$($type_requirements),T2<:$($type_requirements)}
@@ -222,20 +225,28 @@ function _extend_binary_operator(f::Symbol, type_requirements, build_converters,
 end
 
 function _extend_operators(operators, skip_user_operators, kws, __module__::Module)
-    if !all(x -> first(x.args) ∈ (:empty_old_operators, :internal), kws)
+    if !all(x -> first(x.args) ∈ (:empty_old_operators, :internal, :on_type), kws)
         error(
-            "You passed the keywords $(kws), but only `empty_old_operators`, `internal` are supported.",
+            "You passed the keywords $(kws), but only `empty_old_operators`, `internal`, `on_type` are supported.",
         )
     end
 
     empty_old_operators_idx = findfirst(x -> first(x.args) == :empty_old_operators, kws)
     internal_idx = findfirst(x -> first(x.args) == :internal, kws)
+    on_type_idx = findfirst(x -> first(x.args) == :on_type, kws)
 
     empty_old_operators = if empty_old_operators_idx !== nothing
         @assert kws[empty_old_operators_idx].head == :(=)
         kws[empty_old_operators_idx].args[2]
     else
         true
+    end
+
+    on_type = if on_type_idx !== nothing
+        @assert kws[on_type_idx].head == :(=)
+        kws[on_type_idx].args[2]
+    else
+        nothing
     end
 
     internal = if internal_idx !== nothing
@@ -255,15 +266,27 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
         local $unary_exists
         lock($LATEST_LOCK)
         if isa($operators, $OperatorEnum)
-            $type_requirements = Number
-            $build_converters = true
-            $binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum
-            $unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum
+            $type_requirements = $(on_type == nothing ? Number : on_type)
+            $build_converters = $(on_type == nothing)
+            if !haskey($(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum, $type_requirements)
+                $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum[$type_requirements] = Dict{Function,Bool}()
+            end
+            if !haskey($(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum, $type_requirements)
+                $(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum[$type_requirements] = Dict{Function,Bool}()
+            end
+            $binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum[$type_requirements]
+            $unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum[$type_requirements]
         else
-            $type_requirements = Any
+            $type_requirements = $(on_type == nothing ? Any : on_type)
             $build_converters = false
-            $binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum
-            $unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum
+            if !haskey($(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum, $type_requirements)
+                $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum[$type_requirements] = Dict{Function,Bool}()
+            end
+            if !haskey($(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum, $type_requirements)
+                $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum[$type_requirements] = Dict{Function,Bool}()
+            end
+            $binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum[$type_requirements]
+            $unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum[$type_requirements]
         end
         if $(empty_old_operators)
             # Trigger errors if operators are not yet defined:
