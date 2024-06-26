@@ -118,11 +118,7 @@ end
 
 @inline function fill_similar(value::T, array, args...) where {T}
     out_array = similar(array, args...)
-    if T<:Number
-        out_array .= value
-    else
-        fill!(out_array, value)
-    end
+    fill!(out_array, value)
     return out_array
 end
 

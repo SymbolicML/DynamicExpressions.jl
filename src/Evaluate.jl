@@ -81,7 +81,9 @@ function eval_tree_array(
             error("Please load the LoopVectorization.jl package to use this feature.")
     end
     if (v_turbo isa Val{true} || v_bumper isa Val{true}) && !(T <: Number)
-        error("Bumper and LoopVectorization features are only compatible with numeric element types")
+        error(
+            "Bumper and LoopVectorization features are only compatible with numeric element types",
+        )
     end
     if v_bumper isa Val{true}
         return bumper_eval_tree_array(tree, cX, operators, v_turbo)
@@ -92,10 +94,7 @@ function eval_tree_array(
 end
 
 function eval_tree_array(
-    tree::AbstractExpressionNode{T},
-    cX::AbstractVector{T},
-    operators::OperatorEnum;
-    kws...
+    tree::AbstractExpressionNode{T}, cX::AbstractVector{T}, operators::OperatorEnum; kws...
 ) where {T}
     return eval_tree_array(tree, reshape(cX, (size(cX, 1), 1)), operators; kws...)
 end
@@ -153,9 +152,7 @@ function deg2_eval(
     return ResultOk(cumulator_l, true)
 end
 
-function deg1_eval(
-    cumulator::AbstractVector{T}, op::F, ::Val{false}
-)::ResultOk where {T,F}
+function deg1_eval(cumulator::AbstractVector{T}, op::F, ::Val{false})::ResultOk where {T,F}
     @inbounds @simd for j in eachindex(cumulator)
         x = op(cumulator[j])::T
         cumulator[j] = x
@@ -625,8 +622,6 @@ function deg2_diff_eval(
     return ResultOk(out, all(isfinite, out))
 end
 
-get_lower_array_type(T,N) = N==1 ? T : AbstractArray{T,N-1}
-
 """
     eval_tree_array(tree::AbstractExpressionNode, cX::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)
 
@@ -677,10 +672,10 @@ function eval(current_node)
 """
 @unstable function eval_tree_array(
     tree::AbstractExpressionNode{T1},
-    cX::AbstractArray{T2, N},
+    cX::AbstractArray{T2,N},
     operators::GenericOperatorEnum;
     throw_errors::Bool=true,
-) #=::Tuple{get_lower_array_type(T1, N), Bool}=# where {T1,T2,N}
+) where {T1,T2,N}
     try
         return _eval_tree_array_generic(tree, cX, operators, Val(true))
     catch e
@@ -704,8 +699,8 @@ end
     tree::AbstractExpressionNode{T1},
     cX::AbstractArray{T2,N},
     operators::GenericOperatorEnum,
-    ::Val{throw_errors}
-) #= :: Tuple{get_lower_array_type(T1, N), Bool} =# where {T1,T2,N,throw_errors}
+    ::Val{throw_errors},
+) where {T1,T2,N,throw_errors}
     if tree.degree == 0
         if tree.constant
             if N == 1
@@ -723,37 +718,49 @@ end
     elseif tree.degree == 1
         return deg1_eval_generic(
             tree, cX, operators.unaops[tree.op], operators, Val(throw_errors)
-        ) #=::Tuple{get_lower_array_type(T1, N), Bool}=#
+        )
     else
         return deg2_eval_generic(
             tree, cX, operators.binops[tree.op], operators, Val(throw_errors)
-        ) #+::Tuple{get_lower_array_type(T1, N), Bool}=#
+        )
     end
 end
 
 @unstable function deg1_eval_generic(
-    tree::AbstractExpressionNode{T1}, cX::AbstractArray{T2,N}, op::F, operators::GenericOperatorEnum, ::Val{throw_errors}
-) #= :: Tuple{get_lower_array_type(T1, N), Bool} =# where {F,T1,T2,N,throw_errors}
+    tree::AbstractExpressionNode{T1},
+    cX::AbstractArray{T2,N},
+    op::F,
+    operators::GenericOperatorEnum,
+    ::Val{throw_errors},
+) where {F,T1,T2,N,throw_errors}
     left, complete = _eval_tree_array_generic(tree.l, cX, operators, Val(throw_errors))
     !throw_errors && !complete && return nothing, false
-    !throw_errors && !hasmethod(op, N==1 ? Tuple{typeof(left)} : Tuple{eltype(left)}) && return nothing, false
+    !throw_errors &&
+        !hasmethod(op, N == 1 ? Tuple{typeof(left)} : Tuple{eltype(left)}) &&
+        return nothing, false
     if N == 1
         return op(left), true
     else
         return op.(left), true
     end
-    
 end
 
 @unstable function deg2_eval_generic(
-    tree::AbstractExpressionNode{T1}, cX::AbstractArray{T2,N}, op::F, operators::GenericOperatorEnum, ::Val{throw_errors}
-) #= :: Tuple{get_lower_array_type(T1, N), Bool} =# where {F,T1,T2,N,throw_errors}
+    tree::AbstractExpressionNode{T1},
+    cX::AbstractArray{T2,N},
+    op::F,
+    operators::GenericOperatorEnum,
+    ::Val{throw_errors},
+) where {F,T1,T2,N,throw_errors}
     left, complete = _eval_tree_array_generic(tree.l, cX, operators, Val(throw_errors))
     !throw_errors && !complete && return nothing, false
     right, complete = _eval_tree_array_generic(tree.r, cX, operators, Val(throw_errors))
     !throw_errors && !complete && return nothing, false
     !throw_errors &&
-        !hasmethod(op, N == 1 ? Tuple{typeof(left),typeof(right)} : Tuple{eltype(left),eltype(right)}) &&
+        !hasmethod(
+            op,
+            N == 1 ? Tuple{typeof(left),typeof(right)} : Tuple{eltype(left),eltype(right)},
+        ) &&
         return nothing, false
     if N == 1
         return op(left, right), true

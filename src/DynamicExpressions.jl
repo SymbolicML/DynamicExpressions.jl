@@ -74,6 +74,7 @@ import .ExpressionModule:
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
 @reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode
+@reexport import .TypeInterfaceModule: is_valid, is_valid_array
 
 @stable default_mode = "disable" begin
     include("Interfaces.jl")

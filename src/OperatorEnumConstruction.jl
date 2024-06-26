@@ -25,10 +25,12 @@ const LATEST_OPERATORS_TYPE = Ref{AvailableOperatorTypes}(IsNothing)
 const LATEST_UNARY_OPERATOR_MAPPING = Dict{Function,fieldtype(Node{Float64}, :op)}()
 const LATEST_BINARY_OPERATOR_MAPPING = Dict{Function,fieldtype(Node{Float64}, :op)}()
 const ALREADY_DEFINED_UNARY_OPERATORS = (;
-    operator_enum=Dict{DataType, Dict{Function,Bool}}(), generic_operator_enum=Dict{DataType, Dict{Function,Bool}}()
+    operator_enum=Dict{DataType,Dict{Function,Bool}}(),
+    generic_operator_enum=Dict{DataType,Dict{Function,Bool}}(),
 )
 const ALREADY_DEFINED_BINARY_OPERATORS = (;
-    operator_enum=Dict{DataType, Dict{Function,Bool}}(), generic_operator_enum=Dict{DataType, Dict{Function,Bool}}()
+    operator_enum=Dict{DataType,Dict{Function,Bool}}(),
+    generic_operator_enum=Dict{DataType,Dict{Function,Bool}}(),
 )
 const LATEST_VARIABLE_NAMES = Ref{Vector{String}}(String[])
 const LATEST_LOCK = Threads.SpinLock()
@@ -268,22 +270,37 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
         if isa($operators, $OperatorEnum)
             $type_requirements = $(on_type == nothing ? Number : on_type)
             $build_converters = $(on_type == nothing)
-            if !haskey($(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum, $type_requirements)
-                $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum[$type_requirements] = Dict{Function,Bool}()
+            if !haskey(
+                $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum, $type_requirements
+            )
+                $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum[$type_requirements] = Dict{
+                    Function,Bool
+                }()
             end
             if !haskey($(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum, $type_requirements)
-                $(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum[$type_requirements] = Dict{Function,Bool}()
+                $(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum[$type_requirements] = Dict{
+                    Function,Bool
+                }()
             end
             $binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum[$type_requirements]
             $unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum[$type_requirements]
         else
             $type_requirements = $(on_type == nothing ? Any : on_type)
             $build_converters = false
-            if !haskey($(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum, $type_requirements)
-                $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum[$type_requirements] = Dict{Function,Bool}()
+            if !haskey(
+                $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum,
+                $type_requirements,
+            )
+                $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum[$type_requirements] = Dict{
+                    Function,Bool
+                }()
             end
-            if !haskey($(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum, $type_requirements)
-                $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum[$type_requirements] = Dict{Function,Bool}()
+            if !haskey(
+                $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum, $type_requirements
+            )
+                $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum[$type_requirements] = Dict{
+                    Function,Bool
+                }()
             end
             $binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum[$type_requirements]
             $unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum[$type_requirements]
