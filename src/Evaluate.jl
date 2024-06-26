@@ -80,7 +80,7 @@ function eval_tree_array(
         _is_loopvectorization_loaded(0) ||
             error("Please load the LoopVectorization.jl package to use this feature.")
     end
-    if (v_turbo isa Val{true} || v_turbo isa Val{true}) && !(T <: Number)
+    if (v_turbo isa Val{true} || v_bumper isa Val{true}) && !(T <: Number)
         error("Bumper feature only works with numbers")
     end
     if v_bumper isa Val{true}
