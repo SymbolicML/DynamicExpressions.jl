@@ -8,7 +8,7 @@ struct SVM{T}
     scalar :: T
     vector :: Vector{T}
     matrix :: Matrix{T}
-    SVM{T}() where {T} = new(Int8(0), zero(T), T[], T[;;])
+    SVM{T}() where {T} = new(Int8(0), zero(T), T[], Array{T}(undef, 0, 0))
     SVM{T}(scalar :: W) where {T, W <: Number} = new(Int8(0), Base.convert(T, scalar), T[], T[;;])
     SVM{T}(vector :: Vector{W}) where {T, W <: Number} = new(Int8(1), zero(T), Vector{T}(vector) , T[;;])
     SVM{T}(matrix :: Matrix{W}) where {T, W <: Number} = new(Int8(2), zero(T), T[], Matrix{T}(matrix))
@@ -29,8 +29,7 @@ end
 function Base.:(==)(x::SVM{T}, y::SVM{T}) where T
     if x.dims !== y.dims
         return false
-    end
-    if x.dims == 0
+    elseif x.dims == 0
         return x.scalar == y.scalar
     elseif val.dims == 1
         return x.vector == y.vector
@@ -61,7 +60,7 @@ Base.invokelatest(() -> begin
     @test !hasmethod(a, Tuple{Node{SVM{Float32}}, Node{SVM{Float32}}})
 
     tree = a(Node{SVM{Float64}}(; feature=1), SVM{Float64}(3.0))
-    results = tree([SVM{Float64}(1.0);; SVM{Float64}(2.0);; SVM{Float64}(3.0)])
+    results = tree([SVM{Float64}(1.0) SVM{Float64}(2.0) SVM{Float64}(3.0)])
     @test results == [SVM{Float64}(4), SVM{Float64}(5), SVM{Float64}(6)]
 
 

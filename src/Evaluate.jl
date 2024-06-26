@@ -81,7 +81,7 @@ function eval_tree_array(
             error("Please load the LoopVectorization.jl package to use this feature.")
     end
     if (v_turbo isa Val{true} || v_bumper isa Val{true}) && !(T <: Number)
-        error("Bumper feature only works with numbers")
+        error("Bumper and LoopVectorization features are only compatible with numeric element types")
     end
     if v_bumper isa Val{true}
         return bumper_eval_tree_array(tree, cX, operators, v_turbo)
@@ -97,7 +97,7 @@ function eval_tree_array(
     operators::OperatorEnum;
     kws...
 ) where {T}
-    return eval_tree_array(tree, reshape(cX, (size(cX)[1], 1))::AbstractMatrix{T}, operators; kws...)
+    return eval_tree_array(tree, reshape(cX, (size(cX, 1), 1)), operators; kws...)
 end
 
 function eval_tree_array(
