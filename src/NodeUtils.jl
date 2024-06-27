@@ -1,9 +1,11 @@
 module NodeUtilsModule
 
+using StaticArrays: MVector
 import Compat: Returns
 import ..NodeModule:
     AbstractNode,
     AbstractExpressionNode,
+    GeneralNode,
     Node,
     preserve_sharing,
     constructorof,
@@ -98,18 +100,18 @@ end
 ## Assign index to nodes of a tree
 # This will mirror a Node struct, rather
 # than adding a new attribute to Node.
-struct NodeIndex{T} <: AbstractNode
+struct NodeIndex{T,D} <: AbstractNode{D,false}
     degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     val::T  # If is a constant, this stores the actual value
     # ------------------- (possibly undefined below)
-    l::NodeIndex{T}  # Left child node. Only defined for degree=1 or degree=2.
-    r::NodeIndex{T}  # Right child node. Only defined for degree=2. 
+    children::MVector{D,NodeIndex{T,D}}
 
-    NodeIndex(::Type{_T}) where {_T} = new{_T}(0, zero(_T))
-    NodeIndex(::Type{_T}, val) where {_T} = new{_T}(0, convert(_T, val))
-    NodeIndex(::Type{_T}, l::NodeIndex) where {_T} = new{_T}(1, zero(_T), l)
-    function NodeIndex(::Type{_T}, l::NodeIndex, r::NodeIndex) where {_T}
-        return new{_T}(2, zero(_T), l, r)
+    NodeIndex(::Type{_T}, ::Type{_D}) where {_T,_D} = new{_T,_D}(0, zero(_T))
+    NodeIndex(::Type{_T}, ::Type{_D}, val) where {_T,_D} = new{_T,_D}(0, convert(_T, val))
+    function NodeIndex(::Type{_T}, ::Type{_D}, children::Vararg{Any,_D2}) where {_T,_D,_D2}
+        _children = MVector{_D,NodeIndex{_T,_D}}(undef)
+        _children[begin:_D2] = children
+        return new{_T,_D}(1, zero(_T), _children)
     end
 end
 # Sharing is never needed for NodeIndex,

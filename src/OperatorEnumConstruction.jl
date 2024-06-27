@@ -141,7 +141,7 @@ function _extend_unary_operator(f::Symbol, type_requirements, internal)
                     $_constructorof(N)(T; val=$($f)(l.val))
                 else
                     latest_op_idx = $($lookup_op)($($f), Val(1))
-                    $_constructorof(N)(; op=latest_op_idx, l)
+                    $_constructorof(N)(; op=latest_op_idx, children=(l,))
                 end
             end
         end
@@ -168,7 +168,7 @@ function _extend_binary_operator(f::Symbol, type_requirements, build_converters,
                     $_constructorof(N)(T; val=$($f)(l.val, r.val))
                 else
                     latest_op_idx = $($lookup_op)($($f), Val(2))
-                    $_constructorof(N)(; op=latest_op_idx, l, r)
+                    $_constructorof(N)(; op=latest_op_idx, children=(l, r))
                 end
             end
             function $($f)(
@@ -179,7 +179,7 @@ function _extend_binary_operator(f::Symbol, type_requirements, build_converters,
                 else
                     latest_op_idx = $($lookup_op)($($f), Val(2))
                     $_constructorof(N)(;
-                        op=latest_op_idx, l, r=$_constructorof(N)(T; val=r)
+                        op=latest_op_idx, children=(l, $_constructorof(N)(T; val=r))
                     )
                 end
             end
@@ -191,7 +191,7 @@ function _extend_binary_operator(f::Symbol, type_requirements, build_converters,
                 else
                     latest_op_idx = $($lookup_op)($($f), Val(2))
                     $_constructorof(N)(;
-                        op=latest_op_idx, l=$_constructorof(N)(T; val=l), r
+                        op=latest_op_idx, children=($_constructorof(N)(T; val=l), r)
                     )
                 end
             end

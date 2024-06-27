@@ -1,6 +1,7 @@
 module ParametricExpressionModule
 
 using DispatchDoctor: @stable, @unstable
+using StaticArrays: MVector
 
 using ..OperatorEnumModule: AbstractOperatorEnum
 using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
@@ -29,7 +30,7 @@ import ..ExpressionModule:
 import ..ParseModule: parse_leaf
 
 """A type of expression node that also stores a parameter index"""
-mutable struct ParametricNode{T} <: AbstractExpressionNode{T}
+mutable struct ParametricNode{T,D,shared} <: AbstractExpressionNode{T,D,shared}
     degree::UInt8
     constant::Bool  # if true => constant; if false, then check `is_parameter`
     val::T
@@ -39,11 +40,10 @@ mutable struct ParametricNode{T} <: AbstractExpressionNode{T}
     parameter::UInt16  # Stores index of per-class parameter
 
     op::UInt8
-    l::ParametricNode{T}
-    r::ParametricNode{T}
+    children::MVector{D,ParametricNode{T,D}}  # Children nodes
 
-    function ParametricNode{_T}() where {_T}
-        n = new{_T}()
+    function ParametricNode{_T,_D,_shared}() where {_T,_D,_shared}
+        n = new{_T,_D,_shared}()
         n.is_parameter = false
         n.parameter = UInt16(0)
         return n

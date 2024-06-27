@@ -1,6 +1,7 @@
 module NodeModule
 
 using DispatchDoctor: @unstable
+using StaticArrays: SizedVector
 
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..UtilsModule: @memoize_on, @with_memoize, deprecate_varmap, Undefined
@@ -8,25 +9,30 @@ import ..UtilsModule: @memoize_on, @with_memoize, deprecate_varmap, Undefined
 const DEFAULT_NODE_TYPE = Float32
 
 """
-    AbstractNode
+    AbstractNode{D,shared}
 
-Abstract type for binary trees. Must have the following fields:
+Abstract type for D-arity trees. If `shared`, the node type
+permits graph-like structures. Must have the following fields:
 
 - `degree::Integer`: Degree of the node. Either 0, 1, or 2. If 1,
     then `l` needs to be defined as the left child. If 2,
     then `r` also needs to be defined as the right child.
-- `l::AbstractNode`: Left child of the current node. Should only be
+- `children`: A collection of D children nodes.
+
+# Deprecated fields
+
+- `l::AbstractNode{D}`: Left child of the current node. Should only be
     defined if `degree >= 1`; otherwise, leave it undefined (see the
     the constructors of [`Node{T}`](@ref) for an example).
     Don't use `nothing` to represent an undefined value
     as it will incur a large performance penalty.
-- `r::AbstractNode`: Right child of the current node. Should only
+- `r::AbstractNode{D}`: Right child of the current node. Should only
     be defined if `degree == 2`.
 """
-abstract type AbstractNode end
+abstract type AbstractNode{D,shared} end
 
 """
-    AbstractExpressionNode{T} <: AbstractNode
+    AbstractExpressionNode{T,D} <: AbstractNode{D}
 
 Abstract type for nodes that represent an expression.
 Along with the fields required for `AbstractNode`,
@@ -67,11 +73,25 @@ You likely do not need to, but you could choose to override the following:
 - `with_type_parameters`
 
 """
-abstract type AbstractExpressionNode{T} <: AbstractNode end
+abstract type AbstractExpressionNode{T,D,shared} <: AbstractNode{D,shared} end
+
+mutable struct GeneralNode{T,D,shared} <: AbstractExpressionNode{T,D,shared}
+    degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
+    constant::Bool  # false if variable
+    val::T  # If is a constant, this stores the actual value
+    feature::UInt16  # If is a variable (e.g., x in cos(x)), this stores the feature index.
+    op::UInt8  # If operator, this is the index of the operator in the degree-specific operator enum
+    children::SizedVector{D,GeneralNode{T,D,shared}}  # Children nodes
+
+    #################
+    ## Constructors:
+    #################
+    GeneralNode{_T,_D,_shared}() where {_T,_D,_shared} = new{_T,_D,_shared}()
+end
 
 #! format: off
 """
-    Node{T} <: AbstractExpressionNode{T}
+    Node{T} <: AbstractExpressionNode{T,2}
 
 Node defines a symbolic expression stored in a binary tree.
 A single `Node` instance is one "node" of this tree, and
@@ -81,58 +101,37 @@ nodes, you can evaluate or print a given expression.
 # Fields
 
 - `degree::UInt8`: Degree of the node. 0 for constants, 1 for
-    unary operators, 2 for binary operators.
+    unary operators, 2 for binary operators, etc. Maximum of `D`.
 - `constant::Bool`: Whether the node is a constant.
 - `val::T`: Value of the node. If `degree==0`, and `constant==true`,
     this is the value of the constant. It has a type specified by the
     overall type of the `Node` (e.g., `Float64`).
 - `feature::UInt16`: Index of the feature to use in the
-    case of a feature node. Only used if `degree==0` and `constant==false`. 
-    Only defined if `degree == 0 && constant == false`.
+    case of a feature node. Only defined if `degree == 0 && constant == false`.
 - `op::UInt8`: If `degree==1`, this is the index of the operator
     in `operators.unaops`. If `degree==2`, this is the index of the
     operator in `operators.binops`. In other words, this is an enum
     of the operators, and is dependent on the specific `OperatorEnum`
     object. Only defined if `degree >= 1`
-- `l::Node{T}`: Left child of the node. Only defined if `degree >= 1`.
-    Same type as the parent node.
-- `r::Node{T}`: Right child of the node. Only defined if `degree == 2`.
-    Same type as the parent node. This is to be passed as the right
-    argument to the binary operator.
+- `children::SizedArray{D,Node{T,D}}`: Children of the node. Only defined up to `degree`
 
 # Constructors
 
 
-    Node([T]; val=nothing, feature=nothing, op=nothing, l=nothing, r=nothing, children=nothing, allocator=default_allocator)
-    Node{T}(; val=nothing, feature=nothing, op=nothing, l=nothing, r=nothing, children=nothing, allocator=default_allocator)
+    Node([T]; val=nothing, feature=nothing, op=nothing, children=nothing, allocator=default_allocator)
+    Node{T}(; val=nothing, feature=nothing, op=nothing, children=nothing, allocator=default_allocator)
 
 Create a new node in an expression tree. If `T` is not specified in either the type or the
-first argument, it will be inferred from the value of `val` passed or `l` and/or `r`.
-If it cannot be inferred from these, it will default to `Float32`.
-
-The `children` keyword can be used instead of `l` and `r` and should be a tuple of children. This
-is to permit the use of splatting in constructors.
+first argument, it will be inferred from the value of `val` passed or the children.
+The `children` keyword is used to pass in a collection of children nodes.
 
 You may also construct nodes via the convenience operators generated by creating an `OperatorEnum`.
 
 You may also choose to specify a default memory allocator for the node other than simply `Node{T}()`
 in the `allocator` keyword argument.
 """
-mutable struct Node{T} <: AbstractExpressionNode{T}
-    degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
-    constant::Bool  # false if variable
-    val::T  # If is a constant, this stores the actual value
-    # ------------------- (possibly undefined below)
-    feature::UInt16  # If is a variable (e.g., x in cos(x)), this stores the feature index.
-    op::UInt8  # If operator, this is the index of the operator in operators.binops, or operators.unaops
-    l::Node{T}  # Left child node. Only defined for degree=1 or degree=2.
-    r::Node{T}  # Right child node. Only defined for degree=2. 
+const Node{T} = GeneralNode{T,2,false}
 
-    #################
-    ## Constructors:
-    #################
-    Node{_T}() where {_T} = new{_T}()
-end
 
 """
     GraphNode{T} <: AbstractExpressionNode{T}
@@ -146,7 +145,7 @@ be performed with this assumption, to preserve structure of the graph.
 ```julia
 julia> operators = OperatorEnum(;
            binary_operators=[+, -, *], unary_operators=[cos, sin]
-       );
+        );
 
 julia> x = GraphNode(feature=1)
 x1
@@ -165,18 +164,7 @@ This has the same constructors as [`Node{T}`](@ref). Shared nodes
 are created simply by using the same node in multiple places
 when constructing or setting properties.
 """
-mutable struct GraphNode{T} <: AbstractExpressionNode{T}
-    degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
-    constant::Bool  # false if variable
-    val::T  # If is a constant, this stores the actual value
-    # ------------------- (possibly undefined below)
-    feature::UInt16  # If is a variable (e.g., x in cos(x)), this stores the feature index.
-    op::UInt8  # If operator, this is the index of the operator in operators.binops, or operators.unaops
-    l::GraphNode{T}  # Left child node. Only defined for degree=1 or degree=2.
-    r::GraphNode{T}  # Right child node. Only defined for degree=2. 
-
-    GraphNode{_T}() where {_T} = new{_T}()
-end
+const GraphNode{T} = GeneralNode{T,2,true}
 
 ################################################################################
 #! format: on
@@ -184,49 +172,41 @@ end
 Base.eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = T
 Base.eltype(::AbstractExpressionNode{T}) where {T} = T
 
-@unstable constructorof(::Type{N}) where {N<:AbstractNode} = Base.typename(N).wrapper
+function max_degree(::Type{N}) where {N<:AbstractExpressionNode}
+    return (N isa UnionAll ? N.body : N).parameters[2]
+end
+
 @unstable constructorof(::Type{<:Node}) = Node
 @unstable constructorof(::Type{<:GraphNode}) = GraphNode
 
-function with_type_parameters(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNode,T}
-    return constructorof(N){T}
-end
 with_type_parameters(::Type{<:Node}, ::Type{T}) where {T} = Node{T}
 with_type_parameters(::Type{<:GraphNode}, ::Type{T}) where {T} = GraphNode{T}
 
-function default_allocator(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNode,T}
-    return with_type_parameters(N, T)()
-end
 default_allocator(::Type{<:Node}, ::Type{T}) where {T} = Node{T}()
 default_allocator(::Type{<:GraphNode}, ::Type{T}) where {T} = GraphNode{T}()
 
 """Trait declaring whether nodes share children or not."""
 preserve_sharing(::Union{Type{<:AbstractNode},AbstractNode}) = false
-preserve_sharing(::Union{Type{<:Node},Node}) = false
-preserve_sharing(::Union{Type{<:GraphNode},GraphNode}) = true
+function preserve_sharing(
+    ::Union{Type{<:G},G}
+) where {shared,G<:GeneralNode{T,D,shared} where {T,D}}
+    return shared
+end
 
 include("base.jl")
 
 #! format: off
 @inline function (::Type{N})(
-    ::Type{T1}=Undefined; val=nothing, feature=nothing, op=nothing, l=nothing, r=nothing, children=nothing, allocator::F=default_allocator,
+    ::Type{T1}=Undefined; val=nothing, feature=nothing, op=nothing, children=nothing, allocator::F=default_allocator,
 ) where {T1,N<:AbstractExpressionNode,F}
-    validate_not_all_defaults(N, val, feature, op, l, r, children)
-    if children !== nothing
-        @assert l === nothing && r === nothing
-        if length(children) == 1
-            return node_factory(N, T1, val, feature, op, only(children), nothing, allocator)
-        else
-            return node_factory(N, T1, val, feature, op, children..., allocator)
-        end
-    end
-    return node_factory(N, T1, val, feature, op, l, r, allocator)
+    validate_not_all_defaults(N, val, feature, op, children)
+    return node_factory(N, T1, val, feature, op, children, allocator)
 end
-function validate_not_all_defaults(::Type{N}, val, feature, op, l, r, children) where {N<:AbstractExpressionNode}
+function validate_not_all_defaults(::Type{N}, val, feature, op, children) where {N<:AbstractExpressionNode}
     return nothing
 end
-function validate_not_all_defaults(::Type{N}, val, feature, op, l, r, children) where {T,N<:AbstractExpressionNode{T}}
-    if val === nothing && feature === nothing && op === nothing && l === nothing && r === nothing && children === nothing
+function validate_not_all_defaults(::Type{N}, val, feature, op, children) where {T,N<:AbstractExpressionNode{T}}
+    if val === nothing && feature === nothing && op === nothing && children === nothing
         error(
             "Encountered the call for $N() inside the generic constructor. "
             * "Did you forget to define `$(Base.typename(N).wrapper){T}() where {T} = new{T}()`?"
@@ -236,7 +216,7 @@ function validate_not_all_defaults(::Type{N}, val, feature, op, l, r, children) 
 end
 """Create a constant leaf."""
 @inline function node_factory(
-    ::Type{N}, ::Type{T1}, val::T2, ::Nothing, ::Nothing, ::Nothing, ::Nothing, allocator::F,
+    ::Type{N}, ::Type{T1}, val::T2, ::Nothing, ::Nothing, ::Nothing, allocator::F,
 ) where {N,T1,T2,F}
     T = node_factory_type(N, T1, T2)
     n = allocator(N, T)
@@ -247,7 +227,7 @@ end
 end
 """Create a variable leaf, to store data."""
 @inline function node_factory(
-    ::Type{N}, ::Type{T1}, ::Nothing, feature::Integer, ::Nothing, ::Nothing, ::Nothing, allocator::F,
+    ::Type{N}, ::Type{T1}, ::Nothing, feature::Integer, ::Nothing, ::Nothing, allocator::F,
 ) where {N,T1,F}
     T = node_factory_type(N, T1, DEFAULT_NODE_TYPE)
     n = allocator(N, T)
@@ -256,28 +236,22 @@ end
     n.feature = feature
     return n
 end
-"""Create a unary operator node."""
+"""Create an operator node."""
 @inline function node_factory(
-    ::Type{N}, ::Type{T1}, ::Nothing, ::Nothing, op::Integer, l::AbstractExpressionNode{T2}, ::Nothing, allocator::F,
-) where {N,T1,T2,F}
-    @assert l isa N
-    T = T2  # Always prefer existing nodes, so we don't mess up references from conversion
+    ::Type{N}, ::Type, ::Nothing, ::Nothing, op::Integer, children::NTuple{D2}, allocator::F,
+) where {N,F,D2}
+    D = max_degree(N)
+    @assert D2 <= D
+    T = promote_type(map(eltype, children)...)  # Always prefer existing nodes, so we don't mess up references from conversion
+    NT = with_type_parameters(N, T)
     n = allocator(N, T)
-    n.degree = 1
+    n.degree = D2
     n.op = op
-    n.l = l
-    return n
-end
-"""Create a binary operator node."""
-@inline function node_factory(
-    ::Type{N}, ::Type{T1}, ::Nothing, ::Nothing, op::Integer, l::AbstractExpressionNode{T2}, r::AbstractExpressionNode{T3}, allocator::F,
-) where {N,T1,T2,T3,F}
-    T = promote_type(T2, T3)
-    n = allocator(N, T)
-    n.degree = 2
-    n.op = op
-    n.l = T2 === T ? l : convert(with_type_parameters(N, T), l)
-    n.r = T3 === T ? r : convert(with_type_parameters(N, T), r)
+    ar = SizedVector{D,NT}(undef)
+    for i in 1:D2
+        ar[i] = children[i]
+    end
+    n.children = ar
     return n
 end
 
