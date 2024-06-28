@@ -12,7 +12,7 @@ struct NodeTangent{T,N<:AbstractExpressionNode{T},A<:AbstractArray{T}} <: Abstra
     gradient::A
 end
 function Base.:+(a::NodeTangent, b::NodeTangent)
-    @assert a.tree == b.tree
+    @assert a.tree == b.tree  # TODO: Remove this check
     return NodeTangent(a.tree, a.gradient + b.gradient)
 end
 Base.:*(a::Number, b::NodeTangent) = NodeTangent(b.tree, a * b.gradient)

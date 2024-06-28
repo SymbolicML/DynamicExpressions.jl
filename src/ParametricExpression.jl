@@ -1,10 +1,12 @@
 module ParametricExpressionModule
 
 using DispatchDoctor: @stable, @unstable
+using ChainRulesCore: ChainRulesCore, NoTangent
 
-using ..OperatorEnumModule: AbstractOperatorEnum
+using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
 using ..ExpressionModule: AbstractExpression, Metadata
+using ..ChainRulesModule: NodeTangent
 
 import ..NodeModule: constructorof, preserve_sharing, leaf_copy, leaf_hash, leaf_equal
 import ..NodeUtilsModule:
@@ -250,7 +252,7 @@ function (ex::ParametricExpression)(
     operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     kws...,
 ) where {T}
-    (output, flag) = eval_tree_array(ex, X, classes, operators; kws...)  # Will error
+    (output, flag) = eval_tree_array(ex, X, classes, operators; kws...)
     if !flag
         output .= NaN
     end
@@ -276,6 +278,71 @@ function eval_tree_array(
     regular_tree = convert(Node, ex)
     return eval_tree_array(regular_tree, params_and_X, get_operators(ex, operators); kws...)
 end
+function ChainRulesCore.rrule(
+    ::typeof(eval_tree_array),
+    ex::ParametricExpression{T},
+    X::AbstractMatrix{T},
+    classes::AbstractVector{<:Integer},
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+    kws...,
+) where {T}
+    primal, complete = eval_tree_array(ex, X, classes, operators; kws...)
+
+    # TODO: Preferable to use the primal in the pullback somehow
+    function pullback((dY, _))
+        parameters = ex.metadata.parameters
+        num_params = size(parameters, 1)
+        num_classes = size(parameters, 2)
+        indexed_parameters = [
+            parameters[i_parameter, classes[i_row]] for
+            i_parameter in eachindex(axes(parameters, 1)), i_row in eachindex(classes)
+        ]
+        params_and_X = vcat(indexed_parameters, X)
+        tree = ex.tree
+        regular_tree = convert(Node, ex)
+
+        _, gradient_tree, complete1 = eval_grad_tree_array(
+            regular_tree, params_and_X, operators; variable=Val(false)
+        )
+        _, gradient_params_and_X, complete2 = eval_grad_tree_array(
+            regular_tree, params_and_X, operators; variable=Val(true)
+        )
+
+        if !complete1
+            gradient_tree .= NaN
+        end
+        if !complete2
+            gradient_params_and_X .= NaN
+        end
+
+        d_tree = NodeTangent(
+            tree,
+            sum(j -> gradient_tree[:, j] * dY[j], eachindex(dY, axes(gradient_tree, 2))),
+        )
+        reshaped_d_Y = reshape(dY, 1, length(dY))
+        d_indexed_parameters = @view(gradient_params_and_X[1:num_params, :]) .* reshaped_d_Y
+        d_X = @view(gradient_params_and_X[(num_params + 1):end, :]) .* reshaped_d_Y
+        d_parameters = [
+            sum(
+                j -> d_indexed_parameters[param, j] * dY[j] * (classes[j] == class),
+                eachindex(classes, axes(d_indexed_parameters, 2)),
+            ) for param in 1:num_params, class in 1:num_classes
+        ]
+        d_ex = (;
+            tree=d_tree,
+            metadata=(;
+                operators=NoTangent(),
+                variable_names=NoTangent(),
+                parameters=d_parameters,
+                parameter_names=NoTangent(),
+            ),
+        )
+        return (NoTangent(), d_ex, copy(d_X), NoTangent(), NoTangent())
+    end
+
+    return (primal, complete), pullback
+end
+
 function string_tree(
     ex::ParametricExpression,
     operators::Union{AbstractOperatorEnum,Nothing}=nothing;
