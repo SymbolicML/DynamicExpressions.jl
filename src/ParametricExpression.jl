@@ -293,6 +293,7 @@ function ChainRulesCore.rrule(
         parameters = ex.metadata.parameters
         num_params = size(parameters, 1)
         num_classes = size(parameters, 2)
+        _operators = get_operators(ex, operators)
         indexed_parameters = [
             parameters[i_parameter, classes[i_row]] for
             i_parameter in eachindex(axes(parameters, 1)), i_row in eachindex(classes)
@@ -302,10 +303,10 @@ function ChainRulesCore.rrule(
         regular_tree = convert(Node, ex)
 
         _, gradient_tree, complete1 = eval_grad_tree_array(
-            regular_tree, params_and_X, operators; variable=Val(false)
+            regular_tree, params_and_X, _operators; variable=Val(false)
         )
         _, gradient_params_and_X, complete2 = eval_grad_tree_array(
-            regular_tree, params_and_X, operators; variable=Val(true)
+            regular_tree, params_and_X, _operators; variable=Val(true)
         )
 
         if !complete1
@@ -331,13 +332,15 @@ function ChainRulesCore.rrule(
         d_ex = (;
             tree=d_tree,
             metadata=(;
-                operators=NoTangent(),
-                variable_names=NoTangent(),
-                parameters=d_parameters,
-                parameter_names=NoTangent(),
+                _data=(;
+                    operators=NoTangent(),
+                    variable_names=NoTangent(),
+                    parameters=d_parameters,
+                    parameter_names=NoTangent(),
+                ),
             ),
         )
-        return (NoTangent(), d_ex, copy(d_X), NoTangent(), NoTangent())
+        return (NoTangent(), d_ex, d_X, NoTangent(), NoTangent())
     end
 
     return (primal, complete), pullback

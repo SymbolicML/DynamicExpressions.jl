@@ -266,3 +266,37 @@ end
         )
     end
 end
+
+@testitem "Parametric expression derivatives" begin
+    using DynamicExpressions
+    using Zygote: Zygote
+    using Random: MersenneTwister
+    using DifferentiationInterface: value_and_gradient, AutoZygote
+
+    rng = MersenneTwister(0)
+    X = rand(rng, 2, 32)
+    classes = rand(rng, 1:2, 32)
+    y = @. X[1, :] * X[1, :] - cos(2.6 * X[2, :]) + classes
+
+    operators = OperatorEnum(; unary_operators=[cos], binary_operators=[+, *, -])
+
+    ex = @parse_expression(
+        x * x - cos(2.5 * y) + p1,
+        operators = operators,
+        expression_type = ParametricExpression,
+        variable_names = ["x", "y"],
+        extra_metadata = (parameter_names=["p1"], parameters=[0.5 0.2])
+    )
+    f = let operators = operators, X = X, classes = classes, y = y
+        ex -> sum(abs2, ex(X, classes) .- y)
+    end
+    @test f(ex) isa Float64
+    (val, grad) = value_and_gradient(f, AutoZygote(), ex)
+
+    @test val isa Float64
+    @test grad isa NamedTuple
+    @test grad.tree isa DynamicExpressions.ChainRulesModule.NodeTangent{
+        Float64,ParametricNode{Float64},Vector{Float64}
+    }
+    @test grad.metadata._data.parameters isa Matrix{Float64}
+end
