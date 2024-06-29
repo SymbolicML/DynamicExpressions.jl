@@ -1,7 +1,7 @@
 module ParametricExpressionModule
 
 using DispatchDoctor: @stable, @unstable
-using ChainRulesCore: ChainRulesCore, NoTangent
+using ChainRulesCore: ChainRulesCore, NoTangent, @thunk
 
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
@@ -238,6 +238,36 @@ function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
         Node{T},
     )
 end
+function ChainRulesCore.rrule(
+    ::typeof(convert), ::Type{Node}, ex::ParametricExpression{T}
+) where {T}
+    tree = get_contents(ex)
+    primal = convert(Node, ex)
+    pullback = let tree = tree
+        d_primal -> let
+            # ^The exact same tangent with respect to constants, so we can just take it.
+            d_ex = @thunk(
+                let
+                    parametric_node_tangent = NodeTangent(tree, d_primal.gradient)
+                    (;
+                        tree=parametric_node_tangent,
+                        metadata=(;
+                            _data=(;
+                                operators=NoTangent(),
+                                variable_names=NoTangent(),
+                                parameters=NoTangent(),
+                                parameter_names=NoTangent(),
+                            )
+                        ),
+                    )
+                end
+            )
+            (NoTangent(), NoTangent(), d_ex)
+        end
+    end
+    return primal, pullback
+end
+
 #! format: off
 function (ex::ParametricExpression)(X::AbstractMatrix, operators::Union{AbstractOperatorEnum,Nothing}=nothing; kws...)
     return eval_tree_array(ex, X, operators; kws...)  # Will error
@@ -277,73 +307,6 @@ function eval_tree_array(
     # with `feature` set to the parameter index + num_features
     regular_tree = convert(Node, ex)
     return eval_tree_array(regular_tree, params_and_X, get_operators(ex, operators); kws...)
-end
-function ChainRulesCore.rrule(
-    ::typeof(eval_tree_array),
-    ex::ParametricExpression{T},
-    X::AbstractMatrix{T},
-    classes::AbstractVector{<:Integer},
-    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
-    kws...,
-) where {T}
-    primal, complete = eval_tree_array(ex, X, classes, operators; kws...)
-
-    # TODO: Preferable to use the primal in the pullback somehow
-    function pullback((dY, _))
-        parameters = ex.metadata.parameters
-        num_params = size(parameters, 1)
-        num_classes = size(parameters, 2)
-        _operators = get_operators(ex, operators)
-        indexed_parameters = [
-            parameters[i_parameter, classes[i_row]] for
-            i_parameter in eachindex(axes(parameters, 1)), i_row in eachindex(classes)
-        ]
-        params_and_X = vcat(indexed_parameters, X)
-        tree = ex.tree
-        regular_tree = convert(Node, ex)
-
-        _, gradient_tree, complete1 = eval_grad_tree_array(
-            regular_tree, params_and_X, _operators; variable=Val(false)
-        )
-        _, gradient_params_and_X, complete2 = eval_grad_tree_array(
-            regular_tree, params_and_X, _operators; variable=Val(true)
-        )
-
-        if !complete1
-            gradient_tree .= NaN
-        end
-        if !complete2
-            gradient_params_and_X .= NaN
-        end
-
-        d_tree = NodeTangent(
-            tree,
-            sum(j -> gradient_tree[:, j] * dY[j], eachindex(dY, axes(gradient_tree, 2))),
-        )
-        reshaped_d_Y = reshape(dY, 1, length(dY))
-        d_indexed_parameters = @view(gradient_params_and_X[1:num_params, :]) .* reshaped_d_Y
-        d_X = @view(gradient_params_and_X[(num_params + 1):end, :]) .* reshaped_d_Y
-        d_parameters = [
-            sum(
-                j -> d_indexed_parameters[param, j] * dY[j] * (classes[j] == class),
-                eachindex(classes, axes(d_indexed_parameters, 2)),
-            ) for param in 1:num_params, class in 1:num_classes
-        ]
-        d_ex = (;
-            tree=d_tree,
-            metadata=(;
-                _data=(;
-                    operators=NoTangent(),
-                    variable_names=NoTangent(),
-                    parameters=d_parameters,
-                    parameter_names=NoTangent(),
-                ),
-            ),
-        )
-        return (NoTangent(), d_ex, d_X, NoTangent(), NoTangent())
-    end
-
-    return (primal, complete), pullback
 end
 
 function string_tree(
