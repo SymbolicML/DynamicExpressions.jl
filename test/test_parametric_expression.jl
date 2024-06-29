@@ -316,4 +316,8 @@ end
     @test grad.tree.gradient ≈ true_grad[3]
     # Gradient w.r.t. the parameters:
     @test grad.metadata._data.parameters ≈ true_grad[2]
+
+    # Gradient extractor
+    @test extract_gradient(grad, ex) ≈ vcat(true_grad[3], true_grad[2][:])
+    @test axes(extract_gradient(grad, ex)) == axes(first(get_constants(ex)))
 end

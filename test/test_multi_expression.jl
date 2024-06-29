@@ -67,6 +67,9 @@
         @test_throws "`set_constants!` function must be implemented for" set_constants!(
             multi_ex, nothing, nothing
         )
+        @test_throws "`extract_gradient` function must be implemented for" extract_gradient(
+            nothing, multi_ex
+        )
     end
 
     tree_factory(f::F, trees) where {F} = f(; trees...)

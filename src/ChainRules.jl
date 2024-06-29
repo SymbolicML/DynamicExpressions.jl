@@ -1,7 +1,13 @@
 module ChainRulesModule
 
 using ChainRulesCore:
-    ChainRulesCore, AbstractTangent, NoTangent, ZeroTangent, Tangent, @thunk, canonicalize
+    ChainRulesCore as CRC,
+    AbstractTangent,
+    NoTangent,
+    ZeroTangent,
+    Tangent,
+    @thunk,
+    canonicalize
 using ..OperatorEnumModule: OperatorEnum
 using ..NodeModule: AbstractExpressionNode, with_type_parameters, tree_mapreduce
 using ..EvaluateModule: eval_tree_array
@@ -11,6 +17,9 @@ struct NodeTangent{T,N<:AbstractExpressionNode{T},A<:AbstractArray{T}} <: Abstra
     tree::N
     gradient::A
 end
+function extract_gradient(gradient::NodeTangent, ::AbstractExpressionNode)
+    return gradient.gradient
+end
 function Base.:+(a::NodeTangent, b::NodeTangent)
     # @assert a.tree == b.tree
     return NodeTangent(a.tree, a.gradient + b.gradient)
@@ -19,7 +28,7 @@ Base.:*(a::Number, b::NodeTangent) = NodeTangent(b.tree, a * b.gradient)
 Base.:*(a::NodeTangent, b::Number) = NodeTangent(a.tree, a.gradient * b)
 Base.zero(::Union{Type{NodeTangent},NodeTangent}) = ZeroTangent()
 
-function ChainRulesCore.rrule(
+function CRC.rrule(
     ::typeof(eval_tree_array),
     tree::AbstractExpressionNode,
     X::AbstractMatrix,
