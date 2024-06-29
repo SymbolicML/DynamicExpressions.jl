@@ -76,6 +76,19 @@ end
     end
 end
 
+@testitem "Can also get derivatives of expression itself" begin
+    using DynamicExpressions
+    using Zygote: Zygote
+    using DifferentiationInterface: AutoZygote, gradient
+
+    ex = @parse_expression(x1 + 1.5, binary_operators = [+], variable_names = ["x1"])
+    d_ex = gradient(AutoZygote(), ex) do ex
+        sum(ex(ones(1, 5)))
+    end
+    @test d_ex isa NamedTuple
+    @test extract_gradient(d_ex, ex) ≈ [5.0]
+end
+
 @testitem "Expression simplification" begin
     using DynamicExpressions
 

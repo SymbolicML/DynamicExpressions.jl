@@ -272,13 +272,7 @@ function set_constants!(ex::Expression{T}, constants, refs) where {T}
     return set_constants!(get_tree(ex), constants, refs)
 end
 function extract_gradient(
-    gradient::@NamedTuple{
-        tree::NT,
-        metadata::@NamedTuple{
-            _data::@NamedTuple{operators::Nothing, variable_names::Nothing}
-        }
-    },
-    ex::Expression{T,N},
+    gradient::@NamedTuple{tree::NT, metadata::Nothing}, ex::Expression{T,N}
 ) where {T,N<:AbstractExpressionNode{T},NT<:NodeTangent{T,N}}
     # TODO: This messy gradient type is produced by ChainRules. There is probably a better way to do this.
     return extract_gradient(gradient.tree, get_tree(ex))
