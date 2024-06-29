@@ -1,10 +1,12 @@
 module ParametricExpressionModule
 
 using DispatchDoctor: @stable, @unstable
+using ChainRulesCore: ChainRulesCore, NoTangent, @thunk
 
-using ..OperatorEnumModule: AbstractOperatorEnum
+using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
 using ..ExpressionModule: AbstractExpression, Metadata
+using ..ChainRulesModule: NodeTangent
 
 import ..NodeModule: constructorof, preserve_sharing, leaf_copy, leaf_hash, leaf_equal
 import ..NodeUtilsModule:
@@ -236,6 +238,36 @@ function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
         Node{T},
     )
 end
+function ChainRulesCore.rrule(
+    ::typeof(convert), ::Type{Node}, ex::ParametricExpression{T}
+) where {T}
+    tree = get_contents(ex)
+    primal = convert(Node, ex)
+    pullback = let tree = tree
+        d_primal -> let
+            # ^The exact same tangent with respect to constants, so we can just take it.
+            d_ex = @thunk(
+                let
+                    parametric_node_tangent = NodeTangent(tree, d_primal.gradient)
+                    (;
+                        tree=parametric_node_tangent,
+                        metadata=(;
+                            _data=(;
+                                operators=NoTangent(),
+                                variable_names=NoTangent(),
+                                parameters=NoTangent(),
+                                parameter_names=NoTangent(),
+                            )
+                        ),
+                    )
+                end
+            )
+            (NoTangent(), NoTangent(), d_ex)
+        end
+    end
+    return primal, pullback
+end
+
 #! format: off
 function (ex::ParametricExpression)(X::AbstractMatrix, operators::Union{AbstractOperatorEnum,Nothing}=nothing; kws...)
     return eval_tree_array(ex, X, operators; kws...)  # Will error
@@ -250,7 +282,7 @@ function (ex::ParametricExpression)(
     operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     kws...,
 ) where {T}
-    (output, flag) = eval_tree_array(ex, X, classes, operators; kws...)  # Will error
+    (output, flag) = eval_tree_array(ex, X, classes, operators; kws...)
     if !flag
         output .= NaN
     end
@@ -276,6 +308,7 @@ function eval_tree_array(
     regular_tree = convert(Node, ex)
     return eval_tree_array(regular_tree, params_and_X, get_operators(ex, operators); kws...)
 end
+
 function string_tree(
     ex::ParametricExpression,
     operators::Union{AbstractOperatorEnum,Nothing}=nothing;
