@@ -42,43 +42,37 @@ function CRC.rrule(
         primal .= NaN
     end
 
-    # TODO: Preferable to use the primal in the pullback somehow
-    function pullback((dY, _))
-        dtree = let X = X, dY = dY, tree = tree, operators = operators
-            @thunk(
-                let
-                    _, gradient, complete2 = eval_grad_tree_array(
-                        tree, X, operators; variable=Val(false)
-                    )
-                    if !complete2
-                        gradient .= NaN
-                    end
+    return (primal, complete), EvalPullback(tree, X, operators)
+end
 
-                    NodeTangent(
-                        tree,
-                        sum(j -> gradient[:, j] * dY[j], eachindex(dY, axes(gradient, 2))),
-                    )
-                end
-            )
-        end
-        dX = let X = X, dY = dY, tree = tree, operators = operators
-            @thunk(
-                let
-                    _, gradient2, complete3 = eval_grad_tree_array(
-                        tree, X, operators; variable=Val(true)
-                    )
-                    if !complete3
-                        gradient2 .= NaN
-                    end
+# Wrap in struct rather than closure to ensure variables are boxed
+struct EvalPullback{N,A,O} <: Function
+    tree::N
+    X::A
+    operators::O
+end
 
-                    gradient2 .* reshape(dY, 1, length(dY))
-                end
-            )
-        end
-        return (NoTangent(), dtree, dX, NoTangent())
+# TODO: Preferable to use the primal in the pullback somehow
+function (e::EvalPullback)((dY, _))
+    _, dX_constants_dY, complete = eval_grad_tree_array(
+        e.tree, e.X, e.operators; variable=Val(:both)
+    )
+
+    if !complete
+        dX_constants_dY .= NaN
     end
 
-    return (primal, complete), pullback
+    nfeatures = size(e.X, 1)
+    dX_dY = @view dX_constants_dY[1:nfeatures, :]
+    dconstants_dY = @view dX_constants_dY[(nfeatures + 1):end, :]
+
+    dtree = NodeTangent(
+        e.tree, sum(j -> dconstants_dY[:, j] * dY[j], eachindex(dY, axes(dconstants_dY, 2)))
+    )
+
+    dX = dX_dY .* reshape(dY, 1, length(dY))
+
+    return (NoTangent(), dtree, dX, NoTangent())
 end
 
 end
