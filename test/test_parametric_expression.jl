@@ -275,17 +275,27 @@ end
 
     rng = MersenneTwister(0)
     X = rand(rng, 2, 32)
+    true_params = [0.5 2.0]
+    init_params = [0.1 0.2]
     classes = rand(rng, 1:2, 32)
-    y = @. X[1, :] * X[1, :] - cos(2.6 * X[2, :]) + classes
+    y = [X[1, i] * X[1, i] - cos(2.6 * X[2, i]) + true_params[1, classes[i]] for i in 1:32]
+
+    (true_val, true_grad) =
+        value_and_gradient(AutoZygote(), (X, init_params, [2.5])) do (X, params, c)
+            pred = [
+                X[1, i] * X[1, i] - cos(c[1] * X[2, i]) + params[1, classes[i]] for
+                i in 1:32
+            ]
+            sum(abs2, pred .- y)
+        end
 
     operators = OperatorEnum(; unary_operators=[cos], binary_operators=[+, *, -])
-
     ex = @parse_expression(
         x * x - cos(2.5 * y) + p1,
         operators = operators,
         expression_type = ParametricExpression,
         variable_names = ["x", "y"],
-        extra_metadata = (parameter_names=["p1"], parameters=[0.5 0.2])
+        extra_metadata = (parameter_names=["p1"], parameters=init_params)
     )
     f = let operators = operators, X = X, classes = classes, y = y
         ex -> sum(abs2, ex(X, classes) .- y)
@@ -299,4 +309,11 @@ end
         Float64,ParametricNode{Float64},Vector{Float64}
     }
     @test grad.metadata._data.parameters isa Matrix{Float64}
+
+    # Loss value:
+    @test val ≈ true_val
+    # Gradient w.r.t. the constant:
+    @test grad.tree.gradient ≈ true_grad[3]
+    # Gradient w.r.t. the parameters:
+    @test grad.metadata._data.parameters ≈ true_grad[2]
 end
