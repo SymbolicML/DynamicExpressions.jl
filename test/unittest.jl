@@ -58,6 +58,10 @@ end
     include("test_nan_detection.jl")
 end
 
+@testitem "Test OperatorEnum with non-number type" begin
+    include("test_non_number_eval_tree_array.jl")
+end
+
 @testitem "Test hash of tree" begin
     include("test_hash.jl")
 end
