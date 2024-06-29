@@ -1,7 +1,7 @@
 module ParametricExpressionModule
 
 using DispatchDoctor: @stable, @unstable
-using ChainRulesCore: ChainRulesCore, NoTangent, @thunk
+using ChainRulesCore: ChainRulesCore as CRC, NoTangent, @thunk
 
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
@@ -238,9 +238,7 @@ function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
         Node{T},
     )
 end
-function ChainRulesCore.rrule(
-    ::typeof(convert), ::Type{Node}, ex::ParametricExpression{T}
-) where {T}
+function CRC.rrule(::typeof(convert), ::Type{Node}, ex::ParametricExpression{T}) where {T}
     tree = get_contents(ex)
     primal = convert(Node, ex)
     pullback = let tree = tree
