@@ -5,6 +5,7 @@ using DispatchDoctor: @unstable
 using ..NodeModule: AbstractExpressionNode, Node
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..UtilsModule: Undefined
+using ..ChainRulesModule: NodeTangent
 
 import ..NodeModule: copy_node, set_node!, count_nodes, tree_mapreduce, constructorof
 import ..NodeUtilsModule:
@@ -16,6 +17,7 @@ import ..NodeUtilsModule:
     has_constants,
     get_constants,
     set_constants!
+import ..ChainRulesModule: extract_gradient
 
 """A wrapper for a named tuple to avoid piracy."""
 struct Metadata{NT<:NamedTuple}
@@ -140,6 +142,12 @@ end
 function set_constants!(ex::AbstractExpression{T}, constants, refs) where {T}
     return error("`set_constants!` function must be implemented for $(typeof(ex)) types.")
 end
+function extract_gradient(gradient, ex::AbstractExpression)
+    # Should match `get_constants`
+    return error(
+        "`extract_gradient` function must be implemented for $(typeof(ex)) types with $(typeof(gradient)) gradient.",
+    )
+end
 function get_contents(ex::AbstractExpression)
     return error("`get_contents` function must be implemented for $(typeof(ex)) types.")
 end
@@ -262,6 +270,18 @@ function get_constants(ex::Expression)
 end
 function set_constants!(ex::Expression{T}, constants, refs) where {T}
     return set_constants!(get_tree(ex), constants, refs)
+end
+function extract_gradient(
+    gradient::@NamedTuple{
+        tree::NT,
+        metadata::@NamedTuple{
+            _data::@NamedTuple{operators::Nothing, variable_names::Nothing}
+        }
+    },
+    ex::Expression{T,N},
+) where {T,N<:AbstractExpressionNode{T},NT<:NodeTangent{T,N}}
+    # TODO: This messy gradient type is produced by ChainRules. There is probably a better way to do this.
+    return extract_gradient(gradient.tree, get_tree(ex))
 end
 
 import ..StringsModule: string_tree, print_tree

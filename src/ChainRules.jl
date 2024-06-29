@@ -17,6 +17,9 @@ struct NodeTangent{T,N<:AbstractExpressionNode{T},A<:AbstractArray{T}} <: Abstra
     tree::N
     gradient::A
 end
+function extract_gradient(gradient::NodeTangent, ::AbstractExpressionNode)
+    return gradient.gradient
+end
 function Base.:+(a::NodeTangent, b::NodeTangent)
     # @assert a.tree == b.tree
     return NodeTangent(a.tree, a.gradient + b.gradient)

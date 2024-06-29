@@ -159,6 +159,7 @@ ei_components = (
         default_node_type = "returns the default node type for the expression" => _check_default_node,
         constructorof = "gets the constructor function for a type" => _check_constructorof,
         tree_mapreduce = "applies a function across the tree" => _check_tree_mapreduce
+        # TODO: add extract_gradient(gradient, ex::AbstractExpression)
     )
 )
 ei_description = (

@@ -20,6 +20,7 @@ import ..StringsModule: string_tree
 import ..EvaluateModule: eval_tree_array
 import ..EvaluateDerivativeModule: eval_grad_tree_array
 import ..EvaluationHelpersModule: _grad_evaluator
+import ..ChainRulesModule: extract_gradient
 import ..ExpressionModule:
     get_contents,
     get_metadata,
@@ -207,7 +208,7 @@ has_constants(ex::ParametricExpression) = _interface_error()
 has_operators(ex::ParametricExpression) = has_operators(get_tree(ex))
 function get_constants(ex::ParametricExpression{T}) where {T}
     constants, constant_refs = get_constants(get_tree(ex))
-    parameters = ex.metadata.parameters
+    parameters = get_metadata(ex).parameters
     flat_parameters = parameters[:]
     num_constants = length(constants)
     num_parameters = length(flat_parameters)
@@ -218,8 +219,26 @@ function set_constants!(ex::ParametricExpression{T}, x, refs) where {T}
     # First, set the usual constants
     set_constants!(get_tree(ex), @view(x[1:(refs.num_constants)]), refs.constant_refs)
     # Then, copy in the parameters
-    ex.metadata.parameters[:] .= @view(x[(refs.num_constants + 1):end])
+    get_metadata(ex).parameters[:] .= @view(x[(refs.num_constants + 1):end])
     return ex
+end
+function extract_gradient(
+    gradient::@NamedTuple{
+        tree::NT,
+        metadata::@NamedTuple{
+            _data::@NamedTuple{
+                operators::Nothing,
+                variable_names::Nothing,
+                parameters::PARAM,
+                parameter_names::Nothing,
+            }
+        }
+    },
+    ex::ParametricExpression{T,N},
+) where {T,N<:ParametricNode{T},NT<:NodeTangent{T,N},PARAM<:AbstractMatrix{T}}
+    d_constants = extract_gradient(gradient.tree, get_tree(ex))
+    d_params = gradient.metadata._data.parameters[:]
+    return vcat(d_constants, d_params)  # Same shape as `get_constants`
 end
 
 function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
