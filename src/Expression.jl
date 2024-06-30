@@ -2,6 +2,8 @@
 module ExpressionModule
 
 using DispatchDoctor: @unstable
+using ChainRulesCore: @ignore_derivatives
+
 using ..NodeModule: AbstractExpressionNode, Node
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..UtilsModule: Undefined
@@ -65,7 +67,7 @@ expression tree (like `Node`) along with associated metadata for evaluation and 
 
 - `tree::N`: The root node of the raw expression tree.
 - `metadata::Metadata{D}`: A named tuple of settings for the expression,
-   such as the operators and variable names.
+    such as the operators and variable names.
 
 # Constructors
 

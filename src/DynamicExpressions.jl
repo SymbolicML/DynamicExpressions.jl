@@ -76,6 +76,7 @@ import .ParseModule: parse_leaf
 
 @stable default_mode = "disable" begin
     include("Interfaces.jl")
+    include("NonDifferentiableDeclarations.jl")
     include("PatchMethods.jl")
 end
 
