@@ -33,10 +33,9 @@ function CRC.rrule(
     tree::AbstractExpressionNode,
     X::AbstractMatrix,
     operators::OperatorEnum;
-    turbo=Val(false),
-    bumper=Val(false),
+    kws...,
 )
-    primal, complete = eval_tree_array(tree, X, operators; turbo, bumper)
+    primal, complete = eval_tree_array(tree, X, operators; kws...)
 
     if !complete
         primal .= NaN
