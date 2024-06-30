@@ -69,8 +69,10 @@ function eval_tree_array(
     operators::OperatorEnum;
     turbo::Union{Bool,Val}=Val(false),
     bumper::Union{Bool,Val}=Val(false),
+    early_exit::Union{Bool,Val}=Val(true),
 ) where {T<:Number}
     v_turbo = isa(turbo, Val) ? turbo : (turbo ? Val(true) : Val(false))
+    v_early_exit = isa(turbo, Val) ? early_exit : (early_exit ? Val(true) : Val(false))
     v_bumper = isa(bumper, Val) ? bumper : (bumper ? Val(true) : Val(false))
     if v_turbo isa Val{true} || v_bumper isa Val{true}
         @assert T in (Float32, Float64)
@@ -83,8 +85,12 @@ function eval_tree_array(
         return bumper_eval_tree_array(tree, cX, operators, v_turbo)
     end
 
-    result = _eval_tree_array(tree, cX, operators, v_turbo)
-    return (result.x, result.ok && !is_bad_array(result.x))
+    result = _eval_tree_array(tree, cX, operators, v_turbo, v_early_exit)
+    if v_early_exit isa Val{true}
+        return (result.x, result.ok && !is_bad_array(result.x))
+    else
+        return (result.x, result.ok)
+    end
 end
 function eval_tree_array(
     tree::AbstractExpressionNode{T1},
@@ -92,12 +98,13 @@ function eval_tree_array(
     operators::OperatorEnum;
     turbo::Union{Bool,Val}=Val(false),
     bumper::Union{Bool,Val}=Val(false),
+    early_exit::Union{Bool,Val}=Val(true),
 ) where {T1<:Number,T2<:Number}
     T = promote_type(T1, T2)
     @warn "Warning: eval_tree_array received mixed types: tree=$(T1) and data=$(T2)."
     tree = convert(constructorof(typeof(tree)){T}, tree)
     cX = Base.Fix1(convert, T).(cX)
-    return eval_tree_array(tree, cX, operators; turbo, bumper)
+    return eval_tree_array(tree, cX, operators; turbo, bumper, early_exit)
 end
 
 get_nuna(::Type{<:OperatorEnum{B,U}}) where {B,U} = counttuple(U)
@@ -108,7 +115,8 @@ function _eval_tree_array(
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     ::Val{turbo},
-)::ResultOk where {T<:Number,turbo}
+    ::Val{early_exit},
+)::ResultOk where {T<:Number,turbo,early_exit}
     # First, we see if there are only constants in the tree - meaning
     # we can just return the constant result.
     if tree.degree == 0
@@ -120,12 +128,12 @@ function _eval_tree_array(
         return ResultOk(fill_similar(const_result.x[], cX, axes(cX, 2)), true)
     elseif tree.degree == 1
         op_idx = tree.op
-        return dispatch_deg1_eval(tree, cX, op_idx, operators, Val(turbo))
+        return dispatch_deg1_eval(tree, cX, op_idx, operators, Val(turbo), Val(early_exit))
     else
         # TODO - add op(op2(x, y), z) and op(x, op2(y, z))
         # op(x, y), where x, y are constants or variables.
         op_idx = tree.op
-        return dispatch_deg2_eval(tree, cX, op_idx, operators, Val(turbo))
+        return dispatch_deg2_eval(tree, cX, op_idx, operators, Val(turbo), Val(early_exit))
     end
 end
 
@@ -165,17 +173,18 @@ end
     op_idx::Integer,
     operators::OperatorEnum,
     ::Val{turbo},
-) where {T<:Number,turbo}
+    ::Val{early_exit},
+) where {T<:Number,turbo,early_exit}
     nbin = get_nbin(operators)
     long_compilation_time = nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     if long_compilation_time
         return quote
             result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
             !result_l.ok && return result_l
-            @return_on_nonfinite_array result_l.x
+            early_exit && @return_on_nonfinite_array result_l.x
             result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
             !result_r.ok && return result_r
-            @return_on_nonfinite_array result_r.x
+            early_exit && @return_on_nonfinite_array result_r.x
             # op(x, y), for any x or y
             deg2_eval(result_l.x, result_r.x, operators.binops[op_idx], Val(turbo))
         end
@@ -190,22 +199,22 @@ end
                 elseif tree.r.degree == 0
                     result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
                     !result_l.ok && return result_l
-                    @return_on_nonfinite_array result_l.x
+                    early_exit && @return_on_nonfinite_array result_l.x
                     # op(x, y), where y is a constant or variable but x is not.
                     deg2_r0_eval(tree, result_l.x, cX, op, Val(turbo))
                 elseif tree.l.degree == 0
                     result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
                     !result_r.ok && return result_r
-                    @return_on_nonfinite_array result_r.x
+                    early_exit && @return_on_nonfinite_array result_r.x
                     # op(x, y), where x is a constant or variable but y is not.
                     deg2_l0_eval(tree, result_r.x, cX, op, Val(turbo))
                 else
                     result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo))
                     !result_l.ok && return result_l
-                    @return_on_nonfinite_array result_l.x
+                    early_exit && @return_on_nonfinite_array result_l.x
                     result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo))
                     !result_r.ok && return result_r
-                    @return_on_nonfinite_array result_r.x
+                    early_exit && @return_on_nonfinite_array result_r.x
                     # op(x, y), for any x or y
                     deg2_eval(result_l.x, result_r.x, op, Val(turbo))
                 end
@@ -219,14 +228,15 @@ end
     op_idx::Integer,
     operators::OperatorEnum,
     ::Val{turbo},
-) where {T<:Number,turbo}
+    ::Val{early_exit},
+) where {T<:Number,turbo,early_exit}
     nuna = get_nuna(operators)
     long_compilation_time = nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     if long_compilation_time
         return quote
             result = _eval_tree_array(tree.l, cX, operators, Val(turbo))
             !result.ok && return result
-            @return_on_nonfinite_array result.x
+            early_exit && @return_on_nonfinite_array result.x early_exit
             deg1_eval(result.x, operators.unaops[op_idx], Val(turbo))
         end
     end
@@ -253,7 +263,7 @@ end
                     # op(x), for any x.
                     result = _eval_tree_array(tree.l, cX, operators, Val(turbo))
                     !result.ok && return result
-                    @return_on_nonfinite_array result.x
+                    early_exit && @return_on_nonfinite_array result.x early_exit
                     deg1_eval(result.x, op, Val(turbo))
                 end
             end
