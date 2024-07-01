@@ -2,7 +2,6 @@
 module ExpressionModule
 
 using DispatchDoctor: @unstable
-using ChainRulesCore: CRC
 
 using ..NodeModule: AbstractExpressionNode, Node
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
