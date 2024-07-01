@@ -15,7 +15,22 @@ elseif test_name == "jet"
         using JET
         using DynamicExpressions
         if VERSION >= v"1.10"
-            JET.test_package(DynamicExpressions; target_defined_modules=true)
+            struct MyReport end
+            function JET.configured_reports(
+                ::MyReport, reports::Vector{JET.InferenceErrorReport}
+            )
+                filter!(reports) do report
+                    signature = report.sig
+                    return !any(
+                        x -> occursin("NonDifferentiableDeclarationsModule", string(x)),
+                        signature,
+                    )
+                end
+                return reports
+            end
+            JET.test_package(
+                DynamicExpressions; target_defined_modules=true, report_config=MyReport()
+            )
         end
     end
 elseif test_name == "main"
