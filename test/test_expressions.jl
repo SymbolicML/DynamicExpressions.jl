@@ -249,3 +249,16 @@ end
     tree = get_tree(ex)
     @test_throws ArgumentError get_operators(tree, nothing)
 end
+
+@testitem "Disable early exit" begin
+    using DynamicExpressions
+
+    T = Float64
+    x = Node{T}(feature=1)
+    ops = OperatorEnum(binary_operators=[*])
+    expr = x*2
+
+    X = [1.0 floatmax(T)]
+    @test all(isnan.(expr(X, ops)))
+    @test expr(X, ops, early_exit=Val(false)) ≈ [2.0, Inf]
+end
