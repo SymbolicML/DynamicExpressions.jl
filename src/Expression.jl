@@ -2,6 +2,7 @@
 module ExpressionModule
 
 using DispatchDoctor: @unstable
+
 using ..NodeModule: AbstractExpressionNode, Node
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..UtilsModule: Undefined
@@ -17,7 +18,12 @@ import ..NodeUtilsModule:
     has_constants,
     get_constants,
     set_constants!
+import ..EvaluateModule: eval_tree_array, differentiable_eval_tree_array
+import ..EvaluateDerivativeModule: eval_grad_tree_array
+import ..EvaluationHelpersModule: _grad_evaluator
+import ..StringsModule: string_tree, print_tree
 import ..ChainRulesModule: extract_gradient
+import ..SimplifyModule: combine_operators, simplify_tree!
 
 """A wrapper for a named tuple to avoid piracy."""
 struct Metadata{NT<:NamedTuple}
@@ -65,7 +71,7 @@ expression tree (like `Node`) along with associated metadata for evaluation and 
 
 - `tree::N`: The root node of the raw expression tree.
 - `metadata::Metadata{D}`: A named tuple of settings for the expression,
-   such as the operators and variable names.
+    such as the operators and variable names.
 
 # Constructors
 
@@ -278,8 +284,6 @@ function extract_gradient(
     return extract_gradient(gradient.tree, get_tree(ex))
 end
 
-import ..StringsModule: string_tree, print_tree
-
 function string_tree(
     ex::AbstractExpression,
     operators::Union{AbstractOperatorEnum,Nothing}=nothing;
@@ -308,8 +312,6 @@ end
 function Base.show(io::IO, ::MIME"text/plain", ex::AbstractExpression)
     return print(io, string_tree(ex))
 end
-
-import ..EvaluateModule: eval_tree_array, differentiable_eval_tree_array
 
 function max_feature(ex::AbstractExpression)
     return tree_mapreduce(
@@ -342,8 +344,6 @@ function eval_tree_array(
     return eval_tree_array(get_tree(ex), cX, get_operators(ex, operators); kws...)
 end
 
-import ..EvaluateDerivativeModule: eval_grad_tree_array
-
 # skipped (not used much)
 #  - eval_diff_tree_array
 #  - differentiable_eval_tree_array
@@ -357,8 +357,6 @@ function eval_grad_tree_array(
     _validate_input(ex, cX, operators)
     return eval_grad_tree_array(get_tree(ex), cX, get_operators(ex, operators); kws...)
 end
-
-import ..EvaluationHelpersModule: _grad_evaluator
 
 function Base.adjoint(ex::AbstractExpression)
     return ((args...; kws...) -> _grad_evaluator(ex, args...; kws...))
@@ -379,7 +377,5 @@ function (ex::AbstractExpression)(
     _validate_input(ex, X, operators)
     return get_tree(ex)(X, get_operators(ex, operators); kws...)
 end
-
-import ..SimplifyModule: combine_operators, simplify_tree!
 
 end
