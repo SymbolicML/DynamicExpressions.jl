@@ -14,23 +14,27 @@ elseif test_name == "jet"
         set_preferences!("DynamicExpressions", "instability_check" => "disable"; force=true)
         using JET
         using DynamicExpressions
-        if VERSION >= v"1.10"
-            struct MyReport end
-            function JET.configured_reports(
-                ::MyReport, reports::Vector{JET.InferenceErrorReport}
-            )
-                filter!(reports) do report
-                    signature = report.sig
-                    return !any(
-                        x -> occursin("NonDifferentiableDeclarationsModule", string(x)),
-                        signature,
-                    )
-                end
-                return reports
+        struct MyIgnoredModule
+            mod::Module
+        end
+        function JET.match_module(
+            mod::MyIgnoredModule, @nospecialize(report::JET.InferenceErrorReport)
+        )
+            s_mod = string(mod.mod)
+            any(report.vst) do vst
+                occursin(s_mod, string(JET.linfomod(vst.linfo)))
             end
+        end
+        if VERSION >= v"1.10"
             JET.test_package(
-                DynamicExpressions; target_defined_modules=true, report_config=MyReport()
+                DynamicExpressions;
+                target_defined_modules=true,
+                ignored_modules=(
+                    MyIgnoredModule(DynamicExpressions.NonDifferentiableDeclarationsModule),
+                ),
             )
+            # TODO: Hack to get JET to ignore modules
+            # https://github.com/aviatesk/JET.jl/issues/570#issuecomment-2199167755
         end
     end
 elseif test_name == "main"
