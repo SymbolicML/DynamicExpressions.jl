@@ -222,12 +222,16 @@ function eval_grad_tree_array(
         eval_grad_tree_array(tree, n_gradients, nothing, cX, operators, Val(true))
     elseif constant_mode
         index_tree = index_constants(tree)
-        eval_grad_tree_array(tree, n_gradients, index_tree, cX, operators, Val(false))
+        eval_grad_tree_array(
+            tree, n_gradients, index_tree, cX, operators, Val(false)
+        )
     elseif both_mode
         # features come first because we can use size(cX, 1) to skip them
         index_tree = index_constants(tree)
-        eval_grad_tree_array(tree, n_gradients, index_tree, cX, operators, Val(:both))
-    end
+        eval_grad_tree_array(
+            tree, n_gradients, index_tree, cX, operators, Val(:both)
+        )
+    end::ResultOk2
 
     return (result.x, result.dx, result.ok)
 end
@@ -351,7 +355,7 @@ function grad_deg0_eval(
     end
 
     derivative_part = zero_mat
-    derivative_part[index, :] .= one(T)
+    fill!(@view(derivative_part[index, :]), one(T))
     return ResultOk2(const_part, derivative_part, true)
 end
 
