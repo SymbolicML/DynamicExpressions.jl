@@ -1,4 +1,4 @@
-module ExpressionMathModule
+module ExpressionAlgebraModule
 
 using ..NodeModule: AbstractExpressionNode
 using ..ExpressionModule:
