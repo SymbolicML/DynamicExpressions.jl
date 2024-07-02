@@ -16,6 +16,7 @@ using DispatchDoctor: @stable, @unstable
     include("Simplify.jl")
     include("OperatorEnumConstruction.jl")
     include("Expression.jl")
+    include("ExpressionMath.jl")
     include("Random.jl")
     include("Parse.jl")
     include("ParametricExpression.jl")
