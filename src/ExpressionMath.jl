@@ -7,13 +7,14 @@ using ..ExpressionModule:
 for op in (
     :*, :/, :+, :-, :^, :÷, :mod,
     :atan, :atand, :copysign, :flipsign,
-    :&, :|, :⊻, :xor, ://, :\,
+    :&, :|, :⊻, ://, :\,
 )
-    @eval function Base.$op(l::E, r::E) where {E<:AbstractExpression}
+    @eval function Base.$op(l::AbstractExpression, r::AbstractExpression)
+        @assert typeof(r) === typeof(l)
         operators = get_operators(l, nothing)
         op_idx = findfirst(==(Base.$op), operators.binops)
         if op_idx === nothing
-            throw(ArgumentError("Operator $op not found in operators for expression type $E with binary operators $(operators.binops)"))
+            throw(ArgumentError("Operator $op not found in operators for expression type $(typeof(l)) with binary operators $(operators.binops)"))
         end
         return apply_operator(op_idx, (l, r))
     end
@@ -24,7 +25,7 @@ for op in (
     :coth, :asech, :acsch, :acoth, :sinc, :cosc, :cosd, :cotd, :cscd, :secd,
     :sinpi, :cospi, :sind, :tand, :acosd, :acotd, :acscd, :asecd, :asind,
     :log, :log2, :log10, :log1p, :exp, :exp2, :exp10, :expm1, :frexp, :exponent,
-    :float, :abs, :real, :imag, :conj, :adjoint, :unsigned,
+    :float, :abs, :real, :imag, :conj, :unsigned,
     :nextfloat, :prevfloat, :transpose, :significand,
     :modf, :rem, :floor, :ceil, :round, :trunc,
     :inv, :sqrt, :cbrt, :abs2, :angle, :factorial,
