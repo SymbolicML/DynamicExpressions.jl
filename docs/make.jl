@@ -5,22 +5,35 @@ using Random: AbstractRNG
 readme = joinpath(@__DIR__, "..", "README.md")
 
 index_content = let r=read(readme, String)
-    # Clean img tags:
-    r2 = replace(r, r"""<img src="([^"]+)"[^>]*>""" => "![](\1)")
+    # Wrap img tags in raw HTML blocks:
+    r = replace(r, r"(<img\s+[^>]+>)" => s"""
+
+```@raw html
+\1
+```
+
+""")
+    # Remove end img tags:
+    r = replace(r, r"</img>" => "")
     # Remove div tags:
-    r3 = replace(r2, r"<div[^>]*>" => "")
+    r = replace(r, r"<div[^>]*>" => "")
     # Remove end div tags:
-    r4 = replace(r3, r"</div>" => "")
+    r = replace(r, r"</div>" => "")
 
     top_part = """
-    # Contents
+    # Introduction
+
+    """
+
+    bottom_part = """
+    ## Contents
 
     ```@contents
     Pages = ["utils.md", "api.md", "eval.md"]
     ```
     """
 
-    join((top_part, r4), "\n")
+    join((top_part, r, bottom_part), "\n")
 end
 
 index_md = joinpath(@__DIR__, "src", "index.md")
