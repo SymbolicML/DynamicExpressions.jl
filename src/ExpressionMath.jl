@@ -4,8 +4,8 @@ using ..ExpressionModule:
     AbstractExpression, get_operators, get_contents, with_contents, constructorof
 
 function insert_operator_index(
-    op::Integer, nodes::NTuple{num,E}
-) where {num,T,N,E<:AbstractExpression{T,N}}
+    op::Integer, nodes::Tuple{E,Vararg{E}}
+) where {T,N,E<:AbstractExpression{T,N}}
     trees = map(get_contents, nodes)
     output_tree = constructorof(N)(; children=trees, op)
     return with_contents(first(nodes), output_tree)
