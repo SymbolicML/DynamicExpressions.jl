@@ -26,12 +26,20 @@ function insert_operator_index(
     return with_contents(first(_exprs), output_tree)
 end
 
+struct MissingOperatorError
+    msg::String
+end
+
+function Base.showerror(io::IO, e::MissingOperatorError)
+    return print(io, e.msg)
+end
+
 function apply_operator(op::F, l::AbstractExpression) where {F<:Function}
     operators = get_operators(l, nothing)
     op_idx = findfirst(==(op), operators.unaops)
     if op_idx === nothing
         throw(
-            ArgumentError(
+            MissingOperatorError(
                 "Operator $op not found in operators for expression type $(typeof(l)) with unary operators $(operators.unaops)",
             ),
         )
@@ -51,7 +59,7 @@ function apply_operator(op::F, l, r) where {F<:Function}
     op_idx = findfirst(==(op), operators.binops)
     if op_idx === nothing
         throw(
-            ArgumentError(
+            MissingOperatorError(
                 "Operator $op not found in operators for expression type $(typeof(l)) with binary operators $(operators.binops)",
             ),
         )
@@ -90,6 +98,13 @@ macro declare_expression_operator(op, arity)
                     return $(apply_operator)($op, l, r)
                 end
                 function $op(l::AbstractExpression{T}, r::T) where {T}
+                    return $(apply_operator)($op, l, r)
+                end
+                # Convenience methods for Number types
+                function $op(l::Number, r::AbstractExpression{T}) where {T}
+                    return $(apply_operator)($op, l, r)
+                end
+                function $op(l::AbstractExpression{T}, r::Number) where {T}
                     return $(apply_operator)($op, l, r)
                 end
             end,

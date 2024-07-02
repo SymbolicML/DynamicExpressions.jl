@@ -63,10 +63,38 @@ end
 
     ex = parse_expression(:(x + y); binary_operators=[+, *], variable_names=["x", "y"])
 
-    ex2 = 2.0f0 * ex
+    ex2 = 2.0 * ex
+    ex3 = ex * 2.0
+
+    # Works for regular numbers too
+    ex4 = 2 * ex
+    ex5 = ex * 2
 
     shower(ex) = sprint((io, e) -> show(io, MIME"text/plain"(), e), ex)
 
+    @test ex2 isa typeof(ex)
+    @test ex3 isa typeof(ex)
+    @test ex4 isa typeof(ex)
+    @test ex5 isa typeof(ex)
+
     @test shower(ex) == "x + y"
     @test shower(ex2) == "2.0 * (x + y)"
+    @test shower(ex3) == "(x + y) * 2.0"
+    @test shower(ex4) == "2.0 * (x + y)"
+    @test shower(ex5) == "(x + y) * 2.0"
+end
+
+@testitem "Math with missing operators" begin
+    using DynamicExpressions
+    using DynamicExpressions.ExpressionAlgebraModule: MissingOperatorError
+
+    ex = parse_expression(:(x + y); binary_operators=[+, *], variable_names=["x", "y"])
+
+    @test_throws MissingOperatorError cos(ex)
+    @test_throws MissingOperatorError ex / 1.0f0
+    @test_throws MissingOperatorError ex / 1.0
+    @test_throws MissingOperatorError ex / 1
+    @test_throws MissingOperatorError 1.0f0 / ex
+    @test_throws MissingOperatorError 1.0 / ex
+    @test_throws MissingOperatorError 1 / ex
 end
