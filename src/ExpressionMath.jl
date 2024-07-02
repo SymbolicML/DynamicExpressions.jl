@@ -1,14 +1,29 @@
 module ExpressionMathModule
 
+using ..NodeModule: AbstractExpressionNode
 using ..ExpressionModule:
-    AbstractExpression, get_operators, get_contents, with_contents, constructorof
+    AbstractExpression,
+    get_operators,
+    get_contents,
+    get_metadata,
+    with_contents,
+    constructorof
 
 function insert_operator_index(
-    op::Integer, nodes::Tuple{E,Vararg{E}}
-) where {T,N,E<:AbstractExpression{T,N}}
-    trees = map(get_contents, nodes)
-    output_tree = constructorof(N)(; children=trees, op)
-    return with_contents(first(nodes), output_tree)
+    op::Integer, exprs, example_expr::E
+) where {T,N<:AbstractExpressionNode{T},E<:AbstractExpression{T,N}}
+    _exprs = map(exprs) do expr
+        if expr isa AbstractExpression
+            # Assume the contents are an expression; otherwise, this
+            # needs a custom method!
+            expr
+        else
+            expr = with_contents(copy(example_expr), constructorof(N)(T; val=expr)::N)
+        end
+    end
+    trees = map(t -> get_contents(t)::N, _exprs)
+    output_tree = constructorof(N)(; children=trees, op)::N
+    return with_contents(first(_exprs), output_tree)
 end
 
 function apply_operator(op::F, l::AbstractExpression) where {F<:Function}
@@ -21,13 +36,18 @@ function apply_operator(op::F, l::AbstractExpression) where {F<:Function}
             ),
         )
     end
-    return insert_operator_index(op_idx, (l,))
+    return insert_operator_index(op_idx, (l,), l)
 end
-function apply_operator(
-    op::F, l::AbstractExpression, r::AbstractExpression
-) where {F<:Function}
-    @assert typeof(r) === typeof(l)
-    operators = get_operators(l, nothing)
+function apply_operator(op::F, l, r) where {F<:Function}
+    (operators, example_expr) = if l isa AbstractExpression && r isa AbstractExpression
+        @assert typeof(r) === typeof(l)
+        (get_operators(l, nothing), l)
+    elseif l isa AbstractExpression
+        (get_operators(l, nothing), l)
+    else
+        r::AbstractExpression
+        (get_operators(r, nothing), r)
+    end
     op_idx = findfirst(==(op), operators.binops)
     if op_idx === nothing
         throw(
@@ -36,7 +56,7 @@ function apply_operator(
             ),
         )
     end
-    return insert_operator_index(op_idx, (l, r))
+    return insert_operator_index(op_idx, (l, r), example_expr)
 end
 
 """
@@ -64,6 +84,12 @@ macro declare_expression_operator(op, arity)
         return esc(
             quote
                 function $op(l::AbstractExpression, r::AbstractExpression)
+                    return $(apply_operator)($op, l, r)
+                end
+                function $op(l::T, r::AbstractExpression{T}) where {T}
+                    return $(apply_operator)($op, l, r)
+                end
+                function $op(l::AbstractExpression{T}, r::T) where {T}
                     return $(apply_operator)($op, l, r)
                 end
             end,

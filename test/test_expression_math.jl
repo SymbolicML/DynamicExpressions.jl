@@ -57,3 +57,16 @@
         @test (exp(g))([1.0f0; 1.0f0;;])[1] ≈ exp(g([1.0f0; 1.0f0;;])[1])
     end
 end
+
+@testitem "Math with non-expressions" begin
+    using DynamicExpressions
+
+    ex = parse_expression(:(x + y); binary_operators=[+, *], variable_names=["x", "y"])
+
+    ex2 = 2.0f0 * ex
+
+    shower(ex) = sprint((io, e) -> show(io, MIME"text/plain"(), e), ex)
+
+    @test shower(ex) == "x + y"
+    @test shower(ex2) == "2.0 * (x + y)"
+end
