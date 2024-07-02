@@ -4,7 +4,7 @@ using Random: AbstractRNG
 
 readme = joinpath(@__DIR__, "..", "README.md")
 
-index_content = let r=read(readme, String)
+index_content = let r = read(readme, String)
     # Wrap img tags in raw HTML blocks:
     r = replace(r, r"(<img\s+[^>]+>)" => s"""
 
