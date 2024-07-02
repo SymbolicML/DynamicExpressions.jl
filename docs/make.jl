@@ -2,6 +2,32 @@ using Documenter
 using DynamicExpressions
 using Random: AbstractRNG
 
+readme = joinpath(@__DIR__, "..", "README.md")
+
+index_content = let r=read(readme, String)
+    # Clean img tags:
+    r2 = replace(r, r"""<img src="([^"]+)"[^>]*>""" => "![](\1)")
+    # Remove div tags:
+    r3 = replace(r2, r"<div[^>]*>" => "")
+    # Remove end div tags:
+    r4 = replace(r3, r"</div>" => "")
+
+    top_part = """
+    # Contents
+
+    ```@contents
+    Pages = ["utils.md", "api.md", "eval.md"]
+    ```
+    """
+
+    join((top_part, r4), "\n")
+end
+
+index_md = joinpath(@__DIR__, "src", "index.md")
+open(index_md, "w") do f
+    write(f, index_content)
+end
+
 makedocs(;
     sitename="DynamicExpressions.jl",
     authors="Miles Cranmer",
@@ -12,7 +38,6 @@ makedocs(;
 )
 
 # Forward links from old docs:
-
 redirect_page = """
 <!DOCTYPE html>
 <html lang="en">
