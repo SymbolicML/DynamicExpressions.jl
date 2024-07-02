@@ -16,9 +16,11 @@ using DispatchDoctor: @stable, @unstable
     include("Simplify.jl")
     include("OperatorEnumConstruction.jl")
     include("Expression.jl")
+    include("ExpressionMath.jl")
     include("Random.jl")
     include("Parse.jl")
     include("ParametricExpression.jl")
+    include("StructuredExpression.jl")
 end
 
 import PackageExtensionCompat: @require_extensions
@@ -70,9 +72,11 @@ import .NodeModule:
     AbstractExpression, Expression, with_contents, with_metadata, get_contents, get_metadata
 import .ExpressionModule:
     get_tree, get_operators, get_variable_names, Metadata, default_node_type, node_type
+@reexport import .ExpressionMathModule: @declare_expression_operator
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
 @reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode
+@reexport import .StructuredExpressionModule: StructuredExpression
 
 @stable default_mode = "disable" begin
     include("Interfaces.jl")

@@ -50,6 +50,7 @@ using ..ExpressionModule:
     with_metadata,
     default_node_type
 using ..ParametricExpressionModule: ParametricExpression, ParametricNode
+using ..StructuredExpressionModule: StructuredExpression
 
 ###############################################################################
 # ExpressionInterface #########################################################
@@ -187,6 +188,11 @@ ei_description = (
 @implements(
     ExpressionInterface{all_ei_methods_except((:count_constants, :index_constants, :has_constants))},
     ParametricExpression,
+    [Arguments()]
+)
+@implements(
+    ExpressionInterface{all_ei_methods_except(())},
+    StructuredExpression,
     [Arguments()]
 )
 #! format: on

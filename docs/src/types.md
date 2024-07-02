@@ -166,6 +166,16 @@ ParametricExpression
 ParametricNode
 ```
 
+You may use operators directly on `AbstractExpression` objects to create a new object
+containing the combined expression tree, so long as those objects have identical operators
+in their metadata.
+
+To declare a new operator for expressions, you may use:
+
+```@docs
+@declare_expression_operator
+```
+
 ## Interfaces
 
 The interfaces for `AbstractExpression` and `AbstractExpressionNode` are
