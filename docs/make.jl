@@ -34,7 +34,7 @@ redirect_page = """
 """
 
 # Create the types directory and write the redirect page
-types_dir = joinpath("docs", "build", "types")
+types_dir = joinpath(@__DIR__, "build", "types")
 mkpath(types_dir)
 redirect_file = joinpath(types_dir, "index.html")
 open(redirect_file, "w") do f
