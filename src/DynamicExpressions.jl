@@ -72,6 +72,7 @@ import .NodeModule:
     AbstractExpression, Expression, with_contents, with_metadata, get_contents, get_metadata
 import .ExpressionModule:
     get_tree, get_operators, get_variable_names, Metadata, default_node_type, node_type
+@reexport import .ExpressionMathModule: @declare_expression_operator
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
 @reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode
