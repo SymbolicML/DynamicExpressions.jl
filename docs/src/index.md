@@ -2,5 +2,5 @@
 # Contents
 
 ```@contents
-Pages = ["utils.md", "types.md", "eval.md"]
+Pages = ["utils.md", "api.md", "eval.md"]
 ```
