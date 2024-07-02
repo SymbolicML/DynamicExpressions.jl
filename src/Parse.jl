@@ -5,11 +5,7 @@ using DispatchDoctor: @unstable
 using ..NodeModule: AbstractExpressionNode, constructorof
 using ..OperatorEnumModule: AbstractOperatorEnum
 using ..OperatorEnumConstructionModule: OperatorEnum, empty_all_globals!
-using ..ExpressionModule:
-    AbstractExpression,
-    Expression,
-    default_node_type,
-    node_type
+using ..ExpressionModule: AbstractExpression, Expression, default_node_type, node_type
 
 """
     @parse_expression(expr; operators, variable_names, node_type=Node, evaluate_on=[])

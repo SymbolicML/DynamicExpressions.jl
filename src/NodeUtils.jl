@@ -2,12 +2,7 @@ module NodeUtilsModule
 
 import Compat: Returns
 import ..NodeModule:
-    AbstractNode,
-    AbstractExpressionNode,
-    preserve_sharing,
-    tree_mapreduce,
-    any,
-    filter_map
+    AbstractNode, AbstractExpressionNode, preserve_sharing, tree_mapreduce, any, filter_map
 
 """
     count_depth(tree::AbstractNode)::Int

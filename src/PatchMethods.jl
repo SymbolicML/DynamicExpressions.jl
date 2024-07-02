@@ -2,8 +2,7 @@ module PatchMethodsModule
 
 using DynamicExpressions: get_contents, with_contents
 using ..OperatorEnumModule: AbstractOperatorEnum
-using ..NodeModule: constructorof
-using ..ExpressionModule: Expression, get_tree, get_operators
+using ..ExpressionModule: Expression, get_operators
 using ..ParametricExpressionModule: ParametricExpression
 import ..SimplifyModule: combine_operators, simplify_tree!
 

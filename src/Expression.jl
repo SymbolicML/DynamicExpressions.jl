@@ -8,7 +8,7 @@ using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..UtilsModule: Undefined
 using ..ChainRulesModule: NodeTangent
 
-import ..NodeModule: copy_node, set_node!, count_nodes, tree_mapreduce, constructorof
+import ..NodeModule: copy_node, count_nodes, tree_mapreduce, constructorof
 import ..NodeUtilsModule:
     preserve_sharing,
     count_constants,

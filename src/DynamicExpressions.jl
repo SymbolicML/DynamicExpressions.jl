@@ -36,7 +36,8 @@ macro ignore(args...) end
     set_node!,
     tree_mapreduce,
     filter_map,
-    filter_map!
+    filter_map!,
+    count_nodes
 import .NodeModule:
     constructorof,
     with_type_parameters,
@@ -48,7 +49,6 @@ import .NodeModule:
     leaf_equal,
     branch_equal
 @reexport import .NodeUtilsModule:
-    count_nodes,
     count_constants,
     count_depth,
     NodeIndex,

@@ -3,7 +3,7 @@ module InterfacesModule
 
 using Interfaces: Interfaces, @interface, @implements, Arguments
 using DispatchDoctor: @unstable
-using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
+using ..OperatorEnumModule: AbstractOperatorEnum
 using ..NodeModule:
     Node,
     GraphNode,
@@ -19,11 +19,9 @@ using ..NodeModule:
     branch_hash,
     branch_equal,
     tree_mapreduce,
-    copy_node,
     count_nodes,
     set_node!,
-    filter_map,
-    filter_map!
+    filter_map
 using ..NodeUtilsModule:
     NodeIndex,
     is_node_constant,
@@ -35,9 +33,6 @@ using ..NodeUtilsModule:
     get_constants,
     set_constants!
 using ..StringsModule: string_tree
-using ..EvaluateModule: eval_tree_array
-using ..EvaluateDerivativeModule: eval_grad_tree_array
-using ..OperatorEnumConstructionModule: _grad_evaluator
 using ..ExpressionModule:
     Expression,
     AbstractExpression,

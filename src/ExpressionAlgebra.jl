@@ -2,12 +2,7 @@ module ExpressionAlgebraModule
 
 using ..NodeModule: AbstractExpressionNode
 using ..ExpressionModule:
-    AbstractExpression,
-    get_operators,
-    get_contents,
-    get_metadata,
-    with_contents,
-    constructorof
+    AbstractExpression, get_operators, get_contents, with_contents, constructorof
 
 function insert_operator_index(
     op::Integer, exprs, example_expr::E

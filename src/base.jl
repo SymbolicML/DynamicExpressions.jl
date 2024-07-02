@@ -8,8 +8,6 @@ import Base:
     convert,
     copy,
     filter,
-    foldl,
-    foldr,
     foreach,
     hash,
     in,
@@ -17,10 +15,7 @@ import Base:
     iterate,
     length,
     map,
-    mapfoldl,
-    mapfoldr,
     mapreduce,
-    reduce,
     sum
 
 using DispatchDoctor: @unstable
@@ -504,7 +499,7 @@ end
 
 for func in (:reduce, :foldl, :foldr, :mapfoldl, :mapfoldr)
     @eval begin
-        function $func(f, tree::AbstractNode; kws...)
+        function Base.$func(f, tree::AbstractNode; kws...)
             throw(
                 error(
                     string($func) *

@@ -1,9 +1,8 @@
 module StructuredExpressionModule
 
-using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
-using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
+using ..OperatorEnumModule: AbstractOperatorEnum
+using ..NodeModule: AbstractExpressionNode
 using ..ExpressionModule: AbstractExpression, Metadata, node_type
-using ..ChainRulesModule: NodeTangent
 
 import ..ExpressionModule:
     get_contents,
@@ -12,7 +11,6 @@ import ..ExpressionModule:
     get_operators,
     get_variable_names,
     Metadata,
-    default_node_type,
     node_type,
     get_constants,
     set_constants!

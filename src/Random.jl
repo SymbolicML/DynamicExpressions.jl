@@ -2,7 +2,7 @@ module RandomModule
 
 using Compat: Returns, @inline
 using Random: AbstractRNG
-using ..NodeModule: AbstractNode, tree_mapreduce, filter_map
+using ..NodeModule: AbstractNode, filter_map
 using ..ExpressionModule: AbstractExpression, get_tree
 
 import Base: rand

@@ -1,15 +1,8 @@
 module ChainRulesModule
 
-using ChainRulesCore:
-    ChainRulesCore as CRC,
-    AbstractTangent,
-    NoTangent,
-    ZeroTangent,
-    Tangent,
-    @thunk,
-    canonicalize
+using ChainRulesCore: ChainRulesCore as CRC, AbstractTangent, NoTangent, ZeroTangent, @thunk
 using ..OperatorEnumModule: OperatorEnum
-using ..NodeModule: AbstractExpressionNode, with_type_parameters, tree_mapreduce
+using ..NodeModule: AbstractExpressionNode
 using ..EvaluateModule: eval_tree_array
 using ..EvaluateDerivativeModule: eval_grad_tree_array
 

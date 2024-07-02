@@ -3,7 +3,7 @@ module ParametricExpressionModule
 using DispatchDoctor: @stable, @unstable
 using ChainRulesCore: ChainRulesCore as CRC, NoTangent, @thunk
 
-using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
+using ..OperatorEnumModule: AbstractOperatorEnum
 using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
 using ..ExpressionModule: AbstractExpression, Metadata
 using ..ChainRulesModule: NodeTangent
@@ -18,8 +18,6 @@ import ..NodeUtilsModule:
     set_constants!
 import ..StringsModule: string_tree
 import ..EvaluateModule: eval_tree_array
-import ..EvaluateDerivativeModule: eval_grad_tree_array
-import ..EvaluationHelpersModule: _grad_evaluator
 import ..ChainRulesModule: extract_gradient
 import ..ExpressionModule:
     get_contents,
@@ -27,7 +25,6 @@ import ..ExpressionModule:
     get_tree,
     get_operators,
     get_variable_names,
-    max_feature,
     default_node_type
 import ..ParseModule: parse_leaf
 

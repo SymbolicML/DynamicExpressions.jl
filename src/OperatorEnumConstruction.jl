@@ -5,8 +5,7 @@ using DispatchDoctor: @unstable
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
 import ..NodeModule: Node, GraphNode, AbstractExpressionNode, constructorof
 import ..StringsModule: string_tree
-import ..EvaluateModule: eval_tree_array, OPERATOR_LIMIT_BEFORE_SLOWDOWN
-import ..EvaluateDerivativeModule: eval_grad_tree_array, _zygote_gradient
+import ..EvaluateModule: OPERATOR_LIMIT_BEFORE_SLOWDOWN
 import ..EvaluationHelpersModule: _grad_evaluator
 
 """Used to set a default value for `operators` for ease of use."""
