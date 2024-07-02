@@ -1,9 +1,9 @@
 module SimplifyModule
 
-import ..NodeModule: AbstractExpressionNode, constructorof, Node, copy_node, set_node!
+import ..NodeModule: AbstractExpressionNode, constructorof, Node, set_node!
 import ..NodeUtilsModule: tree_mapreduce, is_node_constant
 import ..OperatorEnumModule: AbstractOperatorEnum
-import ..UtilsModule: isbad, isgood
+import ..UtilsModule: isgood
 
 _una_op_kernel(f::F, l::T) where {F,T} = f(l)
 _bin_op_kernel(f::F, l::T, r::T) where {F,T} = f(l, r)

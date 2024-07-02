@@ -2,15 +2,13 @@ module ParseModule
 
 using DispatchDoctor: @unstable
 
-using ..NodeModule: AbstractExpressionNode, Node, constructorof
+using ..NodeModule: AbstractExpressionNode, constructorof
 using ..OperatorEnumModule: AbstractOperatorEnum
 using ..OperatorEnumConstructionModule: OperatorEnum, empty_all_globals!
 using ..ExpressionModule:
     AbstractExpression,
     Expression,
     default_node_type,
-    get_operators,
-    get_variable_names,
     node_type
 
 """

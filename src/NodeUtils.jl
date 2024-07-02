@@ -4,11 +4,7 @@ import Compat: Returns
 import ..NodeModule:
     AbstractNode,
     AbstractExpressionNode,
-    Node,
     preserve_sharing,
-    constructorof,
-    copy_node,
-    count_nodes,
     tree_mapreduce,
     any,
     filter_map
