@@ -82,7 +82,7 @@ function eval_tree_array(
             error("Please load the LoopVectorization.jl package to use this feature.")
     end
     if v_bumper isa Val{true}
-        return bumper_eval_tree_array(tree, cX, operators, v_turbo)
+        return bumper_eval_tree_array(tree, cX, operators, v_turbo, v_early_exit)
     end
 
     result = _eval_tree_array(tree, cX, operators, v_turbo, v_early_exit)
