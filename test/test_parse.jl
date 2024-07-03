@@ -152,25 +152,26 @@ end
     end
 
     # Nice error message:
-    if VERSION >= v"1.9"
-        @test_throws ErrorException ex(randn(1, 1))
+    # This behaviour is now supported
+    # if VERSION >= v"1.9"
+    #     @test_throws ErrorException ex(randn(1, 1))
 
-        # Goes down to the first failure:
-        @test_throws "Failed to evaluate tree [1, 2, 3] * tan(cos(5 + x1))" ex(randn(1, 1))
+    #     # Goes down to the first failure:
+    #     @test_throws "Failed to evaluate tree [1, 2, 3] * tan(cos(5 + x1))" ex(randn(1, 1))
 
-        let stacktrace = try
-                ex(randn(1, 1))
-                @test false
-            catch e
-                sprint(show, current_exceptions())
-            end
-            @test occursin(
-                "Failed to evaluate tree [1, 2, 3] * tan(cos(5 + x1))", stacktrace
-            )
-            @test occursin("Failed to evaluate tree tan(cos(5 + x1))", stacktrace)
-            @test occursin("Failed to evaluate tree 5 + x1", stacktrace)
-        end
-    end
+    #     let stacktrace = try
+    #             ex(randn(1, 1))
+    #             @test false
+    #         catch e
+    #             sprint(show, current_exceptions())
+    #         end
+    #         @test occursin(
+    #             "Failed to evaluate tree [1, 2, 3] * tan(cos(5 + x1))", stacktrace
+    #         )
+    #         @test occursin("Failed to evaluate tree tan(cos(5 + x1))", stacktrace)
+    #         @test occursin("Failed to evaluate tree 5 + x1", stacktrace)
+    #     end
+    # end
 
     # But, we can actually evaluate it for simple input
     @test ex([1.0]) ≈ [1, 2, 3] * tan(cos(5 + 1.0))

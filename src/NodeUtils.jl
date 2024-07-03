@@ -12,6 +12,8 @@ import ..NodeModule:
     tree_mapreduce,
     any,
     filter_map
+import ..TypeInterfaceModule:
+    append_number_constants!, pop_number_constants, count_number_constants, get_number_type
 
 """
     count_depth(tree::AbstractNode)::Int
@@ -69,17 +71,44 @@ whether it depends on input features.
 is_constant(tree::AbstractExpressionNode) = all(t -> t.degree != 0 || t.constant, tree)
 
 """
-    get_constants(tree::AbstractExpressionNode{T})::Vector{T} where {T}
+    count_number_constants(tree::AbstractExpressionNode{T})::Int64 where {T}
 
-Get all the constants inside a tree, in depth-first order.
+Returns the number of number constants in the tree.
+Used in get_constants to preallocate the constants array.
+"""
+function count_number_constants(tree::AbstractExpressionNode{T}) where {T}
+    return tree_mapreduce(
+        node -> is_node_constant(node) ? count_number_constants(node.val) : 0,
+        +,
+        tree,
+        Int64;
+        f_on_shared=(c, is_shared) -> is_shared ? 0 : c,
+    )
+end
+
+"""
+    get_constants(tree::AbstractExpressionNode{T}, BT::Type = T)::Vector{T} where {T}
+
+Get all the number constants inside a tree, in depth-first order.
 The function `set_constants!` sets them in the same order,
 given the output of this function.
 Also return metadata that can will be used in the `set_constants!` function.
 """
-function get_constants(tree::AbstractExpressionNode{T}) where {T}
+function get_constants(
+    tree::AbstractExpressionNode{T}, BT::Type=get_number_type(T)
+) where {T}
     refs = filter_map(is_node_constant, node -> Ref(node), tree, Ref{typeof(tree)})
-    return map(ref -> ref[].val::T, refs), refs
-    # NOTE: Do not remove this `::T` as it is required for inference on empty collections
+    if T <: Number
+        # NOTE: Do not remove this `::T` as it is required for inference on empty collections
+        return map(r -> r[].val::T, refs), refs
+    else
+        vals = BT[]
+        sizehint!(vals, count_number_constants(tree))
+        for i in eachindex(refs)
+            append_number_constants!(vals, refs[i][].val::T)
+        end
+        return vals, refs
+    end
 end
 
 """
@@ -89,8 +118,22 @@ Set the constants in a tree, in depth-first order. The function
 `get_constants` gets them in the same order.
 """
 function set_constants!(tree::AbstractExpressionNode{T}, constants, refs) where {T}
-    @inbounds for i in eachindex(refs, constants)
-        refs[i][].val = constants[i]
+    if T <: Number
+        @inbounds for i in eachindex(refs, constants)
+            refs[i][].val = constants[i]
+        end
+    else
+        nums_i = 1
+        refs_i = 1
+        while nums_i <= length(constants) && refs_i <= length(refs)
+            v, ix = pop_number_constants(constants, refs[refs_i][].val::T, nums_i)
+            refs[refs_i][].val = v
+            nums_i = ix
+            refs_i += 1
+        end
+        if nums_i <= length(constants) || refs_i <= length(refs)
+            @warn "set_constants failed due to bad pop_number_constants"
+        end
     end
     return tree
 end

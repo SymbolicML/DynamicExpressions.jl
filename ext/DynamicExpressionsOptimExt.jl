@@ -6,7 +6,8 @@ using DynamicExpressions:
     filter_map,
     eval_tree_array,
     get_constants,
-    set_constants!
+    set_constants!,
+    get_number_type
 using Compat: @inline
 
 import Optim: Optim, OptimizationResults, NLSolversBase
@@ -47,6 +48,11 @@ function wrap_func(
         set_constants!(tree, x, refs)
         return @inline(f(first_args..., tree))
     end
+    # without first args, it looks like this
+    # function wrapped_f(x)
+    #     set_constants!(tree, x, refs)
+    #     return @inline(f(tree))
+    # end
     return wrapped_f
 end
 function wrap_func(
@@ -100,6 +106,7 @@ function Optim.optimize(
     if make_copy
         tree = copy(tree)
     end
+
     x0, refs = get_constants(tree)
     if !isnothing(h!)
         throw(

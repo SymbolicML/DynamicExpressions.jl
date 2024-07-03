@@ -1,28 +1,35 @@
 
 using DynamicExpressions
-using DynamicExpressions: Node, @extend_operators, OperatorEnum
+using DynamicExpressions:
+    Node,
+    @extend_operators,
+    OperatorEnum,
+    get_constants,
+    append_number_constants!,
+    pop_number_constants,
+    count_number_constants
 
-# SVM (scalar, vector, matrix) - struct that contains all three datatypes
-struct SVM{T}
-    dims::Int8 # number of dimmentions
+# Max2Tensor (Tensor with a maximum of 3 dimensions) - struct that contains all three datatypes
+struct Max2Tensor{T}
+    dims::UInt8 # number of dimmentions
     scalar::T
     vector::Vector{T}
     matrix::Matrix{T}
-    SVM{T}() where {T} = new(Int8(0), zero(T), T[], Array{T,2}(undef, 0, 0))
-    function SVM{T}(scalar::W) where {T,W<:Number}
+    Max2Tensor{T}() where {T} = new(Int8(0), zero(T), T[], Array{T,2}(undef, 0, 0))
+    function Max2Tensor{T}(scalar::W) where {T,W<:Number}
         return new(Int8(0), Base.convert(T, scalar), T[], Array{T,2}(undef, 0, 0))
     end
-    function SVM{T}(vector::Vector{W}) where {T,W<:Number}
+    function Max2Tensor{T}(vector::Vector{W}) where {T,W<:Number}
         return new(Int8(1), zero(T), Vector{T}(vector), Array{T,2}(undef, 0, 0))
     end
-    function SVM{T}(matrix::Matrix{W}) where {T,W<:Number}
+    function Max2Tensor{T}(matrix::Matrix{W}) where {T,W<:Number}
         return new(Int8(2), zero(T), T[], Matrix{T}(matrix))
     end
 end
 
 using DynamicExpressions: is_valid, is_valid_array
 
-function DynamicExpressions.is_valid(val::T) where {Q<:Number,T<:SVM{Q}}
+function DynamicExpressions.is_valid(val::T) where {Q<:Number,T<:Max2Tensor{Q}}
     if val.dims == 0
         is_valid(val.scalar)
     elseif val.dims == 1
@@ -32,7 +39,7 @@ function DynamicExpressions.is_valid(val::T) where {Q<:Number,T<:SVM{Q}}
     end
 end
 
-function Base.:(==)(x::SVM{T}, y::SVM{T}) where {T}
+function Base.:(==)(x::Max2Tensor{T}, y::Max2Tensor{T}) where {T}
     if x.dims !== y.dims
         return false
     elseif x.dims == 0
@@ -44,29 +51,110 @@ function Base.:(==)(x::SVM{T}, y::SVM{T}) where {T}
     end
 end
 
+function DynamicExpressions.count_number_constants(val::T) where {BT,T<:Max2Tensor{BT}}
+    if val.dims == 0
+        return 1
+    elseif val.dims == 1
+        return length(val.vector)
+    elseif val.dims == 2
+        return length(val.matrix)
+    end
+end
+
+function DynamicExpressions.append_number_constants!(
+    nvals::AbstractVector{BT}, val::T
+) where {BT<:Number,T<:Max2Tensor{BT}}
+    if val.dims == 0
+        push!(nvals, val.scalar)
+    elseif val.dims == 1
+        append!(nvals, val.vector)
+    elseif val.dims == 2
+        append!(nvals, val.matrix)
+    end
+end
+
+function DynamicExpressions.pop_number_constants(
+    nvals::AbstractVector{BT}, val::T, idx::Int64
+)::Tuple{T,Int64} where {BT<:Number,T<:Max2Tensor{BT}}
+    if val.dims == 0
+        T(nvals[idx]), idx + 1
+    elseif val.dims == 1
+        T(nvals[idx:(idx + length(val.vector) - 1)]), idx + length(val.vector)
+    elseif val.dims == 2
+        T(reshape(nvals[idx:(idx + length(val.matrix) - 1)], size(val.matrix))),
+        idx + length(val.matrix)
+    end
+end
+
 # testing is_valid functions
-@test is_valid(SVM{Float64}())
-@test !is_valid(SVM{Float64}(NaN))
-@test is_valid_array([SVM{Float64}(1), SVM{Float64}([1, 2, 3])])
+@test is_valid(Max2Tensor{Float64}())
+@test !is_valid(Max2Tensor{Float64}(NaN))
+@test is_valid_array([Max2Tensor{Float64}(1), Max2Tensor{Float64}([1, 2, 3])])
 
 # dummy operators
-q(x::SVM{T}) where {T} = SVM{T}(x.scalar)
-a(x::SVM{T}, y::SVM{T}) where {T} = SVM{T}(x.scalar + y.scalar)
+q(x::Max2Tensor{T}) where {T} = Max2Tensor{T}(x.scalar)
+a(x::Max2Tensor{T}, y::Max2Tensor{T}) where {T} = Max2Tensor{T}(x.scalar + y.scalar)
 
 operators = OperatorEnum(; binary_operators=[a], unary_operators=[q])
-@extend_operators(operators, on_type = SVM{Float64})
+@extend_operators(operators, on_type = Max2Tensor{Float64})
 
 Base.invokelatest(
     () -> begin
 
         # test operator extended operators
-        @test hasmethod(q, Tuple{Node{SVM{Float64}}})
-        @test hasmethod(a, Tuple{SVM{Float64},Node{SVM{Float64}}})
-        @test hasmethod(a, Tuple{Node{SVM{Float64}},Node{SVM{Float64}}})
-        @test !hasmethod(a, Tuple{Node{SVM{Float32}},Node{SVM{Float32}}})
+        @test hasmethod(q, Tuple{Node{Max2Tensor{Float64}}})
+        @test hasmethod(a, Tuple{Max2Tensor{Float64},Node{Max2Tensor{Float64}}})
+        @test hasmethod(a, Tuple{Node{Max2Tensor{Float64}},Node{Max2Tensor{Float64}}})
+        @test !hasmethod(a, Tuple{Float64,Node{Float64}})
+        @test !hasmethod(a, Tuple{Node{Max2Tensor{Float32}},Node{Max2Tensor{Float32}}})
 
-        tree = a(Node{SVM{Float64}}(; feature=1), SVM{Float64}(3.0))
-        results = tree([SVM{Float64}(1.0) SVM{Float64}(2.0) SVM{Float64}(3.0)])
-        @test results == [SVM{Float64}(4), SVM{Float64}(5), SVM{Float64}(6)]
-    end
+        tree = a(Node{Max2Tensor{Float64}}(; feature=1), Max2Tensor{Float64}(3.0))
+        results = tree(
+            [Max2Tensor{Float64}(1.0) Max2Tensor{Float64}(2.0) Max2Tensor{Float64}(3.0)]
+        )
+        @test results ==
+            [Max2Tensor{Float64}(4), Max2Tensor{Float64}(5), Max2Tensor{Float64}(6)]
+
+        c1 = Node(Max2Tensor{Float64}; val=Max2Tensor{Float64}([1, 2, 3]))
+        c2 = Node(Max2Tensor{Float64}; val=Max2Tensor{Float64}(4))
+        c3 = Node(Max2Tensor{Float64}; val=Max2Tensor{Float64}(5))
+        c4 = Node(Max2Tensor{Float64}; val=Max2Tensor{Float64}([6 7 8; 9 10 11; 12 13 14]))
+        c5 = Node(Max2Tensor{Float64}; val=Max2Tensor{Float64}(15))
+        c6 = Node(Max2Tensor{Float64}; val=Max2Tensor{Float64}([16, 17, 18]))
+        x1 = Node(Max2Tensor{Float64}; feature=1)
+        x2 = Node(Max2Tensor{Float64}; feature=2)
+        x3 = Node(Max2Tensor{Float64}; feature=3)
+        x4 = Node(Max2Tensor{Float64}; feature=4)
+        x5 = Node(Max2Tensor{Float64}; feature=5)
+        x6 = Node(Max2Tensor{Float64}; feature=6)
+        tree = a(
+            a(a(a(x1, c1), q(a(x2, c2))), q(a(x3, c3))),
+            q(a(a(q(a(x4, c4)), a(x5, c5)), q(a(x6, c6)))),
+        )
+
+        constants, refs = get_constants(tree, Float64)
+        # matrix is put into the array by columns
+        @test constants == [
+            1.0,
+            2.0,
+            3.0,
+            4.0,
+            5.0,
+            6.0,
+            9.0,
+            12.0,
+            7.0,
+            10.0,
+            13.0,
+            8.0,
+            11.0,
+            14.0,
+            15.0,
+            16.0,
+            17.0,
+            18.0,
+        ]
+        set_constants!(tree, constants .+ 5.0, refs)
+        @test get_constants(tree, Float64)[1] == constants .+ 5.0
+    end,
 )

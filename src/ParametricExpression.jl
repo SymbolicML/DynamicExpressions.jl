@@ -27,6 +27,8 @@ import ..ExpressionModule:
     max_feature,
     default_node_type
 import ..ParseModule: parse_leaf
+import ..TypeInterfaceModule:
+    count_number_constants, append_number_constants!, pop_number_constants
 
 """A type of expression node that also stores a parameter index"""
 mutable struct ParametricNode{T} <: AbstractExpressionNode{T}
@@ -198,20 +200,41 @@ has_constants(ex::ParametricExpression) = _interface_error()
 #! format: on
 
 has_operators(ex::ParametricExpression) = has_operators(get_tree(ex))
+
+function get_constants_array(parameter_refs, BT)
+    size = sum(count_number_constants, parameter_refs)
+    flat = BT[]
+    sizehint!(flat, size)
+    for p in parameter_refs[:]
+        append_number_constants!(flat, p)
+    end
+    return flat
+end
+
+function set_constants_array(parameter_refs, flat)
+    ix, i = 1, 1
+    while ix <= length(flat) && i <= length(parameter_refs)
+        parameter_refs[i], ix = pop_number_constants(flat, parameter_refs[i], ix)
+        i += 1
+    end
+end
+
 function get_constants(ex::ParametricExpression{T}) where {T}
     constants, constant_refs = get_constants(get_tree(ex))
     parameters = ex.metadata.parameters
-    flat_parameters = parameters[:]
+    paramaters_numbers = get_constants_array(parameters, eltype(constants))
     num_constants = length(constants)
-    num_parameters = length(flat_parameters)
-    return vcat(constants, flat_parameters),
+    num_parameters = length(paramaters_numbers)
+    return vcat(constants, paramaters_numbers),
     (; constant_refs, parameter_refs=parameters, num_parameters, num_constants)
 end
 function set_constants!(ex::ParametricExpression{T}, x, refs) where {T}
     # First, set the usual constants
     set_constants!(get_tree(ex), @view(x[1:(refs.num_constants)]), refs.constant_refs)
     # Then, copy in the parameters
-    ex.metadata.parameters[:] .= @view(x[(refs.num_constants + 1):end])
+    set_constants_array(
+        @view(ex.metadata.parameters[:]), @view(x[(refs.num_constants + 1):end])
+    )
     return ex
 end
 

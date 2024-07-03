@@ -74,7 +74,13 @@ import .ExpressionModule:
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
 @reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode
-@reexport import .TypeInterfaceModule: is_valid, is_valid_array
+@reexport import .TypeInterfaceModule:
+    is_valid,
+    is_valid_array,
+    get_number_type,
+    append_number_constants!,
+    pop_number_constants,
+    count_number_constants
 
 @stable default_mode = "disable" begin
     include("Interfaces.jl")
