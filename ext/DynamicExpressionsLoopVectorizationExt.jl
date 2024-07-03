@@ -203,11 +203,15 @@ function deg2_r0_eval(
 end
 
 ## Interface with Bumper.jl
-function bumper_kern1!(op::F, cumulator, ::Val{true}, ::Val{early_exit}) where {F,early_exit}
+function bumper_kern1!(
+    op::F, cumulator, ::Val{true}, ::Val{early_exit}
+) where {F,early_exit}
     @turbo @. cumulator = op(cumulator)
     return cumulator
 end
-function bumper_kern2!(op::F, cumulator1, cumulator2, ::Val{true}, ::Val{early_exit}) where {F,early_exit}
+function bumper_kern2!(
+    op::F, cumulator1, cumulator2, ::Val{true}, ::Val{early_exit}
+) where {F,early_exit}
     @turbo @. cumulator1 = op(cumulator1, cumulator2)
     return cumulator1
 end

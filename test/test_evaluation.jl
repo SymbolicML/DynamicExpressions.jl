@@ -223,30 +223,31 @@ end
     using DynamicExpressions
 
     T = Float16
-    ex = @parse_expression(2*x, binary_operators=[*], variable_names=["x"], node_type=Node{T})
+    ex = @parse_expression(
+        2 * x, binary_operators = [*], variable_names = ["x"], node_type = Node{T}
+    )
     X = T[1.0 floatmax(T)]
     @test all(isnan.(ex(X)))
-    @test ex(X, early_exit=Val(false)) ≈ [2.0, Inf]
-
+    @test ex(X; early_exit=Val(false)) ≈ [2.0, Inf]
 
     for turbo in [Val(false), Val(true)],
         T in [Float32, Float64],
         bumper in [Val(false), Val(true)]
 
         ex = @parse_expression(
-            (-b - sqrt(b^2 - (4*a)*c)) / (2*c),
-            binary_operators=[-,*,/,^],
-            unary_operators=[-,sqrt],
-            variable_names=["a", "b", "c"],
-            node_type=Node{T}
+            (-b - sqrt(b^2 - (4 * a) * c)) / (2 * c),
+            binary_operators = [-, *, /, ^],
+            unary_operators = [-, sqrt],
+            variable_names = ["a", "b", "c"],
+            node_type = Node{T}
         )
         X = T[
-            -1 -1;
-             1  floatmax(T);
-             1  1;
+            -1 -1
+            1 floatmax(T)
+            1 1
         ]
-        y = 
-        @test all(isnan.(ex(X, bumper=bumper, turbo=turbo)))
-        @test ex(X, bumper=bumper, turbo=turbo, early_exit=Val(false)) ≈ T[-1.618033988749895, -Inf]
+        y = @test all(isnan.(ex(X; bumper=bumper, turbo=turbo)))
+        @test ex(X; bumper=bumper, turbo=turbo, early_exit=Val(false)) ≈
+            T[-1.618033988749895, -Inf]
     end
 end

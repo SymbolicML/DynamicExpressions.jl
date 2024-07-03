@@ -12,7 +12,7 @@ function bumper_eval_tree_array(
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     ::Val{turbo},
-    ::Val{early_exit}
+    ::Val{early_exit},
 ) where {T,turbo,early_exit}
     result = similar(cX, axes(cX, 2))
     n = size(cX, 2)
@@ -49,10 +49,14 @@ function bumper_eval_tree_array(
     return (result, all_ok[])
 end
 
-function dispatch_kerns!(operators, branch_node, cumulator, ::Val{turbo}, ::Val{early_exit}) where {turbo,early_exit}
+function dispatch_kerns!(
+    operators, branch_node, cumulator, ::Val{turbo}, ::Val{early_exit}
+) where {turbo,early_exit}
     cumulator.ok || return cumulator
 
-    out = dispatch_kern1!(operators.unaops, branch_node.op, cumulator.x, Val(turbo), Val(early_exit))
+    out = dispatch_kern1!(
+        operators.unaops, branch_node.op, cumulator.x, Val(turbo), Val(early_exit)
+    )
     return early_exit ? ResultOk(out, !is_bad_array(out)) : ResultOk(out, true)
 end
 function dispatch_kerns!(
@@ -62,12 +66,19 @@ function dispatch_kerns!(
     cumulator2.ok || return cumulator2
 
     out = dispatch_kern2!(
-        operators.binops, branch_node.op, cumulator1.x, cumulator2.x, Val(turbo), Val(early_exit)
+        operators.binops,
+        branch_node.op,
+        cumulator1.x,
+        cumulator2.x,
+        Val(turbo),
+        Val(early_exit),
     )
     return early_exit ? ResultOk(out, !is_bad_array(out)) : ResultOk(out, true)
 end
 
-@generated function dispatch_kern1!(unaops, op_idx, cumulator, ::Val{turbo}, ::Val{early_exit}) where {turbo,early_exit}
+@generated function dispatch_kern1!(
+    unaops, op_idx, cumulator, ::Val{turbo}, ::Val{early_exit}
+) where {turbo,early_exit}
     nuna = counttuple(unaops)
     quote
         Base.@nif(
@@ -94,11 +105,15 @@ end
     end
 end
 # FIXME: keeping the early_exit parameter for readability... should it be removed?
-function bumper_kern1!(op::F, cumulator, ::Val{false}, ::Val{early_exit}) where {F,early_exit}
+function bumper_kern1!(
+    op::F, cumulator, ::Val{false}, ::Val{early_exit}
+) where {F,early_exit}
     @. cumulator = op(cumulator)
     return cumulator
 end
-function bumper_kern2!(op::F, cumulator1, cumulator2, ::Val{false}, ::Val{early_exit}) where {F,early_exit}
+function bumper_kern2!(
+    op::F, cumulator1, cumulator2, ::Val{false}, ::Val{early_exit}
+) where {F,early_exit}
     @. cumulator1 = op(cumulator1, cumulator2)
     return cumulator1
 end

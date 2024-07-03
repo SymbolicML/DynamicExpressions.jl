@@ -197,22 +197,30 @@ end
                 if tree.l.degree == 0 && tree.r.degree == 0
                     deg2_l0_r0_eval(tree, cX, op, Val(turbo))
                 elseif tree.r.degree == 0
-                    result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo), Val(early_exit))
+                    result_l = _eval_tree_array(
+                        tree.l, cX, operators, Val(turbo), Val(early_exit)
+                    )
                     !result_l.ok && return result_l
                     early_exit && @return_on_nonfinite_array result_l.x
                     # op(x, y), where y is a constant or variable but x is not.
                     deg2_r0_eval(tree, result_l.x, cX, op, Val(turbo))
                 elseif tree.l.degree == 0
-                    result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo), Val(early_exit))
+                    result_r = _eval_tree_array(
+                        tree.r, cX, operators, Val(turbo), Val(early_exit)
+                    )
                     !result_r.ok && return result_r
                     early_exit && @return_on_nonfinite_array result_r.x
                     # op(x, y), where x is a constant or variable but y is not.
                     deg2_l0_eval(tree, result_r.x, cX, op, Val(turbo))
                 else
-                    result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo), Val(early_exit))
+                    result_l = _eval_tree_array(
+                        tree.l, cX, operators, Val(turbo), Val(early_exit)
+                    )
                     !result_l.ok && return result_l
                     early_exit && @return_on_nonfinite_array result_l.x
-                    result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo), Val(early_exit))
+                    result_r = _eval_tree_array(
+                        tree.r, cX, operators, Val(turbo), Val(early_exit)
+                    )
                     !result_r.ok && return result_r
                     early_exit && @return_on_nonfinite_array result_r.x
                     # op(x, y), for any x or y
@@ -261,7 +269,9 @@ end
                     )
                 else
                     # op(x), for any x.
-                    result = _eval_tree_array(tree.l, cX, operators, Val(turbo), Val(early_exit))
+                    result = _eval_tree_array(
+                        tree.l, cX, operators, Val(turbo), Val(early_exit)
+                    )
                     !result.ok && return result
                     early_exit && @return_on_nonfinite_array result.x
                     deg1_eval(result.x, op, Val(turbo))
