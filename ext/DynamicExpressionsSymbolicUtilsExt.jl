@@ -111,7 +111,7 @@ end
 function Base.convert(
     ::typeof(SymbolicUtils.Symbolic),
     tree::Union{AbstractExpression,AbstractExpressionNode},
-    operators::AbstractOperatorEnum;
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     variable_names::Union{Array{String,1},Nothing}=nothing,
     index_functions::Bool=false,
     # Deprecated:
@@ -119,7 +119,10 @@ function Base.convert(
 )
     variable_names = deprecate_varmap(variable_names, varMap, :convert)
     return node_to_symbolic(
-        tree, operators; variable_names=variable_names, index_functions=index_functions
+        tree,
+        get_operators(tree, operators);
+        variable_names=variable_names,
+        index_functions=index_functions,
     )
 end
 
