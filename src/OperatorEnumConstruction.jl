@@ -123,7 +123,7 @@ function empty_all_globals!(; force=true)
     return nothing
 end
 
-function _extend_unary_operator(f::Symbol, type_requirements, internal)
+function _extend_unary_operator(f_inside::Symbol, f_outside::Symbol, type_requirements, internal)
     quote
         @gensym _constructorof _AbstractExpressionNode
         quote
@@ -136,13 +136,13 @@ function _extend_unary_operator(f::Symbol, type_requirements, internal)
                     AbstractExpressionNode as $_AbstractExpressionNode
             end
 
-            function $($f)(
+            function $($f_outside)(
                 l::N
             ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
                 return if (l.degree == 0 && l.constant)
-                    $_constructorof(N)(T; val=$($f)(l.val))
+                    $_constructorof(N)(T; val=$($f_inside)(l.val))
                 else
-                    latest_op_idx = $($lookup_op)($($f), Val(1))
+                    latest_op_idx = $($lookup_op)($($f_inside), Val(1))
                     $_constructorof(N)(; op=latest_op_idx, l)
                 end
             end
@@ -150,7 +150,7 @@ function _extend_unary_operator(f::Symbol, type_requirements, internal)
     end
 end
 
-function _extend_binary_operator(f::Symbol, type_requirements, build_converters, internal)
+function _extend_binary_operator(f_inside::Symbol, f_outside::Symbol, type_requirements, build_converters, internal)
     quote
         @gensym _constructorof _AbstractExpressionNode
         quote
@@ -163,35 +163,35 @@ function _extend_binary_operator(f::Symbol, type_requirements, build_converters,
                     AbstractExpressionNode as $_AbstractExpressionNode
             end
 
-            function $($f)(
+            function $($f_outside)(
                 l::N, r::N
             ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
                 if (l.degree == 0 && l.constant && r.degree == 0 && r.constant)
-                    $_constructorof(N)(T; val=$($f)(l.val, r.val))
+                    $_constructorof(N)(T; val=$($f_inside)(l.val, r.val))
                 else
-                    latest_op_idx = $($lookup_op)($($f), Val(2))
+                    latest_op_idx = $($lookup_op)($($f_inside), Val(2))
                     $_constructorof(N)(; op=latest_op_idx, l, r)
                 end
             end
-            function $($f)(
+            function $($f_outside)(
                 l::N, r::T
             ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
                 if l.degree == 0 && l.constant
-                    $_constructorof(N)(T; val=$($f)(l.val, r))
+                    $_constructorof(N)(T; val=$($f_inside)(l.val, r))
                 else
-                    latest_op_idx = $($lookup_op)($($f), Val(2))
+                    latest_op_idx = $($lookup_op)($($f_inside), Val(2))
                     $_constructorof(N)(;
                         op=latest_op_idx, l, r=$_constructorof(N)(T; val=r)
                     )
                 end
             end
-            function $($f)(
+            function $($f_outside)(
                 l::T, r::N
             ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
                 if r.degree == 0 && r.constant
-                    $_constructorof(N)(T; val=$($f)(l, r.val))
+                    $_constructorof(N)(T; val=$($f_inside)(l, r.val))
                 else
-                    latest_op_idx = $($lookup_op)($($f), Val(2))
+                    latest_op_idx = $($lookup_op)($($f_inside), Val(2))
                     $_constructorof(N)(;
                         op=latest_op_idx, l=$_constructorof(N)(T; val=l), r
                     )
@@ -199,7 +199,7 @@ function _extend_binary_operator(f::Symbol, type_requirements, build_converters,
             end
             if $($build_converters)
                 # Converters:
-                function $($f)(
+                function $($f_outside)(
                     l::$_AbstractExpressionNode{T1}, r::$_AbstractExpressionNode{T2}
                 ) where {T1<:$($type_requirements),T2<:$($type_requirements)}
                     if l isa GraphNode || r isa GraphNode
@@ -208,18 +208,18 @@ function _extend_binary_operator(f::Symbol, type_requirements, build_converters,
                             "Please convert to a common type first.",
                         )
                     end
-                    return $($f)(promote(l, r)...)
+                    return $($f_outside)(promote(l, r)...)
                 end
 
-                function $($f)(
+                function $($f_outside)(
                     l::$_AbstractExpressionNode{T1}, r::T2
                 ) where {T1<:$($type_requirements),T2<:$($type_requirements)}
-                    return $($f)(l, convert(T1, r))
+                    return $($f_outside)(l, convert(T1, r))
                 end
-                function $($f)(
+                function $($f_outside)(
                     l::T1, r::$_AbstractExpressionNode{T2}
                 ) where {T1<:$($type_requirements),T2<:$($type_requirements)}
-                    return $($f)(convert(T2, l), r)
+                    return $($f_outside)(convert(T2, l), r)
                 end
             end
         end
@@ -258,9 +258,9 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
         false
     end
 
-    @gensym f skip type_requirements build_converters binary_exists unary_exists
-    binary_ex = _extend_binary_operator(f, type_requirements, build_converters, internal)
-    unary_ex = _extend_unary_operator(f, type_requirements, internal)
+    @gensym f_inside f_outside skip type_requirements build_converters binary_exists unary_exists
+    binary_ex = _extend_binary_operator(f_inside, f_outside, type_requirements, build_converters, internal)
+    unary_ex = _extend_unary_operator(f_inside, f_outside, type_requirements, internal)
     return quote
         local $type_requirements
         local $build_converters
@@ -311,14 +311,15 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
             empty!($(LATEST_UNARY_OPERATOR_MAPPING))
         end
         for (op, func) in enumerate($(operators).binops)
-            local $f = Symbol(func)
+            local $f_outside = typeof(func) <: Broadcast.BroadcastFunction ? Symbol(func.f) : Symbol(func)
+            local $f_inside = typeof(func) <: Broadcast.BroadcastFunction ? :(Broadcast.BroadcastFunction($(func.f))) : Symbol(func)
             local $skip = false
-            if isdefined(Base, $f)
-                $f = :(Base.$($f))
+            if isdefined(Base, $f_outside)
+                $f_outside = :(Base.$($f_outside))
             elseif $(skip_user_operators)
                 $skip = true
             else
-                $f = :($($__module__).$($f))
+                $f_outside = :($($__module__).$($f_outside))
             end
             $(LATEST_BINARY_OPERATOR_MAPPING)[func] = op
             $skip && continue
@@ -329,14 +330,15 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
             end
         end
         for (op, func) in enumerate($(operators).unaops)
-            local $f = Symbol(func)
+            local $f_outside = typeof(func) <: Broadcast.BroadcastFunction ? Symbol(func.f) : Symbol(func)
+            local $f_inside = typeof(func) <: Broadcast.BroadcastFunction ? :(Broadcast.BroadcastFunction($(func.f))) : Symbol(func)
             local $skip = false
-            if isdefined(Base, $f)
-                $f = :(Base.$($f))
+            if isdefined(Base, $f_outside)
+                $f_outside = :(Base.$($f_outside))
             elseif $(skip_user_operators)
                 $skip = true
             else
-                $f = :($($__module__).$($f))
+                $f_outside = :($($__module__).$($f_outside))
             end
             $(LATEST_UNARY_OPERATOR_MAPPING)[func] = op
             $skip && continue
@@ -367,6 +369,16 @@ macro extend_operators(operators, kws...)
         quote
             if !isa($(operators), $expected_type)
                 error("You must pass an operator enum to `@extend_operators`.")
+            end
+            for bo in $(operators).unaops
+                !(typeof(bo) <: Broadcast.BroadcastFunction) && continue
+                !(bo.f in $(operators).unaops) && continue
+                error("Usage of both broadcasted and unboradcasted operator " * string(bo.f) * " is ambiguous")
+            end
+            for bo in $(operators).binops
+                !(typeof(bo) <: Broadcast.BroadcastFunction) && continue
+                !(bo.f in $(operators).binops) && continue
+                error("Usage of both broadcasted and unboradcasted operator " * string(bo.f) * " is ambiguous")
             end
             $ex
         end,
