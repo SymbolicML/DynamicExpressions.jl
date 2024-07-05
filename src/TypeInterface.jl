@@ -11,7 +11,9 @@ is_valid_array(x::AbstractArray{T}) where {T} = all(is_valid, x) #=::Bool=#
 @inline is_valid_array(x::AbstractArray{T}) where {T<:Number} = is_valid(sum(x)) # Fastest way to check for NaN in an array.
 
 # Obtain the underlying number type
-get_number_type(::Type{T}) where {T} = error("Base number type of your custom type is not defined")  #=::DataType=#
+function get_number_type(::Type{T}) where {T}
+    return error("Base number type of your custom type is not defined")
+end  #=::DataType=#
 get_number_type(::Type{W}) where {W<:Number} = W
 
 """
@@ -35,18 +37,18 @@ fill `value` with `nvals` starting from `idx`.
 Returns a tuple of the next index to read from, and the filled-in value.
 
 !!! note
-    In the case of a `Number` `value`, this will simply return `(idx, value)` without affecting `nvals` as default behaviour.
+    In the case of a `Number` `value`, this will increment the index by 1 and return the current value.
 """
 function pop_number_constants(
     nvals::AbstractVector{BT}, idx::Int64, value::T
 ) where {T,BT<:Number} #= ::Tuple{Int64, T}  =#
-    return (idx+1, convert(T, nvals[idx]))
+    return (idx + 1, convert(T, nvals[idx]))
 end
 
 """
 Count how many scalar constants `value` has, for use in `append_number_constants!` and `pop_number_constants`.
 
-Note that this will return 0 as default behaviour (meaning your type has no scalars to be optimized).
+Note that this will return 1 for scalars.
 """
 @inline count_number_constants(::T) where {T<:Number} = 1
 
