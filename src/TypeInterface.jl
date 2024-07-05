@@ -32,16 +32,18 @@ fill `value` with `nvals` starting from `idx`.
 Returns a tuple of the next index to read from, and the filled-in value.
 
 !!! note
-    In the case of a scalar `value`, this will simply return `(idx, value)` without affecting `nvals`.
+    In the case of a non-`Number` `value`, this will simply return `(idx, value)` without affecting `nvals` as default behaviour.
 """
-function pop_number_constants(nvals::AbstractVector{BT}, idx::Int64, value::T) where {T,BT<:Number}
+function pop_number_constants(
+    nvals::AbstractVector{BT}, idx::Int64, value::T
+) where {T,BT<:Number}
     return (idx, value)
 end
 
 """
 Count how many scalar constants `value` has, for use in `append_number_constants!` and `pop_number_constants`.
 
-Note that this will return 0 for a scalar input.
+Note that this will return 0 as default behaviour (meaning your type has no scalars to be optimized).
 """
 count_number_constants(value::T) where {T} = 0
 
