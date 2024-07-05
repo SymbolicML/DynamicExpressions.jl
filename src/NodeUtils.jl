@@ -95,8 +95,8 @@ given the output of this function.
 Also return metadata that can will be used in the `set_scalar_constants!` function.
 """
 function get_scalar_constants(
-    tree::AbstractExpressionNode{T}, BT::Type=get_number_type(T)
-) where {T}
+    tree::AbstractExpressionNode{T}, ::Type{BT}=get_number_type(T)
+) where {T,BT}
     refs = filter_map(
         is_node_constant, node -> Ref(node), tree, Base.RefValue{typeof(tree)}
     )
