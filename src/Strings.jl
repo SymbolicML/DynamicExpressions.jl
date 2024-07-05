@@ -32,7 +32,11 @@ end
 @generated function get_op_name(op::F)::Vector{Char} where {F}
     try
         # Bit faster to just cache the name of the operator:
-        op_s = F <: Broadcast.BroadcastFunction ? string(F.parameters[1].instance) * '.' : string(F.instance)
+        op_s = if F <: Broadcast.BroadcastFunction
+            string(F.parameters[1].instance) * '.'
+        else
+            string(F.instance)
+        end
         if length(op_s) == 2 && op_s[1] in ('+', '-', '*', '/', '^') && op_s[2] == '.'
             op_s = '.' * op_s[1]
         end

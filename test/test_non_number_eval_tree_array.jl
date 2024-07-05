@@ -63,12 +63,14 @@ function DynamicExpressions.append_number_constants!(
 ) where {BT<:Number,T<:Max2Tensor{BT}}
     if val.dims == 0
         nvals[idx] = val.scalar
-        return idx+1
+        return idx + 1
     elseif val.dims == 1
-        @view(nvals[idx:(idx+length(val.vector)-1)]) .= val.vector
-        return idx + length(val.vector)  
+        @view(nvals[idx:(idx + length(val.vector) - 1)]) .= val.vector
+        return idx + length(val.vector)
     end
-    @view(nvals[idx:(idx+length(val.matrix)-1)]) .= reshape(val.matrix, length(val.matrix))
+    @view(nvals[idx:(idx + length(val.matrix) - 1)]) .= reshape(
+        val.matrix, length(val.matrix)
+    )
     return idx + length(val.matrix)
 end
 
@@ -82,7 +84,9 @@ function DynamicExpressions.pop_number_constants(
         val.vector .= @view(nvals[idx:(idx + length(val.vector) - 1)])
         return idx + length(val.vector), val
     end
-    reshape(val.matrix, length(val.matrix)) .= @view(nvals[idx:(idx + length(val.matrix) - 1)])
+    reshape(val.matrix, length(val.matrix)) .= @view(
+        nvals[idx:(idx + length(val.matrix) - 1)]
+    )
     return idx + length(val.matrix), val
 end
 

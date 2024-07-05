@@ -123,7 +123,9 @@ function empty_all_globals!(; force=true)
     return nothing
 end
 
-function _extend_unary_operator(f_inside::Symbol, f_outside::Symbol, type_requirements, internal)
+function _extend_unary_operator(
+    f_inside::Symbol, f_outside::Symbol, type_requirements, internal
+)
     quote
         @gensym _constructorof _AbstractExpressionNode
         quote
@@ -150,7 +152,9 @@ function _extend_unary_operator(f_inside::Symbol, f_outside::Symbol, type_requir
     end
 end
 
-function _extend_binary_operator(f_inside::Symbol, f_outside::Symbol, type_requirements, build_converters, internal)
+function _extend_binary_operator(
+    f_inside::Symbol, f_outside::Symbol, type_requirements, build_converters, internal
+)
     quote
         @gensym _constructorof _AbstractExpressionNode
         quote
@@ -259,7 +263,9 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
     end
 
     @gensym f_inside f_outside skip type_requirements build_converters binary_exists unary_exists
-    binary_ex = _extend_binary_operator(f_inside, f_outside, type_requirements, build_converters, internal)
+    binary_ex = _extend_binary_operator(
+        f_inside, f_outside, type_requirements, build_converters, internal
+    )
     unary_ex = _extend_unary_operator(f_inside, f_outside, type_requirements, internal)
     return quote
         local $type_requirements
@@ -311,8 +317,13 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
             empty!($(LATEST_UNARY_OPERATOR_MAPPING))
         end
         for (op, func) in enumerate($(operators).binops)
-            local $f_outside = typeof(func) <: Broadcast.BroadcastFunction ? Symbol(func.f) : Symbol(func)
-            local $f_inside = typeof(func) <: Broadcast.BroadcastFunction ? :(Broadcast.BroadcastFunction($(func.f))) : Symbol(func)
+            local $f_outside =
+                typeof(func) <: Broadcast.BroadcastFunction ? Symbol(func.f) : Symbol(func)
+            local $f_inside = if typeof(func) <: Broadcast.BroadcastFunction
+                :(Broadcast.BroadcastFunction($(func.f)))
+            else
+                Symbol(func)
+            end
             local $skip = false
             if isdefined(Base, $f_outside)
                 $f_outside = :(Base.$($f_outside))
@@ -330,8 +341,13 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
             end
         end
         for (op, func) in enumerate($(operators).unaops)
-            local $f_outside = typeof(func) <: Broadcast.BroadcastFunction ? Symbol(func.f) : Symbol(func)
-            local $f_inside = typeof(func) <: Broadcast.BroadcastFunction ? :(Broadcast.BroadcastFunction($(func.f))) : Symbol(func)
+            local $f_outside =
+                typeof(func) <: Broadcast.BroadcastFunction ? Symbol(func.f) : Symbol(func)
+            local $f_inside = if typeof(func) <: Broadcast.BroadcastFunction
+                :(Broadcast.BroadcastFunction($(func.f)))
+            else
+                Symbol(func)
+            end
             local $skip = false
             if isdefined(Base, $f_outside)
                 $f_outside = :(Base.$($f_outside))
@@ -373,12 +389,20 @@ macro extend_operators(operators, kws...)
             for bo in $(operators).unaops
                 !(typeof(bo) <: Broadcast.BroadcastFunction) && continue
                 !(bo.f in $(operators).unaops) && continue
-                error("Usage of both broadcasted and unboradcasted operator " * string(bo.f) * " is ambiguous")
+                error(
+                    "Usage of both broadcasted and unboradcasted operator " *
+                    string(bo.f) *
+                    " is ambiguous",
+                )
             end
             for bo in $(operators).binops
                 !(typeof(bo) <: Broadcast.BroadcastFunction) && continue
                 !(bo.f in $(operators).binops) && continue
-                error("Usage of both broadcasted and unboradcasted operator " * string(bo.f) * " is ambiguous")
+                error(
+                    "Usage of both broadcasted and unboradcasted operator " *
+                    string(bo.f) *
+                    " is ambiguous",
+                )
             end
             $ex
         end,
