@@ -134,7 +134,7 @@ function set_constants!(tree::AbstractExpressionNode{T}, constants, refs) where 
             refs_i += 1
         end
         if nums_i <= length(constants) || refs_i <= length(refs)
-            @warn "set_constants failed due to bad pop_number_constants"
+            error("`set_constants!` failed due to bad `pop_number_constants`")
         end
     end
     return tree

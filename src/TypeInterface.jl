@@ -12,21 +12,38 @@ function get_number_type(::Type{T}) where {T} #=::DataType=#
     return T
 end
 
-# Given an array of numbers, append all number constants stored in your type at a given index
+"""
+    append_number_constants!(nvals, idx, value)
+
+Fill all constants stored in your `value` to `nvals`, starting from `idx`. Return the index for the next `append_number_constants!` to use
+"""
 function append_number_constants!(
     nvals::AbstractVector{BT}, idx::Int64, value::T
 ) where {BT<:Number,T}
     return idx
-end #=::Int64=#
+end
 
-# Given an array of numbers, get all the number constants starting at a given index and store them in your type.
-function #=::Tuple{Int64,T}=#
-pop_number_constants(nvals::AbstractVector{BT}, idx::Int64, value::T) where {T,BT<:Number}
+"""
+    pop_number_constants(nvals, idx, value)
+
+The inverse of `append_number_constants!`. Given an array `nvals` containing data,
+fill `value` with `nvals` starting from `idx`.
+
+Returns a tuple of the next index to read from, and the filled-in value.
+
+!!! note
+    In the case of a scalar `value`, this will simply return `(idx, value)` without affecting `nvals`.
+"""
+function pop_number_constants(nvals::AbstractVector{BT}, idx::Int64, value::T) where {T,BT<:Number}
     return (idx, value)
-end #=::Tuple{Int64,T}=#
+end
 
-# Count how many number constants your value has
-count_number_constants(value::T) where {T} = 0 #=::Int64=#
+"""
+Count how many scalar constants `value` has, for use in `append_number_constants!` and `pop_number_constants`.
+
+Note that this will return 0 for a scalar input.
+"""
+count_number_constants(value::T) where {T} = 0
 
 # Implementations for numbers:
 
