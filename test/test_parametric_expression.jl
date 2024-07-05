@@ -258,7 +258,7 @@ end
     )
 
     @test_throws InterfaceError count_constant_nodes(ex)
-    @test_throws InterfaceError index_constants(ex)
+    @test_throws InterfaceError index_constant_nodes(ex)
     @test_throws InterfaceError has_constants(ex)
     if VERSION >= v"1.9"
         @test_throws "You should not use this function with `ParametricExpression`." count_constants(

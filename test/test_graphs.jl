@@ -297,7 +297,7 @@ end
 
         # Now, we can test indexing:
         base_tree, tree = make_tree()
-        node_index = index_constants(tree)
+        node_index = index_constant_nodes(tree)
         @eval function get_indices(n::NodeIndex{T}) where {T}
             return filter_map(t -> t.degree == 0 && !iszero(t.val), t -> t.val, n, T)
         end

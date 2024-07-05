@@ -3,7 +3,7 @@ module EvaluateDerivativeModule
 import ..NodeModule: AbstractExpressionNode, constructorof
 import ..OperatorEnumModule: OperatorEnum
 import ..UtilsModule: is_bad_array, fill_similar, ResultOk2
-import ..NodeUtilsModule: count_scalar_constants, index_constants, NodeIndex
+import ..NodeUtilsModule: count_scalar_constants, index_constant_nodes, NodeIndex
 import ..EvaluateModule: deg0_eval, get_nuna, get_nbin, OPERATOR_LIMIT_BEFORE_SLOWDOWN
 import ..ExtensionInterfaceModule: _zygote_gradient
 
@@ -221,13 +221,13 @@ function eval_grad_tree_array(
     result = if variable_mode
         eval_grad_tree_array(tree, n_gradients, nothing, cX, operators, Val(true))
     elseif constant_mode
-        index_tree = index_constants(tree)
+        index_tree = index_constant_nodes(tree)
         eval_grad_tree_array(
             tree, n_gradients, index_tree, cX, operators, Val(false)
         )
     elseif both_mode
         # features come first because we can use size(cX, 1) to skip them
-        index_tree = index_constants(tree)
+        index_tree = index_constant_nodes(tree)
         eval_grad_tree_array(
             tree, n_gradients, index_tree, cX, operators, Val(:both)
         )

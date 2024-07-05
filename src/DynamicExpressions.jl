@@ -51,7 +51,7 @@ import .NodeModule:
     count_constant_nodes,
     count_depth,
     NodeIndex,
-    index_constants,
+    index_constant_nodes,
     has_operators,
     has_constants,
     count_scalar_constants,

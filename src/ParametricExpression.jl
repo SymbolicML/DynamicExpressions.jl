@@ -11,7 +11,7 @@ using ..ChainRulesModule: NodeTangent
 import ..NodeModule: constructorof, preserve_sharing, leaf_copy, leaf_hash, leaf_equal
 import ..NodeUtilsModule:
     count_constant_nodes,
-    index_constants,
+    index_constant_nodes,
     has_operators,
     has_constants,
     get_scalar_constants,
@@ -178,7 +178,7 @@ end
 # - `count_nodes`
 # - `count_constants`
 # - `count_depth`
-# - `index_constants`
+# - `index_constant_nodes`
 # - `has_operators`
 # - `has_constants`
 # - `get_scalar_constants`
@@ -203,7 +203,7 @@ Base.showerror(io::IO, e::InterfaceError) = print(io,
     "as well as a per-instance constant."
 )
 count_constant_nodes(::ParametricExpression; kws...) = _interface_error()
-index_constants(::ParametricExpression, ::Type{T}=UInt16) where {T} = _interface_error()
+index_constant_nodes(::ParametricExpression, ::Type{T}=UInt16) where {T} = _interface_error()
 has_constants(::ParametricExpression) = _interface_error()
 #! format: on
 

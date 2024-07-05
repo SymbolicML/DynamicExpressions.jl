@@ -161,13 +161,13 @@ end
     )
     @test has_operators(ex) == false
     @test count_constants(ex) == 1
-    node_index = index_constants(ex)
+    node_index = index_constant_nodes(ex)
     @test node_index isa NodeIndex
     @test node_index.val == 1
     ex = @parse_expression(
         1.5 + 2.5, operators = OperatorEnum(; binary_operators=[+]), variable_names
     )
-    node_index = index_constants(ex)
+    node_index = index_constant_nodes(ex)
     @test node_index.l.val == 1
     @test node_index.r.val == 2
     @test get_scalar_constants(ex)[1] == [1.5, 2.5]

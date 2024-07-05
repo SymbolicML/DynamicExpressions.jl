@@ -118,7 +118,7 @@ function test_functions_on_trees(::Type{T}, operators) where {T}
     count_nodes(tree)
     count_constants(tree)
     count_depth(tree)
-    index_constants(tree)
+    index_constant_nodes(tree)
     has_operators(tree)
     has_constants(tree)
     set_scalar_constants!(tree, get_scalar_constants(tree)...)

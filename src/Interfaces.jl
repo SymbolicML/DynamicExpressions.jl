@@ -29,7 +29,7 @@ using ..NodeUtilsModule:
     is_node_constant,
     count_constant_nodes,
     count_depth,
-    index_constants,
+    index_constant_nodes,
     has_operators,
     has_constants,
     get_scalar_constants,
@@ -99,8 +99,8 @@ end
 function _check_count_depth(ex::AbstractExpression)
     return count_depth(ex) isa Int64
 end
-function _check_index_constants(ex::AbstractExpression)
-    return index_constants(ex) isa NodeIndex{UInt16}
+function _check_index_constant_nodes(ex::AbstractExpression)
+    return index_constant_nodes(ex) isa NodeIndex{UInt16}
 end
 function _check_has_operators(ex::AbstractExpression)
     return has_operators(ex) isa Bool
@@ -150,7 +150,7 @@ ei_components = (
         count_nodes = "counts the number of nodes in the expression tree" => _check_count_nodes,
         count_constant_nodes = "counts the number of constant nodes in the expression tree" => _check_count_constant_nodes,
         count_depth = "calculates the depth of the expression tree" => _check_count_depth,
-        index_constants = "indexes constants in the expression tree" => _check_index_constants,
+        index_constant_nodes = "indexes constants in the expression tree" => _check_index_constant_nodes,
         has_operators = "checks if the expression has operators" => _check_has_operators,
         has_constants = "checks if the expression has constants" => _check_has_constants,
         get_scalar_constants = ("gets constants from the expression tree, returning a tuple of: " *
@@ -185,7 +185,7 @@ ei_description = (
     [Arguments()]
 )
 @implements(
-    ExpressionInterface{all_ei_methods_except((:count_constant_nodes, :index_constants, :has_constants))},
+    ExpressionInterface{all_ei_methods_except((:count_constant_nodes, :index_constant_nodes, :has_constants))},
     ParametricExpression,
     [Arguments()]
 )
@@ -300,8 +300,8 @@ function _check_set_constants!(tree::AbstractExpressionNode)
     set_scalar_constants!(tree, new_constants, refs)
     return get_scalar_constants(tree)[1] == new_constants
 end
-function _check_index_constants(tree::AbstractExpressionNode)
-    return index_constants(tree) isa NodeIndex{UInt16}
+function _check_index_constant_nodes(tree::AbstractExpressionNode)
+    return index_constant_nodes(tree) isa NodeIndex{UInt16}
 end
 function _check_has_operators(tree::AbstractExpressionNode)
     return has_operators(tree) isa Bool
@@ -342,7 +342,7 @@ ni_components = (
         set_scalar_constants! = ("sets constants in the tree, given: " *
                         "(1) a flat vector of constants, (2) the tree, and " *
                         "(3) the reference object produced by `get_scalar_constants`") => _check_set_constants!,
-        index_constants = "indexes constants in the tree" => _check_index_constants,
+        index_constant_nodes = "indexes constants in the tree" => _check_index_constant_nodes,
         has_operators = "checks if the tree has operators" => _check_has_operators,
     )
 )

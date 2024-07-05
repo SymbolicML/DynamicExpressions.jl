@@ -146,7 +146,7 @@ function benchmark_utilities()
         :has_operators,
         :is_constant,
         :get_set_constants!,
-        :index_constants,
+        :index_constant_nodes,
         :string_tree,
         :hash,
     )
@@ -159,7 +159,7 @@ function benchmark_utilities()
                 :count_nodes,
                 :count_constants,
                 :get_set_constants!,
-                :index_constants,
+                :index_constant_nodes,
                 :string_tree,
             ],
         )

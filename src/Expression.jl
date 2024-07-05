@@ -13,7 +13,7 @@ import ..NodeUtilsModule:
     preserve_sharing,
     count_constant_nodes,
     count_depth,
-    index_constants,
+    index_constant_nodes,
     has_operators,
     has_constants,
     count_scalar_constants,
@@ -270,7 +270,7 @@ end
 
 count_constant_nodes(ex::AbstractExpression) = count_constant_nodes(get_tree(ex))
 count_depth(ex::AbstractExpression) = count_depth(get_tree(ex))
-index_constants(ex::AbstractExpression, ::Type{T}=UInt16) where {T} = index_constants(get_tree(ex), T)
+index_constant_nodes(ex::AbstractExpression, ::Type{T}=UInt16) where {T} = index_constant_nodes(get_tree(ex), T)
 has_operators(ex::AbstractExpression) = has_operators(get_tree(ex))
 has_constants(ex::AbstractExpression) = has_constants(get_tree(ex))
 Base.isempty(ex::AbstractExpression) = isempty(get_tree(ex))
