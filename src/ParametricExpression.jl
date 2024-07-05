@@ -10,7 +10,7 @@ using ..ChainRulesModule: NodeTangent
 
 import ..NodeModule: constructorof, preserve_sharing, leaf_copy, leaf_hash, leaf_equal
 import ..NodeUtilsModule:
-    count_constants,
+    count_constant_nodes,
     index_constants,
     has_operators,
     has_constants,
@@ -202,9 +202,9 @@ Base.showerror(io::IO, e::InterfaceError) = print(io,
     "which has two concepts of what constitutes a constant: a static, global constant, " *
     "as well as a per-instance constant."
 )
-count_constants(::ParametricExpression; kws...) = _interface_error()
+count_constant_nodes(::ParametricExpression; kws...) = _interface_error()
 index_constants(::ParametricExpression, ::Type{T}=UInt16) where {T} = _interface_error()
-has_constants(ex::ParametricExpression) = _interface_error()
+has_constants(::ParametricExpression) = _interface_error()
 #! format: on
 
 has_operators(ex::ParametricExpression) = has_operators(get_tree(ex))

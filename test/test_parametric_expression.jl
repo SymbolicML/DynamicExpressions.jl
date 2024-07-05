@@ -257,7 +257,7 @@ end
         extra_metadata = (; parameters=[1.0 2.0; 3.0 4.0], parameter_names=["p1", "p2"]),
     )
 
-    @test_throws InterfaceError count_constants(ex)
+    @test_throws InterfaceError count_constant_nodes(ex)
     @test_throws InterfaceError index_constants(ex)
     @test_throws InterfaceError has_constants(ex)
     if VERSION >= v"1.9"
