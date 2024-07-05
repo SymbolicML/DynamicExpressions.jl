@@ -13,7 +13,7 @@ import ..NodeModule:
     any,
     filter_map
 import ..TypeInterfaceModule:
-    append_number_constants!, pop_number_constants, count_number_constants, get_number_type
+    pack_scalar_constants!, unpack_scalar_constants, count_scalar_constants, get_number_type
 
 """
     count_depth(tree::AbstractNode)::Int
@@ -34,11 +34,11 @@ Check if the current node in a tree is constant.
 @inline is_node_constant(tree::AbstractExpressionNode) = tree.degree == 0 && tree.constant
 
 """
-    count_constants(tree::AbstractExpressionNode)::Int
+    count_constant_nodes(tree::AbstractExpressionNode)::Int
 
-Count the number of constants in a tree.
+Count the number of constant nodes in a tree.
 """
-function count_constants(tree::AbstractExpressionNode)
+function count_constant_nodes(tree::AbstractExpressionNode)
     return tree_mapreduce(
         node -> is_node_constant(node) ? 1 : 0,
         +,
@@ -71,14 +71,14 @@ whether it depends on input features.
 is_constant(tree::AbstractExpressionNode) = all(t -> t.degree != 0 || t.constant, tree)
 
 """
-    count_number_constants(tree::AbstractExpressionNode{T})::Int64 where {T}
+    count_scalar_constants(tree::AbstractExpressionNode{T})::Int64 where {T}
 
-Returns the number of number constants in the tree.
-Used in get_constants to preallocate the constants array.
+Counts the number of scalar constants in the tree.
+Used in get_scalar_constants to preallocate a vector for storing constants array.
 """
-function count_number_constants(tree::AbstractExpressionNode{T}) where {T}
+function count_scalar_constants(tree::AbstractExpressionNode{T}) where {T}
     return tree_mapreduce(
-        node -> is_node_constant(node) ? count_number_constants(node.val) : 0,
+        node -> is_node_constant(node) ? count_scalar_constants(node.val) : 0,
         +,
         tree,
         Int64;
@@ -87,14 +87,14 @@ function count_number_constants(tree::AbstractExpressionNode{T}) where {T}
 end
 
 """
-    get_constants(tree::AbstractExpressionNode{T}, BT::Type = T)::Vector{T} where {T}
+    get_scalar_constants(tree::AbstractExpressionNode{T}, BT::Type = T)::Vector{T} where {T}
 
-Get all the number constants inside a tree, in depth-first order.
-The function `set_constants!` sets them in the same order,
+Get all the scalar constants inside a tree, in depth-first order.
+The function `set_scalar_constants!` sets them in the same order,
 given the output of this function.
-Also return metadata that can will be used in the `set_constants!` function.
+Also return metadata that can will be used in the `set_scalar_constants!` function.
 """
-function get_constants(
+function get_scalar_constants(
     tree::AbstractExpressionNode{T}, BT::Type=get_number_type(T)
 ) where {T}
     refs = filter_map(
@@ -104,22 +104,22 @@ function get_constants(
         # NOTE: Do not remove this `::T` as it is required for inference on empty collections
         return map(r -> r[].val::T, refs), refs
     else
-        vals = Vector{BT}(undef, count_number_constants(tree))
+        vals = Vector{BT}(undef, count_scalar_constants(tree))
         i = firstindex(vals)
         for ref in refs
-            i = append_number_constants!(vals, i, ref[].val::T)
+            i = pack_scalar_constants!(vals, i, ref[].val::T)
         end
         return vals, refs
     end
 end
 
 """
-    set_constants!(tree::AbstractExpressionNode{T}, constants, refs) where {T}
+    set_scalar_constants!(tree::AbstractExpressionNode{T}, constants, refs) where {T}
 
 Set the constants in a tree, in depth-first order. The function
-`get_constants` gets them in the same order.
+`get_scalar_constants` gets them in the same order.
 """
-function set_constants!(tree::AbstractExpressionNode{T}, constants, refs) where {T}
+function set_scalar_constants!(tree::AbstractExpressionNode{T}, constants, refs) where {T}
     if T <: Number
         @inbounds for i in eachindex(refs, constants)
             refs[i][].val = constants[i]
@@ -128,13 +128,13 @@ function set_constants!(tree::AbstractExpressionNode{T}, constants, refs) where 
         nums_i = 1
         refs_i = 1
         while nums_i <= length(constants) && refs_i <= length(refs)
-            ix, v = pop_number_constants(constants, nums_i, refs[refs_i][].val::T)
+            ix, v = unpack_scalar_constants(constants, nums_i, refs[refs_i][].val::T)
             refs[refs_i][].val = v
             nums_i = ix
             refs_i += 1
         end
         if nums_i <= length(constants) || refs_i <= length(refs)
-            error("`set_constants!` failed due to bad `pop_number_constants`")
+            error("`set_scalar_constants!` failed due to bad `unpack_scalar_constants`")
         end
     end
     return tree

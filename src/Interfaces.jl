@@ -27,13 +27,13 @@ using ..NodeModule:
 using ..NodeUtilsModule:
     NodeIndex,
     is_node_constant,
-    count_constants,
+    count_constant_nodes,
     count_depth,
     index_constants,
     has_operators,
     has_constants,
-    get_constants,
-    set_constants!
+    get_scalar_constants,
+    set_scalar_constants!
 using ..StringsModule: string_tree
 using ..EvaluateModule: eval_tree_array
 using ..EvaluateDerivativeModule: eval_grad_tree_array
@@ -93,8 +93,8 @@ end
 function _check_count_nodes(ex::AbstractExpression)
     return count_nodes(ex) isa Int64
 end
-function _check_count_constants(ex::AbstractExpression)
-    return count_constants(ex) isa Int64
+function _check_count_constant_nodes(ex::AbstractExpression)
+    return count_constant_nodes(ex) isa Int64
 end
 function _check_count_depth(ex::AbstractExpression)
     return count_depth(ex) isa Int64
@@ -109,14 +109,14 @@ function _check_has_constants(ex::AbstractExpression)
     return has_constants(ex) isa Bool
 end
 function _check_get_constants(ex::AbstractExpression{T}) where {T}
-    output = get_constants(ex)
+    output = get_scalar_constants(ex)
     return first(output) isa AbstractVector{T} && length(output) == 2
 end
 function _check_set_constants!(ex::AbstractExpression)
-    (x, refs) = get_constants(ex)
+    (x, refs) = get_scalar_constants(ex)
     x2 = map(xi -> xi * 2, x)
-    set_constants!(ex, x2, refs)
-    return first(get_constants(ex)) ≈ x2
+    set_scalar_constants!(ex, x2, refs)
+    return first(get_scalar_constants(ex)) ≈ x2
 end
 function _check_string_tree(ex::AbstractExpression)
     return string_tree(ex) isa String
@@ -148,17 +148,17 @@ ei_components = (
     ),
     optional = (
         count_nodes = "counts the number of nodes in the expression tree" => _check_count_nodes,
-        count_constants = "counts the number of constants in the expression tree" => _check_count_constants,
+        count_constant_nodes = "counts the number of constant nodes in the expression tree" => _check_count_constant_nodes,
         count_depth = "calculates the depth of the expression tree" => _check_count_depth,
         index_constants = "indexes constants in the expression tree" => _check_index_constants,
         has_operators = "checks if the expression has operators" => _check_has_operators,
         has_constants = "checks if the expression has constants" => _check_has_constants,
-        get_constants = ("gets constants from the expression tree, returning a tuple of: " *
+        get_scalar_constants = ("gets constants from the expression tree, returning a tuple of: " *
                         "(1) a flat vector of the constants, and (2) an reference object that " *
-                        "can be used by `set_constants!` to efficiently set them back") => _check_get_constants,
-        set_constants! = ("sets constants in the expression tree, given: " *
+                        "can be used by `set_scalar_constants!` to efficiently set them back") => _check_get_constants,
+        set_scalar_constants! = ("sets constants in the expression tree, given: " *
                         "(1) a flat vector of constants, (2) the expression, and " *
-                        "(3) the reference object produced by `get_constants`") => _check_set_constants!,
+                        "(3) the reference object produced by `get_scalar_constants`") => _check_set_constants!,
         string_tree = "returns a string representation of the expression tree" => _check_string_tree,
         default_node_type = "returns the default node type for the expression" => _check_default_node,
         constructorof = "gets the constructor function for a type" => _check_constructorof,
@@ -185,7 +185,7 @@ ei_description = (
     [Arguments()]
 )
 @implements(
-    ExpressionInterface{all_ei_methods_except((:count_constants, :index_constants, :has_constants))},
+    ExpressionInterface{all_ei_methods_except((:count_constant_nodes, :index_constants, :has_constants))},
     ParametricExpression,
     [Arguments()]
 )
@@ -281,8 +281,8 @@ end
 function _check_is_node_constant(tree::AbstractExpressionNode)
     return is_node_constant(tree) isa Bool
 end
-function _check_count_constants(tree::AbstractExpressionNode)
-    return count_constants(tree) isa Int64
+function _check_count_constant_nodes(tree::AbstractExpressionNode)
+    return count_constant_nodes(tree) isa Int64
 end
 function _check_filter_map(tree::AbstractExpressionNode)
     return filter_map(_ -> true, identity, tree, typeof(tree)) isa Vector{typeof(tree)}
@@ -291,14 +291,14 @@ function _check_has_constants(tree::AbstractExpressionNode)
     return has_constants(tree) isa Bool
 end
 function _check_get_constants(tree::AbstractExpressionNode{T}) where {T}
-    output = get_constants(tree)
+    output = get_scalar_constants(tree)
     return first(output) isa AbstractVector{T} && length(output) == 2
 end
 function _check_set_constants!(tree::AbstractExpressionNode)
-    constants, refs = get_constants(tree)
+    constants, refs = get_scalar_constants(tree)
     new_constants = map(x -> x * 2, constants)
-    set_constants!(tree, new_constants, refs)
-    return get_constants(tree)[1] == new_constants
+    set_scalar_constants!(tree, new_constants, refs)
+    return get_scalar_constants(tree)[1] == new_constants
 end
 function _check_index_constants(tree::AbstractExpressionNode)
     return index_constants(tree) isa NodeIndex{UInt16}
@@ -333,15 +333,15 @@ ni_components = (
         branch_equal = "checks equality of two branch nodes" => _check_branch_equal,
         count_depth = "calculates the depth of the tree" => _check_count_depth,
         is_node_constant = "checks if the node is a constant" => _check_is_node_constant,
-        count_constants = "counts the number of constants" => _check_count_constants,
+        count_constant_nodes = "counts the number of constant nodes" => _check_count_constant_nodes,
         filter_map = "applies a filter and map function to the tree" => _check_filter_map,
         has_constants = "checks if the tree has constants" => _check_has_constants,
-        get_constants = ("gets constants from the tree, returning a tuple of: " *
+        get_scalar_constants = ("gets constants from the tree, returning a tuple of: " *
                         "(1) a flat vector of the constants, and (2) a reference object that " *
-                        "can be used by `set_constants!` to efficiently set them back") => _check_get_constants,
-        set_constants! = ("sets constants in the tree, given: " *
+                        "can be used by `set_scalar_constants!` to efficiently set them back") => _check_get_constants,
+        set_scalar_constants! = ("sets constants in the tree, given: " *
                         "(1) a flat vector of constants, (2) the tree, and " *
-                        "(3) the reference object produced by `get_constants`") => _check_set_constants!,
+                        "(3) the reference object produced by `get_scalar_constants`") => _check_set_constants!,
         index_constants = "indexes constants in the tree" => _check_index_constants,
         has_operators = "checks if the tree has operators" => _check_has_operators,
     )
@@ -382,6 +382,6 @@ ni_description = (
 
 # TODO: Create an interface for evaluation and `extract_gradient`
 # extract_gradient = ("given a Zygote-computed gradient with respect to the tree constants, " *
-#                     "extracts a flat vector in the same order as `get_constants`") => _check_extract_gradient,
+#                     "extracts a flat vector in the same order as `get_scalar_constants`") => _check_extract_gradient,
 
 end

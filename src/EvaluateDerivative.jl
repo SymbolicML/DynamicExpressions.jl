@@ -3,7 +3,7 @@ module EvaluateDerivativeModule
 import ..NodeModule: AbstractExpressionNode, constructorof
 import ..OperatorEnumModule: OperatorEnum
 import ..UtilsModule: is_bad_array, fill_similar, ResultOk2
-import ..NodeUtilsModule: count_constants, index_constants, NodeIndex
+import ..NodeUtilsModule: count_scalar_constants, index_constants, NodeIndex
 import ..EvaluateModule: deg0_eval, get_nuna, get_nbin, OPERATOR_LIMIT_BEFORE_SLOWDOWN
 import ..ExtensionInterfaceModule: _zygote_gradient
 
@@ -213,9 +213,9 @@ function eval_grad_tree_array(
     n_gradients = if variable_mode
         size(cX, 1)::Int
     elseif constant_mode
-        count_constants(tree)::Int
+        count_scalar_constants(tree)::Int
     elseif both_mode
-        size(cX, 1) + count_constants(tree)
+        size(cX, 1) + count_scalar_constants(tree)
     end
 
     result = if variable_mode

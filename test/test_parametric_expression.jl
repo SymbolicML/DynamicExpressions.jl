@@ -129,8 +129,8 @@ end
     @test init_out == true_init_out
     @test true_out == true_true_out
 
-    true_constants, true_refs = get_constants(true_ex)
-    set_constants!(init_ex, true_constants, true_refs)
+    true_constants, true_refs = get_scalar_constants(true_ex)
+    set_scalar_constants!(init_ex, true_constants, true_refs)
     @test init_ex.metadata.parameters == true_parameters
 
     init_loss = sum(abs2, init_out - true_out)
@@ -319,5 +319,5 @@ end
 
     # Gradient extractor
     @test extract_gradient(grad, ex) ≈ vcat(true_grad[3], true_grad[2][:])
-    @test axes(extract_gradient(grad, ex)) == axes(first(get_constants(ex)))
+    @test axes(extract_gradient(grad, ex)) == axes(first(get_scalar_constants(ex)))
 end

@@ -17,11 +17,11 @@ end  #=::DataType=#
 get_number_type(::Type{W}) where {W<:Number} = W
 
 """
-    append_number_constants!(nvals, idx, value)
+    pack_scalar_constants!(nvals, idx, value)
 
-Fill all constants stored in your `value` to `nvals`, starting from `idx`. Return the index for the next `append_number_constants!` to use
+Fill all constants stored in your `value` to `nvals`, starting from `idx`. Return the index for the next `pack_scalar_constants!` to use
 """
-function append_number_constants!(
+function pack_scalar_constants!(
     nvals::AbstractVector{BT}, idx::Int64, value::T
 ) where {BT<:Number,T<:Number} #= ::Int64 =#
     nvals[idx] = value
@@ -29,9 +29,9 @@ function append_number_constants!(
 end
 
 """
-    pop_number_constants(nvals, idx, value)
+    unpack_scalar_constants(nvals, idx, value)
 
-The inverse of `append_number_constants!`. Given an array `nvals` containing data,
+The inverse of `pack_scalar_constants!`. Given an array `nvals` containing data,
 fill `value` with `nvals` starting from `idx`.
 
 Returns a tuple of the next index to read from, and the filled-in value.
@@ -39,17 +39,17 @@ Returns a tuple of the next index to read from, and the filled-in value.
 !!! note
     In the case of a `Number` `value`, this will increment the index by 1 and return the current value.
 """
-function pop_number_constants(
+function unpack_scalar_constants(
     nvals::AbstractVector{BT}, idx::Int64, value::T
 ) where {T,BT<:Number} #= ::Tuple{Int64, T}  =#
     return (idx + 1, convert(T, nvals[idx]))
 end
 
 """
-Count how many scalar constants `value` has, for use in `append_number_constants!` and `pop_number_constants`.
+Count how many scalar constants `value` has, for use in `pack_scalar_constants!` and `unpack_scalar_constants`.
 
 Note that this will return 1 for scalars.
 """
-@inline count_number_constants(::T) where {T<:Number} = 1
+@inline count_scalar_constants(::T) where {T<:Number} = 1
 
 end

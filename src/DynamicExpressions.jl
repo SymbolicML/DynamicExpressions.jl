@@ -48,14 +48,15 @@ import .NodeModule:
     branch_equal
 @reexport import .NodeUtilsModule:
     count_nodes,
-    count_constants,
+    count_constant_nodes,
     count_depth,
     NodeIndex,
     index_constants,
     has_operators,
     has_constants,
-    get_constants,
-    set_constants!
+    count_scalar_constants,
+    get_scalar_constants,
+    set_scalar_constants!
 @reexport import .StringsModule: string_tree, print_tree
 @reexport import .OperatorEnumModule: AbstractOperatorEnum
 @reexport import .OperatorEnumConstructionModule:
@@ -78,9 +79,9 @@ import .TypeInterfaceModule:
     is_valid,
     is_valid_array,
     get_number_type,
-    append_number_constants!,
-    pop_number_constants,
-    count_number_constants
+    pack_scalar_constants!,
+    unpack_scalar_constants
+# TODO: Move this to top of imports
 
 @stable default_mode = "disable" begin
     include("Interfaces.jl")

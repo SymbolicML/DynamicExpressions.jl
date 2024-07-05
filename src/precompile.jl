@@ -121,8 +121,7 @@ function test_functions_on_trees(::Type{T}, operators) where {T}
     index_constants(tree)
     has_operators(tree)
     has_constants(tree)
-    get_constants(tree)
-    set_constants!(tree, get_constants(tree)...)
+    set_scalar_constants!(tree, get_scalar_constants(tree)...)
     combine_operators(tree, operators)
     simplify_tree!(tree, operators)
     return nothing

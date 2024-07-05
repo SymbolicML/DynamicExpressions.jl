@@ -74,3 +74,16 @@ Base.@deprecate_binding EquationUtilsModule NodeUtilsModule
 Base.@deprecate_binding EvaluateEquationModule EvaluateModule
 Base.@deprecate_binding EvaluateEquationDerivativeModule EvaluateDerivativeModule
 Base.@deprecate_binding SimplifyEquationModule SimplifyModule
+
+@deprecate(
+    count_constants(tree::Union{AbstractExpression,AbstractExpressionNode}),
+    count_constant_nodes(tree)
+)
+@deprecate(
+    get_constants(tree::Union{AbstractExpression,AbstractExpressionNode}),
+    get_scalar_constants(tree)
+)
+@deprecate(
+    set_constants!(tree::Union{AbstractExpression,AbstractExpressionNode}, constants, refs),
+    set_scalar_constants!(tree, constants, refs)
+)

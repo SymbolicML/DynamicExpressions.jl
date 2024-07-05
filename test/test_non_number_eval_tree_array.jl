@@ -4,10 +4,10 @@ using DynamicExpressions:
     Node,
     @extend_operators,
     OperatorEnum,
-    get_constants,
-    append_number_constants!,
-    pop_number_constants,
-    count_number_constants
+    get_scalar_constants,
+    pack_scalar_constants!,
+    unpack_scalar_constants,
+    count_scalar_constants
 
 # Max2Tensor (Tensor with a maximum of 3 dimensions) - struct that contains all three datatypes
 mutable struct Max2Tensor{T}
@@ -49,7 +49,7 @@ function Base.:(==)(x::Max2Tensor{T}, y::Max2Tensor{T}) where {T}
     return x.matrix == y.matrix
 end
 
-function DynamicExpressions.count_number_constants(val::T) where {BT,T<:Max2Tensor{BT}}
+function DynamicExpressions.count_scalar_constants(val::T) where {BT,T<:Max2Tensor{BT}}
     if val.dims == 0
         return 1
     elseif val.dims == 1
@@ -58,7 +58,7 @@ function DynamicExpressions.count_number_constants(val::T) where {BT,T<:Max2Tens
     return length(val.matrix)
 end
 
-function DynamicExpressions.append_number_constants!(
+function DynamicExpressions.pack_scalar_constants!(
     nvals::AbstractVector{BT}, idx::Int64, val::T
 ) where {BT<:Number,T<:Max2Tensor{BT}}
     if val.dims == 0
@@ -74,7 +74,7 @@ function DynamicExpressions.append_number_constants!(
     return idx + length(val.matrix)
 end
 
-function DynamicExpressions.pop_number_constants(
+function DynamicExpressions.unpack_scalar_constants(
     nvals::AbstractVector{BT}, idx::Int64, val::T
 ) where {BT<:Number,T<:Max2Tensor{BT}}
     if val.dims == 0
@@ -137,7 +137,7 @@ Base.invokelatest(
             q(a(a(q(a(x4, c4)), a(x5, c5)), q(a(x6, c6)))),
         )
 
-        constants, refs = get_constants(tree, Float64)
+        constants, refs = get_scalar_constants(tree, Float64)
         # matrix is put into the array by columns
         @test constants == [
             1.0,
@@ -159,7 +159,7 @@ Base.invokelatest(
             17.0,
             18.0,
         ]
-        set_constants!(tree, constants .+ 5.0, refs)
-        @test get_constants(tree, Float64)[1] == constants .+ 5.0
+        set_scalar_constants!(tree, constants .+ 5.0, refs)
+        @test get_scalar_constants(tree, Float64)[1] == constants .+ 5.0
     end,
 )
