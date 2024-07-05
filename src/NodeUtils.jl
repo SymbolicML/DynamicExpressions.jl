@@ -102,10 +102,10 @@ function get_constants(
         # NOTE: Do not remove this `::T` as it is required for inference on empty collections
         return map(r -> r[].val::T, refs), refs
     else
-        vals = BT[]
-        sizehint!(vals, count_number_constants(tree))
-        for i in eachindex(refs)
-            append_number_constants!(vals, refs[i][].val::T)
+        vals = Vector{BT}(undef, count_number_constants(tree))
+        i = firstindex(vals)
+        for ref in refs
+            i = append_number_constants!(vals, i, ref[].val::T)
         end
         return vals, refs
     end
@@ -126,7 +126,7 @@ function set_constants!(tree::AbstractExpressionNode{T}, constants, refs) where 
         nums_i = 1
         refs_i = 1
         while nums_i <= length(constants) && refs_i <= length(refs)
-            v, ix = pop_number_constants(constants, refs[refs_i][].val::T, nums_i)
+            ix, v = pop_number_constants(constants, nums_i, refs[refs_i][].val::T)
             refs[refs_i][].val = v
             nums_i = ix
             refs_i += 1

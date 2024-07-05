@@ -10,7 +10,7 @@ using DynamicExpressions:
     count_number_constants
 
 # Max2Tensor (Tensor with a maximum of 3 dimensions) - struct that contains all three datatypes
-struct Max2Tensor{T}
+mutable struct Max2Tensor{T}
     dims::UInt8 # number of dimmentions
     scalar::T
     vector::Vector{T}
@@ -31,12 +31,11 @@ using DynamicExpressions: is_valid, is_valid_array
 
 function DynamicExpressions.is_valid(val::T) where {Q<:Number,T<:Max2Tensor{Q}}
     if val.dims == 0
-        is_valid(val.scalar)
+        return is_valid(val.scalar)
     elseif val.dims == 1
-        is_valid_array(val.vector)
-    elseif val.dims == 2
-        is_valid_array(val.matrix)
+        return is_valid_array(val.vector)
     end
+    return is_valid_array(val.matrix)
 end
 
 function Base.:(==)(x::Max2Tensor{T}, y::Max2Tensor{T}) where {T}
@@ -46,9 +45,8 @@ function Base.:(==)(x::Max2Tensor{T}, y::Max2Tensor{T}) where {T}
         return x.scalar == y.scalar
     elseif val.dims == 1
         return x.vector == y.vector
-    elseif val.dims == 2
-        return x.matrix == y.matrix
     end
+    return x.matrix == y.matrix
 end
 
 function DynamicExpressions.count_number_constants(val::T) where {BT,T<:Max2Tensor{BT}}
@@ -56,40 +54,43 @@ function DynamicExpressions.count_number_constants(val::T) where {BT,T<:Max2Tens
         return 1
     elseif val.dims == 1
         return length(val.vector)
-    elseif val.dims == 2
-        return length(val.matrix)
     end
+    return length(val.matrix)
 end
 
 function DynamicExpressions.append_number_constants!(
-    nvals::AbstractVector{BT}, val::T
+    nvals::AbstractVector{BT}, idx::Int64, val::T
 ) where {BT<:Number,T<:Max2Tensor{BT}}
     if val.dims == 0
-        push!(nvals, val.scalar)
+        nvals[idx] = val.scalar
+        return idx+1
     elseif val.dims == 1
-        append!(nvals, val.vector)
-    elseif val.dims == 2
-        append!(nvals, val.matrix)
+        @view(nvals[idx:(idx+length(val.vector)-1)]) .= val.vector
+        return idx + length(val.vector)  
     end
+    @view(nvals[idx:(idx+length(val.matrix)-1)]) .= reshape(val.matrix, length(val.matrix))
+    return idx + length(val.matrix)
 end
 
 function DynamicExpressions.pop_number_constants(
-    nvals::AbstractVector{BT}, val::T, idx::Int64
-)::Tuple{T,Int64} where {BT<:Number,T<:Max2Tensor{BT}}
+    nvals::AbstractVector{BT}, idx::Int64, val::T
+) where {BT<:Number,T<:Max2Tensor{BT}}
     if val.dims == 0
-        T(nvals[idx]), idx + 1
+        val.scalar = nvals[idx]
+        return idx + 1, val
     elseif val.dims == 1
-        T(nvals[idx:(idx + length(val.vector) - 1)]), idx + length(val.vector)
-    elseif val.dims == 2
-        T(reshape(nvals[idx:(idx + length(val.matrix) - 1)], size(val.matrix))),
-        idx + length(val.matrix)
+        val.vector .= @view(nvals[idx:(idx + length(val.vector) - 1)])
+        return idx + length(val.vector), val
     end
+    reshape(val.matrix, length(val.matrix)) .= @view(nvals[idx:(idx + length(val.matrix) - 1)])
+    return idx + length(val.matrix), val
 end
 
 # testing is_valid functions
 @test is_valid(Max2Tensor{Float64}())
 @test !is_valid(Max2Tensor{Float64}(NaN))
 @test is_valid_array([Max2Tensor{Float64}(1), Max2Tensor{Float64}([1, 2, 3])])
+@test !is_valid_array([Max2Tensor{Float64}(1), Max2Tensor{Float64}([1, 2, NaN])])
 
 # dummy operators
 q(x::Max2Tensor{T}) where {T} = Max2Tensor{T}(x.scalar)

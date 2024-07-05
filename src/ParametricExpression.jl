@@ -203,10 +203,10 @@ has_operators(ex::ParametricExpression) = has_operators(get_tree(ex))
 
 function get_constants_array(parameter_refs, BT)
     size = sum(count_number_constants, parameter_refs)
-    flat = BT[]
-    sizehint!(flat, size)
+    flat = Vector{BT}(undef, size)
+    ix = 1
     for p in parameter_refs[:]
-        append_number_constants!(flat, p)
+        ix = append_number_constants!(flat, ix, p)
     end
     return flat
 end
@@ -214,7 +214,7 @@ end
 function set_constants_array(parameter_refs, flat)
     ix, i = 1, 1
     while ix <= length(flat) && i <= length(parameter_refs)
-        parameter_refs[i], ix = pop_number_constants(flat, parameter_refs[i], ix)
+        ix, parameter_refs[i] = pop_number_constants(flat, ix, parameter_refs[i])
         i += 1
     end
 end
@@ -222,10 +222,10 @@ end
 function get_constants(ex::ParametricExpression{T}) where {T}
     constants, constant_refs = get_constants(get_tree(ex))
     parameters = ex.metadata.parameters
-    paramaters_numbers = get_constants_array(parameters, eltype(constants))
+    parameters_numbers = get_constants_array(parameters, eltype(constants))
     num_constants = length(constants)
-    num_parameters = length(paramaters_numbers)
-    return vcat(constants, paramaters_numbers),
+    num_parameters = length(parameters_numbers)
+    return vcat(constants, parameters_numbers),
     (; constant_refs, parameter_refs=parameters, num_parameters, num_constants)
 end
 function set_constants!(ex::ParametricExpression{T}, x, refs) where {T}
