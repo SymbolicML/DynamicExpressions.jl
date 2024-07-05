@@ -1,13 +1,16 @@
 
 using DynamicExpressions
 using DynamicExpressions:
+    DynamicExpressions as DE,
     Node,
     @extend_operators,
     OperatorEnum,
     get_scalar_constants,
     pack_scalar_constants!,
     unpack_scalar_constants,
-    count_scalar_constants
+    count_scalar_constants,
+    is_valid,
+    is_valid_array
 
 # Max2Tensor (Tensor with a maximum of 3 dimensions) - struct that contains all three datatypes
 mutable struct Max2Tensor{T}
@@ -27,9 +30,7 @@ mutable struct Max2Tensor{T}
     end
 end
 
-using DynamicExpressions: is_valid, is_valid_array
-
-function DynamicExpressions.is_valid(val::T) where {Q<:Number,T<:Max2Tensor{Q}}
+function DE.is_valid(val::T) where {Q<:Number,T<:Max2Tensor{Q}}
     if val.dims == 0
         return is_valid(val.scalar)
     elseif val.dims == 1
@@ -49,7 +50,7 @@ function Base.:(==)(x::Max2Tensor{T}, y::Max2Tensor{T}) where {T}
     return x.matrix == y.matrix
 end
 
-function DynamicExpressions.count_scalar_constants(val::T) where {BT,T<:Max2Tensor{BT}}
+function DE.count_scalar_constants(val::T) where {BT,T<:Max2Tensor{BT}}
     if val.dims == 0
         return 1
     elseif val.dims == 1
@@ -58,7 +59,7 @@ function DynamicExpressions.count_scalar_constants(val::T) where {BT,T<:Max2Tens
     return length(val.matrix)
 end
 
-function DynamicExpressions.pack_scalar_constants!(
+function DE.pack_scalar_constants!(
     nvals::AbstractVector{BT}, idx::Int64, val::T
 ) where {BT<:Number,T<:Max2Tensor{BT}}
     if val.dims == 0
@@ -74,7 +75,7 @@ function DynamicExpressions.pack_scalar_constants!(
     return idx + length(val.matrix)
 end
 
-function DynamicExpressions.unpack_scalar_constants(
+function DE.unpack_scalar_constants(
     nvals::AbstractVector{BT}, idx::Int64, val::T
 ) where {BT<:Number,T<:Max2Tensor{BT}}
     if val.dims == 0
