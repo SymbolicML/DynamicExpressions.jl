@@ -237,9 +237,11 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
         )
     end
 
-    empty_old_operators_idx = findfirst(x -> first(x.args) == :empty_old_operators, kws)
-    internal_idx = findfirst(x -> first(x.args) == :internal, kws)
-    on_type_idx = findfirst(x -> first(x.args) == :on_type, kws)
+    empty_old_operators_idx = findfirst(
+        x -> hasproperty(x, :args) && first(x.args) == :empty_old_operators, kws
+    )
+    internal_idx = findfirst(x -> hasproperty(x, :args) && first(x.args) == :internal, kws)
+    on_type_idx = findfirst(x -> hasproperty(x, :args) && first(x.args) == :on_type, kws)
 
     empty_old_operators = if empty_old_operators_idx !== nothing
         @assert kws[empty_old_operators_idx].head == :(=)

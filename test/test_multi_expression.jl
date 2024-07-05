@@ -67,6 +67,9 @@
         @test_throws "`set_constants!` function must be implemented for" set_constants!(
             multi_ex, nothing, nothing
         )
+        @test_throws "`extract_gradient` function must be implemented for" extract_gradient(
+            nothing, multi_ex
+        )
     end
 
     tree_factory(f::F, trees) where {F} = f(; trees...)
@@ -87,10 +90,15 @@
         )::Expression{T,N}
         return fused_expression.tree
     end
-    function DE.get_operators(ex::MultiScalarExpression, operators=nothing)
+    function DE.get_operators(
+        ex::MultiScalarExpression, operators::Union{AbstractOperatorEnum,Nothing}=nothing
+    )
         return operators === nothing ? ex.metadata.operators : operators
     end
-    function DE.get_variable_names(ex::MultiScalarExpression, variable_names=nothing)
+    function DE.get_variable_names(
+        ex::MultiScalarExpression,
+        variable_names::Union{Nothing,AbstractVector{<:AbstractString}}=nothing,
+    )
         return variable_names === nothing ? ex.metadata.variable_names : variable_names
     end
     function Base.copy(ex::MultiScalarExpression)

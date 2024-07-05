@@ -1,9 +1,12 @@
 module ParametricExpressionModule
 
 using DispatchDoctor: @stable, @unstable
+using ChainRulesCore: ChainRulesCore as CRC, NoTangent, @thunk
 
+using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
 using ..ExpressionModule: AbstractExpression, Metadata
+using ..ChainRulesModule: NodeTangent
 
 import ..NodeModule: constructorof, preserve_sharing, leaf_copy, leaf_hash, leaf_equal
 import ..NodeUtilsModule:
@@ -14,10 +17,10 @@ import ..NodeUtilsModule:
     get_constants,
     set_constants!
 import ..StringsModule: string_tree
-import ..SimplifyModule: combine_operators, simplify_tree!
 import ..EvaluateModule: eval_tree_array
 import ..EvaluateDerivativeModule: eval_grad_tree_array
 import ..EvaluationHelpersModule: _grad_evaluator
+import ..ChainRulesModule: extract_gradient
 import ..ExpressionModule:
     get_contents,
     get_metadata,
@@ -72,7 +75,7 @@ struct ParametricExpression{
 end
 function ParametricExpression(
     tree::ParametricNode{T1};
-    operators,
+    operators::Union{AbstractOperatorEnum,Nothing},
     variable_names,
     parameters::AbstractMatrix{T2},
     parameter_names,
@@ -143,10 +146,15 @@ end
 get_contents(ex::ParametricExpression) = ex.tree
 get_metadata(ex::ParametricExpression) = ex.metadata
 get_tree(ex::ParametricExpression) = ex.tree
-function get_operators(ex::ParametricExpression, operators=nothing)
+function get_operators(
+    ex::ParametricExpression, operators::Union{AbstractOperatorEnum,Nothing}=nothing
+)
     return operators === nothing ? ex.metadata.operators : operators
 end
-function get_variable_names(ex::ParametricExpression, variable_names=nothing)
+function get_variable_names(
+    ex::ParametricExpression,
+    variable_names::Union{Nothing,AbstractVector{<:AbstractString}}=nothing,
+)
     return variable_names === nothing ? ex.metadata.variable_names : variable_names
 end
 @inline _copy_with_nothing(x) = copy(x)
@@ -221,7 +229,7 @@ end
 
 function get_constants(ex::ParametricExpression{T}) where {T}
     constants, constant_refs = get_constants(get_tree(ex))
-    parameters = ex.metadata.parameters
+    parameters = get_metadata(ex).parameters
     parameters_numbers = get_constants_array(parameters, eltype(constants))
     num_constants = length(constants)
     num_parameters = length(parameters_numbers)
@@ -233,9 +241,27 @@ function set_constants!(ex::ParametricExpression{T}, x, refs) where {T}
     set_constants!(get_tree(ex), @view(x[1:(refs.num_constants)]), refs.constant_refs)
     # Then, copy in the parameters
     set_constants_array(
-        @view(ex.metadata.parameters[:]), @view(x[(refs.num_constants + 1):end])
+        @view(get_metadata(ex).parameters[:]), @view(x[(refs.num_constants + 1):end])
     )
     return ex
+end
+function extract_gradient(
+    gradient::@NamedTuple{
+        tree::NT,
+        metadata::@NamedTuple{
+            _data::@NamedTuple{
+                operators::Nothing,
+                variable_names::Nothing,
+                parameters::PARAM,
+                parameter_names::Nothing,
+            }
+        }
+    },
+    ex::ParametricExpression{T,N},
+) where {T,N<:ParametricNode{T},NT<:NodeTangent{T,N},PARAM<:AbstractMatrix{T}}
+    d_constants = extract_gradient(gradient.tree, get_tree(ex))
+    d_params = gradient.metadata._data.parameters[:]
+    return vcat(d_constants, d_params)  # Same shape as `get_constants`
 end
 
 function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
@@ -254,18 +280,49 @@ function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
         Node{T},
     )
 end
+function CRC.rrule(::typeof(convert), ::Type{Node}, ex::ParametricExpression{T}) where {T}
+    tree = get_contents(ex)
+    primal = convert(Node, ex)
+    pullback = let tree = tree
+        d_primal -> let
+            # ^The exact same tangent with respect to constants, so we can just take it.
+            d_ex = @thunk(
+                let
+                    parametric_node_tangent = NodeTangent(tree, d_primal.gradient)
+                    (;
+                        tree=parametric_node_tangent,
+                        metadata=(;
+                            _data=(;
+                                operators=NoTangent(),
+                                variable_names=NoTangent(),
+                                parameters=NoTangent(),
+                                parameter_names=NoTangent(),
+                            )
+                        ),
+                    )
+                end
+            )
+            (NoTangent(), NoTangent(), d_ex)
+        end
+    end
+    return primal, pullback
+end
+
 #! format: off
-function (ex::ParametricExpression)(X::AbstractMatrix, operators=nothing; kws...)
+function (ex::ParametricExpression)(X::AbstractMatrix, operators::Union{AbstractOperatorEnum,Nothing}=nothing; kws...)
     return eval_tree_array(ex, X, operators; kws...)  # Will error
 end
-function eval_tree_array(::ParametricExpression{T}, ::AbstractMatrix{T}, operators=nothing; kws...) where {T}
+function eval_tree_array(::ParametricExpression{T}, ::AbstractMatrix{T}, operators::Union{AbstractOperatorEnum,Nothing}=nothing; kws...) where {T}
     return error("Incorrect call. You must pass the `classes::Vector` argument when calling `eval_tree_array`.")
 end
 #! format: on
 function (ex::ParametricExpression)(
-    X::AbstractMatrix{T}, classes::AbstractVector{<:Integer}, operators=nothing; kws...
+    X::AbstractMatrix{T},
+    classes::AbstractVector{<:Integer},
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+    kws...,
 ) where {T}
-    (output, flag) = eval_tree_array(ex, X, classes, operators; kws...)  # Will error
+    (output, flag) = eval_tree_array(ex, X, classes, operators; kws...)
     if !flag
         output .= NaN
     end
@@ -275,7 +332,7 @@ function eval_tree_array(
     ex::ParametricExpression{T},
     X::AbstractMatrix{T},
     classes::AbstractVector{<:Integer},
-    operators=nothing;
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     kws...,
 ) where {T}
     @assert length(classes) == size(X, 2)
@@ -291,9 +348,10 @@ function eval_tree_array(
     regular_tree = convert(Node, ex)
     return eval_tree_array(regular_tree, params_and_X, get_operators(ex, operators); kws...)
 end
+
 function string_tree(
     ex::ParametricExpression,
-    operators=nothing;
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     variable_names=nothing,
     display_variable_names=nothing,
     X_sym_units=nothing,

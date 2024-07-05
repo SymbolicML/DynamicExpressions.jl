@@ -97,7 +97,9 @@ Also return metadata that can will be used in the `set_constants!` function.
 function get_constants(
     tree::AbstractExpressionNode{T}, BT::Type=get_number_type(T)
 ) where {T}
-    refs = filter_map(is_node_constant, node -> Ref(node), tree, Ref{typeof(tree)})
+    refs = filter_map(
+        is_node_constant, node -> Ref(node), tree, Base.RefValue{typeof(tree)}
+    )
     if T <: Number
         # NOTE: Do not remove this `::T` as it is required for inference on empty collections
         return map(r -> r[].val::T, refs), refs

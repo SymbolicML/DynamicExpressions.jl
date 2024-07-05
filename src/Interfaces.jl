@@ -26,6 +26,7 @@ using ..NodeModule:
     filter_map!
 using ..NodeUtilsModule:
     NodeIndex,
+    is_node_constant,
     count_constants,
     count_depth,
     index_constants,
@@ -152,12 +153,16 @@ ei_components = (
         index_constants = "indexes constants in the expression tree" => _check_index_constants,
         has_operators = "checks if the expression has operators" => _check_has_operators,
         has_constants = "checks if the expression has constants" => _check_has_constants,
-        get_constants = "gets constants from the expression tree" => _check_get_constants,
-        set_constants! = "sets constants in the expression tree" => _check_set_constants!,
+        get_constants = ("gets constants from the expression tree, returning a tuple of: " *
+                        "(1) a flat vector of the constants, and (2) an reference object that " *
+                        "can be used by `set_constants!` to efficiently set them back") => _check_get_constants,
+        set_constants! = ("sets constants in the expression tree, given: " *
+                        "(1) a flat vector of constants, (2) the expression, and " *
+                        "(3) the reference object produced by `get_constants`") => _check_set_constants!,
         string_tree = "returns a string representation of the expression tree" => _check_string_tree,
         default_node_type = "returns the default node type for the expression" => _check_default_node,
         constructorof = "gets the constructor function for a type" => _check_constructorof,
-        tree_mapreduce = "applies a function across the tree" => _check_tree_mapreduce
+        tree_mapreduce = "applies a function across the tree" => _check_tree_mapreduce,
     )
 )
 ei_description = (
@@ -273,6 +278,9 @@ end
 function _check_count_depth(tree::AbstractExpressionNode)
     return count_depth(tree) isa Int64
 end
+function _check_is_node_constant(tree::AbstractExpressionNode)
+    return is_node_constant(tree) isa Bool
+end
 function _check_count_constants(tree::AbstractExpressionNode)
     return count_constants(tree) isa Int64
 end
@@ -324,13 +332,18 @@ ni_components = (
         branch_hash = "computes the hash of a branch node" => _check_branch_hash,
         branch_equal = "checks equality of two branch nodes" => _check_branch_equal,
         count_depth = "calculates the depth of the tree" => _check_count_depth,
+        is_node_constant = "checks if the node is a constant" => _check_is_node_constant,
         count_constants = "counts the number of constants" => _check_count_constants,
         filter_map = "applies a filter and map function to the tree" => _check_filter_map,
         has_constants = "checks if the tree has constants" => _check_has_constants,
-        get_constants = "gets constants from the tree" => _check_get_constants,
-        set_constants! = "sets constants in the tree" => _check_set_constants!,
+        get_constants = ("gets constants from the tree, returning a tuple of: " *
+                        "(1) a flat vector of the constants, and (2) a reference object that " *
+                        "can be used by `set_constants!` to efficiently set them back") => _check_get_constants,
+        set_constants! = ("sets constants in the tree, given: " *
+                        "(1) a flat vector of constants, (2) the tree, and " *
+                        "(3) the reference object produced by `get_constants`") => _check_set_constants!,
         index_constants = "indexes constants in the tree" => _check_index_constants,
-        has_operators = "checks if the tree has operators" => _check_has_operators
+        has_operators = "checks if the tree has operators" => _check_has_operators,
     )
 )
 
@@ -367,6 +380,8 @@ ni_description = (
 
 #! format: on
 
-# TODO: Create an interface for evaluation
+# TODO: Create an interface for evaluation and `extract_gradient`
+# extract_gradient = ("given a Zygote-computed gradient with respect to the tree constants, " *
+#                     "extracts a flat vector in the same order as `get_constants`") => _check_extract_gradient,
 
 end
