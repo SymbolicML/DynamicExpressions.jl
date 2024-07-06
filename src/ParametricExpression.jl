@@ -173,26 +173,8 @@ end
 ###############################################################################
 # Extra utilities for parametric-specific behavior ############################
 ###############################################################################
-## As explained in AbstractExpressionNode, we can implement custom behavior for
-## the parametric expression by implementing the following methods:
-# - `count_nodes`
-# - `count_constants`
-# - `count_depth`
-# - `index_constant_nodes`
-# - `has_operators`
-# - `has_constants`
-# - `get_scalar_constants`
-# - `set_scalar_constants!`
-# - `string_tree`
-# - `max_feature`
-# - `eval_tree_array`
-# - `eval_grad_tree_array`
-# - `_grad_evaluator`
-
-## For a parametric struct, we only wish to implement the following
 
 #! format: off
-
 struct InterfaceError <: Exception
 end
 _interface_error() = throw(InterfaceError())

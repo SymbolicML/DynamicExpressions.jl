@@ -213,13 +213,45 @@ function benchmark_utilities()
                     setup=(
                         ntrees=100;
                         n=20;
-                        trees=[$preprocess(gen_random_tree_fixed_size(n, $operators, 5, Float32)) for _ in 1:ntrees]
+                        rng=Random.MersenneTwister(0);
+                        trees=[$preprocess(gen_random_tree_fixed_size(n, $operators, 5, Float32, Node, rng)) for _ in 1:ntrees]
                     )
                 )
                 #! format: on
             end
             s
         end
+    end
+
+    # Additional methods
+    @static if PACKAGE_VERSION >= v"0.18.0"
+        suite["get_set_constants_parametric"] = @benchmarkable(
+            [get_set_constants!(ex) for ex in exs],
+            seconds = 10.0,
+            setup = (
+                operators = $operators;
+                ntrees = 100;
+                n = 20;
+                n_features = 5;
+                n_params = 3;
+                n_param_classes = 10;
+                rng = Random.MersenneTwister(0);
+                exs = [
+                    let tree = gen_random_tree_fixed_size(
+                            n, operators, n_features, Float32, ParametricNode, rng
+                        )
+                        ex = ParametricExpression(
+                            tree;
+                            operators,
+                            variable_names=map(i -> "x$i", 1:n_features),
+                            parameters=randn(rng, Float32, n_params, n_param_classes),
+                            parameter_names=map(i -> "p$i", 1:n_params),
+                        )
+                        ex
+                    end for _ in 1:ntrees
+                ]
+            )
+        )
     end
 
     return suite
