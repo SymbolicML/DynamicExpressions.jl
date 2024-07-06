@@ -5,7 +5,7 @@ using DispatchDoctor: @unstable
 import ..NodeModule: AbstractExpressionNode, constructorof
 import ..StringsModule: string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
-import ..UtilsModule: is_bad_array, fill_similar, counttuple, ResultOk
+import ..UtilsModule: fill_similar, counttuple, ResultOk
 import ..NodeUtilsModule: is_constant
 import ..ExtensionInterfaceModule: bumper_eval_tree_array, _is_loopvectorization_loaded
 import ..ValueInterfaceModule: is_valid, is_valid_array
