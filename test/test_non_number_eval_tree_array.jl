@@ -18,15 +18,16 @@ mutable struct Max2Tensor{T}
     scalar::T
     vector::Vector{T}
     matrix::Matrix{T}
-    Max2Tensor{T}() where {T} = new(Int8(0), zero(T), T[], Array{T,2}(undef, 0, 0))
-    function Max2Tensor{T}(scalar::W) where {T,W<:Number}
-        return new(Int8(0), Base.convert(T, scalar), T[], Array{T,2}(undef, 0, 0))
-    end
-    function Max2Tensor{T}(vector::Vector{W}) where {T,W<:Number}
-        return new(Int8(1), zero(T), Vector{T}(vector), Array{T,2}(undef, 0, 0))
-    end
-    function Max2Tensor{T}(matrix::Matrix{W}) where {T,W<:Number}
-        return new(Int8(2), zero(T), T[], Matrix{T}(matrix))
+    Max2Tensor{T}() where {T} = new(0, zero(T), Vector{T}(undef, 0), Matrix{T}(undef, 0, 0))
+    function Max2Tensor{T}(
+        x::A
+    ) where {T,A<:Union{Number,Vector{<:Number},Matrix{<:Number}}}
+        return new(
+            ndims(x),
+            x isa Number ? Base.convert(T, x) : zero(T),
+            x isa Vector ? Vector{T}(x) : Vector{T}(undef, 0),
+            x isa Matrix ? Matrix{T}(x) : Matrix{T}(undef, 0, 0),
+        )
     end
 end
 
