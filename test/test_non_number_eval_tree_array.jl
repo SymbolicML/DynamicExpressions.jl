@@ -7,6 +7,7 @@ using DynamicExpressions:
     @extend_operators,
     OperatorEnum,
     get_scalar_constants,
+    set_scalar_constants!,
     pack_scalar_constants!,
     unpack_scalar_constants,
     count_scalar_constants,
@@ -25,6 +26,8 @@ A tensor with a maximum of `N` dimensions, where `N` is a positive integer.
 struct DynamicTensor{T,N,A<:Tuple{Base.RefValue{T},Vararg}}
     dims::UInt8
     data::A
+    # ^For example, when N is 2, this is (Ref(0.0), Vector{Float64}[...], Matrix{Float64}[...])
+    # See `Max2Tensor` below for an example
 
     #! format: off
     function DynamicTensor{T,N}(x::A=nothing) where {T,N,A<:Union{Nothing,Number,Array{<:Number}}}
@@ -54,7 +57,7 @@ DE.get_number_type(::Type{<:DynamicTensor{T}}) where {T} = T
 
 @generated function DE.is_valid(val::DynamicTensor{<:Any,N}) where {N}
     quote
-        @nif($N, i -> i == val.dims + 1, i -> if i == 1
+        @nif($(N + 1), i -> i == val.dims + 1, i -> if i == 1
             is_valid(val.data[i][])
         else
             is_valid_array(val.data[i])
@@ -66,7 +69,7 @@ end
 ) where {N}
     quote
         x.dims != y.dims && return false
-        @nif($N, i -> i == x.dims + 1, i -> if i == 1
+        @nif($(N + 1), i -> i == x.dims + 1, i -> if i == 1
             x.data[i][] == y.data[i][]
         else
             x.data[i] == y.data[i]
@@ -76,7 +79,7 @@ end
 
 @generated function DE.count_scalar_constants(val::DynamicTensor{<:Any,N}) where {N}
     quote
-        @nif($N, i -> i == val.dims + 1, i -> i == 1 ? 1 : length(val.data[i]))
+        @nif($(N + 1), i -> i == val.dims + 1, i -> i == 1 ? 1 : length(val.data[i]))
     end
 end
 
@@ -84,7 +87,7 @@ end
     nvals::AbstractVector{BT}, idx::Int64, val::DynamicTensor{BT,N}
 ) where {BT<:Number,N}
     quote
-        @nif($N, i -> i == val.dims + 1, i -> if i == 1
+        @nif($(N + 1), i -> i == val.dims + 1, i -> if i == 1
             nvals[idx] = val.data[i][]
             idx + 1
         else
@@ -101,7 +104,7 @@ end
 ) where {BT<:Number,N}
     quote
         @nif(
-            $N,
+            $(N + 1),
             i -> i == val.dims + 1,
             i -> if i == 1
                 val.data[i][] = nvals[idx]
