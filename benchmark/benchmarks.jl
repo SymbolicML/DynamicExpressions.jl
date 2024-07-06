@@ -1,10 +1,7 @@
 using DynamicExpressions, BenchmarkTools, Random
 
 # Trigger extensions:
-using LoopVectorization
-using Bumper
-using StrideArrays
-using Zygote
+using LoopVectorization, Bumper, StrideArrays, Zygote
 
 if PACKAGE_VERSION < v"0.14.0"
     @eval using DynamicExpressions: Node as GraphNode
