@@ -26,6 +26,12 @@ import PackageExtensionCompat: @require_extensions
 import Reexport: @reexport
 macro ignore(args...) end
 
+import .TypeInterfaceModule:
+    is_valid,
+    is_valid_array,
+    get_number_type,
+    pack_scalar_constants!,
+    unpack_scalar_constants
 @reexport import .NodeModule:
     AbstractNode,
     AbstractExpressionNode,
@@ -75,13 +81,6 @@ import .ExpressionModule:
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
 @reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode
-import .TypeInterfaceModule:
-    is_valid,
-    is_valid_array,
-    get_number_type,
-    pack_scalar_constants!,
-    unpack_scalar_constants
-# TODO: Move this to top of imports
 
 @stable default_mode = "disable" begin
     include("Interfaces.jl")
