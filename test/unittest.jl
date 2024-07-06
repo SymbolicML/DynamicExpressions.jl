@@ -1,7 +1,7 @@
 using SafeTestsets: @safetestset
 using TestItems: @testitem
 
-@testitem "Test Aqua.jl" begin
+@testitem "Test with Aqua.jl" begin
     include("test_aqua.jl")
 end
 
