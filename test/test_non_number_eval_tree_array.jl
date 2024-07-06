@@ -1,7 +1,7 @@
 
-using DynamicExpressions
 using DynamicExpressions:
     DynamicExpressions as DE,
+    ValueInterface,
     Node,
     @extend_operators,
     OperatorEnum,
@@ -11,6 +11,8 @@ using DynamicExpressions:
     count_scalar_constants,
     is_valid,
     is_valid_array
+
+using Interfaces: Interfaces, @implements, Arguments
 
 # Max2Tensor (Tensor with a maximum of 3 dimensions) - struct that contains all three datatypes
 mutable struct Max2Tensor{T}
@@ -31,6 +33,8 @@ mutable struct Max2Tensor{T}
     #! format: on
 end
 
+DE.get_number_type(::Type{<:Max2Tensor{T}}) where {T} = T
+
 function DE.is_valid(val::T) where {Q<:Number,T<:Max2Tensor{Q}}
     if val.dims == 0
         return is_valid(val.scalar)
@@ -45,7 +49,7 @@ function Base.:(==)(x::Max2Tensor{T}, y::Max2Tensor{T}) where {T}
         return false
     elseif x.dims == 0
         return x.scalar == y.scalar
-    elseif val.dims == 1
+    elseif x.dims == 1
         return x.vector == y.vector
     end
     return x.matrix == y.matrix
@@ -61,8 +65,8 @@ function DE.count_scalar_constants(val::T) where {BT,T<:Max2Tensor{BT}}
 end
 
 function DE.pack_scalar_constants!(
-    nvals::AbstractVector{BT}, idx::Int64, val::T
-) where {BT<:Number,T<:Max2Tensor{BT}}
+    nvals::AbstractVector{BT}, idx::Int64, val::Max2Tensor{BT}
+) where {BT<:Number}
     if val.dims == 0
         nvals[idx] = val.scalar
         return idx + 1
@@ -77,8 +81,8 @@ function DE.pack_scalar_constants!(
 end
 
 function DE.unpack_scalar_constants(
-    nvals::AbstractVector{BT}, idx::Int64, val::T
-) where {BT<:Number,T<:Max2Tensor{BT}}
+    nvals::AbstractVector{BT}, idx::Int64, val::Max2Tensor{BT}
+) where {BT<:Number}
     if val.dims == 0
         val.scalar = nvals[idx]
         return idx + 1, val
@@ -91,6 +95,19 @@ function DE.unpack_scalar_constants(
     )
     return idx + length(val.matrix), val
 end
+
+# Declare that `Max2Tensor` implements `ValueInterface`
+@implements(ValueInterface, Max2Tensor, [Arguments()])
+# Run the interface tests
+@test Interfaces.test(
+    ValueInterface,
+    Max2Tensor,
+    [
+        Max2Tensor{Float64}(1.0),
+        Max2Tensor{Float64}([1, 2, 3]),
+        Max2Tensor{Float64}([1 2 3; 4 5 6]),
+    ],
+)
 
 # testing is_valid functions
 @test is_valid(Max2Tensor{Float64}())
