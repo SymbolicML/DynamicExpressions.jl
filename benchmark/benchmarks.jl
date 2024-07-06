@@ -20,8 +20,7 @@ end
 
 if PACKAGE_VERSION < v"0.18.6"
     @eval using DynamicExpressions:
-        index_constants as index_constant_nodes,
-        count_constants as count_constant_nodes
+        index_constants as index_constant_nodes, count_constants as count_constant_nodes
 end
 
 include("../test/tree_gen_utils.jl")
