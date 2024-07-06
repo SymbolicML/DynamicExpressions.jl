@@ -18,17 +18,17 @@ mutable struct Max2Tensor{T}
     scalar::T
     vector::Vector{T}
     matrix::Matrix{T}
-    Max2Tensor{T}() where {T} = new(0, zero(T), Vector{T}(undef, 0), Matrix{T}(undef, 0, 0))
-    function Max2Tensor{T}(
-        x::A
-    ) where {T,A<:Union{Number,Vector{<:Number},Matrix{<:Number}}}
+
+    #! format: off
+    function Max2Tensor{T}(x::A=nothing) where {T,A<:Union{Nothing,Number,Vector{<:Number},Matrix{<:Number}}}
         return new(
-            ndims(x),
+            x === nothing ? 0 : ndims(x),
             x isa Number ? Base.convert(T, x) : zero(T),
             x isa Vector ? Vector{T}(x) : Vector{T}(undef, 0),
             x isa Matrix ? Matrix{T}(x) : Matrix{T}(undef, 0, 0),
         )
     end
+    #! format: on
 end
 
 function DE.is_valid(val::T) where {Q<:Number,T<:Max2Tensor{Q}}
@@ -117,7 +117,8 @@ Base.invokelatest(
 
         tree = a(Node{Max2Tensor{Float64}}(; feature=1), Max2Tensor{Float64}(3.0))
         results = tree(
-            [Max2Tensor{Float64}(1.0) Max2Tensor{Float64}(2.0) Max2Tensor{Float64}(3.0)]
+            [Max2Tensor{Float64}(1.0) Max2Tensor{Float64}(2.0) Max2Tensor{Float64}(3.0)],
+            operators,
         )
         @test results ==
             [Max2Tensor{Float64}(4), Max2Tensor{Float64}(5), Max2Tensor{Float64}(6)]
