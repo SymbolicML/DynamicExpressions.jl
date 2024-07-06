@@ -31,7 +31,8 @@ import .TypeInterfaceModule:
     is_valid_array,
     get_number_type,
     pack_scalar_constants!,
-    unpack_scalar_constants
+    unpack_scalar_constants,
+    ValueInterface
 @reexport import .NodeModule:
     AbstractNode,
     AbstractExpressionNode,
