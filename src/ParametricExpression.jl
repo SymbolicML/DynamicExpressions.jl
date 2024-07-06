@@ -191,19 +191,17 @@ has_constants(::ParametricExpression) = _interface_error()
 
 has_operators(ex::ParametricExpression) = has_operators(get_tree(ex))
 
-# TODO: Use regular `count_scalar_constants`
-
-function get_constants_array(parameter_refs, BT)
+function _get_constants_array(parameter_refs, ::Type{BT}) where {BT}
     size = sum(count_scalar_constants, parameter_refs)
     flat = Vector{BT}(undef, size)
     ix = 1
-    for p in parameter_refs[:]
+    for p in parameter_refs
         ix = pack_scalar_constants!(flat, ix, p)
     end
     return flat
 end
 
-function set_constants_array(parameter_refs, flat)
+function _set_constants_array!(parameter_refs, flat)
     ix, i = 1, 1
     while ix <= length(flat) && i <= length(parameter_refs)
         ix, parameter_refs[i] = unpack_scalar_constants(flat, ix, parameter_refs[i])
@@ -214,11 +212,12 @@ end
 function get_scalar_constants(ex::ParametricExpression{T}) where {T}
     constants, constant_refs = get_scalar_constants(get_tree(ex))
     parameters = get_metadata(ex).parameters
-    parameters_numbers = get_constants_array(parameters, eltype(constants))
+    flat_parameters = _get_constants_array(parameters, eltype(constants))
     num_constants = length(constants)
-    num_parameters = length(parameters_numbers)
-    return vcat(constants, parameters_numbers),
-    (; constant_refs, parameter_refs=parameters, num_parameters, num_constants)
+    num_parameters = length(flat_parameters)
+    combined_scalars = vcat(constants, flat_parameters)
+    refs = (; constant_refs, parameter_refs=parameters, num_parameters, num_constants)
+    return combined_scalars, refs
 end
 function set_scalar_constants!(ex::ParametricExpression{T}, x, refs) where {T}
     # First, set the usual constants
@@ -226,7 +225,7 @@ function set_scalar_constants!(ex::ParametricExpression{T}, x, refs) where {T}
         get_tree(ex), @view(x[1:(refs.num_constants)]), refs.constant_refs
     )
     # Then, copy in the parameters
-    set_constants_array(
+    _set_constants_array!(
         @view(get_metadata(ex).parameters[:]), @view(x[(refs.num_constants + 1):end])
     )
     return ex
