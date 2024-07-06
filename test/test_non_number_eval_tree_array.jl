@@ -41,7 +41,7 @@ function DE.is_valid(val::T) where {Q<:Number,T<:Max2Tensor{Q}}
 end
 
 function Base.:(==)(x::Max2Tensor{T}, y::Max2Tensor{T}) where {T}
-    if x.dims !== y.dims
+    if x.dims != y.dims
         return false
     elseif x.dims == 0
         return x.scalar == y.scalar
