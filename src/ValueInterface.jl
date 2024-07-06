@@ -17,7 +17,9 @@ get_number_type(::Type{T}) where {T<:Number} = T
 Fill all constants stored in your `value` to `nvals`, starting from `idx`.
 Return the index for the next `pack_scalar_constants!` to use
 """
-function pack_scalar_constants!(nvals::AbstractVector{<:Number}, idx::Int64, value::Number)
+Base.@propagate_inbounds function pack_scalar_constants!(
+    nvals::AbstractVector{<:Number}, idx::Int64, value::Number
+)
     nvals[idx] = value
     return idx + 1
 end
@@ -33,7 +35,7 @@ Returns a tuple of the next index to read from, and the filled-in value.
 !!! note
     In the case of a `Number` `value`, this will simply increment the index by 1 and return the current value.
 """
-function unpack_scalar_constants(
+Base.@propagate_inbounds function unpack_scalar_constants(
     nvals::AbstractVector{<:Number}, idx::Int64, value::T
 ) where {T}
     return (idx + 1, convert(T, nvals[idx]))
