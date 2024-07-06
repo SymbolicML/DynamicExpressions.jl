@@ -1,4 +1,4 @@
-module TypeInterfaceModule
+module ValueInterfaceModule
 
 using Interfaces: Interfaces, @interface, @implements, Arguments
 

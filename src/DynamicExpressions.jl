@@ -4,7 +4,7 @@ using DispatchDoctor: @stable, @unstable
 
 @stable default_mode = "disable" begin
     include("Utils.jl")
-    include("TypeInterface.jl")
+    include("ValueInterface.jl")
     include("ExtensionInterface.jl")
     include("OperatorEnum.jl")
     include("Node.jl")
@@ -26,7 +26,7 @@ import PackageExtensionCompat: @require_extensions
 import Reexport: @reexport
 macro ignore(args...) end
 
-import .TypeInterfaceModule:
+import .ValueInterfaceModule:
     is_valid,
     is_valid_array,
     get_number_type,
