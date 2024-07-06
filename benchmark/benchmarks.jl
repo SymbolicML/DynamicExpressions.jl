@@ -18,6 +18,12 @@ else
     @eval using DynamicExpressions.NodeUtilsModule: is_constant
 end
 
+if PACKAGE_VERSION < v"0.18.6"
+    @eval using DynamicExpressions:
+        index_constants as index_constant_nodes,
+        count_constants as count_constant_nodes
+end
+
 include("../test/tree_gen_utils.jl")
 
 const SUITE = BenchmarkGroup()
@@ -141,7 +147,7 @@ function benchmark_utilities()
         :combine_operators,
         :count_nodes,
         :count_depth,
-        :count_constants,
+        :count_constant_nodes,
         :has_constants,
         :has_operators,
         :is_constant,
@@ -157,7 +163,7 @@ function benchmark_utilities()
             [
                 :simplify_tree,
                 :count_nodes,
-                :count_constants,
+                :count_constant_nodes,
                 :get_set_constants!,
                 :index_constant_nodes,
                 :string_tree,
