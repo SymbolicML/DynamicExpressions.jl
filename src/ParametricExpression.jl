@@ -30,7 +30,7 @@ import ..ExpressionModule:
     max_feature,
     default_node_type
 import ..ParseModule: parse_leaf
-import ..TypeInterfaceModule:
+import ..ValueInterfaceModule:
     count_scalar_constants, pack_scalar_constants!, unpack_scalar_constants
 
 """A type of expression node that also stores a parameter index"""
