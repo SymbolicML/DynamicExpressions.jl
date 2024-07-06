@@ -17,7 +17,10 @@ end
 
 if PACKAGE_VERSION < v"0.18.6"
     @eval using DynamicExpressions:
-        index_constants as index_constant_nodes, count_constants as count_constant_nodes
+        index_constants as index_constant_nodes,
+        count_constants as count_constant_nodes,
+        get_constants as get_scalar_constants,
+        set_constants! as set_scalar_constants!
 end
 
 include("../test/tree_gen_utils.jl")
@@ -115,15 +118,16 @@ end
     PACKAGE_VERSION < v"0.14.0" && return :(copy_node(t; preserve_sharing=preserve_sharing))
     return :(copy_node(t))  # Assume type used to infer sharing
 end
-@generated function get_set_constants!(tree::N) where {T,N<:AbstractExpressionNode{T}}
-    if !(@isdefined set_constants!)
-        return :(set_constants(tree, get_constants(tree)))
-    elseif hasmethod(set_constants!, Tuple{N, Vector{T}})
-        return :(set_constants!(tree, get_constants(tree)))
+@generated function get_set_constants!(tree::N) where {N}
+    T = eltype(N)
+    if !(@isdefined set_scalar_constants!)
+        return :(set_scalar_constants(tree, get_scalar_constants(tree)))
+    elseif hasmethod(set_scalar_constants!, Tuple{N, Vector{T}})
+        return :(set_scalar_constants!(tree, get_scalar_constants(tree)))
     else
         return quote
-            let (x, refs) = get_constants(tree)
-                set_constants!(tree, x, refs)
+                let (x, refs) = get_scalar_constants(tree)
+                set_scalar_constants!(tree, x, refs)
             end
         end
     end
