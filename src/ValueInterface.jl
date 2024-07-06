@@ -67,12 +67,12 @@ function _check_get_number_type(x)
     end
 end
 function _check_pack_scalar_constants!(x)
-    packed_x = Vector{typeof(x)}(undef, count_scalar_constants(x))
+    packed_x = Vector{get_number_type(typeof(x))}(undef, count_scalar_constants(x))
     new_idx = pack_scalar_constants!(packed_x, 1, x)
     return new_idx == 1 + count_scalar_constants(x)
 end
 function _check_unpack_scalar_constants(x)
-    packed_x = Vector{typeof(x)}(undef, count_scalar_constants(x))
+    packed_x = Vector{get_number_type(typeof(x))}(undef, count_scalar_constants(x))
     pack_scalar_constants!(packed_x, 1, x)
     new_idx, x2 = unpack_scalar_constants(packed_x, 1, x)
     return new_idx == 1 + count_scalar_constants(x) && x2 == x
