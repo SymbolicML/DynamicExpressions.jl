@@ -110,7 +110,7 @@ end
     return mapping[f]
 end
 
-function _unpack_broadcast_function(f)
+@unstable function _unpack_broadcast_function(f)
     if f isa Broadcast.BroadcastFunction
         return Symbol(f.f), :(Broadcast.BroadcastFunction($(f.f)))
     else
