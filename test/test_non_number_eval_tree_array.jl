@@ -1,105 +1,157 @@
 
-using DynamicExpressions
+using Base.Cartesian: @nif
 using DynamicExpressions:
     DynamicExpressions as DE,
+    ValueInterface,
     Node,
     @extend_operators,
     OperatorEnum,
     get_scalar_constants,
+    set_scalar_constants!,
     pack_scalar_constants!,
     unpack_scalar_constants,
     count_scalar_constants,
     is_valid,
     is_valid_array
 
-# Max2Tensor (Tensor with a maximum of 3 dimensions) - struct that contains all three datatypes
-mutable struct Max2Tensor{T}
-    dims::UInt8 # number of dimmentions
-    scalar::T
-    vector::Vector{T}
-    matrix::Matrix{T}
-    Max2Tensor{T}() where {T} = new(Int8(0), zero(T), T[], Array{T,2}(undef, 0, 0))
-    function Max2Tensor{T}(scalar::W) where {T,W<:Number}
-        return new(Int8(0), Base.convert(T, scalar), T[], Array{T,2}(undef, 0, 0))
+using Interfaces: Interfaces, @implements, Arguments
+
+"""
+    DynamicTensor{T,N,A<:Tuple{Base.RefValue{T},Vararg}}
+
+A tensor with a maximum of `N` dimensions, where `N` is a positive integer.
+`.data[1]` is a `Ref` to the scalar value (so that it is mutable), while
+`.data[n]` is the array of dimension `n-1`.
+"""
+struct DynamicTensor{T,N,A<:Tuple{Base.RefValue{T},Vararg}}
+    dims::UInt8
+    data::A
+    # ^For example, when N is 2, this is (Ref(0.0), Vector{Float64}[...], Matrix{Float64}[...])
+    # See `Max2Tensor` below for an example
+
+    #! format: off
+    function DynamicTensor{T,N}(x::A=nothing) where {T,N,A<:Union{Nothing,Number,Array{<:Number}}}
+        nd = x === nothing ? 0 : ndims(x)
+        data = (
+            Ref(x isa Number ? Base.convert(T, x) : zero(T)),
+            ntuple(
+                i -> if nd == i
+                    Array{T,i}(x)
+                else
+                    Array{T,i}(undef, ntuple(_ -> 0, Val(i))...)
+                end,
+                Val(N)
+            )...,
+        )
+        return new{T,N,typeof(data)}(
+            x === nothing ? 0 : ndims(x),
+            data
+        )
     end
-    function Max2Tensor{T}(vector::Vector{W}) where {T,W<:Number}
-        return new(Int8(1), zero(T), Vector{T}(vector), Array{T,2}(undef, 0, 0))
+    #! format: on
+end
+const Max2Tensor{T} = DynamicTensor{T,2,Tuple{Base.RefValue{T},Vector{T},Matrix{T}}}
+Max2Tensor{T}(x) where {T} = DynamicTensor{T,2}(x)
+
+DE.get_number_type(::Type{<:DynamicTensor{T}}) where {T} = T
+
+@generated function DE.is_valid(val::DynamicTensor{<:Any,N}) where {N}
+    quote
+        @nif($(N + 1), i -> i == val.dims + 1, i -> if i == 1
+            is_valid(val.data[i][])
+        else
+            is_valid_array(val.data[i])
+        end)
     end
-    function Max2Tensor{T}(matrix::Matrix{W}) where {T,W<:Number}
-        return new(Int8(2), zero(T), T[], Matrix{T}(matrix))
+end
+@generated function Base.:(==)(
+    x::DynamicTensor{<:Any,N}, y::DynamicTensor{<:Any,N}
+) where {N}
+    quote
+        x.dims != y.dims && return false
+        @nif($(N + 1), i -> i == x.dims + 1, i -> if i == 1
+            x.data[i][] == y.data[i][]
+        else
+            x.data[i] == y.data[i]
+        end)
     end
 end
 
-function DE.is_valid(val::T) where {Q<:Number,T<:Max2Tensor{Q}}
-    if val.dims == 0
-        return is_valid(val.scalar)
-    elseif val.dims == 1
-        return is_valid_array(val.vector)
+@generated function DE.count_scalar_constants(val::DynamicTensor{<:Any,N}) where {N}
+    quote
+        @nif($(N + 1), i -> i == val.dims + 1, i -> i == 1 ? 1 : length(val.data[i]))
     end
-    return is_valid_array(val.matrix)
 end
 
-function Base.:(==)(x::Max2Tensor{T}, y::Max2Tensor{T}) where {T}
-    if x.dims !== y.dims
-        return false
-    elseif x.dims == 0
-        return x.scalar == y.scalar
-    elseif val.dims == 1
-        return x.vector == y.vector
+@generated function DE.pack_scalar_constants!(
+    nvals::AbstractVector{BT}, idx::Int64, val::DynamicTensor{BT,N}
+) where {BT<:Number,N}
+    quote
+        @nif($(N + 1), i -> i == val.dims + 1, i -> if i == 1
+            nvals[idx] = val.data[i][]
+            idx + 1
+        else
+            data = val.data[i]
+            num = length(data)
+            copyto!(nvals, idx, @view(data[:]))
+            idx + num
+        end)
     end
-    return x.matrix == y.matrix
 end
 
-function DE.count_scalar_constants(val::T) where {BT,T<:Max2Tensor{BT}}
-    if val.dims == 0
-        return 1
-    elseif val.dims == 1
-        return length(val.vector)
+@generated function DE.unpack_scalar_constants(
+    nvals::AbstractVector{BT}, idx::Int64, val::DynamicTensor{BT,N}
+) where {BT<:Number,N}
+    quote
+        @nif(
+            $(N + 1),
+            i -> i == val.dims + 1,
+            i -> if i == 1
+                val.data[i][] = nvals[idx]
+                (idx + 1, val)
+            else
+                data = val.data[i]
+                num = length(data)
+                copyto!(data, @view(nvals[idx:(idx + num - 1)]))
+                (idx + num, val)
+            end
+        )
     end
-    return length(val.matrix)
 end
 
-function DE.pack_scalar_constants!(
-    nvals::AbstractVector{BT}, idx::Int64, val::T
-) where {BT<:Number,T<:Max2Tensor{BT}}
-    if val.dims == 0
-        nvals[idx] = val.scalar
-        return idx + 1
-    elseif val.dims == 1
-        @view(nvals[idx:(idx + length(val.vector) - 1)]) .= val.vector
-        return idx + length(val.vector)
-    end
-    @view(nvals[idx:(idx + length(val.matrix) - 1)]) .= reshape(
-        val.matrix, length(val.matrix)
-    )
-    return idx + length(val.matrix)
-end
-
-function DE.unpack_scalar_constants(
-    nvals::AbstractVector{BT}, idx::Int64, val::T
-) where {BT<:Number,T<:Max2Tensor{BT}}
-    if val.dims == 0
-        val.scalar = nvals[idx]
-        return idx + 1, val
-    elseif val.dims == 1
-        val.vector .= @view(nvals[idx:(idx + length(val.vector) - 1)])
-        return idx + length(val.vector), val
-    end
-    reshape(val.matrix, length(val.matrix)) .= @view(
-        nvals[idx:(idx + length(val.matrix) - 1)]
-    )
-    return idx + length(val.matrix), val
-end
+# Declare that `DynamicTensor` implements `ValueInterface`
+@implements(ValueInterface, DynamicTensor, [Arguments()])
+# Run the interface tests
+@test Interfaces.test(
+    ValueInterface,
+    DynamicTensor,
+    [
+        # up to 1D
+        DynamicTensor{Float64,1}(1.0),
+        DynamicTensor{Float64,1}([1, 2, 3]),
+        # up to 2D
+        DynamicTensor{Float64,2}(1.0),
+        DynamicTensor{Float64,2}([1, 2, 3]),
+        DynamicTensor{Float64,2}([1 2 3; 4 5 6]),
+        # up to 3D
+        DynamicTensor{Float64,3}(1.0),
+        DynamicTensor{Float64,3}([1, 2, 3]),
+        DynamicTensor{Float64,3}([1 2 3; 4 5 6]),
+        DynamicTensor{Float64,3}(rand(1, 2, 3)),
+    ],
+)
 
 # testing is_valid functions
-@test is_valid(Max2Tensor{Float64}())
-@test !is_valid(Max2Tensor{Float64}(NaN))
-@test is_valid_array([Max2Tensor{Float64}(1), Max2Tensor{Float64}([1, 2, 3])])
-@test !is_valid_array([Max2Tensor{Float64}(1), Max2Tensor{Float64}([1, 2, NaN])])
+@test is_valid(DynamicTensor{Float64,2}())
+@test !is_valid(DynamicTensor{Float64,2}(NaN))
+@test is_valid_array([DynamicTensor{Float64,2}(1), DynamicTensor{Float64,2}([1, 2, 3])])
+@test !is_valid_array([DynamicTensor{Float64,2}(1), DynamicTensor{Float64,2}([1, 2, NaN])])
 
 # dummy operators
-q(x::Max2Tensor{T}) where {T} = Max2Tensor{T}(x.scalar)
-a(x::Max2Tensor{T}, y::Max2Tensor{T}) where {T} = Max2Tensor{T}(x.scalar + y.scalar)
+q(x::DynamicTensor{T,N}) where {T,N} = DynamicTensor{T,N}(x.data[1])
+function a(x::DynamicTensor{T,N}, y::DynamicTensor{T,N}) where {T,N}
+    return DynamicTensor{T,N}(x.data[1][] + y.data[1][])
+end
 
 operators = OperatorEnum(; binary_operators=[a], unary_operators=[q])
 @extend_operators(operators, on_type = Max2Tensor{Float64})
@@ -116,7 +168,8 @@ Base.invokelatest(
 
         tree = a(Node{Max2Tensor{Float64}}(; feature=1), Max2Tensor{Float64}(3.0))
         results = tree(
-            [Max2Tensor{Float64}(1.0) Max2Tensor{Float64}(2.0) Max2Tensor{Float64}(3.0)]
+            [Max2Tensor{Float64}(1.0) Max2Tensor{Float64}(2.0) Max2Tensor{Float64}(3.0)],
+            operators,
         )
         @test results ==
             [Max2Tensor{Float64}(4), Max2Tensor{Float64}(5), Max2Tensor{Float64}(6)]

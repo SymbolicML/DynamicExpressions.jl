@@ -116,7 +116,7 @@ function test_functions_on_trees(::Type{T}, operators) where {T}
 
     string_tree(tree, operators)
     count_nodes(tree)
-    count_constants(tree)
+    count_constant_nodes(tree)
     count_depth(tree)
     index_constant_nodes(tree)
     has_operators(tree)

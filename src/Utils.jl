@@ -12,13 +12,6 @@ macro return_on_false2(flag, retval, retval2)
     )
 end
 
-# Fastest way to check for NaN in an array.
-# (due to optimizations in sum())
-is_bad_array(array) = !(isempty(array) || isfinite(sum(array)))
-isgood(x::T) where {T<:Number} = !(isnan(x) || !isfinite(x))
-isgood(x) = true
-isbad(x) = !isgood(x)
-
 """
     @memoize_on tree [postprocess] function my_function_on_tree(tree::AbstractExpressionNode)
         ...

@@ -2,8 +2,9 @@ module EvaluateDerivativeModule
 
 import ..NodeModule: AbstractExpressionNode, constructorof
 import ..OperatorEnumModule: OperatorEnum
-import ..UtilsModule: is_bad_array, fill_similar, ResultOk2
-import ..NodeUtilsModule: count_scalar_constants, index_constant_nodes, NodeIndex
+import ..UtilsModule: fill_similar, ResultOk2
+import ..ValueInterfaceModule: is_valid_array
+import ..NodeUtilsModule: count_constant_nodes, index_constant_nodes, NodeIndex
 import ..EvaluateModule: deg0_eval, get_nuna, get_nbin, OPERATOR_LIMIT_BEFORE_SLOWDOWN
 import ..ExtensionInterfaceModule: _zygote_gradient
 
@@ -105,7 +106,7 @@ end
         end
         !result.ok && return result
         return ResultOk2(
-            result.x, result.dx, !(is_bad_array(result.x) || is_bad_array(result.dx))
+            result.x, result.dx, is_valid_array(result.x) && is_valid_array(result.dx)
         )
     end
 end
@@ -213,9 +214,9 @@ function eval_grad_tree_array(
     n_gradients = if variable_mode
         size(cX, 1)::Int
     elseif constant_mode
-        count_scalar_constants(tree)::Int
+        count_constant_nodes(tree)::Int
     elseif both_mode
-        size(cX, 1) + count_scalar_constants(tree)
+        size(cX, 1) + count_constant_nodes(tree)
     end
 
     result = if variable_mode
@@ -247,7 +248,7 @@ function eval_grad_tree_array(
     result = _eval_grad_tree_array(tree, n_gradients, index_tree, cX, operators, Val(mode))
     !result.ok && return result
     return ResultOk2(
-        result.x, result.dx, !(is_bad_array(result.x) || is_bad_array(result.dx))
+        result.x, result.dx, is_valid_array(result.x) && is_valid_array(result.dx)
     )
 end
 

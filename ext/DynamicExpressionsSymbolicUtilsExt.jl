@@ -4,7 +4,8 @@ using SymbolicUtils
 import DynamicExpressions.NodeModule:
     AbstractExpressionNode, Node, constructorof, DEFAULT_NODE_TYPE
 import DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
-import DynamicExpressions.UtilsModule: isgood, isbad, deprecate_varmap
+import DynamicExpressions.ValueInterfaceModule: is_valid
+import DynamicExpressions.UtilsModule: deprecate_varmap
 import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 import DynamicExpressions: AbstractExpression, get_tree, get_operators
 
@@ -19,14 +20,14 @@ macro return_on_false(flag, retval)
     )
 end
 
-function isgood(x::SymbolicUtils.Symbolic)
+function is_valid(x::SymbolicUtils.Symbolic)
     return if SymbolicUtils.istree(x)
-        all(isgood.([SymbolicUtils.operation(x); SymbolicUtils.arguments(x)]))
+        all(is_valid.([SymbolicUtils.operation(x); SymbolicUtils.arguments(x)]))
     else
         true
     end
 end
-subs_bad(x) = isgood(x) ? x : Inf
+subs_bad(x) = is_valid(x) ? x : Inf
 
 function parse_tree_to_eqs(
     tree::AbstractExpressionNode{T},
@@ -197,7 +198,7 @@ function node_to_symbolic(
     variable_names = deprecate_varmap(variable_names, varMap, :node_to_symbolic)
     expr = subs_bad(parse_tree_to_eqs(tree, operators, index_functions))
     # Check for NaN and Inf
-    @assert isgood(expr) "The recovered equation contains NaN or Inf."
+    @assert is_valid(expr) "The recovered equation contains NaN or Inf."
     # Return if no variable_names is given
     variable_names === nothing && return expr
     # Create a substitution tuple
@@ -248,12 +249,12 @@ function multiply_powers(
     if nargs == 1
         l, complete = multiply_powers(args[1])
         @return_on_false complete eqn
-        @return_on_false isgood(l) eqn
+        @return_on_false is_valid(l) eqn
         return op(l), true
     elseif op == ^
         l, complete = multiply_powers(args[1])
         @return_on_false complete eqn
-        @return_on_false isgood(l) eqn
+        @return_on_false is_valid(l) eqn
         n = args[2]
         if typeof(n) <: Integer
             if n == 1
@@ -275,10 +276,10 @@ function multiply_powers(
     elseif nargs == 2
         l, complete = multiply_powers(args[1])
         @return_on_false complete eqn
-        @return_on_false isgood(l) eqn
+        @return_on_false is_valid(l) eqn
         r, complete2 = multiply_powers(args[2])
         @return_on_false complete2 eqn
-        @return_on_false isgood(r) eqn
+        @return_on_false is_valid(r) eqn
         return op(l, r), true
     else
         # return tree_mapreduce(multiply_powers, op, args)
@@ -286,12 +287,12 @@ function multiply_powers(
         out = map(multiply_powers, args) #vector of tuples
         for i in 1:size(out, 1)
             @return_on_false out[i][2] eqn
-            @return_on_false isgood(out[i][1]) eqn
+            @return_on_false is_valid(out[i][1]) eqn
         end
         cumulator = out[1][1]
         for i in 2:size(out, 1)
             cumulator = op(cumulator, out[i][1])
-            @return_on_false isgood(cumulator) eqn
+            @return_on_false is_valid(cumulator) eqn
         end
         return cumulator, true
     end
