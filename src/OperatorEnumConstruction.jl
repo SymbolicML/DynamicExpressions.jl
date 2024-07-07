@@ -452,6 +452,15 @@ redefine operators for `AbstractExpressionNode` types, as well as `show`, `print
         end
     end
 
+    if any(
+        op_set -> any(op -> op isa Broadcast.BroadcastFunction, op_set),
+        (binary_operators, unary_operators),
+    )
+        # TODO: Fix issue with defining operators on a `BroadcastFunction`
+        # and then on a regular function
+        @warn "Using `BroadcastFunction` in an `OperatorEnum` is not yet stable"
+    end
+
     operators = OperatorEnum(Tuple(binary_operators), Tuple(unary_operators))
 
     if define_helper_functions
