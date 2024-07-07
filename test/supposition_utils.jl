@@ -6,10 +6,10 @@ function create_tree_gen(;
     unary_operators=(abs, exp, cos),
     operators=OperatorEnum(; binary_operators, unary_operators),
     features=1:5,
-    type::Type{T}=Float64,
-    val_gen=Data.Floats{type}(; nans=true, infs=true),
+    val_gen=Data.Floats{Float64}(; nans=true, infs=true),
     max_layers=20,
-) where {T}
+)
+    T = typeof(example(val_gen))
     unaop_gen = Data.SampledFrom(eachindex(operators.unaops))
     binop_gen = Data.SampledFrom(eachindex(operators.binops))
 
