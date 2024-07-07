@@ -110,6 +110,28 @@ end
     return mapping[f]
 end
 
+function _unpack_broadcast_function(f)
+    if f isa Broadcast.BroadcastFunction
+        return Symbol(f.f), :(Broadcast.BroadcastFunction($(f.f)))
+    else
+        return Symbol(f), Symbol(f)
+    end
+end
+
+function _validate_no_ambiguous_broadcasts(operators::AbstractOperatorEnum)
+    for ops in (operators.binops, operators.unaops), op in ops
+        if op isa Broadcast.BroadcastFunction &&
+            (op.f in operators.binops || op.f in operators.unaops)
+            throw(
+                ArgumentError(
+                    "Usage of both broadcasted and unbroadcasted operator `$(op.f)` is ambiguous",
+                ),
+            )
+        end
+    end
+    return nothing
+end
+
 function empty_all_globals!(; force=true)
     if force || islocked(LATEST_LOCK)
         lock(LATEST_LOCK) do
@@ -269,46 +291,30 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
         f_inside, f_outside, type_requirements, build_converters, internal
     )
     unary_ex = _extend_unary_operator(f_inside, f_outside, type_requirements, internal)
+    #! format: off
     return quote
-        local $type_requirements
-        local $build_converters
-        local $binary_exists
-        local $unary_exists
+        local $type_requirements, $build_converters, $binary_exists, $unary_exists
+        $(_validate_no_ambiguous_broadcasts)($operators)
         lock($LATEST_LOCK)
         if isa($operators, $OperatorEnum)
             $type_requirements = $(on_type == nothing ? Number : on_type)
             $build_converters = $(on_type == nothing)
-            if !haskey(
-                $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum, $type_requirements
-            )
-                $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum[$type_requirements] = Dict{
-                    Function,Bool
-                }()
+            if !haskey($(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum, $type_requirements)
+                $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum[$type_requirements] = Dict{Function,Bool}()
             end
             if !haskey($(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum, $type_requirements)
-                $(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum[$type_requirements] = Dict{
-                    Function,Bool
-                }()
+                $(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum[$type_requirements] = Dict{Function,Bool}()
             end
             $binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum[$type_requirements]
             $unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum[$type_requirements]
         else
             $type_requirements = $(on_type == nothing ? Any : on_type)
             $build_converters = false
-            if !haskey(
-                $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum,
-                $type_requirements,
-            )
-                $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum[$type_requirements] = Dict{
-                    Function,Bool
-                }()
+            if !haskey($(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum, $type_requirements)
+                $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum[$type_requirements] = Dict{Function,Bool}()
             end
-            if !haskey(
-                $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum, $type_requirements
-            )
-                $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum[$type_requirements] = Dict{
-                    Function,Bool
-                }()
+            if !haskey($(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum, $type_requirements)
+                $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum[$type_requirements] = Dict{Function,Bool}()
             end
             $binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum[$type_requirements]
             $unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum[$type_requirements]
@@ -319,13 +325,7 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
             empty!($(LATEST_UNARY_OPERATOR_MAPPING))
         end
         for (op, func) in enumerate($(operators).binops)
-            local $f_outside =
-                typeof(func) <: Broadcast.BroadcastFunction ? Symbol(func.f) : Symbol(func)
-            local $f_inside = if typeof(func) <: Broadcast.BroadcastFunction
-                :(Broadcast.BroadcastFunction($(func.f)))
-            else
-                Symbol(func)
-            end
+            local ($f_outside, $f_inside) = $(_unpack_broadcast_function)(func)
             local $skip = false
             if isdefined(Base, $f_outside)
                 $f_outside = :(Base.$($f_outside))
@@ -343,13 +343,7 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
             end
         end
         for (op, func) in enumerate($(operators).unaops)
-            local $f_outside =
-                typeof(func) <: Broadcast.BroadcastFunction ? Symbol(func.f) : Symbol(func)
-            local $f_inside = if typeof(func) <: Broadcast.BroadcastFunction
-                :(Broadcast.BroadcastFunction($(func.f)))
-            else
-                Symbol(func)
-            end
+            local ($f_outside, $f_inside) = $(_unpack_broadcast_function)(func)
             local $skip = false
             if isdefined(Base, $f_outside)
                 $f_outside = :(Base.$($f_outside))
@@ -368,6 +362,7 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
         end
         unlock($LATEST_LOCK)
     end
+    #! format: on
 end
 
 """
@@ -387,24 +382,6 @@ macro extend_operators(operators, kws...)
         quote
             if !isa($(operators), $expected_type)
                 error("You must pass an operator enum to `@extend_operators`.")
-            end
-            for bo in $(operators).unaops
-                !(typeof(bo) <: Broadcast.BroadcastFunction) && continue
-                !(bo.f in $(operators).unaops) && continue
-                error(
-                    "Usage of both broadcasted and unboradcasted operator " *
-                    string(bo.f) *
-                    " is ambiguous",
-                )
-            end
-            for bo in $(operators).binops
-                !(typeof(bo) <: Broadcast.BroadcastFunction) && continue
-                !(bo.f in $(operators).binops) && continue
-                error(
-                    "Usage of both broadcasted and unboradcasted operator " *
-                    string(bo.f) *
-                    " is ambiguous",
-                )
             end
             $ex
         end,
