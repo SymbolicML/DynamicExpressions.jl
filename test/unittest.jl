@@ -50,6 +50,8 @@ end
     include("test_evaluation.jl")
 end
 
+include("test_supposition.jl")
+
 @testitem "Test validity of integer expression evaluation" begin
     include("test_integer_evaluation.jl")
 end

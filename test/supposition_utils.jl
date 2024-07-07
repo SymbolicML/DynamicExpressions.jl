@@ -1,16 +1,17 @@
 using DynamicExpressions
 using Supposition
 
-function create_tree_gen(
-    operators=OperatorEnum(;
-        binary_operators=(+, -, *, /), unary_operators=(abs, exp, cos)
-    )::Type{T} = Float64,
+function create_tree_gen(;
+    binary_operators=(+, -, *, /),
+    unary_operators=(abs, exp, cos),
+    operators=OperatorEnum(; binary_operators, unary_operators),
     features=1:5,
+    type::Type{T}=Float64,
+    val_gen=Data.Floats{type}(; nans=true, infs=true),
 ) where {T}
     unaop_gen = Data.SampledFrom(eachindex(operators.unaops))
     binop_gen = Data.SampledFrom(eachindex(operators.binops))
 
-    val_gen = Data.Floats{T}(; nans=true, infs=true)
     val_node_gen = map(val -> Node{T}(; val), val_gen)
 
     feature_gen = Data.SampledFrom(features)
