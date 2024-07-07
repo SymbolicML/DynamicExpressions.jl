@@ -53,4 +53,14 @@
 
         return !complete_a_m_a || y_a_m_a ≈ (0 * y_a_m_a)
     end
+    Supposition.@check function preserves_zero_multiplication(a=tree_gen, X=data_gen)
+        a_times_zero = Node(; op=3, l=a, r=Node{Int}(; val=0))
+        zero_times_a = Node(; op=3, l=Node{Int}(; val=0), r=a)
+
+        y_a_times_zero, complete_a_times_zero = eval_tree_array(a_times_zero, X, operators)
+        y_zero_times_a, complete_zero_times_a = eval_tree_array(zero_times_a, X, operators)
+
+        return (!complete_a_times_zero || y_a_times_zero ≈ (0 * y_a_times_zero)) &&
+               (!complete_zero_times_a || y_zero_times_a ≈ (0 * y_zero_times_a))
+    end
 end
