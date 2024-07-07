@@ -5,8 +5,9 @@ using DynamicExpressions:
     AbstractExpressionNode,
     filter_map,
     eval_tree_array,
-    get_constants,
-    set_constants!
+    get_scalar_constants,
+    set_scalar_constants!,
+    get_number_type
 using Compat: @inline
 
 import Optim: Optim, OptimizationResults, NLSolversBase
@@ -44,9 +45,14 @@ function wrap_func(
     function wrapped_f(args::Vararg{Any,M}) where {M}
         first_args = args[begin:(end - 1)]
         x = args[end]
-        set_constants!(tree, x, refs)
+        set_scalar_constants!(tree, x, refs)
         return @inline(f(first_args..., tree))
     end
+    # without first args, it looks like this
+    # function wrapped_f(x)
+    #     set_scalar_constants!(tree, x, refs)
+    #     return @inline(f(tree))
+    # end
     return wrapped_f
 end
 function wrap_func(
@@ -100,7 +106,8 @@ function Optim.optimize(
     if make_copy
         tree = copy(tree)
     end
-    x0, refs = get_constants(tree)
+
+    x0, refs = get_scalar_constants(tree)
     if !isnothing(h!)
         throw(
             ArgumentError(
@@ -117,7 +124,7 @@ function Optim.optimize(
         )
     end
     minimizer = Optim.minimizer(base_res)
-    set_constants!(tree, minimizer, refs)
+    set_scalar_constants!(tree, minimizer, refs)
     return ExpressionOptimizationResults(base_res, tree)
 end
 

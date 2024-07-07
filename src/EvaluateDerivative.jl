@@ -2,8 +2,9 @@ module EvaluateDerivativeModule
 
 import ..NodeModule: AbstractExpressionNode, constructorof
 import ..OperatorEnumModule: OperatorEnum
-import ..UtilsModule: is_bad_array, fill_similar, ResultOk2
-import ..NodeUtilsModule: count_constants, index_constants, NodeIndex
+import ..UtilsModule: fill_similar, ResultOk2
+import ..ValueInterfaceModule: is_valid_array
+import ..NodeUtilsModule: count_constant_nodes, index_constant_nodes, NodeIndex
 import ..EvaluateModule: deg0_eval, get_nuna, get_nbin, OPERATOR_LIMIT_BEFORE_SLOWDOWN
 import ..ExtensionInterfaceModule: _zygote_gradient
 
@@ -105,7 +106,7 @@ end
         end
         !result.ok && return result
         return ResultOk2(
-            result.x, result.dx, !(is_bad_array(result.x) || is_bad_array(result.dx))
+            result.x, result.dx, is_valid_array(result.x) && is_valid_array(result.dx)
         )
     end
 end
@@ -213,21 +214,21 @@ function eval_grad_tree_array(
     n_gradients = if variable_mode
         size(cX, 1)::Int
     elseif constant_mode
-        count_constants(tree)::Int
+        count_constant_nodes(tree)::Int
     elseif both_mode
-        size(cX, 1) + count_constants(tree)
+        size(cX, 1) + count_constant_nodes(tree)
     end
 
     result = if variable_mode
         eval_grad_tree_array(tree, n_gradients, nothing, cX, operators, Val(true))
     elseif constant_mode
-        index_tree = index_constants(tree)
+        index_tree = index_constant_nodes(tree)
         eval_grad_tree_array(
             tree, n_gradients, index_tree, cX, operators, Val(false)
         )
     elseif both_mode
         # features come first because we can use size(cX, 1) to skip them
-        index_tree = index_constants(tree)
+        index_tree = index_constant_nodes(tree)
         eval_grad_tree_array(
             tree, n_gradients, index_tree, cX, operators, Val(:both)
         )
@@ -247,7 +248,7 @@ function eval_grad_tree_array(
     result = _eval_grad_tree_array(tree, n_gradients, index_tree, cX, operators, Val(mode))
     !result.ok && return result
     return ResultOk2(
-        result.x, result.dx, !(is_bad_array(result.x) || is_bad_array(result.dx))
+        result.x, result.dx, is_valid_array(result.x) && is_valid_array(result.dx)
     )
 end
 

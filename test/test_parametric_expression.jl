@@ -129,8 +129,8 @@ end
     @test init_out == true_init_out
     @test true_out == true_true_out
 
-    true_constants, true_refs = get_constants(true_ex)
-    set_constants!(init_ex, true_constants, true_refs)
+    true_constants, true_refs = get_scalar_constants(true_ex)
+    set_scalar_constants!(init_ex, true_constants, true_refs)
     @test init_ex.metadata.parameters == true_parameters
 
     init_loss = sum(abs2, init_out - true_out)
@@ -257,8 +257,8 @@ end
         extra_metadata = (; parameters=[1.0 2.0; 3.0 4.0], parameter_names=["p1", "p2"]),
     )
 
-    @test_throws InterfaceError count_constants(ex)
-    @test_throws InterfaceError index_constants(ex)
+    @test_throws InterfaceError count_constant_nodes(ex)
+    @test_throws InterfaceError index_constant_nodes(ex)
     @test_throws InterfaceError has_constants(ex)
     if VERSION >= v"1.9"
         @test_throws "You should not use this function with `ParametricExpression`." count_constants(
@@ -319,5 +319,5 @@ end
 
     # Gradient extractor
     @test extract_gradient(grad, ex) ≈ vcat(true_grad[3], true_grad[2][:])
-    @test axes(extract_gradient(grad, ex)) == axes(first(get_constants(ex)))
+    @test axes(extract_gradient(grad, ex)) == axes(first(get_scalar_constants(ex)))
 end
