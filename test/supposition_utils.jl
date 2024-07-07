@@ -1,40 +1,54 @@
 using DynamicExpressions
 using Supposition
 
-operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(abs, cos))
+function create_tree_gen(
+    operators=OperatorEnum(;
+        binary_operators=(+, -, *, /), unary_operators=(abs, exp, cos)
+    )::Type{T} = Float64,
+    features=1:5,
+) where {T}
+    unaop_gen = Data.SampledFrom(eachindex(operators.unaops))
+    binop_gen = Data.SampledFrom(eachindex(operators.binops))
 
-T = Float64
-features = 1:5
-val_gen = Data.Floats{T}(; nans=true, infs=true)
-feature_gen = Data.SampledFrom(features)
-operator_gen = Data.SampledFrom(
-    vcat(
-        [(; op=0, degree=0)],
-        map(op -> (; op, degree=1), eachindex(operators.unaops)),
-        map(op -> (; op, degree=2), eachindex(operators.binops)),
-    ),
-)
+    val_gen = Data.Floats{T}(; nans=true, infs=true)
+    val_node_gen = map(val -> Node{T}(; val), val_gen)
 
-val_node_gen = map(val -> Node{T}(; val), val_gen)
-feature_node_gen = map(feature -> Node{T}(; feature), feature_gen)
-leaf_node_gen = val_node_gen | feature_node_gen
+    feature_gen = Data.SampledFrom(features)
+    feature_node_gen = map(feature -> Node{T}(; feature), feature_gen)
 
-branch_gen = @composed function _branch_gen(
-    l=leaf_node_gen, r=leaf_node_gen, operator=operator_gen
-)
-    if operator.degree == 0
-        return l
-    elseif operator.degree == 1
-        return Node{T}(; operator.op, l)
-    else # degree == 2
-        return Node{T}(; operator.op, l, r)
+    leaf_node_gen = val_node_gen | feature_node_gen
+
+    tree_gen = Data.recursive(leaf_node_gen; max_layers=20) do childgen
+        deg0_node_gen = childgen
+        deg1_node_gen = map(
+            cs -> let
+                (op, (l,)) = only(cs)
+                Node{T}(; op, l)
+            end,
+            Data.Dicts(
+                unaop_gen,
+                Data.Vectors(childgen; min_size=1, max_size=1);
+                min_size=1,
+                max_size=1,
+            ),
+        )
+        deg2_node_gen = map(
+            cs -> let
+                (op, (l, r)) = only(cs)
+                Node{T}(; op, l, r)
+            end,
+            Data.Dicts(
+                binop_gen,
+                Data.Vectors(childgen; min_size=2, max_size=2);
+                min_size=1,
+                max_size=1,
+            ),
+        )
+        ws = Data.WeightedSample(
+            (deg0_node_gen, deg1_node_gen, deg2_node_gen), Float64[1, 3, 3]
+        )
+        map(produce!, ws)
     end
-end
 
-Data.recursive(branch_gen; max_layers=3) do root
-    leafs = filter(t -> t.degree == 0, root)
-    leafs_gen = Data.SampledFrom(leafs)
-
-    # ?
-    # Want to call `branch_gen` here with the new leafs.
+    return tree_gen
 end
