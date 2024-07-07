@@ -452,7 +452,7 @@ redefine operators for `AbstractExpressionNode` types, as well as `show`, `print
         end
     end
 
-    if any(
+    if define_helper_functions && any(
         op_set -> any(op -> op isa Broadcast.BroadcastFunction, op_set),
         (binary_operators, unary_operators),
     )
