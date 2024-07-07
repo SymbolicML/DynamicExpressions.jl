@@ -47,4 +47,10 @@
 
         return both_failed || y_a_b_and_c ≈ y_a_and_b_c
     end
+    Supposition.@check function preserves_subtract_self(a=tree_gen, X=data_gen)
+        a_minus_a = Node(; op=2, l=a, r=a)
+        y_a_m_a, complete_a_m_a = eval_tree_array(a_minus_a, X, operators)
+
+        return !complete_a_m_a || y_a_m_a ≈ (0 * y_a_m_a)
+    end
 end
