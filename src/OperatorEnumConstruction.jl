@@ -295,7 +295,7 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
     return quote
         local $type_requirements, $build_converters, $binary_exists, $unary_exists
         $(_validate_no_ambiguous_broadcasts)($operators)
-        lock($LATEST_LOCK)
+        lock($LATEST_LOCK) do
         if isa($operators, $OperatorEnum)
             $type_requirements = $(on_type == nothing ? Number : on_type)
             $build_converters = $(on_type == nothing)
@@ -360,7 +360,7 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
                 $(binary_exists)[func] = true
             end
         end
-        unlock($LATEST_LOCK)
+        end
     end
     #! format: on
 end
