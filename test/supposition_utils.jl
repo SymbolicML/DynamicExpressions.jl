@@ -8,6 +8,7 @@ function create_tree_gen(;
     features=1:5,
     type::Type{T}=Float64,
     val_gen=Data.Floats{type}(; nans=true, infs=true),
+    max_layers=20,
 ) where {T}
     unaop_gen = Data.SampledFrom(eachindex(operators.unaops))
     binop_gen = Data.SampledFrom(eachindex(operators.binops))
@@ -19,7 +20,7 @@ function create_tree_gen(;
 
     leaf_node_gen = val_node_gen | feature_node_gen
 
-    tree_gen = Data.recursive(leaf_node_gen; max_layers=20) do childgen
+    tree_gen = Data.recursive(leaf_node_gen; max_layers) do childgen
         deg0_node_gen = childgen
         deg1_node_gen = map(
             cs -> let
