@@ -117,5 +117,5 @@ end
 @ignore include("../test/runtests.jl")
 
 include("precompile.jl")
-# do_precompilation(; mode=:precompile)
+do_precompilation(; mode=:precompile)
 end

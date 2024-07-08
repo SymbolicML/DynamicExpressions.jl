@@ -143,23 +143,28 @@ end
 ## Assign index to nodes of a tree
 # This will mirror a Node struct, rather
 # than adding a new attribute to Node.
-struct NodeIndex{T,D} <: AbstractNode{D}
+mutable struct NodeIndex{T,D} <: AbstractNode{D}
     degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     val::T  # If is a constant, this stores the actual value
     # ------------------- (possibly undefined below)
     children::NTuple{D,Base.RefValue{NodeIndex{T,D}}}
 
-    NodeIndex(::Type{_T}, ::Val{_D}) where {_T,_D} = new{_T,_D}(0, zero(_T))
-    NodeIndex(::Type{_T}, ::Val{_D}, val) where {_T,_D} = new{_T,_D}(0, convert(_T, val))
+    function NodeIndex(::Type{_T}, ::Val{_D}, val) where {_T,_D}
+        return new{_T,_D}(
+            0, convert(_T, val), ntuple(_ -> Ref{NodeIndex{_T,_D}}(), Val(_D))
+        )
+    end
     function NodeIndex(
         ::Type{_T}, ::Val{_D}, children::Vararg{NodeIndex{_T,_D},_D2}
     ) where {_T,_D,_D2}
         _children = ntuple(
             i -> i <= _D2 ? Ref(children[i]) : Ref{NodeIndex{_T,_D}}(), Val(_D)
         )
-        return new{_T,_D}(1, zero(_T), _children)
+        return new{_T,_D}(convert(UInt8, _D2), zero(_T), _children)
     end
 end
+NodeIndex(::Type{T}, ::Val{D}) where {T,D} = NodeIndex(T, Val(D), zero(T))
+
 # Sharing is never needed for NodeIndex,
 # as we trace over the node we are indexing on.
 preserve_sharing(::Union{Type{<:NodeIndex},NodeIndex}) = false
