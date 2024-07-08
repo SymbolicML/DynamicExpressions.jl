@@ -85,7 +85,7 @@ for N in (:Node, :GraphNode)
         #################
         ## Constructors:
         #################
-        $N{_T,_D}() where {_T,_D} = new{_T,_D}()
+        $N{_T,_D}() where {_T,_D} = new{_T,_D::Int}()
     end
 end
 
@@ -166,26 +166,62 @@ when constructing or setting properties.
 """
 GraphNode
 
+@inline function Base.getproperty(n::Union{Node,GraphNode}, k::Symbol)
+    if k == :l
+        # TODO: Should a depwarn be raised here? Or too slow?
+        return getfield(n, :children)[1][]
+    elseif k == :r
+        return getfield(n, :children)[2][]
+    else
+        return getfield(n, k)
+    end
+end
+@inline function Base.setproperty!(n::Union{Node,GraphNode}, k::Symbol, v)
+    if k == :l
+        getfield(n, :children)[1][] = v
+    elseif k == :r
+        getfield(n, :children)[2][] = v
+    elseif k == :degree
+        setfield!(n, :degree, convert(UInt8, v))
+    elseif k == :constant
+        setfield!(n, :constant, convert(Bool, v))
+    elseif k == :feature
+        setfield!(n, :feature, convert(UInt16, v))
+    elseif k == :op
+        setfield!(n, :op, convert(UInt8, v))
+    elseif k == :val
+        setfield!(n, :val, convert(eltype(n), v))
+    elseif k == :children
+        setfield!(n, :children, v)
+    else
+        error("Invalid property: $k")
+    end
+end
+
 ################################################################################
 #! format: on
 
 Base.eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = T
 Base.eltype(::AbstractExpressionNode{T}) where {T} = T
 
-function max_degree(::Type{N}) where {N<:AbstractExpressionNode}
-    return (N isa UnionAll ? N.body : N).parameters[2]
+max_degree(::Type{<:AbstractNode}) = 2  # Default
+max_degree(::Type{<:AbstractNode{D}}) where {D} = D
+
+@unstable constructorof(::Type{N}) where {N<:Node} = Node{T,max_degree(N)} where {T}
+@unstable constructorof(::Type{N}) where {N<:GraphNode} =
+    GraphNode{T,max_degree(N)} where {T}
+
+with_type_parameters(::Type{N}, ::Type{T}) where {N<:Node,T} = Node{T,max_degree(N)}
+function with_type_parameters(::Type{N}, ::Type{T}) where {N<:GraphNode,T}
+    return GraphNode{T,max_degree(N)}
 end
 
-@unstable constructorof(::Type{<:Node}) = Node
-@unstable constructorof(::Type{<:Node{T,D} where T}) where {D} = Node{T,D} where T
-@unstable constructorof(::Type{<:GraphNode}) = GraphNode
-@unstable constructorof(::Type{<:GraphNode{T,D} where T}) where {D} = GraphNode{T,D} where T
+# with_degree(::Type{N}, ::Val{D}) where {T,N<:Node{T},D} = Node{T,D}
+# with_degree(::Type{N}, ::Val{D}) where {T,N<:GraphNode{T},D} = GraphNode{T,D}
 
-with_type_parameters(::Type{<:Node}, ::Type{T}, ::Val{D}=Val(2)) where {T,D} = Node{T,D}
-with_type_parameters(::Type{<:GraphNode}, ::Type{T}, ::Val{D}=Val(2)) where {T,D} = GraphNode{T,D}
-
-default_allocator(::Type{<:Node}, ::Type{T}, ::Val{D}=Val(2)) where {T,D} = Node{T,D}()
-default_allocator(::Type{<:GraphNode}, ::Type{T}, ::Val{D}=Val(2)) where {T,D} = GraphNode{T,D}()
+function default_allocator(::Type{N}, ::Type{T}) where {N<:Union{Node,GraphNode},T}
+    return with_type_parameters(N, T)()
+end
 
 """Trait declaring whether nodes share children or not."""
 preserve_sharing(::Union{Type{<:AbstractNode},AbstractNode}) = false
@@ -195,12 +231,8 @@ include("base.jl")
 
 #! format: off
 @inline function (::Type{N})(
-    ::Type{T1}=Undefined; kws...
-) where {T1,N<:AbstractExpressionNode,F}
-end
-@inline function (::Type{N})(
     ::Type{T1}=Undefined; val=nothing, feature=nothing, op=nothing, l=nothing, r=nothing, children=nothing, allocator::F=default_allocator,
-) where {T1,D,N<:AbstractExpressionNode{T,D} where T,F}
+) where {T1,N<:AbstractExpressionNode{T} where T,F}
     _children = if l !== nothing && r === nothing
         @assert children === nothing
         (l,)
@@ -230,7 +262,7 @@ end
     ::Type{N}, ::Type{T1}, val::T2, ::Nothing, ::Nothing, ::Nothing, allocator::F,
 ) where {N,T1,T2,F}
     T = node_factory_type(N, T1, T2)
-    n = allocator(N, T, D)
+    n = allocator(N, T)
     n.degree = 0
     n.constant = true
     n.val = convert(T, val)
@@ -241,7 +273,7 @@ end
     ::Type{N}, ::Type{T1}, ::Nothing, feature::Integer, ::Nothing, ::Nothing, allocator::F,
 ) where {N,T1,F}
     T = node_factory_type(N, T1, DEFAULT_NODE_TYPE)
-    n = allocator(N, T, D)
+    n = allocator(N, T)
     n.degree = 0
     n.constant = false
     n.feature = feature
@@ -249,15 +281,16 @@ end
 end
 """Create an operator node."""
 @inline function node_factory(
-    ::Type{N}, ::Type, ::Nothing, ::Nothing, op::Integer, children::NTuple{D2}, allocator::F,
-) where {D,N<:AbstractExpressionNode{T where T,D},F,D2}
+    ::Type{N}, ::Type, ::Nothing, ::Nothing, op::Integer, children::Tuple, allocator::F,
+) where {N<:AbstractExpressionNode,F}
     T = promote_type(map(eltype, children)...)  # Always prefer existing nodes, so we don't mess up references from conversion
-    NT = with_type_parameters(N, T, D)
-    n = allocator(N, T, D)
+    D2 = length(children)
+    @assert D2 <= max_degree(N)
+    NT = with_type_parameters(N, T)
+    n = allocator(N, T)
     n.degree = D2
     n.op = op
-    n.children
-    # map(Ref, children)
+    n.children = ntuple(i -> i <= D2 ? Ref(convert(NT, children[i])) : Ref{NT}(), Val(max_degree(N)))
     return n
 end
 
@@ -298,14 +331,14 @@ function (::Type{N})(
     return N(; feature=i)
 end
 
-function Base.promote_rule(::Type{Node{T1}}, ::Type{Node{T2}}) where {T1,T2}
-    return Node{promote_type(T1, T2)}
+function Base.promote_rule(::Type{Node{T1,D}}, ::Type{Node{T2,D}}) where {T1,T2,D}
+    return Node{promote_type(T1, T2),D}
 end
-function Base.promote_rule(::Type{GraphNode{T1}}, ::Type{Node{T2}}) where {T1,T2}
-    return GraphNode{promote_type(T1, T2)}
+function Base.promote_rule(::Type{GraphNode{T1,D}}, ::Type{Node{T2,D}}) where {T1,T2,D}
+    return GraphNode{promote_type(T1, T2),D}
 end
-function Base.promote_rule(::Type{GraphNode{T1}}, ::Type{GraphNode{T2}}) where {T1,T2}
-    return GraphNode{promote_type(T1, T2)}
+function Base.promote_rule(::Type{GraphNode{T1,D}}, ::Type{GraphNode{T2,D}}) where {T1,T2,D}
+    return GraphNode{promote_type(T1, T2),D}
 end
 
 # TODO: Verify using this helps with garbage collection

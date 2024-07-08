@@ -1,11 +1,9 @@
 module NodeUtilsModule
 
-using StaticArrays: MVector
 import Compat: Returns
 import ..NodeModule:
     AbstractNode,
     AbstractExpressionNode,
-    GeneralNode,
     Node,
     preserve_sharing,
     constructorof,
@@ -145,17 +143,20 @@ end
 ## Assign index to nodes of a tree
 # This will mirror a Node struct, rather
 # than adding a new attribute to Node.
-struct NodeIndex{T,D} <: AbstractNode{D,false}
+struct NodeIndex{T,D} <: AbstractNode{D}
     degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     val::T  # If is a constant, this stores the actual value
     # ------------------- (possibly undefined below)
-    children::MVector{D,NodeIndex{T,D}}
+    children::NTuple{D,Base.RefValue{NodeIndex{T,D}}}
 
-    NodeIndex(::Type{_T}, ::Type{_D}) where {_T,_D} = new{_T,_D}(0, zero(_T))
-    NodeIndex(::Type{_T}, ::Type{_D}, val) where {_T,_D} = new{_T,_D}(0, convert(_T, val))
-    function NodeIndex(::Type{_T}, ::Type{_D}, children::Vararg{Any,_D2}) where {_T,_D,_D2}
-        _children = MVector{_D,NodeIndex{_T,_D}}(undef)
-        _children[begin:_D2] = children
+    NodeIndex(::Type{_T}, ::Val{_D}) where {_T,_D} = new{_T,_D}(0, zero(_T))
+    NodeIndex(::Type{_T}, ::Val{_D}, val) where {_T,_D} = new{_T,_D}(0, convert(_T, val))
+    function NodeIndex(
+        ::Type{_T}, ::Val{_D}, children::Vararg{NodeIndex{_T,_D},_D2}
+    ) where {_T,_D,_D2}
+        _children = ntuple(
+            i -> i <= _D2 ? Ref(children[i]) : Ref{NodeIndex{_T,_D}}(), Val(_D)
+        )
         return new{_T,_D}(1, zero(_T), _children)
     end
 end
@@ -163,20 +164,22 @@ end
 # as we trace over the node we are indexing on.
 preserve_sharing(::Union{Type{<:NodeIndex},NodeIndex}) = false
 
-function index_constant_nodes(tree::AbstractExpressionNode, ::Type{T}=UInt16) where {T}
+function index_constant_nodes(
+    tree::AbstractExpressionNode{Ti,D} where {Ti}, ::Type{T}=UInt16
+) where {D,T}
     # Essentially we copy the tree, replacing the values
     # with indices
     constant_index = Ref(T(0))
     return tree_mapreduce(
         t -> if t.constant
-            NodeIndex(T, (constant_index[] += T(1)))
+            NodeIndex(T, Val(D), (constant_index[] += T(1)))
         else
-            NodeIndex(T)
+            NodeIndex(T, Val(D))
         end,
         t -> nothing,
-        (_, c...) -> NodeIndex(T, c...),
+        (_, c...) -> NodeIndex(T, Val(D), c...),
         tree,
-        NodeIndex{T};
+        NodeIndex{T,D};
     )
 end
 

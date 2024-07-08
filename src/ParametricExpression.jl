@@ -1,7 +1,6 @@
 module ParametricExpressionModule
 
 using DispatchDoctor: @stable, @unstable
-using StaticArrays: MVector
 using ChainRulesCore: ChainRulesCore as CRC, NoTangent, @thunk
 
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
@@ -35,7 +34,7 @@ import ..ValueInterfaceModule:
     count_scalar_constants, pack_scalar_constants!, unpack_scalar_constants
 
 """A type of expression node that also stores a parameter index"""
-mutable struct ParametricNode{T,D,shared} <: AbstractExpressionNode{T,D,shared}
+mutable struct ParametricNode{T,D} <: AbstractExpressionNode{T,D}
     degree::UInt8
     constant::Bool  # if true => constant; if false, then check `is_parameter`
     val::T
@@ -45,10 +44,10 @@ mutable struct ParametricNode{T,D,shared} <: AbstractExpressionNode{T,D,shared}
     parameter::UInt16  # Stores index of per-class parameter
 
     op::UInt8
-    children::MVector{D,ParametricNode{T,D}}  # Children nodes
+    children::NTuple{D,Base.RefValue{ParametricNode{T,D}}}  # Children nodes
 
-    function ParametricNode{_T,_D,_shared}() where {_T,_D,_shared}
-        n = new{_T,_D,_shared}()
+    function ParametricNode{_T,_D}() where {_T,_D}
+        n = new{_T,_D}()
         n.is_parameter = false
         n.parameter = UInt16(0)
         return n
