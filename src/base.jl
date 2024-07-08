@@ -94,7 +94,7 @@ function tree_mapreduce(
     f_on_shared::H=(result, is_shared) -> result,
     break_sharing::Val{BS}=Val(false),
 ) where {F1<:Function,F2<:Function,G<:Function,D,H<:Function,RT,BS}
-    sharing = preserve_sharing(typeof(tree)) && !break_sharing
+    sharing = preserve_sharing(typeof(tree)) && !BS
 
     RT == Undefined &&
         sharing &&

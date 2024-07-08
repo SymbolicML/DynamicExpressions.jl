@@ -219,7 +219,7 @@ end
 # with_degree(::Type{N}, ::Val{D}) where {T,N<:Node{T},D} = Node{T,D}
 # with_degree(::Type{N}, ::Val{D}) where {T,N<:GraphNode{T},D} = GraphNode{T,D}
 
-function default_allocator(::Type{N}, ::Type{T}) where {N<:Union{Node,GraphNode},T}
+function default_allocator(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNode,T}
     return with_type_parameters(N, T)()
 end
 

@@ -47,6 +47,7 @@ import .NodeModule:
     constructorof,
     with_type_parameters,
     preserve_sharing,
+    max_degree,
     leaf_copy,
     branch_copy,
     leaf_hash,

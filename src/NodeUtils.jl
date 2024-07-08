@@ -165,6 +165,17 @@ mutable struct NodeIndex{T,D} <: AbstractNode{D}
 end
 NodeIndex(::Type{T}, ::Val{D}) where {T,D} = NodeIndex(T, Val(D), zero(T))
 
+@inline function Base.getproperty(n::NodeIndex, k::Symbol)
+    if k == :l
+        # TODO: Should a depwarn be raised here? Or too slow?
+        return getfield(n, :children)[1][]
+    elseif k == :r
+        return getfield(n, :children)[2][]
+    else
+        return getfield(n, k)
+    end
+end
+
 # Sharing is never needed for NodeIndex,
 # as we trace over the node we are indexing on.
 preserve_sharing(::Union{Type{<:NodeIndex},NodeIndex}) = false
