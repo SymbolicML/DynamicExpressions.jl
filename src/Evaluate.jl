@@ -26,6 +26,22 @@ macro return_on_nonfinite_array(array)
         end
     )
 end
+struct EvaluationOptions{T,B,E}
+    turbo::Val{T}
+    bumper::Val{B}
+    early_exit::Val{E}
+end
+function EvaluationOptions(; turbo=false, bumper=false, early_exit=true)
+    v_turbo = isa(turbo, Val) ? turbo : (turbo ? Val(true) : Val(false))
+    v_bumper = isa(bumper, Val) ? bumper : (bumper ? Val(true) : Val(false))
+    v_early_exit = isa(early_exit, Val) ? early_exit : (early_exit ? Val(true) : Val(false))
+    return EvaluationOptions(v_turbo, v_bumper, v_early_exit)
+end
+function EvaluationOptions{T,B,E}(;
+    turbo=Val(false), bumper=Val(false), early_exit=Val(true)
+) where {T,B,E}
+    return EvaluationOptions{T,B,E}(turbo, bumper, early_exit)
+end
 
 """
     eval_tree_array(tree::AbstractExpressionNode, cX::AbstractMatrix{T}, operators::OperatorEnum; turbo::Union{Bool,Val}=Val(false), bumper::Union{Bool,Val}=Val(false))
@@ -67,26 +83,21 @@ function eval_tree_array(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
-    turbo::Union{Bool,Val}=Val(false),
-    bumper::Union{Bool,Val}=Val(false),
-    early_exit::Union{Bool,Val}=Val(true),
+    options::EvaluationOptions = EvaluationOptions()
 ) where {T<:Number}
-    v_turbo = isa(turbo, Val) ? turbo : (turbo ? Val(true) : Val(false))
-    v_early_exit = isa(early_exit, Val) ? early_exit : (early_exit ? Val(true) : Val(false))
-    v_bumper = isa(bumper, Val) ? bumper : (bumper ? Val(true) : Val(false))
-    if v_turbo isa Val{true} || v_bumper isa Val{true}
+    if options.turbo isa Val{true} || options.bumper isa Val{true}
         @assert T in (Float32, Float64)
     end
-    if v_turbo isa Val{true}
+    if options.turbo isa Val{true}
         _is_loopvectorization_loaded(0) ||
             error("Please load the LoopVectorization.jl package to use this feature.")
     end
-    if v_bumper isa Val{true}
-        return bumper_eval_tree_array(tree, cX, operators, v_turbo, v_early_exit)
+    if options.bumper isa Val{true}
+        return bumper_eval_tree_array(tree, cX, operators, options)
     end
 
-    result = _eval_tree_array(tree, cX, operators, v_turbo, v_early_exit)
-    if v_early_exit isa Val{true}
+    result = _eval_tree_array(tree, cX, operators, options)
+    if options.early_exit isa Val{true}
         return (result.x, result.ok && !is_bad_array(result.x))
     else
         return (result.x, result.ok)
@@ -96,15 +107,13 @@ function eval_tree_array(
     tree::AbstractExpressionNode{T1},
     cX::AbstractMatrix{T2},
     operators::OperatorEnum;
-    turbo::Union{Bool,Val}=Val(false),
-    bumper::Union{Bool,Val}=Val(false),
-    early_exit::Union{Bool,Val}=Val(true),
+    options::EvaluationOptions=EvaluationOptions()
 ) where {T1<:Number,T2<:Number}
     T = promote_type(T1, T2)
     @warn "Warning: eval_tree_array received mixed types: tree=$(T1) and data=$(T2)."
     tree = convert(constructorof(typeof(tree)){T}, tree)
     cX = Base.Fix1(convert, T).(cX)
-    return eval_tree_array(tree, cX, operators; turbo, bumper, early_exit)
+    return eval_tree_array(tree, cX, operators; options=options)
 end
 
 get_nuna(::Type{<:OperatorEnum{B,U}}) where {B,U} = counttuple(U)
@@ -114,9 +123,8 @@ function _eval_tree_array(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    ::Val{turbo},
-    ::Val{early_exit},
-)::ResultOk where {T<:Number,turbo,early_exit}
+    options::EvaluationOptions
+)::ResultOk where {T<:Number}
     # First, we see if there are only constants in the tree - meaning
     # we can just return the constant result.
     if tree.degree == 0
@@ -128,17 +136,17 @@ function _eval_tree_array(
         return ResultOk(fill_similar(const_result.x[], cX, axes(cX, 2)), true)
     elseif tree.degree == 1
         op_idx = tree.op
-        return dispatch_deg1_eval(tree, cX, op_idx, operators, Val(turbo), Val(early_exit))
+        return dispatch_deg1_eval(tree, cX, op_idx, operators, options)
     else
         # TODO - add op(op2(x, y), z) and op(x, op2(y, z))
         # op(x, y), where x, y are constants or variables.
         op_idx = tree.op
-        return dispatch_deg2_eval(tree, cX, op_idx, operators, Val(turbo), Val(early_exit))
+        return dispatch_deg2_eval(tree, cX, op_idx, operators, options)
     end
 end
 
 function deg2_eval(
-    cumulator_l::AbstractVector{T}, cumulator_r::AbstractVector{T}, op::F, ::Val{false}
+    cumulator_l::AbstractVector{T}, cumulator_r::AbstractVector{T}, op::F,
 )::ResultOk where {T<:Number,F}
     @inbounds @simd for j in eachindex(cumulator_l)
         x = op(cumulator_l[j], cumulator_r[j])::T
@@ -148,7 +156,7 @@ function deg2_eval(
 end
 
 function deg1_eval(
-    cumulator::AbstractVector{T}, op::F, ::Val{false}
+    cumulator::AbstractVector{T}, op::F,
 )::ResultOk where {T<:Number,F}
     @inbounds @simd for j in eachindex(cumulator)
         x = op(cumulator[j])::T
@@ -172,21 +180,20 @@ end
     cX::AbstractMatrix{T},
     op_idx::Integer,
     operators::OperatorEnum,
-    ::Val{turbo},
-    ::Val{early_exit},
-) where {T<:Number,turbo,early_exit}
+    options::EvaluationOptions
+) where {T<:Number}
     nbin = get_nbin(operators)
     long_compilation_time = nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     if long_compilation_time
         return quote
-            result_l = _eval_tree_array(tree.l, cX, operators, Val(turbo), Val(early_exit))
+            result_l = _eval_tree_array(tree.l, cX, operators, options)
             !result_l.ok && return result_l
-            early_exit && @return_on_nonfinite_array result_l.x
-            result_r = _eval_tree_array(tree.r, cX, operators, Val(turbo), Val(early_exit))
+            options.early_exit isa Val{true} && @return_on_nonfinite_array result_l.x
+            result_r = _eval_tree_array(tree.r, cX, operators, options)
             !result_r.ok && return result_r
-            early_exit && @return_on_nonfinite_array result_r.x
+            options.early_exit isa Val{true} && @return_on_nonfinite_array result_r.x
             # op(x, y), for any x or y
-            deg2_eval(result_l.x, result_r.x, operators.binops[op_idx], Val(turbo))
+            deg2_eval(result_l.x, result_r.x, operators.binops[op_idx], options)
         end
     end
     return quote
@@ -195,36 +202,28 @@ end
             i -> i == op_idx,
             i -> let op = operators.binops[i]
                 if tree.l.degree == 0 && tree.r.degree == 0
-                    deg2_l0_r0_eval(tree, cX, op, Val(turbo))
+                    deg2_l0_r0_eval(tree, cX, op, options)
                 elseif tree.r.degree == 0
-                    result_l = _eval_tree_array(
-                        tree.l, cX, operators, Val(turbo), Val(early_exit)
-                    )
+                    result_l = _eval_tree_array(tree.l, cX, operators, options)
                     !result_l.ok && return result_l
-                    early_exit && @return_on_nonfinite_array result_l.x
+                    options.early_exit isa Val{true} && @return_on_nonfinite_array result_l.x
                     # op(x, y), where y is a constant or variable but x is not.
-                    deg2_r0_eval(tree, result_l.x, cX, op, Val(turbo))
+                    deg2_r0_eval(tree, result_l.x, cX, op, options)
                 elseif tree.l.degree == 0
-                    result_r = _eval_tree_array(
-                        tree.r, cX, operators, Val(turbo), Val(early_exit)
-                    )
+                    result_r = _eval_tree_array( tree.r, cX, operators, options)
                     !result_r.ok && return result_r
-                    early_exit && @return_on_nonfinite_array result_r.x
+                    options.early_exit isa Val{true} && @return_on_nonfinite_array result_r.x
                     # op(x, y), where x is a constant or variable but y is not.
-                    deg2_l0_eval(tree, result_r.x, cX, op, Val(turbo))
+                    deg2_l0_eval(tree, result_r.x, cX, op, options)
                 else
-                    result_l = _eval_tree_array(
-                        tree.l, cX, operators, Val(turbo), Val(early_exit)
-                    )
+                    result_l = _eval_tree_array( tree.l, cX, operators, options)
                     !result_l.ok && return result_l
-                    early_exit && @return_on_nonfinite_array result_l.x
-                    result_r = _eval_tree_array(
-                        tree.r, cX, operators, Val(turbo), Val(early_exit)
-                    )
+                    options.early_exit isa Val{true} && @return_on_nonfinite_array result_l.x
+                    result_r = _eval_tree_array( tree.r, cX, operators, options)
                     !result_r.ok && return result_r
-                    early_exit && @return_on_nonfinite_array result_r.x
+                    options.early_exit isa Val{true} && @return_on_nonfinite_array result_r.x
                     # op(x, y), for any x or y
-                    deg2_eval(result_l.x, result_r.x, op, Val(turbo))
+                    deg2_eval(result_l.x, result_r.x, op)
                 end
             end
         )
@@ -235,17 +234,16 @@ end
     cX::AbstractMatrix{T},
     op_idx::Integer,
     operators::OperatorEnum,
-    ::Val{turbo},
-    ::Val{early_exit},
-) where {T<:Number,turbo,early_exit}
+    options::EvaluationOptions
+) where {T<:Number}
     nuna = get_nuna(operators)
     long_compilation_time = nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     if long_compilation_time
         return quote
-            result = _eval_tree_array(tree.l, cX, operators, Val(turbo), Val(early_exit))
+            result = _eval_tree_array(tree.l, cX, operators, options)
             !result.ok && return result
-            early_exit && @return_on_nonfinite_array result.x
-            deg1_eval(result.x, operators.unaops[op_idx], Val(turbo))
+            options.early_exit isa Val{true} && @return_on_nonfinite_array result.x
+            deg1_eval(result.x, operators.unaops[op_idx])
         end
     end
     # This @nif lets us generate an if statement over choice of operator,
@@ -259,22 +257,20 @@ end
                     # op(op2(x, y)), where x, y, z are constants or variables.
                     l_op_idx = tree.l.op
                     dispatch_deg1_l2_ll0_lr0_eval(
-                        tree, cX, op, l_op_idx, operators.binops, Val(turbo)
+                        tree, cX, op, l_op_idx, operators.binops, options
                     )
                 elseif tree.l.degree == 1 && tree.l.l.degree == 0
                     # op(op2(x)), where x is a constant or variable.
                     l_op_idx = tree.l.op
                     dispatch_deg1_l1_ll0_eval(
-                        tree, cX, op, l_op_idx, operators.unaops, Val(turbo)
+                        tree, cX, op, l_op_idx, operators.unaops, options
                     )
                 else
                     # op(x), for any x.
-                    result = _eval_tree_array(
-                        tree.l, cX, operators, Val(turbo), Val(early_exit)
-                    )
+                    result = _eval_tree_array( tree.l, cX, operators, options)
                     !result.ok && return result
-                    early_exit && @return_on_nonfinite_array result.x
-                    deg1_eval(result.x, op, Val(turbo))
+                    options.early_exit isa Val{true} && @return_on_nonfinite_array result.x
+                    deg1_eval(result.x, op)
                 end
             end
         )
@@ -286,8 +282,8 @@ end
     op::F,
     l_op_idx::Integer,
     binops,
-    ::Val{turbo},
-) where {T<:Number,F,turbo}
+    options::EvaluationOptions
+) where {T<:Number,F}
     nbin = counttuple(binops)
     # (Note this is only called from dispatch_deg1_eval, which has already
     # checked for long compilation times, so we don't need to check here)
@@ -296,7 +292,7 @@ end
             $nbin,
             j -> j == l_op_idx,
             j -> let op_l = binops[j]
-                deg1_l2_ll0_lr0_eval(tree, cX, op, op_l, Val(turbo))
+                deg1_l2_ll0_lr0_eval(tree, cX, op, op_l, options)
             end,
         )
     end
@@ -307,23 +303,23 @@ end
     op::F,
     l_op_idx::Integer,
     unaops,
-    ::Val{turbo},
-)::ResultOk where {T<:Number,F,turbo}
+    options::EvaluationOptions
+)::ResultOk where {T<:Number,F}
     nuna = counttuple(unaops)
     quote
         Base.Cartesian.@nif(
             $nuna,
             j -> j == l_op_idx,
             j -> let op_l = unaops[j]
-                deg1_l1_ll0_eval(tree, cX, op, op_l, Val(turbo))
+                deg1_l1_ll0_eval(tree, cX, op, op_l, options)
             end,
         )
     end
 end
 
 function deg1_l2_ll0_lr0_eval(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::Val{false}
-) where {T<:Number,F,F2}
+    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::EvaluationOptions{false,false,E}
+) where {T<:Number,F,F2,E}
     if tree.l.l.constant && tree.l.r.constant
         val_ll = tree.l.l.val
         val_lr = tree.l.r.val
@@ -371,8 +367,8 @@ end
 
 # op(op2(x)) for x variable or constant
 function deg1_l1_ll0_eval(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::Val{false}
-) where {T<:Number,F,F2}
+    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::EvaluationOptions{false,false,E}
+) where {T<:Number,F,F2,E}
     if tree.l.l.constant
         val_ll = tree.l.l.val
         @return_on_check val_ll cX
@@ -395,8 +391,8 @@ end
 
 # op(x, y) for x and y variable/constant
 function deg2_l0_r0_eval(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, ::Val{false}
-) where {T<:Number,F}
+    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, ::EvaluationOptions{false,false,E}
+) where {T<:Number,F,E}
     if tree.l.constant && tree.r.constant
         val_l = tree.l.val
         @return_on_check val_l cX
@@ -443,8 +439,8 @@ function deg2_l0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    ::Val{false},
-) where {T<:Number,F}
+    ::EvaluationOptions{false,false,E}
+) where {T<:Number,F,E}
     if tree.l.constant
         val = tree.l.val
         @return_on_check val cX
@@ -469,8 +465,8 @@ function deg2_r0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    ::Val{false},
-) where {T<:Number,F}
+    ::EvaluationOptions{false,false,E}
+) where {T<:Number,F,E}
     if tree.r.constant
         val = tree.r.val
         @return_on_check val cX
@@ -684,10 +680,11 @@ function eval(current_node)
     cX::AbstractArray,
     operators::GenericOperatorEnum;
     throw_errors::Bool=true,
+    options::EvaluationOptions=EvaluationOptions()
 )
-    !throw_errors && return _eval_tree_array_generic(tree, cX, operators, Val(false))
+    !throw_errors && return _eval_tree_array_generic(tree, cX, operators, options)
     try
-        return _eval_tree_array_generic(tree, cX, operators, Val(true))
+        return _eval_tree_array_generic(tree, cX, operators, options)
     catch e
         tree_s = string_tree(tree, operators)
         error_msg = "Failed to evaluate tree $(tree_s)."

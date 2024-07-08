@@ -37,25 +37,25 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
 
         # Trivial:
         for l in (x, c)
-            @ignore_domain_error eval_tree_array(l, X, operators; turbo=use_turbo)
+            @ignore_domain_error eval_tree_array(l, X, operators; options=EvaluationOptions(turbo=use_turbo))
         end
 
         # Binary operators
         for i in eachindex(binops), l in (x, c), r in (x, c)
             tree = Node(i, l, r)
             tree = convert(Node{T}, tree)
-            @ignore_domain_error eval_tree_array(tree, X, operators; turbo=use_turbo)
+            @ignore_domain_error eval_tree_array(tree, X, operators; options=EvaluationOptions(turbo=use_turbo))
         end
 
         # Unary operators
         for j in eachindex(unaops), k in eachindex(unaops), l in (x, c)
             tree = Node(j, l)
             tree = convert(Node{T}, tree)
-            @ignore_domain_error eval_tree_array(tree, X, operators; turbo=use_turbo)
+            @ignore_domain_error eval_tree_array(tree, X, operators; options=EvaluationOptions(turbo=use_turbo))
 
             tree = Node(j, Node(k, l))
             tree = convert(Node{T}, tree)
-            @ignore_domain_error eval_tree_array(tree, X, operators; turbo=use_turbo)
+            @ignore_domain_error eval_tree_array(tree, X, operators; options=EvaluationOptions(turbo=use_turbo))
         end
 
         # Both operators
@@ -67,11 +67,11 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
 
             tree = Node(i, Node(j1, l), Node(j2, r))
             tree = convert(Node{T}, tree)
-            @ignore_domain_error eval_tree_array(tree, X, operators; turbo=use_turbo)
+            @ignore_domain_error eval_tree_array(tree, X, operators; options=EvaluationOptions(turbo=use_turbo))
 
             tree = Node(j1, Node(i, l, r))
             tree = convert(Node{T}, tree)
-            @ignore_domain_error eval_tree_array(tree, X, operators; turbo=use_turbo)
+            @ignore_domain_error eval_tree_array(tree, X, operators; options=EvaluationOptions(turbo=use_turbo))
         end
     end
     return nothing

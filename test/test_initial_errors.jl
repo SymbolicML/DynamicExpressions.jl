@@ -39,11 +39,11 @@ if VERSION >= v"1.9"
 
     @test_throws(
         "Please load the Bumper.jl package",
-        allow_unstable(() -> tree(ones(2, 10), operators; bumper=Val(true)))
+        allow_unstable(() -> tree(ones(2, 10), operators; options=EvaluationOptions(bumper=Val(true))))
     )
 
     @test_throws(
         "Please load the LoopVectorization.jl package",
-        allow_unstable(() -> tree(ones(2, 10), operators; turbo=Val(true)))
+        allow_unstable(() -> tree(ones(2, 10), operators; options=EvaluationOptions(turbo=Val(true))))
     )
 end
