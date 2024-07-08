@@ -1,7 +1,7 @@
 name = "DynamicExpressions"
 uuid = "a40a106e-89c9-4ca8-8020-a735e8728b6b"
 authors = ["MilesCranmer <miles.cranmer@gmail.com>"]
-version = "0.18.2"
+version = "0.18.6"
 
 [deps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
@@ -15,7 +15,6 @@ Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
-TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
 
 [weakdeps]
 Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
@@ -44,7 +43,6 @@ PackageExtensionCompat = "1"
 PrecompileTools = "1"
 Reexport = "1"
 SymbolicUtils = "0.19, ^1.0.5, 2"
-TestItems = "0.1"
 Zygote = "0.6"
 julia = "1.6"
 

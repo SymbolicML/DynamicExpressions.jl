@@ -1,4 +1,4 @@
-# Types
+# API
 
 ## Operator Enum
 

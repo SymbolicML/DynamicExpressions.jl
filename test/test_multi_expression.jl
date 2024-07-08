@@ -61,11 +61,14 @@
         )
         @test_throws "`get_tree` function must be implemented for" DE.get_tree(multi_ex)
         @test_throws "`copy` function must be implemented for" copy(multi_ex)
-        @test_throws "`get_constants` function must be implemented for" get_constants(
+        @test_throws "`get_scalar_constants` function must be implemented for" get_scalar_constants(
             multi_ex
         )
-        @test_throws "`set_constants!` function must be implemented for" set_constants!(
+        @test_throws "`set_scalar_constants!` function must be implemented for" set_scalar_constants!(
             multi_ex, nothing, nothing
+        )
+        @test_throws "`extract_gradient` function must be implemented for" extract_gradient(
+            nothing, multi_ex
         )
     end
 

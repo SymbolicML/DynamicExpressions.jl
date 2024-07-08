@@ -2,8 +2,9 @@ module EvaluateDerivativeModule
 
 import ..NodeModule: AbstractExpressionNode, constructorof
 import ..OperatorEnumModule: OperatorEnum
-import ..UtilsModule: is_bad_array, fill_similar, ResultOk2
-import ..NodeUtilsModule: count_constants, index_constants, NodeIndex
+import ..UtilsModule: fill_similar, ResultOk2
+import ..ValueInterfaceModule: is_valid_array
+import ..NodeUtilsModule: count_constant_nodes, index_constant_nodes, NodeIndex
 import ..EvaluateModule: deg0_eval, get_nuna, get_nbin, OPERATOR_LIMIT_BEFORE_SLOWDOWN
 import ..ExtensionInterfaceModule: _zygote_gradient
 
@@ -105,7 +106,7 @@ end
         end
         !result.ok && return result
         return ResultOk2(
-            result.x, result.dx, !(is_bad_array(result.x) || is_bad_array(result.dx))
+            result.x, result.dx, is_valid_array(result.x) && is_valid_array(result.dx)
         )
     end
 end
@@ -206,17 +207,33 @@ function eval_grad_tree_array(
     variable::Union{Bool,Val}=Val(false),
     turbo::Union{Bool,Val}=Val(false),
 ) where {T<:Number}
-    n_gradients = if isa(variable, Val{true}) || (isa(variable, Bool) && variable)
+    variable_mode = isa(variable, Val{true}) || (isa(variable, Bool) && variable)
+    constant_mode = isa(variable, Val{false}) || (isa(variable, Bool) && !variable)
+    both_mode = isa(variable, Val{:both})
+
+    n_gradients = if variable_mode
         size(cX, 1)::Int
-    else
-        count_constants(tree)::Int
+    elseif constant_mode
+        count_constant_nodes(tree)::Int
+    elseif both_mode
+        size(cX, 1) + count_constant_nodes(tree)
     end
-    result = if isa(variable, Val{true}) || (variable isa Bool && variable)
+
+    result = if variable_mode
         eval_grad_tree_array(tree, n_gradients, nothing, cX, operators, Val(true))
-    else
-        index_tree = index_constants(tree)
-        eval_grad_tree_array(tree, n_gradients, index_tree, cX, operators, Val(false))
-    end
+    elseif constant_mode
+        index_tree = index_constant_nodes(tree)
+        eval_grad_tree_array(
+            tree, n_gradients, index_tree, cX, operators, Val(false)
+        )
+    elseif both_mode
+        # features come first because we can use size(cX, 1) to skip them
+        index_tree = index_constant_nodes(tree)
+        eval_grad_tree_array(
+            tree, n_gradients, index_tree, cX, operators, Val(:both)
+        )
+    end::ResultOk2
+
     return (result.x, result.dx, result.ok)
 end
 
@@ -226,14 +243,12 @@ function eval_grad_tree_array(
     index_tree::Union{NodeIndex,Nothing},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    ::Val{variable},
-)::ResultOk2 where {T<:Number,variable}
-    result = _eval_grad_tree_array(
-        tree, n_gradients, index_tree, cX, operators, Val(variable)
-    )
+    ::Val{mode},
+)::ResultOk2 where {T<:Number,mode}
+    result = _eval_grad_tree_array(tree, n_gradients, index_tree, cX, operators, Val(mode))
     !result.ok && return result
     return ResultOk2(
-        result.x, result.dx, !(is_bad_array(result.x) || is_bad_array(result.dx))
+        result.x, result.dx, is_valid_array(result.x) && is_valid_array(result.dx)
     )
 end
 
@@ -260,30 +275,18 @@ end
     index_tree::Union{NodeIndex,Nothing},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    ::Val{variable},
-)::ResultOk2 where {T<:Number,variable}
+    ::Val{mode},
+)::ResultOk2 where {T<:Number,mode}
     nuna = get_nuna(operators)
     nbin = get_nbin(operators)
     deg1_branch_skeleton = quote
         grad_deg1_eval(
-            tree,
-            n_gradients,
-            index_tree,
-            cX,
-            operators.unaops[i],
-            operators,
-            Val(variable),
+            tree, n_gradients, index_tree, cX, operators.unaops[i], operators, Val(mode)
         )
     end
     deg2_branch_skeleton = quote
         grad_deg2_eval(
-            tree,
-            n_gradients,
-            index_tree,
-            cX,
-            operators.binops[i],
-            operators,
-            Val(variable),
+            tree, n_gradients, index_tree, cX, operators.binops[i], operators, Val(mode)
         )
     end
     deg1_branch = if nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
@@ -310,7 +313,7 @@ end
     end
     quote
         if tree.degree == 0
-            grad_deg0_eval(tree, n_gradients, index_tree, cX, Val(variable))
+            grad_deg0_eval(tree, n_gradients, index_tree, cX, Val(mode))
         elseif tree.degree == 1
             $deg1_branch
         else
@@ -324,8 +327,8 @@ function grad_deg0_eval(
     n_gradients,
     index_tree::Union{NodeIndex,Nothing},
     cX::AbstractMatrix{T},
-    ::Val{variable},
-)::ResultOk2 where {T<:Number,variable}
+    ::Val{mode},
+)::ResultOk2 where {T<:Number,mode}
     const_part = deg0_eval(tree, cX).x
 
     zero_mat = if isa(cX, Array)
@@ -334,17 +337,26 @@ function grad_deg0_eval(
         hcat([fill_similar(zero(T), cX, axes(cX, 2)) for _ in 1:n_gradients]...)'
     end
 
-    if variable == tree.constant
+    if (mode isa Bool && mode == tree.constant)
+        # No gradients at this leaf node
         return ResultOk2(const_part, zero_mat, true)
     end
 
-    index = if variable
-        tree.feature
-    else
+    index = if (mode isa Bool && mode)
+        tree.feature::UInt16
+    elseif (mode isa Bool && !mode)
         (index_tree === nothing ? zero(UInt16) : index_tree.val::UInt16)
+    elseif mode == :both
+        index_tree::NodeIndex
+        if tree.constant
+            index_tree.val::UInt16 + UInt16(size(cX, 1))
+        else
+            tree.feature::UInt16
+        end
     end
+
     derivative_part = zero_mat
-    derivative_part[index, :] .= one(T)
+    fill!(@view(derivative_part[index, :]), one(T))
     return ResultOk2(const_part, derivative_part, true)
 end
 
@@ -355,15 +367,15 @@ function grad_deg1_eval(
     cX::AbstractMatrix{T},
     op::F,
     operators::OperatorEnum,
-    ::Val{variable},
-)::ResultOk2 where {T<:Number,F,variable}
+    ::Val{mode},
+)::ResultOk2 where {T<:Number,F,mode}
     result = eval_grad_tree_array(
         tree.l,
         n_gradients,
         index_tree === nothing ? index_tree : index_tree.l,
         cX,
         operators,
-        Val(variable),
+        Val(mode),
     )
     !result.ok && return result
 
@@ -389,15 +401,15 @@ function grad_deg2_eval(
     cX::AbstractMatrix{T},
     op::F,
     operators::OperatorEnum,
-    ::Val{variable},
-)::ResultOk2 where {T<:Number,F,variable}
+    ::Val{mode},
+)::ResultOk2 where {T<:Number,F,mode}
     result_l = eval_grad_tree_array(
         tree.l,
         n_gradients,
         index_tree === nothing ? index_tree : index_tree.l,
         cX,
         operators,
-        Val(variable),
+        Val(mode),
     )
     !result_l.ok && return result_l
     result_r = eval_grad_tree_array(
@@ -406,7 +418,7 @@ function grad_deg2_eval(
         index_tree === nothing ? index_tree : index_tree.r,
         cX,
         operators,
-        Val(variable),
+        Val(mode),
     )
     !result_r.ok && return result_r
 

@@ -12,7 +12,9 @@
     end
     @test tree == original_tree
     @test isapprox(
-        first(get_constants(res.minimizer)), first(get_constants(target_tree)); atol=0.01
+        first(get_scalar_constants(res.minimizer)),
+        first(get_scalar_constants(target_tree));
+        atol=0.01,
     )
 end
 
@@ -25,7 +27,9 @@ end
     res = optimize(f, g!, tree, BFGS())
     @test tree == original_tree
     @test isapprox(
-        first(get_constants(res.minimizer)), first(get_constants(target_tree)); atol=0.01
+        first(get_scalar_constants(res.minimizer)),
+        first(get_scalar_constants(target_tree));
+        atol=0.01,
     )
 end
 
@@ -55,7 +59,9 @@ end
     @test did_i_run[]
     @test res.f_calls > 0
     @test isapprox(
-        first(get_constants(res.minimizer)), first(get_constants(target_tree)); atol=0.01
+        first(get_scalar_constants(res.minimizer)),
+        first(get_scalar_constants(target_tree));
+        atol=0.01,
     )
     @test Optim.minimizer(res) === res.minimizer
     @test propertynames(res) == (:tree, propertynames(getfield(res, :_results))...)
@@ -102,6 +108,8 @@ end
 
     @test did_i_run_2[]
     @test isapprox(
-        first(get_constants(res.minimizer)), first(get_constants(target_tree)); atol=0.01
+        first(get_scalar_constants(res.minimizer)),
+        first(get_scalar_constants(target_tree));
+        atol=0.01,
     )
 end
