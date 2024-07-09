@@ -33,7 +33,9 @@ macro ignore(args...) end
     set_node!,
     tree_mapreduce,
     filter_map,
-    filter_map!
+    filter_map!,
+    topological_sort,
+    randomised_topological_sort
 import .NodeModule:
     constructorof,
     with_type_parameters,
@@ -70,6 +72,7 @@ import .NodeModule:
 import .ExpressionModule: get_tree, get_operators, get_variable_names, Metadata
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
+
 
 function __init__()
     @require_extensions

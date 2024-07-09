@@ -2,6 +2,7 @@ module NodeModule
 
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..UtilsModule: @memoize_on, @with_memoize, deprecate_varmap, Undefined
+using Random: default_rng, AbstractRNG
 
 const DEFAULT_NODE_TYPE = Float32
 
@@ -163,14 +164,15 @@ when constructing or setting properties.
 mutable struct GraphNode{T} <: AbstractExpressionNode{T}
     degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     constant::Bool  # false if variable
-    val::T  # If is a constant, this stores the actual value
+    val::T  # If is a constant, this stores the actual value, otherwise stores calculated values during evaluation
     # ------------------- (possibly undefined below)
     feature::UInt16  # If is a variable (e.g., x in cos(x)), this stores the feature index.
     op::UInt8  # If operator, this is the index of the operator in operators.binops, or operators.unaops
     l::GraphNode{T}  # Left child node. Only defined for degree=1 or degree=2.
     r::GraphNode{T}  # Right child node. Only defined for degree=2. 
+    visited::Bool # used in dfs toposort
 
-    GraphNode{_T}() where {_T} = new{_T}()
+    GraphNode{_T}() where {_T} = (x = new{_T}(); x.visited = false; x)
 end
 
 ################################################################################
@@ -356,6 +358,55 @@ function set_node!(tree::AbstractExpressionNode, new_tree::AbstractExpressionNod
         end
     end
     return nothing
+end
+
+"""Topological sort of the graph following a depth-first search"""
+function topological_sort(graph::GraphNode{T}) where {T}
+    order = Vector{GraphNode{T}}()
+    _rec_toposort(graph, order)
+    for node in order
+        node.visited = false
+    end
+    return order
+end
+
+"""Topological sort of the graph following a randomised depth-first search"""
+function randomised_topological_sort(graph::GraphNode{T}, rng::AbstractRNG=default_rng()) where {T}
+    order = Vector{GraphNode{T}}()
+    _rec_randomised_toposort(graph, order, rng)
+    for node in order
+        node.visited = false
+    end
+    return order
+end
+
+function _rec_toposort(gnode::GraphNode{T}, order::Vector{GraphNode{T}}) where {T}
+    if gnode.visited return end
+    gnode.visited = true
+    if gnode.degree == 1
+        _rec_toposort(gnode.l, order)
+    elseif gnode.degree == 2
+        _rec_toposort(gnode.l, order)
+        _rec_toposort(gnode.r, order)
+    end
+    push!(order, gnode)
+end
+
+function _rec_randomised_toposort(gnode::GraphNode{T}, order::Vector{GraphNode{T}}, rng::AbstractRNG) where {T}
+    if gnode.visited return end
+    gnode.visited = true
+    if gnode.degree == 1
+        _rec_randomised_toposort(gnode.l, order, rng)
+    elseif gnode.degree == 2
+        if rand(rng, Bool)
+            _rec_randomised_toposort(gnode.l, order, rng)
+            _rec_randomised_toposort(gnode.r, order, rng)
+        else
+            _rec_randomised_toposort(gnode.r, order, rng)
+            _rec_randomised_toposort(gnode.l, order, rng)
+        end
+    end
+    push!(order, gnode)
 end
 
 end
