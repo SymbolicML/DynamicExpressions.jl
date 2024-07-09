@@ -143,59 +143,38 @@ end
 ## Assign index to nodes of a tree
 # This will mirror a Node struct, rather
 # than adding a new attribute to Node.
-mutable struct NodeIndex{T,D} <: AbstractNode{D}
+struct NodeIndex{T} <: AbstractNode
     degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     val::T  # If is a constant, this stores the actual value
     # ------------------- (possibly undefined below)
-    children::NTuple{D,Base.RefValue{NodeIndex{T,D}}}
+    l::NodeIndex{T}  # Left child node. Only defined for degree=1 or degree=2.
+    r::NodeIndex{T}  # Right child node. Only defined for degree=2. 
 
-    function NodeIndex(::Type{_T}, ::Val{_D}, val) where {_T,_D}
-        return new{_T,_D}(
-            0, convert(_T, val), ntuple(_ -> Ref{NodeIndex{_T,_D}}(), Val(_D))
-        )
-    end
-    function NodeIndex(
-        ::Type{_T}, ::Val{_D}, children::Vararg{NodeIndex{_T,_D},_D2}
-    ) where {_T,_D,_D2}
-        _children = ntuple(
-            i -> i <= _D2 ? Ref(children[i]) : Ref{NodeIndex{_T,_D}}(), Val(_D)
-        )
-        return new{_T,_D}(convert(UInt8, _D2), zero(_T), _children)
+    NodeIndex(::Type{_T}) where {_T} = new{_T}(0, zero(_T))
+    NodeIndex(::Type{_T}, val) where {_T} = new{_T}(0, convert(_T, val))
+    NodeIndex(::Type{_T}, l::NodeIndex) where {_T} = new{_T}(1, zero(_T), l)
+    function NodeIndex(::Type{_T}, l::NodeIndex, r::NodeIndex) where {_T}
+        return new{_T}(2, zero(_T), l, r)
     end
 end
-NodeIndex(::Type{T}, ::Val{D}) where {T,D} = NodeIndex(T, Val(D), zero(T))
-
-@inline function Base.getproperty(n::NodeIndex, k::Symbol)
-    if k == :l
-        # TODO: Should a depwarn be raised here? Or too slow?
-        return getfield(n, :children)[1][]
-    elseif k == :r
-        return getfield(n, :children)[2][]
-    else
-        return getfield(n, k)
-    end
-end
-
 # Sharing is never needed for NodeIndex,
 # as we trace over the node we are indexing on.
 preserve_sharing(::Union{Type{<:NodeIndex},NodeIndex}) = false
 
-function index_constant_nodes(
-    tree::AbstractExpressionNode{Ti,D} where {Ti}, ::Type{T}=UInt16
-) where {D,T}
+function index_constant_nodes(tree::AbstractExpressionNode, ::Type{T}=UInt16) where {T}
     # Essentially we copy the tree, replacing the values
     # with indices
     constant_index = Ref(T(0))
     return tree_mapreduce(
         t -> if t.constant
-            NodeIndex(T, Val(D), (constant_index[] += T(1)))
+            NodeIndex(T, (constant_index[] += T(1)))
         else
-            NodeIndex(T, Val(D))
+            NodeIndex(T)
         end,
         t -> nothing,
-        (_, c...) -> NodeIndex(T, Val(D), c...),
+        (_, c...) -> NodeIndex(T, c...),
         tree,
-        NodeIndex{T,D};
+        NodeIndex{T};
     )
 end
 

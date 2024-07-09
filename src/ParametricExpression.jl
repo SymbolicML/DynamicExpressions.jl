@@ -8,7 +8,7 @@ using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
 using ..ExpressionModule: AbstractExpression, Metadata
 using ..ChainRulesModule: NodeTangent
 
-import ..NodeModule: constructorof, max_degree, preserve_sharing, leaf_copy, leaf_hash, leaf_equal
+import ..NodeModule: constructorof, preserve_sharing, leaf_copy, leaf_hash, leaf_equal
 import ..NodeUtilsModule:
     count_constant_nodes,
     index_constant_nodes,
@@ -34,7 +34,7 @@ import ..ValueInterfaceModule:
     count_scalar_constants, pack_scalar_constants!, unpack_scalar_constants
 
 """A type of expression node that also stores a parameter index"""
-mutable struct ParametricNode{T,D} <: AbstractExpressionNode{T,D}
+mutable struct ParametricNode{T} <: AbstractExpressionNode{T}
     degree::UInt8
     constant::Bool  # if true => constant; if false, then check `is_parameter`
     val::T
@@ -44,10 +44,11 @@ mutable struct ParametricNode{T,D} <: AbstractExpressionNode{T,D}
     parameter::UInt16  # Stores index of per-class parameter
 
     op::UInt8
-    children::NTuple{D,Base.RefValue{ParametricNode{T,D}}}  # Children nodes
+    l::ParametricNode{T}
+    r::ParametricNode{T}
 
-    function ParametricNode{_T,_D}() where {_T,_D}
-        n = new{_T,_D}()
+    function ParametricNode{_T}() where {_T}
+        n = new{_T}()
         n.is_parameter = false
         n.parameter = UInt16(0)
         return n
@@ -96,10 +97,10 @@ end
 ###############################################################################
 # Abstract expression node interface ##########################################
 ###############################################################################
-@unstable constructorof(::Type{N}) where {N<:ParametricNode} = ParametricNode{T,max_degree(N)} where {T}
+@unstable constructorof(::Type{<:ParametricNode}) = ParametricNode
 @unstable constructorof(::Type{<:ParametricExpression}) = ParametricExpression
-@unstable default_node_type(::Type{<:ParametricExpression}) = ParametricNode{T,2} where {T}
-default_node_type(::Type{<:ParametricExpression{T}}) where {T} = ParametricNode{T,2}
+@unstable default_node_type(::Type{<:ParametricExpression}) = ParametricNode
+default_node_type(::Type{<:ParametricExpression{T}}) where {T} = ParametricNode{T}
 preserve_sharing(::Union{Type{<:ParametricNode},ParametricNode}) = false # TODO: Change this?
 function leaf_copy(t::ParametricNode{T}) where {T}
     out = if t.constant
