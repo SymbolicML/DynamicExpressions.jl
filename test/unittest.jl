@@ -16,9 +16,7 @@ using Zygote, SymbolicUtils, LoopVectorization, Bumper, Optim
     include("test_deprecations.jl")
 end
 
-@testitem "Test Optim.jl" begin
-    include("test_optim.jl")
-end
+include("test_optim.jl")
 
 @testitem "Test tree construction and scoring" begin
     include("test_tree_construction.jl")
@@ -58,6 +56,10 @@ end
 
 @testitem "Test NaN detection in evaluator" begin
     include("test_nan_detection.jl")
+end
+
+@testitem "Test OperatorEnum with non-number type" begin
+    include("test_non_number_eval_tree_array.jl")
 end
 
 @testitem "Test hash of tree" begin
@@ -104,10 +106,6 @@ end
     include("test_extra_node_fields.jl")
 end
 
-@testitem "Test multi expression" begin
-    include("test_multi_expression.jl")
-end
-
 @testitem "Test containers preserved" begin
     include("test_container_preserved.jl")
 end
@@ -124,14 +122,9 @@ end
     include("test_random.jl")
 end
 
-@testitem "Test expressions" begin
-    include("test_expressions.jl")
-end
-
-@testitem "Test parsing" begin
-    include("test_parse.jl")
-end
-
-@testitem "Test parametric expression" begin
-    include("test_parametric_expression.jl")
-end
+include("test_expressions.jl")
+include("test_multi_expression.jl")
+include("test_parse.jl")
+include("test_parametric_expression.jl")
+include("test_operator_construction_edgecases.jl")
+include("test_node_interface.jl")

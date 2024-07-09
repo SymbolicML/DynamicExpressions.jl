@@ -12,6 +12,8 @@ import ..NodeModule:
     tree_mapreduce,
     any,
     filter_map
+import ..ValueInterfaceModule:
+    pack_scalar_constants!, unpack_scalar_constants, count_scalar_constants, get_number_type
 
 """
     count_depth(tree::AbstractNode)::Int
@@ -32,11 +34,11 @@ Check if the current node in a tree is constant.
 @inline is_node_constant(tree::AbstractExpressionNode) = tree.degree == 0 && tree.constant
 
 """
-    count_constants(tree::AbstractExpressionNode)::Int
+    count_constant_nodes(tree::AbstractExpressionNode)::Int
 
-Count the number of constants in a tree.
+Count the number of constant nodes in a tree.
 """
-function count_constants(tree::AbstractExpressionNode)
+function count_constant_nodes(tree::AbstractExpressionNode)
     return tree_mapreduce(
         node -> is_node_constant(node) ? 1 : 0,
         +,
@@ -69,70 +71,131 @@ whether it depends on input features.
 is_constant(tree::AbstractExpressionNode) = all(t -> t.degree != 0 || t.constant, tree)
 
 """
-    get_constants(tree::AbstractExpressionNode{T})::Vector{T} where {T}
+    count_scalar_constants(tree::AbstractExpressionNode{T})::Int64 where {T}
 
-Get all the constants inside a tree, in depth-first order.
-The function `set_constants!` sets them in the same order,
-given the output of this function.
+Counts the number of scalar constants in the tree.
+Used in get_scalar_constants to preallocate a vector for storing constants array.
 """
-function get_constants(tree::AbstractExpressionNode{T}) where {T}
-    return filter_map(is_node_constant, t -> (t.val), tree, T)
+function count_scalar_constants(tree::AbstractExpressionNode{T}) where {T}
+    return tree_mapreduce(
+        node -> is_node_constant(node) ? count_scalar_constants(node.val) : 0,
+        +,
+        tree,
+        Int64;
+        f_on_shared=(c, is_shared) -> is_shared ? 0 : c,
+    )
 end
 
 """
-    set_constants!(tree::AbstractExpressionNode{T}, constants::AbstractVector{T}) where {T}
+    get_scalar_constants(tree::AbstractExpressionNode{T}, BT::Type = T)::Vector{T} where {T}
+
+Get all the scalar constants inside a tree, in depth-first order.
+The function `set_scalar_constants!` sets them in the same order,
+given the output of this function.
+Also return metadata that can will be used in the `set_scalar_constants!` function.
+"""
+function get_scalar_constants(
+    tree::AbstractExpressionNode{T}, ::Type{BT}=get_number_type(T)
+) where {T,BT}
+    refs = filter_map(
+        is_node_constant, node -> Ref(node), tree, Base.RefValue{typeof(tree)}
+    )
+    if T <: Number
+        # NOTE: Do not remove this `::T` as it is required for inference on empty collections
+        return map(r -> r[].val::T, refs), refs
+    else
+        vals = Vector{BT}(undef, count_scalar_constants(tree))
+        i = firstindex(vals)
+        for ref in refs
+            i = pack_scalar_constants!(vals, i, ref[].val::T)
+        end
+        return vals, refs
+    end
+end
+
+"""
+    set_scalar_constants!(tree::AbstractExpressionNode{T}, constants, refs) where {T}
 
 Set the constants in a tree, in depth-first order. The function
-`get_constants` gets them in the same order.
+`get_scalar_constants` gets them in the same order.
 """
-function set_constants!(
-    tree::AbstractExpressionNode{T}, constants::AbstractVector{T}
-) where {T}
-    Base.require_one_based_indexing(constants)
-    i = Ref(0)
-    foreach(tree) do node
-        if is_node_constant(node)
-            @inbounds node.val = constants[i[] += 1]
+function set_scalar_constants!(tree::AbstractExpressionNode{T}, constants, refs) where {T}
+    if T <: Number
+        @inbounds for i in eachindex(refs, constants)
+            refs[i][].val = constants[i]
+        end
+    else
+        nums_i = 1
+        refs_i = 1
+        while nums_i <= length(constants) && refs_i <= length(refs)
+            ix, v = unpack_scalar_constants(constants, nums_i, refs[refs_i][].val::T)
+            refs[refs_i][].val = v
+            nums_i = ix
+            refs_i += 1
+        end
+        if nums_i <= length(constants) || refs_i <= length(refs)
+            error("`set_scalar_constants!` failed due to bad `unpack_scalar_constants`")
         end
     end
-    return nothing
+    return tree
 end
 
 ## Assign index to nodes of a tree
 # This will mirror a Node struct, rather
 # than adding a new attribute to Node.
-struct NodeIndex{T} <: AbstractNode
+mutable struct NodeIndex{T,D} <: AbstractNode{D}
     degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     val::T  # If is a constant, this stores the actual value
     # ------------------- (possibly undefined below)
-    l::NodeIndex{T}  # Left child node. Only defined for degree=1 or degree=2.
-    r::NodeIndex{T}  # Right child node. Only defined for degree=2. 
+    children::NTuple{D,Base.RefValue{NodeIndex{T,D}}}
 
-    NodeIndex(::Type{_T}) where {_T} = new{_T}(0, zero(_T))
-    NodeIndex(::Type{_T}, val) where {_T} = new{_T}(0, convert(_T, val))
-    NodeIndex(::Type{_T}, l::NodeIndex) where {_T} = new{_T}(1, zero(_T), l)
-    function NodeIndex(::Type{_T}, l::NodeIndex, r::NodeIndex) where {_T}
-        return new{_T}(2, zero(_T), l, r)
+    function NodeIndex(::Type{_T}, ::Val{_D}, val) where {_T,_D}
+        return new{_T,_D}(
+            0, convert(_T, val), ntuple(_ -> Ref{NodeIndex{_T,_D}}(), Val(_D))
+        )
+    end
+    function NodeIndex(
+        ::Type{_T}, ::Val{_D}, children::Vararg{NodeIndex{_T,_D},_D2}
+    ) where {_T,_D,_D2}
+        _children = ntuple(
+            i -> i <= _D2 ? Ref(children[i]) : Ref{NodeIndex{_T,_D}}(), Val(_D)
+        )
+        return new{_T,_D}(convert(UInt8, _D2), zero(_T), _children)
     end
 end
+NodeIndex(::Type{T}, ::Val{D}) where {T,D} = NodeIndex(T, Val(D), zero(T))
+
+@inline function Base.getproperty(n::NodeIndex, k::Symbol)
+    if k == :l
+        # TODO: Should a depwarn be raised here? Or too slow?
+        return getfield(n, :children)[1][]
+    elseif k == :r
+        return getfield(n, :children)[2][]
+    else
+        return getfield(n, k)
+    end
+end
+
 # Sharing is never needed for NodeIndex,
 # as we trace over the node we are indexing on.
-preserve_sharing(::Type{<:NodeIndex}) = false
+preserve_sharing(::Union{Type{<:NodeIndex},NodeIndex}) = false
 
-function index_constants(tree::AbstractExpressionNode, ::Type{T}=UInt16) where {T}
+function index_constant_nodes(
+    tree::AbstractExpressionNode{Ti,D} where {Ti}, ::Type{T}=UInt16
+) where {D,T}
     # Essentially we copy the tree, replacing the values
     # with indices
     constant_index = Ref(T(0))
     return tree_mapreduce(
         t -> if t.constant
-            NodeIndex(T, (constant_index[] += T(1)))
+            NodeIndex(T, Val(D), (constant_index[] += T(1)))
         else
-            NodeIndex(T)
+            NodeIndex(T, Val(D))
         end,
         t -> nothing,
-        (_, c...) -> NodeIndex(T, c...),
+        (_, c...) -> NodeIndex(T, Val(D), c...),
         tree,
-        NodeIndex{T};
+        NodeIndex{T,D};
     )
 end
 

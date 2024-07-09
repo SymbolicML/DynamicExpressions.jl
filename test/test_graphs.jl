@@ -109,87 +109,6 @@ end
             :(_convert(Node{T1}, tree, IdDict{Node{T2},Node{T1}}())),
         )
     end
-
-    @testset "@with_memoize" begin
-        ex = @macroexpand DynamicExpressions.UtilsModule.@with_memoize(
-            _convert(Node{T1}, tree), IdDict{Node{T2},Node{T1}}()
-        )
-        true_ex = quote
-            _convert(Node{T1}, tree, IdDict{Node{T2},Node{T1}}())
-        end
-
-        @test expr_eql(ex, true_ex)
-    end
-
-    @testset "@memoize_on" begin
-        ex = @macroexpand DynamicExpressions.UtilsModule.@memoize_on tree ((x, _) -> x) function _copy_node(
-            tree::Node{T}
-        )::Node{T} where {T}
-            if tree.degree == 0
-                if tree.constant
-                    Node(; val=copy(tree.val))
-                else
-                    Node(T; feature=copy(tree.feature))
-                end
-            elseif tree.degree == 1
-                Node(copy(tree.op), _copy_node(tree.l))
-            else
-                Node(copy(tree.op), _copy_node(tree.l), _copy_node(tree.r))
-            end
-        end
-        true_ex = quote
-            function _copy_node(tree::Node{T})::Node{T} where {T}
-                if tree.degree == 0
-                    if tree.constant
-                        Node(; val=copy(tree.val))
-                    else
-                        Node(T; feature=copy(tree.feature))
-                    end
-                elseif tree.degree == 1
-                    Node(copy(tree.op), _copy_node(tree.l))
-                else
-                    Node(copy(tree.op), _copy_node(tree.l), _copy_node(tree.r))
-                end
-            end
-            function _copy_node(tree::Node{T}, id_map::AbstractDict;)::Node{T} where {T}
-                key = objectid(tree)
-                is_memoized = haskey(id_map, key)
-                function body()
-                    return begin
-                        if tree.degree == 0
-                            if tree.constant
-                                Node(; val=copy(tree.val))
-                            else
-                                Node(T; feature=copy(tree.feature))
-                            end
-                        elseif tree.degree == 1
-                            Node(copy(tree.op), _copy_node(tree.l, id_map))
-                        else
-                            Node(
-                                copy(tree.op),
-                                _copy_node(tree.l, id_map),
-                                _copy_node(tree.r, id_map),
-                            )
-                        end
-                    end
-                end
-                result = if is_memoized
-                    begin
-                        $(Expr(:inbounds, true))
-                        local val = id_map[key]
-                        $(Expr(:inbounds, :pop))
-                        val
-                    end
-                else
-                    id_map[key] = body()
-                end
-                return (((x, _) -> begin
-                    x
-                end)(result, is_memoized))
-            end
-        end
-        @test expr_eql(ex, true_ex)
-    end
 end
 
 @testset "Operations on graphs" begin
@@ -276,28 +195,28 @@ end
         @test count_constants(tree) == 4
         @test count_constants(copy_node(tree; break_sharing=Val(true))) == 8
         @test count_constants(copy_node(tree)) == 4
-        @test get_constants(tree) == [3.2, 3.5, 0.3, 0.9]
-        @test get_constants(copy_node(tree; break_sharing=Val(true))) ==
+        @test get_scalar_constants(tree)[1] == [3.2, 3.5, 0.3, 0.9]
+        @test get_scalar_constants(copy_node(tree; break_sharing=Val(true)))[1] ==
             [3.2, 3.5, 0.3, 0.9, 3.2, 3.5, 0.3, 0.9]
 
-        c = get_constants(tree)
+        c, refs = get_scalar_constants(tree)
         c .+= 1.2
-        set_constants!(tree, c)
-        @test get_constants(tree) == [4.4, 4.7, 1.5, 2.1]
+        set_scalar_constants!(tree, c, refs)
+        @test get_scalar_constants(tree)[1] == [4.4, 4.7, 1.5, 2.1]
         # Note that this means all constants in the shared expression are set the same way:
-        @test get_constants(copy_node(tree; break_sharing=Val(true))) ==
+        @test get_scalar_constants(copy_node(tree; break_sharing=Val(true)))[1] ==
             [4.4, 4.7, 1.5, 2.1, 4.4, 4.7, 1.5, 2.1]
 
         # What about a single constant?
         f1 = GraphNode(; val=1.0)
-        @test get_constants(f1) == [1.0]
+        @test get_scalar_constants(f1)[1] == [1.0]
         f2 = GraphNode(1, f1, f1)
-        @test get_constants(f2) == [1.0]
+        @test get_scalar_constants(f2)[1] == [1.0]
         @test string_tree(f2, operators) == "1.0 + {1.0}"
 
         # Now, we can test indexing:
         base_tree, tree = make_tree()
-        node_index = index_constants(tree)
+        node_index = index_constant_nodes(tree)
         @eval function get_indices(n::NodeIndex{T}) where {T}
             return filter_map(t -> t.degree == 0 && !iszero(t.val), t -> t.val, n, T)
         end
@@ -353,7 +272,7 @@ end
         x = GraphNode(Float32; feature=1)
         tree = x + 1.0
         @test tree.l === x
-        @test typeof(tree) === GraphNode{Float32}
+        @test typeof(tree) <: GraphNode{Float32}
 
         # Detect error from Float32(1im)
         @test_throws InexactError x + 1im

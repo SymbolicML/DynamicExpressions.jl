@@ -4,8 +4,10 @@ using SymbolicUtils
 import DynamicExpressions.NodeModule:
     AbstractExpressionNode, Node, constructorof, DEFAULT_NODE_TYPE
 import DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
-import DynamicExpressions.UtilsModule: isgood, isbad, deprecate_varmap
+import DynamicExpressions.ValueInterfaceModule: is_valid
+import DynamicExpressions.UtilsModule: deprecate_varmap
 import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
+import DynamicExpressions: AbstractExpression, get_tree, get_operators
 
 const SYMBOLIC_UTILS_TYPES = Union{<:Number,SymbolicUtils.Symbolic{<:Number}}
 const SUPPORTED_OPS = (cos, sin, exp, cot, tan, csc, sec, +, -, *, /)
@@ -18,14 +20,14 @@ macro return_on_false(flag, retval)
     )
 end
 
-function isgood(x::SymbolicUtils.Symbolic)
+function is_valid(x::SymbolicUtils.Symbolic)
     return if SymbolicUtils.istree(x)
-        all(isgood.([SymbolicUtils.operation(x); SymbolicUtils.arguments(x)]))
+        all(is_valid.([SymbolicUtils.operation(x); SymbolicUtils.arguments(x)]))
     else
         true
     end
 end
-subs_bad(x) = isgood(x) ? x : Inf
+subs_bad(x) = is_valid(x) ? x : Inf
 
 function parse_tree_to_eqs(
     tree::AbstractExpressionNode{T},
@@ -109,8 +111,8 @@ end
 
 function Base.convert(
     ::typeof(SymbolicUtils.Symbolic),
-    tree::AbstractExpressionNode,
-    operators::AbstractOperatorEnum;
+    tree::Union{AbstractExpression,AbstractExpressionNode},
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     variable_names::Union{Array{String,1},Nothing}=nothing,
     index_functions::Bool=false,
     # Deprecated:
@@ -118,7 +120,10 @@ function Base.convert(
 )
     variable_names = deprecate_varmap(variable_names, varMap, :convert)
     return node_to_symbolic(
-        tree, operators; variable_names=variable_names, index_functions=index_functions
+        tree,
+        get_operators(tree, operators);
+        variable_names=variable_names,
+        index_functions=index_functions,
     )
 end
 
@@ -193,7 +198,7 @@ function node_to_symbolic(
     variable_names = deprecate_varmap(variable_names, varMap, :node_to_symbolic)
     expr = subs_bad(parse_tree_to_eqs(tree, operators, index_functions))
     # Check for NaN and Inf
-    @assert isgood(expr) "The recovered equation contains NaN or Inf."
+    @assert is_valid(expr) "The recovered equation contains NaN or Inf."
     # Return if no variable_names is given
     variable_names === nothing && return expr
     # Create a substitution tuple
@@ -205,6 +210,11 @@ function node_to_symbolic(
         ]...,
     )
     return substitute(expr, subs)
+end
+function node_to_symbolic(
+    tree::AbstractExpression, operators::Union{AbstractOperatorEnum,Nothing}=nothing; kws...
+)
+    return node_to_symbolic(get_tree(tree), get_operators(tree, operators); kws...)
 end
 
 function symbolic_to_node(
@@ -239,12 +249,12 @@ function multiply_powers(
     if nargs == 1
         l, complete = multiply_powers(args[1])
         @return_on_false complete eqn
-        @return_on_false isgood(l) eqn
+        @return_on_false is_valid(l) eqn
         return op(l), true
     elseif op == ^
         l, complete = multiply_powers(args[1])
         @return_on_false complete eqn
-        @return_on_false isgood(l) eqn
+        @return_on_false is_valid(l) eqn
         n = args[2]
         if typeof(n) <: Integer
             if n == 1
@@ -266,10 +276,10 @@ function multiply_powers(
     elseif nargs == 2
         l, complete = multiply_powers(args[1])
         @return_on_false complete eqn
-        @return_on_false isgood(l) eqn
+        @return_on_false is_valid(l) eqn
         r, complete2 = multiply_powers(args[2])
         @return_on_false complete2 eqn
-        @return_on_false isgood(r) eqn
+        @return_on_false is_valid(r) eqn
         return op(l, r), true
     else
         # return tree_mapreduce(multiply_powers, op, args)
@@ -277,12 +287,12 @@ function multiply_powers(
         out = map(multiply_powers, args) #vector of tuples
         for i in 1:size(out, 1)
             @return_on_false out[i][2] eqn
-            @return_on_false isgood(out[i][1]) eqn
+            @return_on_false is_valid(out[i][1]) eqn
         end
         cumulator = out[1][1]
         for i in 2:size(out, 1)
             cumulator = op(cumulator, out[i][1])
-            @return_on_false isgood(cumulator) eqn
+            @return_on_false is_valid(cumulator) eqn
         end
         return cumulator, true
     end

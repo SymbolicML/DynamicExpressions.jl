@@ -32,13 +32,23 @@ end
 @generated function get_op_name(op::F)::Vector{Char} where {F}
     try
         # Bit faster to just cache the name of the operator:
-        op_s = string(F.instance)
+        op_s = if F <: Broadcast.BroadcastFunction
+            string(F.parameters[1].instance) * '.'
+        else
+            string(F.instance)
+        end
+        if length(op_s) == 2 && op_s[1] in ('+', '-', '*', '/', '^') && op_s[2] == '.'
+            op_s = '.' * op_s[1]
+        end
         out = collect(get(OP_NAMES, op_s, op_s))
         return :($out)
     catch
     end
     return quote
-        op_s = string(op)
+        op_s = typeof(op) <: Broadcast.BroadcastFunction ? string(op.f) * '.' : string(op)
+        if length(op_s) == 2 && op_s[1] in ('+', '-', '*', '/', '^') && op_s[2] == '.'
+            op_s = '.' * op_s[1]
+        end
         out = collect(get(OP_NAMES, op_s, op_s))
         return out
     end
@@ -67,7 +77,9 @@ function string_constant(val)
 end
 
 function string_variable(feature, variable_names)
-    if variable_names === nothing || feature > lastindex(variable_names)
+    if variable_names === nothing ||
+        feature > lastindex(variable_names) ||
+        feature < firstindex(variable_names)
         return 'x' * string(feature)
     else
         return variable_names[feature]
@@ -76,7 +88,7 @@ end
 
 # Vector of chars is faster than strings, so we use that.
 function combine_op_with_inputs(op, l, r)::Vector{Char}
-    if first(op) in ('+', '-', '*', '/', '^')
+    if first(op) in ('+', '-', '*', '/', '^', '.')
         # "(l op r)"
         out = ['(']
         append!(out, l)

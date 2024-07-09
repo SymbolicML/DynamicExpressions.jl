@@ -67,4 +67,4 @@ d_tree = begin
     storage_tree
 end
 
-@test_broken get_constants(d_tree) ≈ [1.0, 0.717356]
+@test_broken get_scalar_constants(d_tree) ≈ [1.0, 0.717356]

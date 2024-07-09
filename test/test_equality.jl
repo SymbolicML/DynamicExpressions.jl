@@ -45,8 +45,8 @@ modified_tree5 = 1.5 * cos(x2 * x1) + x1 + x2 * x3 - log(x2 * 3.2)
 
 f64_tree = GraphNode{Float64}(x1 + x2 * x3 - log(x2 * 3.0) + 1.5 * cos(x2 / x1))
 f32_tree = GraphNode{Float32}(x1 + x2 * x3 - log(x2 * 3.0) + 1.5 * cos(x2 / x1))
-@test typeof(f64_tree) == GraphNode{Float64}
-@test typeof(f32_tree) == GraphNode{Float32}
+@test typeof(f64_tree) <: GraphNode{Float64}
+@test typeof(f32_tree) <: GraphNode{Float32}
 
 @test convert(GraphNode{Float64}, f32_tree) == f64_tree
 

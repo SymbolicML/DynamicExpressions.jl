@@ -1,196 +1,251 @@
-using DynamicExpressions
-using DynamicExpressions: parse_expression
-using DynamicExpressions: get_tree, get_operators, get_variable_names
-using Zygote
-using Test
+@testitem "Expression Initialization" begin
+    using DynamicExpressions
+    using DynamicExpressions: get_tree, get_operators, get_variable_names
 
-@testset "Expression Initialization" begin
-    let
-        tree = Node(Float64; feature=1)
-        operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
-        variable_names = ["x"]
+    tree = Node(Float64; feature=1)
+    operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
+    variable_names = ["x"]
 
-        expr = Expression(tree; operators, variable_names)
+    expr = Expression(tree; operators, variable_names)
 
-        @test get_tree(expr) === tree
-        @test get_operators(expr, nothing) === operators
-        @test get_variable_names(expr, nothing) === variable_names
+    @test get_tree(expr) === tree
+    @test get_operators(expr, nothing) === operators
+    @test get_variable_names(expr, nothing) === variable_names
 
-        copy_operators = OperatorEnum(; binary_operators=[+])
-        copy_variable_names = ["y"]
+    copy_operators = OperatorEnum(; binary_operators=[+])
+    copy_variable_names = ["y"]
 
-        @test get_operators(expr, copy_operators) === copy_operators
-        @test get_variable_names(expr, copy_variable_names) === copy_variable_names
+    @test get_operators(expr, copy_operators) === copy_operators
+    @test get_variable_names(expr, copy_variable_names) === copy_variable_names
 
-        @inferred copy_node(expr)
-        @test copy(expr) == expr
-        @test hash(copy(expr)) == hash(expr)
+    @inferred copy_node(expr)
+    @test copy(expr) == expr
+    @test hash(copy(expr)) == hash(expr)
 
-        expr2 = Expression(Node(; op=1, l=tree); operators, variable_names)
-        @test copy_node(expr2) != expr
-        @test hash(copy(expr2)) != hash(expr)
+    expr2 = Expression(Node(; op=1, l=tree); operators, variable_names)
+    @test copy_node(expr2) != expr
+    @test hash(copy(expr2)) != hash(expr)
 
-        @test propertynames(expr.metadata) == (:operators, :variable_names)
+    @test propertynames(expr.metadata) == (:operators, :variable_names)
 
-        @test count_nodes(expr2) == 2
+    @test count_nodes(expr2) == 2
 
-        @test tree_mapreduce(_ -> 2, +, expr2) == 4
-        @test tree_mapreduce(_ -> 2, _ -> 3, +, expr2) == 5
-        @test count_depth(expr2) == 2
-    end
+    @test tree_mapreduce(_ -> 2, +, expr2) == 4
+    @test tree_mapreduce(_ -> 2, _ -> 3, +, expr2) == 5
+    @test count_depth(expr2) == 2
 end
 
-@testset "Evaluation" begin
-    let
-        ex = @parse_expression(
-            sin(2.0 * x1 + exp(x2 + 5.0)),
-            operators = OperatorEnum(;
-                binary_operators=[+, -, *, /], unary_operators=[sin, cos, exp]
-            ),
-            variable_names = [:x1, :x2],
-        )
+@testitem "Expression interface" begin
+    using DynamicExpressions
+    using DynamicExpressions: ExpressionInterface
+    using Interfaces: test
+    tree = Node(Float64; feature=1)
+    operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
+    variable_names = ["x"]
+    expr = Expression(tree; operators, variable_names)
+    @test test(ExpressionInterface, Expression, [expr])
+end
 
-        X = rand(Float64, 2, 10) .+ 1
-        expected = @. sin(2.0 * X[1, :] + exp(X[2, :] + 5.0))
-        expected_dy_dx1 = @. 2.0 * cos(2.0 * X[1, :] + exp(X[2, :] + 5.0))
+@testitem "Expression evaluation" begin
+    using DynamicExpressions
+    using Zygote
 
-        if VERSION >= v"1.9"
-            @test_nowarn begin
-                result = ex(X)
-                @test result ≈ expected
-                result, _ = eval_tree_array(ex, X)
-                @test result ≈ expected
-                result_grad = ex'(X)
-                @test result_grad[1, :] ≈ expected_dy_dx1
-                _, result_grad, _ = eval_grad_tree_array(ex, X; variable=Val(true))
-                @test result_grad[1, :] ≈ expected_dy_dx1
-            end
+    ex = @parse_expression(
+        sin(2.0 * x1 + exp(x2 + 5.0)),
+        operators = OperatorEnum(;
+            binary_operators=[+, -, *, /], unary_operators=[sin, cos, exp]
+        ),
+        variable_names = [:x1, :x2],
+    )
+
+    X = rand(Float64, 2, 10) .+ 1
+    expected = @. sin(2.0 * X[1, :] + exp(X[2, :] + 5.0))
+    expected_dy_dx1 = @. 2.0 * cos(2.0 * X[1, :] + exp(X[2, :] + 5.0))
+
+    if VERSION >= v"1.9"
+        @test_nowarn begin
+            result = ex(X)
+            @test result ≈ expected
+            result, _ = eval_tree_array(ex, X)
+            @test result ≈ expected
+            result_grad = ex'(X)
+            @test result_grad[1, :] ≈ expected_dy_dx1
+            _, result_grad, _ = eval_grad_tree_array(ex, X; variable=Val(true))
+            @test result_grad[1, :] ≈ expected_dy_dx1
         end
     end
 end
 
-@testset "Simplification" begin
-    let
-        ex = @parse_expression(
-            sin(2.0 + 1.0 + c),
-            operators = OperatorEnum(;
-                binary_operators=[+, -, *, /], unary_operators=[sin, cos, exp]
-            ),
-            variable_names = [:c],
-        )
-        out = simplify_tree!(ex)
-        @test typeof(out) === typeof(ex)
-        @test string_tree(ex) == "sin(3.0 + c)"
+@testitem "Can also get derivatives of expression itself" begin
+    using DynamicExpressions
+    using Zygote: Zygote
+    using DifferentiationInterface: AutoZygote, gradient
 
-        # ((const + var) + const) => (const + var)
-        ex = @parse_expression(
-            (2.0 + x) + 3.0,
-            operators = OperatorEnum(; binary_operators=[+, -]),
-            variable_names = [:x],
-        )
-        out = combine_operators(ex)
-        @test typeof(out) === typeof(ex)
-        @test string_tree(out) == "x + 5.0"
+    ex = @parse_expression(x1 + 1.5, binary_operators = [+], variable_names = ["x1"])
+    d_ex = gradient(AutoZygote(), ex) do ex
+        sum(ex(ones(1, 5)))
     end
+    @test d_ex isa NamedTuple
+    @test extract_gradient(d_ex, ex) ≈ [5.0]
 end
 
-@testset "Nested repeat operators" begin
-    let
-        ex = @parse_expression(
-            a + b + c + a + b + c,
-            variable_names = [:a, :b, :c],
-            operators = OperatorEnum(; binary_operators=[+])
-        )
-        @test sprint((io, ex) -> show(io, MIME"text/plain"(), ex), ex) ==
-            "((((a + b) + c) + a) + b) + c"
-    end
-end
+@testitem "Expression simplification" begin
+    using DynamicExpressions
 
-@testset "Utilities" begin
-    let
+    ex = @parse_expression(
+        sin(2.0 + 1.0 + c),
         operators = OperatorEnum(;
             binary_operators=[+, -, *, /], unary_operators=[sin, cos, exp]
-        )
-        variable_names = [:a, :b, :c]
-        ex = @parse_expression(
-            cos(a * 1.5 - 0.3) * b + exp(0.5 - c * c),
-            variable_names = variable_names,
-            operators = operators
-        )
-        @test string(ex) == string(copy(ex))
-        @test ex !== copy(ex)
-        @test hash(ex) == copy(hash(ex))
+        ),
+        variable_names = [:c],
+    )
+    out = simplify_tree!(ex)
+    @test typeof(out) === typeof(ex)
+    @test string_tree(ex) == "sin(3.0 + c)"
 
-        t = ex.tree
-        modified_ex = @parse_expression(
-            $t + 1.5, variable_names = variable_names, operators = operators
-        )
-        s1 = sprint((io, ex) -> show(io, MIME"text/plain"(), ex), ex)
-        s2 = sprint((io, ex) -> show(io, MIME"text/plain"(), ex), modified_ex)
-        @test s2 == "($s1) + 1.5"
-        @test hash(ex) != hash(modified_ex)
-
-        variable_names = []
-        ex = @parse_expression(
-            1.5 + 2.5, operators = OperatorEnum(; binary_operators=[+]), variable_names
-        )
-        @test has_operators(ex) == true
-        ex = @parse_expression(
-            1.5, operators = OperatorEnum(; binary_operators=[+]), variable_names
-        )
-        @test has_operators(ex) == false
-        @test count_constants(ex) == 1
-        node_index = index_constants(ex)
-        @test node_index isa NodeIndex
-        @test node_index.val == 1
-        ex = @parse_expression(
-            1.5 + 2.5, operators = OperatorEnum(; binary_operators=[+]), variable_names
-        )
-        node_index = index_constants(ex)
-        @test node_index.l.val == 1
-        @test node_index.r.val == 2
-        @test get_constants(ex) == [1.5, 2.5]
-        set_constants!(ex, [3.5, 4.5])
-        @test get_constants(ex) == [3.5, 4.5]
-        @test count_constants(ex) == 2
-        @test has_constants(ex) == true
-        ex = @parse_expression(
-            a, operators = OperatorEnum(; binary_operators=[+]), variable_names = [:a]
-        )
-        @test has_constants(ex) == false
-    end
+    # ((const + var) + const) => (const + var)
+    ex = @parse_expression(
+        (2.0 + x) + 3.0,
+        operators = OperatorEnum(; binary_operators=[+, -]),
+        variable_names = [:x],
+    )
+    out = combine_operators(ex)
+    @test typeof(out) === typeof(ex)
+    @test string_tree(out) == "x + 5.0"
 end
 
-@testset "Edge cases" begin
-    let
-        operators = OperatorEnum(;
-            binary_operators=[+, -, *, /], unary_operators=[sin, cos, exp]
-        )
-        variable_names = [:a, :b, :c]
-        ex = @parse_expression(
-            cos(a * 1.5 - 0.3) * b + exp(0.5 - c * c),
-            variable_names = variable_names,
-            operators = operators
-        )
-        @test_throws ArgumentError @parse_expression(
+@testitem "Nested repeat operators in Expression parsing" begin
+    using DynamicExpressions
+
+    ex = @parse_expression(
+        a + b + c + a + b + c,
+        variable_names = [:a, :b, :c],
+        operators = OperatorEnum(; binary_operators=[+])
+    )
+    @test sprint((io, ex) -> show(io, MIME"text/plain"(), ex), ex) ==
+        "((((a + b) + c) + a) + b) + c"
+end
+
+@testitem "Expression utilities" begin
+    using DynamicExpressions
+
+    operators = OperatorEnum(;
+        binary_operators=[+, -, *, /], unary_operators=[sin, cos, exp]
+    )
+    variable_names = [:a, :b, :c]
+    ex = @parse_expression(
+        cos(a * 1.5 - 0.3) * b + exp(0.5 - c * c),
+        variable_names = variable_names,
+        operators = operators
+    )
+    @test string(ex) == string(copy(ex))
+    @test ex !== copy(ex)
+    @test hash(ex) == copy(hash(ex))
+
+    t = ex.tree
+    modified_ex = @parse_expression(
+        $t + 1.5, variable_names = variable_names, operators = operators
+    )
+    s1 = sprint((io, ex) -> show(io, MIME"text/plain"(), ex), ex)
+    s2 = sprint((io, ex) -> show(io, MIME"text/plain"(), ex), modified_ex)
+    @test s2 == "($s1) + 1.5"
+    @test hash(ex) != hash(modified_ex)
+
+    variable_names = []
+    ex = @parse_expression(
+        1.5 + 2.5, operators = OperatorEnum(; binary_operators=[+]), variable_names
+    )
+    @test has_operators(ex) == true
+    ex = @parse_expression(
+        1.5, operators = OperatorEnum(; binary_operators=[+]), variable_names
+    )
+    @test has_operators(ex) == false
+    @test count_constants(ex) == 1
+    node_index = index_constant_nodes(ex)
+    @test node_index isa NodeIndex
+    @test node_index.val == 1
+    ex = @parse_expression(
+        1.5 + 2.5, operators = OperatorEnum(; binary_operators=[+]), variable_names
+    )
+    node_index = index_constant_nodes(ex)
+    @test node_index.l.val == 1
+    @test node_index.r.val == 2
+    @test get_scalar_constants(ex)[1] == [1.5, 2.5]
+    set_scalar_constants!(ex, [3.5, 4.5], get_scalar_constants(ex)[2])
+    @test get_scalar_constants(ex)[1] == [3.5, 4.5]
+    @test count_constants(ex) == 2
+    @test has_constants(ex) == true
+    ex = @parse_expression(
+        a, operators = OperatorEnum(; binary_operators=[+]), variable_names = [:a]
+    )
+    @test has_constants(ex) == false
+end
+
+@testitem "Expression with_contents" begin
+    using DynamicExpressions
+
+    ex = @parse_expression(x1 + 1.5, binary_operators = [+, *], variable_names = ["x1"])
+    ex2 = @parse_expression(x1 + 3.0, binary_operators = [+], variable_names = ["x1"])
+
+    t2 = DynamicExpressions.get_contents(ex2)
+    ex_modified = DynamicExpressions.with_contents(ex, t2)
+    @test DynamicExpressions.get_tree(ex_modified) == t2
+end
+
+@testitem "Expression `preserve_sharing`" begin
+    using DynamicExpressions
+
+    ex = @parse_expression(x1 + 1.5, binary_operators = [+, *], variable_names = ["x1"])
+    ex_graph = @parse_expression(
+        x1 + 1.5, binary_operators = [+, *], variable_names = ["x1"], node_type = GraphNode
+    )
+    @test !DynamicExpressions.preserve_sharing(ex)
+    @test DynamicExpressions.preserve_sharing(ex_graph)
+end
+
+@testitem "Expression edge cases" begin
+    using DynamicExpressions
+
+    operators = OperatorEnum(;
+        binary_operators=[+, -, *, /], unary_operators=[sin, cos, exp]
+    )
+    variable_names = [:a, :b, :c]
+    ex = @parse_expression(
+        cos(a * 1.5 - 0.3) * b + exp(0.5 - c * c),
+        variable_names = variable_names,
+        operators = operators
+    )
+    @test_throws ArgumentError @parse_expression(
+        $ex + 1.5, variable_names = variable_names, operators = operators
+    )
+    if VERSION >= v"1.9"
+        @test_throws "Cannot parse an expression as a value in another expression. " @parse_expression(
             $ex + 1.5, variable_names = variable_names, operators = operators
         )
-        if VERSION >= v"1.9"
-            @test_throws "Cannot parse an expression as a value in another expression. " @parse_expression(
-                $ex + 1.5, variable_names = variable_names, operators = operators
-            )
-        end
-        @eval struct Foo
-            x::$(typeof(ex.tree))
-        end
-        foo = Foo(ex.tree)
-        @test_throws ArgumentError @parse_expression(
+    end
+    @eval struct Foo
+        x::$(typeof(ex.tree))
+    end
+    foo = Foo(ex.tree)
+    @test_throws ArgumentError @parse_expression(
+        $(foo).x + 1.5, variable_names = variable_names, operators = operators
+    )
+    if VERSION >= v"1.9"
+        @test_throws "Unrecognized expression type" @parse_expression(
             $(foo).x + 1.5, variable_names = variable_names, operators = operators
         )
-        if VERSION >= v"1.9"
-            @test_throws "Unrecognized expression type" @parse_expression(
-                $(foo).x + 1.5, variable_names = variable_names, operators = operators
-            )
-        end
     end
+end
+
+@testitem "Miscellaneous expression calls" begin
+    using DynamicExpressions
+    using DynamicExpressions: get_tree, get_operators
+
+    ex = @parse_expression(x1 + 1.5, binary_operators = [+], variable_names = ["x1"])
+    @test DynamicExpressions.ExpressionModule.node_type(ex) <: Node
+
+    @test !isempty(ex)
+
+    tree = get_tree(ex)
+    @test_throws ArgumentError get_operators(tree, nothing)
 end
