@@ -4,6 +4,7 @@ using DispatchDoctor: @unstable
 
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..UtilsModule: deprecate_varmap, Undefined
+using Random: default_rng, AbstractRNG
 
 const DEFAULT_NODE_TYPE = Float32
 
@@ -73,20 +74,34 @@ You likely do not need to, but you could choose to override the following:
 """
 abstract type AbstractExpressionNode{T,D} <: AbstractNode{D} end
 
-for N in (:Node, :GraphNode)
-    @eval mutable struct $N{T,D} <: AbstractExpressionNode{T,D}
-        degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
-        constant::Bool  # false if variable
-        val::T  # If is a constant, this stores the actual value
-        feature::UInt16  # (Possibly undefined) If is a variable (e.g., x in cos(x)), this stores the feature index.
-        op::UInt8  # (Possibly undefined) If operator, this is the index of the operator in the degree-specific operator enum
-        children::NTuple{D,Base.RefValue{$N{T,D}}}  # Children nodes
+mutable struct Node{T,D} <: AbstractExpressionNode{T,D}
+    degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
+    constant::Bool  # false if variable
+    val::T  # If is a constant, this stores the actual value
+    feature::UInt16  # (Possibly undefined) If is a variable (e.g., x in cos(x)), this stores the feature index.
+    op::UInt8  # (Possibly undefined) If operator, this is the index of the operator in the degree-specific operator enum
+    children::NTuple{D,Base.RefValue{Node{T,D}}}  # Children nodes
 
-        #################
-        ## Constructors:
-        #################
-        $N{_T,_D}() where {_T,_D} = new{_T,_D::Int}()
-    end
+    #################
+    ## Constructors:
+    #################
+    #Node{_T,_D}() where {_T,_D} = new{_T,_D::Int}()
+    Node{_T,_D}() where {_T,_D} = (x = new{_T,_D::Int}(); x.children = ntuple(i -> Ref{Node{_T,_D}}(), Val(max_degree(Node))); x)
+end
+
+mutable struct GraphNode{T,D} <: AbstractExpressionNode{T,D}
+    degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
+    constant::Bool  # false if variable
+    val::T  # If is a constant, this stores the actual value
+    feature::UInt16  # (Possibly undefined) If is a variable (e.g., x in cos(x)), this stores the feature index.
+    op::UInt8  # (Possibly undefined) If operator, this is the index of the operator in the degree-specific operator enum
+    children::NTuple{D,Base.RefValue{GraphNode{T,D}}}  # Children nodes
+    visited::Bool  # search accounting, initialised to false
+
+    #################
+    ## Constructors:
+    #################
+    GraphNode{_T,_D}() where {_T,_D} = (x = new{_T,_D::Int}(); x.visited = false; x.children = ntuple(i -> Ref{GraphNode{_T,_D}}(), Val(max_degree(GraphNode))); x)
 end
 
 #! format: off
@@ -193,6 +208,8 @@ end
         setfield!(n, :val, convert(eltype(n), v))
     elseif k == :children
         setfield!(n, :children, v)
+    elseif k == :visited && typeof(n) <: GraphNode
+        setfield!(n, :visited, v)
     else
         error("Invalid property: $k")
     end
