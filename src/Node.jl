@@ -394,8 +394,8 @@ function set_node!(tree::AbstractExpressionNode, new_tree::AbstractExpressionNod
 end
 
 """Topological sort of the graph following a depth-first search"""
-function topological_sort(graph::GraphNode{T}) where {T}
-    order = Vector{GraphNode{T}}()
+function topological_sort(graph::GraphNode)
+    order = Vector{GraphNode}()
     _rec_toposort(graph, order)
     for node in order
         node.visited = false
@@ -404,8 +404,8 @@ function topological_sort(graph::GraphNode{T}) where {T}
 end
 
 """Topological sort of the graph following a randomised depth-first search"""
-function randomised_topological_sort(graph::GraphNode{T}, rng::AbstractRNG=default_rng()) where {T}
-    order = Vector{GraphNode{T}}()
+function randomised_topological_sort(graph::GraphNode, rng::AbstractRNG=default_rng())
+    order = Vector{GraphNode}()
     _rec_randomised_toposort(graph, order, rng)
     for node in order
         node.visited = false
@@ -413,7 +413,7 @@ function randomised_topological_sort(graph::GraphNode{T}, rng::AbstractRNG=defau
     return order
 end
 
-function _rec_toposort(gnode::GraphNode{T}, order::Vector{GraphNode{T}}) where {T}
+function _rec_toposort(gnode::GraphNode, order::Vector{GraphNode})
     if gnode.visited return end
     gnode.visited = true
     if gnode.degree == 1
@@ -425,7 +425,7 @@ function _rec_toposort(gnode::GraphNode{T}, order::Vector{GraphNode{T}}) where {
     push!(order, gnode)
 end
 
-function _rec_randomised_toposort(gnode::GraphNode{T}, order::Vector{GraphNode{T}}, rng::AbstractRNG) where {T}
+function _rec_randomised_toposort(gnode::GraphNode, order::Vector{GraphNode}, rng::AbstractRNG)
     if gnode.visited return end
     gnode.visited = true
     if gnode.degree == 1
