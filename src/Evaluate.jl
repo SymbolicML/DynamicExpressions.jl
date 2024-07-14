@@ -2,7 +2,7 @@ module EvaluateModule
 
 using DispatchDoctor: @unstable
 
-import ..NodeModule: AbstractExpressionNode, constructorof
+import ..NodeModule: AbstractExpressionNode, constructorof, GraphNode, topological_sort
 import ..StringsModule: string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: fill_similar, counttuple, ResultOk
@@ -766,6 +766,75 @@ end
         return op(left, right), true
     else
         return op.(left, right), true
+    end
+end
+
+# Parametric arguments don't use dynamic dispatch, not all calls will resolve properly
+
+"""
+function eval_tree_array_graph(
+    graph::GraphNode{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum;
+    turbo::Val{false}=Val(false),
+    bumper::Val{false}=Val(false)
+) where {T}
+    order = topological_sort(graph)
+    res = Vector{T}(undef, size(cX, 2))
+    @inbounds for sampleindex in axes(cX, 2)
+        @inbounds for node in order
+            if node.degree != 0 || !node.constant
+                if node.degree == 0 && !node.constant
+                    node.val = cX[node.feature, sampleindex]
+                elseif node.degree == 1
+                    node.val = operators.unaops[node.op](node.children[1][].val)
+                elseif node.degree == 2
+                    node.val = operators.binops[node.op](node.children[1][].val, node.children[2][].val)
+                else
+                    error("n-ary operator evaluation not implemented")
+                end
+            end
+            if !is_valid(node.val)
+                return (res, false)
+            end
+        end
+        res[sampleindex] = last(order).val
+    end
+    return (res, is_valid_array(res))
+end
+"""
+
+function eval_tree_array_graph(
+    node::GraphNode{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum
+) where {T}
+    if node.degree == 0 
+        if node.constant
+            return fill(node.val, axes(cX, 2))
+        else
+            return cX[node.feature, :]
+        end
+    #elseif node.degree == 1
+    #    return map(x -> operators.unaops[node.op](x), eval_tree_array_graph(node.l, cX, operators))
+    #else
+    #    return map(tp -> operators.binops[node.op](tp...), zip(eval_tree_array_graph(node.l, cX, operators), eval_tree_array_graph(node.r, cX, operators)))
+    #end
+    elseif node.degree == 1
+        cl = eval_tree_array_graph(node.l, cX, operators)
+        op = operators.unaops[node.op]
+        @inbounds @simd for j in eachindex(cl)
+            cl[j] = op(cl[j])::T
+        end
+        return cl
+    else
+        cl = eval_tree_array_graph(node.l, cX, operators)
+        cr = eval_tree_array_graph(node.r, cX, operators)
+        op = operators.binops[node.op]
+        @inbounds @simd for j in eachindex(cl)
+            cl[j] = op(cl[j], cr[j])::T
+        end
+        return cl
     end
 end
 
