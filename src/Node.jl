@@ -97,6 +97,7 @@ mutable struct GraphNode{T,D} <: AbstractExpressionNode{T,D}
     op::UInt8  # (Possibly undefined) If operator, this is the index of the operator in the degree-specific operator enum
     children::NTuple{D,Base.RefValue{GraphNode{T,D}}}  # Children nodes
     visited::Bool  # search accounting, initialised to false
+    cache::AbstractArray{T}
 
     #################
     ## Constructors:
@@ -210,6 +211,8 @@ end
         setfield!(n, :children, v)
     elseif k == :visited && typeof(n) <: GraphNode
         setfield!(n, :visited, v)
+    elseif k == :cache && typeof(n) <: GraphNode
+        setfield!(n, :cache, v)
     else
         error("Invalid property: $k")
     end

@@ -1,6 +1,7 @@
 module EvaluateModule
 
 using DispatchDoctor: @unstable
+using LoopVectorization
 
 import ..NodeModule: AbstractExpressionNode, constructorof, GraphNode, topological_sort
 import ..StringsModule: string_tree
@@ -769,72 +770,59 @@ end
     end
 end
 
-# Parametric arguments don't use dynamic dispatch, not all calls will resolve properly
+# Parametric arguments don't use dynamic dispatch, calls with turbo/bumper won't resolve properly
 
-"""
 function eval_tree_array_graph(
-    graph::GraphNode{T},
+    root::GraphNode{T},
     cX::AbstractMatrix{T},
-    operators::OperatorEnum;
-    turbo::Val{false}=Val(false),
-    bumper::Val{false}=Val(false)
+    operators::OperatorEnum,
 ) where {T}
-    order = topological_sort(graph)
-    res = Vector{T}(undef, size(cX, 2))
-    @inbounds for sampleindex in axes(cX, 2)
-        @inbounds for node in order
-            if node.degree != 0 || !node.constant
-                if node.degree == 0 && !node.constant
-                    node.val = cX[node.feature, sampleindex]
-                elseif node.degree == 1
-                    node.val = operators.unaops[node.op](node.children[1][].val)
-                elseif node.degree == 2
-                    node.val = operators.binops[node.op](node.children[1][].val, node.children[2][].val)
+
+    # vmap is faster with small cX sizes
+    # vmapnt (non-temporal) is faster with larger cX sizes (too big so not worth caching?)
+
+    order = topological_sort(root)
+    for node in order
+        if node.degree == 0 && !node.constant
+            node.cache = view(cX, node.feature, :)
+        elseif node.degree == 1
+            if node.l.constant
+                node.constant = true
+                node.val = operators.unaops[node.op](node.l.val)
+                if !is_valid(node.val) return ResultOk(Vector{T}(undef, size(cX, 2)), false) end
+            else
+                node.constant = false
+                node.cache = vmapnt(operators.unaops[node.op], node.l.cache)
+                if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+            end
+        elseif node.degree == 2
+            if node.l.constant
+                if node.r.constant
+                    node.constant = true
+                    node.val = operators.binops[node.op](node.l.val, node.r.val)
+                    if !is_valid(node.val) return ResultOk(Vector{T}(undef, size(cX, 2)), false) end
                 else
-                    error("n-ary operator evaluation not implemented")
+                    node.constant = false
+                    node.cache = vmapnt(Base.Fix1(operators.binops[node.op], node.l.val), node.r.cache)
+                    if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+                end
+            else
+                if node.r.constant
+                    node.constant = false
+                    node.cache = vmapnt(Base.Fix2(operators.binops[node.op], node.r.val), node.l.cache)
+                    if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+                else
+                    node.constant = false
+                    node.cache = vmapnt(operators.binops[node.op], node.l.cache, node.r.cache)
+                    if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
                 end
             end
-            if !is_valid(node.val)
-                return (res, false)
-            end
         end
-        res[sampleindex] = last(order).val
     end
-    return (res, is_valid_array(res))
-end
-"""
-
-function eval_tree_array_graph(
-    node::GraphNode{T},
-    cX::AbstractMatrix{T},
-    operators::OperatorEnum
-) where {T}
-    if node.degree == 0 
-        if node.constant
-            return fill(node.val, axes(cX, 2))
-        else
-            return cX[node.feature, :]
-        end
-    #elseif node.degree == 1
-    #    return map(x -> operators.unaops[node.op](x), eval_tree_array_graph(node.l, cX, operators))
-    #else
-    #    return map(tp -> operators.binops[node.op](tp...), zip(eval_tree_array_graph(node.l, cX, operators), eval_tree_array_graph(node.r, cX, operators)))
-    #end
-    elseif node.degree == 1
-        cl = eval_tree_array_graph(node.l, cX, operators)
-        op = operators.unaops[node.op]
-        @inbounds @simd for j in eachindex(cl)
-            cl[j] = op(cl[j])::T
-        end
-        return cl
+    if root.constant
+        return ResultOk(fill(root.val, size(cX, 2)), true)
     else
-        cl = eval_tree_array_graph(node.l, cX, operators)
-        cr = eval_tree_array_graph(node.r, cX, operators)
-        op = operators.binops[node.op]
-        @inbounds @simd for j in eachindex(cl)
-            cl[j] = op(cl[j], cr[j])::T
-        end
-        return cl
+        return ResultOk(root.cache, true)
     end
 end
 
