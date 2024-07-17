@@ -1,6 +1,6 @@
 module AsArrayModule
 
-using ..EquationModule: AbstractExpressionNode, tree_mapreduce, count_nodes
+using ..NodeModule: AbstractExpressionNode, tree_mapreduce, count_nodes
 
 function as_array(
     ::Type{I},
