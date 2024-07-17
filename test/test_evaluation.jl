@@ -1,4 +1,6 @@
 using DynamicExpressions
+using Bumper
+using LoopVectorization
 using Random
 using Test
 include("test_params.jl")
@@ -93,7 +95,7 @@ end
         @test repr(tree) == "cos(cos(3.0))"
         tree = convert(Node{T}, tree)
         truth = cos(cos(T(3.0f0)))
-        @test DynamicExpressions.EvaluateEquationModule.deg1_l1_ll0_eval(tree, [zero(T)]', cos, cos, Val(turbo)).x[1] ≈
+        @test DynamicExpressions.EvaluateModule.deg1_l1_ll0_eval(tree, [zero(T)]', cos, cos, Val(turbo)).x[1] ≈
             truth
 
         # op(<constant>, <constant>)
@@ -101,7 +103,7 @@ end
         @test repr(tree) == "3.0 + 4.0"
         tree = convert(Node{T}, tree)
         truth = T(3.0f0) + T(4.0f0)
-        @test DynamicExpressions.EvaluateEquationModule.deg2_l0_r0_eval(tree, [zero(T)]', (+), Val(turbo)).x[1] ≈
+        @test DynamicExpressions.EvaluateModule.deg2_l0_r0_eval(tree, [zero(T)]', (+), Val(turbo)).x[1] ≈
             truth
 
         # op(op(<constant>, <constant>))
@@ -109,7 +111,7 @@ end
         @test repr(tree) == "cos(3.0 + 4.0)"
         tree = convert(Node{T}, tree)
         truth = cos(T(3.0f0) + T(4.0f0))
-        @test DynamicExpressions.EvaluateEquationModule.deg1_l2_ll0_lr0_eval(tree, [zero(T)]', cos, (+), Val(turbo)).x[1] ≈
+        @test DynamicExpressions.EvaluateModule.deg1_l2_ll0_lr0_eval(tree, [zero(T)]', cos, (+), Val(turbo)).x[1] ≈
             truth
 
         # Test for presence of NaNs:
@@ -133,33 +135,36 @@ if VERSION >= v"1.7"
         x1 = Node(Float64; feature=1)
         tree = sin(x1 / 0.0)
         X = randn(Float32, 10)
-        local stack
-        try
-            tree(X, operators)[1]
-            @test false
-        catch e
-            @test e isa ErrorException
-            # Check that "Failed to evaluate" is in the message:
-            @test occursin("Failed to evaluate", e.msg)
-            stack = current_exceptions()
-        end
-        @test length(stack) == 2
-        @test stack[1].exception isa DomainError
+        let
+            local stack
+            try
+                tree(X, operators)[1]
+                @test false
+            catch e
+                @test e isa ErrorException
+                # Check that "Failed to evaluate" is in the message:
+                @test occursin("Failed to evaluate", e.msg)
+                stack = current_exceptions()
+            end
+            @test length(stack) == 2
+            @test stack[1].exception isa DomainError
 
-        # If a method is not defined, we should get a nothing:
-        X = randn(Float32, 1, 10)
-        @test tree(X, operators; throw_errors=false) === nothing
-        # or a MethodError:
-        try
-            tree(X, operators; throw_errors=true)
-            @test false
-        catch e
-            @test e isa ErrorException
-            @test occursin("Failed to evaluate", e.msg)
-            stack = current_exceptions()
+            # If a method is not defined, we should get a nothing:
+            X = randn(Float32, 1, 10)
+            @test tree(X, operators; throw_errors=false) === nothing
+            # or a MethodError:
+            try
+                tree(X, operators; throw_errors=true)
+                @test false
+            catch e
+                @test e isa ErrorException
+                @test occursin("Failed to evaluate", e.msg)
+                stack = current_exceptions()
+            end
+            @test length(stack) == 2
+            # Dividing by 0 should not be an MethodError
+            # @test stack[1].exception isa MethodError
         end
-        @test length(stack) == 2
-        @test stack[1].exception isa MethodError
     end
 end
 

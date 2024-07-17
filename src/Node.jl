@@ -1,4 +1,6 @@
-module EquationModule
+module NodeModule
+
+using DispatchDoctor: @unstable
 
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..UtilsModule: @memoize_on, @with_memoize, deprecate_varmap, Undefined
@@ -15,7 +17,7 @@ Abstract type for binary trees. Must have the following fields:
     then `r` also needs to be defined as the right child.
 - `l::AbstractNode`: Left child of the current node. Should only be
     defined if `degree >= 1`; otherwise, leave it undefined (see the
-    the constructors of `Node{T}` for an example).
+    the constructors of [`Node{T}`](@ref) for an example).
     Don't use `nothing` to represent an undefined value
     as it will incur a large performance penalty.
 - `r::AbstractNode`: Right child of the current node. Should only
@@ -42,7 +44,28 @@ this additionally must have fields for:
     operator in `operators.binops`. In other words, this is an enum
     of the operators, and is dependent on the specific `OperatorEnum`
     object. Only defined if `degree >= 1`
-```
+
+# Interface
+
+See [`NodeInterface`](@ref DynamicExpressions.InterfacesModule.NodeInterface) for a full description
+of the interface implementation, as well as tests to verify correctness.
+
+You *must* define `CustomNode{_T} where {_T} = new{_T}()` for each custom node type.
+
+In addition, you *may* choose to define the following functions, to override
+the defaults behavior, in particular if you wish to add additional fields
+to your type.
+
+- `leaf_copy` and `branch_copy`
+- `leaf_equal` and `branch_equal`
+- `leaf_hash` and `branch_hash`
+- `preserve_sharing`
+
+You likely do not need to, but you could choose to override the following:
+
+- `constructorof`
+- `with_type_parameters`
+
 """
 abstract type AbstractExpressionNode{T} <: AbstractNode end
 
@@ -114,7 +137,7 @@ end
 """
     GraphNode{T} <: AbstractExpressionNode{T}
 
-Exactly the same as `Node{T}`, but with the assumption that some
+Exactly the same as [`Node{T}`](@ref), but with the assumption that some
 nodes will be shared. All copies of this graph-like structure will
 be performed with this assumption, to preserve structure of the graph.
 
@@ -138,7 +161,7 @@ cos(sin(x1) + {x1}) * {(sin(x1) + {x1})}
 Note how the `{}` indicates a node is shared, and this
 is the same node as seen earlier in the string.
 
-This has the same constructors as `Node{T}`. Shared nodes
+This has the same constructors as [`Node{T}`](@ref). Shared nodes
 are created simply by using the same node in multiple places
 when constructing or setting properties.
 """
@@ -161,9 +184,9 @@ end
 Base.eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = T
 Base.eltype(::AbstractExpressionNode{T}) where {T} = T
 
-constructorof(::Type{N}) where {N<:AbstractNode} = Base.typename(N).wrapper
-constructorof(::Type{<:Node}) = Node
-constructorof(::Type{<:GraphNode}) = GraphNode
+@unstable constructorof(::Type{N}) where {N<:AbstractNode} = Base.typename(N).wrapper
+@unstable constructorof(::Type{<:Node}) = Node
+@unstable constructorof(::Type{<:GraphNode}) = GraphNode
 
 function with_type_parameters(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNode,T}
     return constructorof(N){T}
@@ -178,9 +201,9 @@ default_allocator(::Type{<:Node}, ::Type{T}) where {T} = Node{T}()
 default_allocator(::Type{<:GraphNode}, ::Type{T}) where {T} = GraphNode{T}()
 
 """Trait declaring whether nodes share children or not."""
-preserve_sharing(::Type{<:AbstractNode}) = false
-preserve_sharing(::Type{<:Node}) = false
-preserve_sharing(::Type{<:GraphNode}) = true
+preserve_sharing(::Union{Type{<:AbstractNode},AbstractNode}) = false
+preserve_sharing(::Union{Type{<:Node},Node}) = false
+preserve_sharing(::Union{Type{<:GraphNode},GraphNode}) = true
 
 include("base.jl")
 
@@ -188,6 +211,7 @@ include("base.jl")
 @inline function (::Type{N})(
     ::Type{T1}=Undefined; val=nothing, feature=nothing, op=nothing, l=nothing, r=nothing, children=nothing, allocator::F=default_allocator,
 ) where {T1,N<:AbstractExpressionNode,F}
+    validate_not_all_defaults(N, val, feature, op, l, r, children)
     if children !== nothing
         @assert l === nothing && r === nothing
         if length(children) == 1
@@ -197,6 +221,18 @@ include("base.jl")
         end
     end
     return node_factory(N, T1, val, feature, op, l, r, allocator)
+end
+function validate_not_all_defaults(::Type{N}, val, feature, op, l, r, children) where {N<:AbstractExpressionNode}
+    return nothing
+end
+function validate_not_all_defaults(::Type{N}, val, feature, op, l, r, children) where {T,N<:AbstractExpressionNode{T}}
+    if val === nothing && feature === nothing && op === nothing && l === nothing && r === nothing && children === nothing
+        error(
+            "Encountered the call for $N() inside the generic constructor. "
+            * "Did you forget to define `$(Base.typename(N).wrapper){T}() where {T} = new{T}()`?"
+        )
+    end
+    return nothing
 end
 """Create a constant leaf."""
 @inline function node_factory(
@@ -276,7 +312,7 @@ function (::Type{N})(var_string::String) where {N<:AbstractExpressionNode}
     return N(; feature=parse(UInt16, var_string[2:end]))
 end
 function (::Type{N})(
-    var_string::String, variable_names::Array{String,1}
+    var_string::String, variable_names::AbstractVector{String}
 ) where {N<:AbstractExpressionNode}
     i = findfirst(==(var_string), variable_names)::Int
     return N(; feature=i)

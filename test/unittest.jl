@@ -1,6 +1,7 @@
-using SafeTestsets
+using SafeTestsets: @safetestset
+using TestItems: @testitem
 
-VERSION >= v"1.9" && @safetestset "Test Aqua.jl" begin
+@testitem "Test Aqua.jl" begin
     include("test_aqua.jl")
 end
 
@@ -15,104 +16,121 @@ using Zygote, SymbolicUtils, LoopVectorization, Bumper, Optim
     include("test_deprecations.jl")
 end
 
-@safetestset "Test Optim.jl" begin
-    include("test_optim.jl")
-end
+include("test_optim.jl")
 
-@safetestset "Test tree construction and scoring" begin
+@testitem "Test tree construction and scoring" begin
     include("test_tree_construction.jl")
 end
 
-@safetestset "Test SymbolicUtils interface" begin
+@testitem "Test SymbolicUtils interface" begin
     include("test_symbolic_utils.jl")
 end
 
-@safetestset "Test derivatives" begin
+@testitem "Test derivatives" begin
     include("test_derivatives.jl")
 end
 
-@safetestset "Test undefined derivatives" begin
+@testitem "Test chain rules" begin
+    include("test_chainrules.jl")
+end
+
+@testitem "Test undefined derivatives" begin
     include("test_undefined_derivatives.jl")
 end
 
-@safetestset "Test simplification" begin
+@testitem "Test simplification" begin
     include("test_simplification.jl")
 end
 
-@safetestset "Test printing" begin
+@testitem "Test printing" begin
     include("test_print.jl")
 end
 
-@safetestset "Test validity of expression evaluation" begin
+@testitem "Test validity of expression evaluation" begin
     include("test_evaluation.jl")
 end
 
-@safetestset "Test validity of integer expression evaluation" begin
+@testitem "Test validity of integer expression evaluation" begin
     include("test_integer_evaluation.jl")
 end
 
-@safetestset "Test NaN detection in evaluator" begin
+@testitem "Test NaN detection in evaluator" begin
     include("test_nan_detection.jl")
 end
 
-@safetestset "Test hash of tree" begin
+@testitem "Test OperatorEnum with non-number type" begin
+    include("test_non_number_eval_tree_array.jl")
+end
+
+@testitem "Test hash of tree" begin
     include("test_hash.jl")
 end
 
-@safetestset "Test sharing-preserving copy" begin
+@testitem "Test sharing-preserving copy" begin
     include("test_graphs.jl")
 end
 
-@safetestset "Test equation utils" begin
+@testitem "Test equation utils" begin
     include("test_utils.jl")
 end
 
-@safetestset "Test generic operators" begin
+@testitem "Test generic operators" begin
     include("test_generic_operators.jl")
 end
 
-@safetestset "Test tensor operators" begin
+@testitem "Test tensor operators" begin
     include("test_tensor_operators.jl")
 end
 
-@safetestset "Test error handling" begin
+@testitem "Test error handling" begin
     include("test_error_handling.jl")
 end
 
-@safetestset "Test equality operator" begin
+@testitem "Test equality operator" begin
     include("test_equality.jl")
 end
 
-@safetestset "Test operators within module" begin
+@testitem "Test operators within module" begin
     include("test_custom_operators.jl")
 end
 
-@safetestset "Test precompilation" begin
+@testitem "Test precompilation" begin
     include("test_precompilation.jl")
 end
 
-@safetestset "Test Base" begin
+@testitem "Test Base" begin
     include("test_base.jl")
 end
 
-@safetestset "Test containers preserved" begin
+@testitem "Test extra node fields" begin
+    include("test_extra_node_fields.jl")
+end
+
+@testitem "Test containers preserved" begin
     include("test_container_preserved.jl")
 end
 
-@safetestset "Test helpers break upon redefining" begin
+@testitem "Test helpers break upon redefining" begin
     include("test_safe_helpers.jl")
 end
 
-@safetestset "Test custom node type" begin
+@testitem "Test custom node type" begin
     include("test_custom_node_type.jl")
 end
 
-@safetestset "Test random sampling" begin
+@testitem "Test random sampling" begin
     include("test_random.jl")
 end
 
-if VERSION >= v"1.9"
-    @eval @safetestset "Test CUDA" begin
+@testitem "Test CUDA" begin
+    if VERSION >= v"1.9"
         include("test_cuda.jl")
     end
 end
+
+include("test_expressions.jl")
+include("test_multi_expression.jl")
+include("test_parse.jl")
+include("test_parametric_expression.jl")
+include("test_operator_construction_edgecases.jl")
+include("test_node_interface.jl")

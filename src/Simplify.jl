@@ -1,9 +1,9 @@
-module SimplifyEquationModule
+module SimplifyModule
 
-import ..EquationModule: AbstractExpressionNode, constructorof, Node, copy_node, set_node!
-import ..EquationUtilsModule: tree_mapreduce, is_node_constant
+import ..NodeModule: AbstractExpressionNode, constructorof, Node, copy_node, set_node!
+import ..NodeUtilsModule: tree_mapreduce, is_node_constant
 import ..OperatorEnumModule: AbstractOperatorEnum
-import ..UtilsModule: isbad, isgood
+import ..ValueInterfaceModule: is_valid
 
 _una_op_kernel(f::F, l::T) where {F,T} = f(l)
 _bin_op_kernel(f::F, l::T, r::T) where {F,T} = f(l, r)
@@ -15,7 +15,8 @@ is_commutative(_) = false
 is_subtraction(::typeof(-)) = true
 is_subtraction(_) = false
 
-# This is only defined for `Node` as it is not possible for
+combine_operators(tree::AbstractExpressionNode, ::AbstractOperatorEnum) = tree
+# This is only defined for `Node` as it is not possible for, e.g.,
 # `GraphNode`.
 function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
     # NOTE: (const (+*-) const) already accounted for. Call simplify_tree! before.
@@ -108,13 +109,13 @@ end
 function combine_children!(operators, p::N, c::N...) where {T,N<:AbstractExpressionNode{T}}
     all(is_node_constant, c) || return p
     vals = map(n -> n.val, c)
-    all(isgood, vals) || return p
+    all(is_valid, vals) || return p
     out = if length(c) == 1
         _una_op_kernel(operators.unaops[p.op], vals...)
     else
         _bin_op_kernel(operators.binops[p.op], vals...)
     end
-    isgood(out) || return p
+    is_valid(out) || return p
     new_node = constructorof(N)(T; val=convert(T, out))
     set_node!(p, new_node)
     return p
@@ -122,13 +123,9 @@ end
 
 # Simplify tree
 function simplify_tree!(tree::AbstractExpressionNode, operators::AbstractOperatorEnum)
-    tree = tree_mapreduce(
-        identity,
-        (p, c...) -> combine_children!(operators, p, c...),
-        tree,
-        constructorof(typeof(tree));
+    return tree_mapreduce(
+        identity, (p, c...) -> combine_children!(operators, p, c...), tree, typeof(tree);
     )
-    return tree
 end
 
 end

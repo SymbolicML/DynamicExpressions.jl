@@ -1,8 +1,7 @@
 import Base: @deprecate
-import .EquationModule: Node, GraphNode
+import .NodeModule: Node, GraphNode
 
-@deprecate set_constants set_constants!
-@deprecate simplify_tree simplify_tree!
+@deprecate simplify_tree(tree, operators) simplify_tree!(tree, operators)
 
 for N in (:Node, :GraphNode)
     @eval begin
@@ -69,3 +68,26 @@ for N in (:Node, :GraphNode)
         end
     end
 end
+
+Base.@deprecate_binding EquationModule NodeModule
+Base.@deprecate_binding EquationUtilsModule NodeUtilsModule
+Base.@deprecate_binding EvaluateEquationModule EvaluateModule
+Base.@deprecate_binding EvaluateEquationDerivativeModule EvaluateDerivativeModule
+Base.@deprecate_binding SimplifyEquationModule SimplifyModule
+
+@deprecate(
+    count_constants(tree::Union{AbstractExpression,AbstractExpressionNode}),
+    count_constant_nodes(tree)
+)
+@deprecate(
+    index_constants(tree::Union{AbstractExpression,AbstractExpressionNode}, T::Type=UInt16),
+    index_constant_nodes(tree, T)
+)
+@deprecate(
+    get_constants(tree::Union{AbstractExpression,AbstractExpressionNode}),
+    get_scalar_constants(tree)
+)
+@deprecate(
+    set_constants!(tree::Union{AbstractExpression,AbstractExpressionNode}, constants, refs),
+    set_scalar_constants!(tree, constants, refs)
+)

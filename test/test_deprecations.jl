@@ -1,6 +1,8 @@
 using DynamicExpressions
 using Test
 using Zygote
+using Suppressor: @capture_err
+using DispatchDoctor: allow_unstable
 
 operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[cos, sin])
 x1, x2 = Node{Float64}(; feature=1), Node{Float64}(; feature=2)
@@ -15,10 +17,11 @@ for constructor in (OperatorEnum, GenericOperatorEnum)
 
     constructor == GenericOperatorEnum && continue
 
-    VERSION >= v"1.9" &&
-        @test_logs (:warn, r"The `tree'\(X; kws...\)` syntax is deprecated.*") tree'(
-            [1.0; 2.0;;]
-        )
+    if VERSION >= v"1.9"
+        @test_logs (:warn, r"The `tree'\(X; kws...\)` syntax is deprecated.*") allow_unstable() do
+            tree'([1.0; 2.0;;])
+        end
+    end
 end
 
 if VERSION >= v"1.9"
@@ -43,3 +46,11 @@ if VERSION >= v"1.9"
         @assert (n.op == 1 && n.l === x1 && n.r === x2)
     )
 end
+
+# Test deprecated modules
+logs = @capture_err begin
+    @eval using DynamicExpressions.EquationModule
+end
+@test contains(logs, "DynamicExpressions.EquationModule is deprecated,")
+
+DynamicExpressions.EquationModule.Node === DynamicExpressions.NodeModule.Node

@@ -1,8 +1,9 @@
 module DynamicExpressionsBumperExt
 
 using Bumper: @no_escape, @alloc
-using DynamicExpressions: OperatorEnum, AbstractExpressionNode, tree_mapreduce
-using DynamicExpressions.UtilsModule: ResultOk, counttuple, is_bad_array
+using DynamicExpressions:
+    OperatorEnum, AbstractExpressionNode, tree_mapreduce, is_valid_array
+using DynamicExpressions.UtilsModule: ResultOk, counttuple
 
 import DynamicExpressions.ExtensionInterfaceModule:
     bumper_eval_tree_array, bumper_kern1!, bumper_kern2!
@@ -52,7 +53,7 @@ function dispatch_kerns!(operators, branch_node, cumulator, ::Val{turbo}) where 
     cumulator.ok || return cumulator
 
     out = dispatch_kern1!(operators.unaops, branch_node.op, cumulator.x, Val(turbo))
-    return ResultOk(out, !is_bad_array(out))
+    return ResultOk(out, is_valid_array(out))
 end
 function dispatch_kerns!(
     operators, branch_node, cumulator1, cumulator2, ::Val{turbo}
@@ -63,7 +64,7 @@ function dispatch_kerns!(
     out = dispatch_kern2!(
         operators.binops, branch_node.op, cumulator1.x, cumulator2.x, Val(turbo)
     )
-    return ResultOk(out, !is_bad_array(out))
+    return ResultOk(out, is_valid_array(out))
 end
 
 @generated function dispatch_kern1!(unaops, op_idx, cumulator, ::Val{turbo}) where {turbo}

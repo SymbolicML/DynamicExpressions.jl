@@ -3,8 +3,8 @@ module DynamicExpressionsLoopVectorizationExt
 using LoopVectorization: @turbo
 using DynamicExpressions: AbstractExpressionNode
 using DynamicExpressions.UtilsModule: ResultOk, fill_similar
-using DynamicExpressions.EvaluateEquationModule: @return_on_check
-import DynamicExpressions.EvaluateEquationModule:
+using DynamicExpressions.EvaluateModule: @return_on_check
+import DynamicExpressions.EvaluateModule:
     deg1_eval,
     deg2_eval,
     deg1_l2_ll0_lr0_eval,

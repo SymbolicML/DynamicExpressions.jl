@@ -1,16 +1,26 @@
 using DynamicExpressions, BenchmarkTools, Random
-using DynamicExpressions.EquationUtilsModule: is_constant
 
 # Trigger extensions:
-using LoopVectorization
-using Bumper
-using StrideArrays
-using Zygote
+using LoopVectorization, Bumper, StrideArrays, Zygote
 
 if PACKAGE_VERSION < v"0.14.0"
     @eval using DynamicExpressions: Node as GraphNode
 else
     @eval using DynamicExpressions: GraphNode
+end
+
+if PACKAGE_VERSION < v"0.17.0"
+    @eval using DynamicExpressions.EquationUtilsModule: is_constant
+else
+    @eval using DynamicExpressions.NodeUtilsModule: is_constant
+end
+
+if PACKAGE_VERSION < v"0.18.6"
+    @eval using DynamicExpressions:
+        index_constants as index_constant_nodes,
+        count_constants as count_constant_nodes,
+        get_constants as get_scalar_constants,
+        set_constants! as set_scalar_constants!
 end
 
 include("../test/tree_gen_utils.jl")
@@ -108,9 +118,19 @@ end
     PACKAGE_VERSION < v"0.14.0" && return :(copy_node(t; preserve_sharing=preserve_sharing))
     return :(copy_node(t))  # Assume type used to infer sharing
 end
-@generated function get_set_constants!(tree)
-    !(@isdefined set_constants!) && return :(set_constants(tree, get_constants(tree)))
-    return :(set_constants!(tree, get_constants(tree)))
+@generated function get_set_constants!(tree::N) where {N}
+    T = eltype(N)
+    if !(@isdefined set_scalar_constants!)
+        return :(set_scalar_constants(tree, get_scalar_constants(tree)))
+    elseif hasmethod(set_scalar_constants!, Tuple{N, Vector{T}})
+        return :(set_scalar_constants!(tree, get_scalar_constants(tree)))
+    else
+        return quote
+                let (x, refs) = get_scalar_constants(tree)
+                set_scalar_constants!(tree, x, refs)
+            end
+        end
+    end
 end
 #! format: on
 
@@ -127,12 +147,12 @@ function benchmark_utilities()
         :combine_operators,
         :count_nodes,
         :count_depth,
-        :count_constants,
+        :count_constant_nodes,
         :has_constants,
         :has_operators,
         :is_constant,
         :get_set_constants!,
-        :index_constants,
+        :index_constant_nodes,
         :string_tree,
         :hash,
     )
@@ -143,9 +163,9 @@ function benchmark_utilities()
             [
                 :simplify_tree,
                 :count_nodes,
-                :count_constants,
+                :count_constant_nodes,
                 :get_set_constants!,
-                :index_constants,
+                :index_constant_nodes,
                 :string_tree,
             ],
         )
@@ -193,13 +213,45 @@ function benchmark_utilities()
                     setup=(
                         ntrees=100;
                         n=20;
-                        trees=[$preprocess(gen_random_tree_fixed_size(n, $operators, 5, Float32)) for _ in 1:ntrees]
+                        rng=Random.MersenneTwister(0);
+                        trees=[$preprocess(gen_random_tree_fixed_size(n, $operators, 5, Float32, Node, rng)) for _ in 1:ntrees]
                     )
                 )
                 #! format: on
             end
             s
         end
+    end
+
+    # Additional methods
+    @static if PACKAGE_VERSION >= v"0.18.0"
+        suite["get_set_constants_parametric"] = @benchmarkable(
+            [get_set_constants!(ex) for ex in exs],
+            seconds = 10.0,
+            setup = (
+                operators = $operators;
+                ntrees = 100;
+                n = 20;
+                n_features = 5;
+                n_params = 3;
+                n_param_classes = 10;
+                rng = Random.MersenneTwister(0);
+                exs = [
+                    let tree = gen_random_tree_fixed_size(
+                            n, operators, n_features, Float32, ParametricNode, rng
+                        )
+                        ex = ParametricExpression(
+                            tree;
+                            operators,
+                            variable_names=map(i -> "x$i", 1:n_features),
+                            parameters=randn(rng, Float32, n_params, n_param_classes),
+                            parameter_names=map(i -> "p$i", 1:n_params),
+                        )
+                        ex
+                    end for _ in 1:ntrees
+                ]
+            )
+        )
     end
 
     return suite

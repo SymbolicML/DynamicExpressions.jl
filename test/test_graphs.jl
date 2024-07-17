@@ -276,28 +276,28 @@ end
         @test count_constants(tree) == 4
         @test count_constants(copy_node(tree; break_sharing=Val(true))) == 8
         @test count_constants(copy_node(tree)) == 4
-        @test get_constants(tree) == [3.2, 3.5, 0.3, 0.9]
-        @test get_constants(copy_node(tree; break_sharing=Val(true))) ==
+        @test get_scalar_constants(tree)[1] == [3.2, 3.5, 0.3, 0.9]
+        @test get_scalar_constants(copy_node(tree; break_sharing=Val(true)))[1] ==
             [3.2, 3.5, 0.3, 0.9, 3.2, 3.5, 0.3, 0.9]
 
-        c = get_constants(tree)
+        c, refs = get_scalar_constants(tree)
         c .+= 1.2
-        set_constants!(tree, c)
-        @test get_constants(tree) == [4.4, 4.7, 1.5, 2.1]
+        set_scalar_constants!(tree, c, refs)
+        @test get_scalar_constants(tree)[1] == [4.4, 4.7, 1.5, 2.1]
         # Note that this means all constants in the shared expression are set the same way:
-        @test get_constants(copy_node(tree; break_sharing=Val(true))) ==
+        @test get_scalar_constants(copy_node(tree; break_sharing=Val(true)))[1] ==
             [4.4, 4.7, 1.5, 2.1, 4.4, 4.7, 1.5, 2.1]
 
         # What about a single constant?
         f1 = GraphNode(; val=1.0)
-        @test get_constants(f1) == [1.0]
+        @test get_scalar_constants(f1)[1] == [1.0]
         f2 = GraphNode(1, f1, f1)
-        @test get_constants(f2) == [1.0]
+        @test get_scalar_constants(f2)[1] == [1.0]
         @test string_tree(f2, operators) == "1.0 + {1.0}"
 
         # Now, we can test indexing:
         base_tree, tree = make_tree()
-        node_index = index_constants(tree)
+        node_index = index_constant_nodes(tree)
         @eval function get_indices(n::NodeIndex{T}) where {T}
             return filter_map(t -> t.degree == 0 && !iszero(t.val), t -> t.val, n, T)
         end
@@ -339,9 +339,9 @@ end
         @test length(tree; break_sharing=Val(true)) == 3
         @test map(t -> t.degree == 0 ? 1 : 0, tree) == [0, 1]
         @test map(t -> t.degree == 0 ? 1 : 0, tree; break_sharing=Val(true)) == [0, 1, 1]
-        @test mapreduce(t -> t.degree == 0 ? 1 : 0, +, tree; return_type=Int) == 1
+        @test mapreduce(t -> t.degree == 0 ? 1 : 0, +, tree; result_type=Val(Int)) == 1
         @test mapreduce(t -> t.degree == 0 ? 1 : 0, +, tree; break_sharing=Val(true)) == 2
-        @test sum(t -> t.degree == 0 ? 1 : 0, tree; return_type=Int) == 1
+        @test sum(t -> t.degree == 0 ? 1 : 0, tree; result_type=Val(Int)) == 1
         @test sum(t -> t.degree == 0 ? 1 : 0, tree; break_sharing=Val(true)) == 2
         @test filter_map(t -> t.degree == 0, t -> 1, tree, Int) == [1]
         @test filter_map(t -> t.degree == 0, t -> 1, tree, Int; break_sharing=Val(true)) ==

@@ -1,4 +1,4 @@
-# Types
+# API
 
 ## Operator Enum
 
@@ -42,7 +42,7 @@ Note that you are free to use the `Node` constructors directly.
 This is a more robust approach, and should be used when creating libraries
 which use `DynamicExpressions.jl`.
 
-## Equations
+## Nodes
 
 Equations are specified as binary trees with the `Node` type, defined
 as follows:
@@ -75,7 +75,7 @@ You can create a copy of a node with `copy_node`:
 copy_node
 ```
 
-## Graph-Like Equations
+## Graph Nodes
 
 You can describe an equation as a *graph* rather than a tree
 by using the `GraphNode` type:
@@ -144,3 +144,55 @@ which is more generic but does not have all of the same methods:
 ```@docs
 AbstractNode{T}
 ```
+
+## Expressions
+
+A higher-level user-facing type is the `Expression`:
+
+```@docs
+Expression
+```
+
+This is a subtype of `AbstractExpression`.
+
+```@docs
+AbstractExpression
+```
+
+which can be used for defining custom types, such as the `ParametricExpression`:
+
+```@docs
+ParametricExpression
+ParametricNode
+```
+
+## Interfaces
+
+The interfaces for `AbstractExpression` and `AbstractExpressionNode` are
+tested using Interfaces.jl. You can see the interfaces with:
+
+```@docs
+DynamicExpressions.ExpressionInterface
+DynamicExpressions.NodeInterface
+```
+
+You can declare a new type as implementing these with, e.g.,
+
+```julia
+using DynamicExpressions: ExpressionInterface, all_ei_methods_except
+using Interface: @implements, Arguments, Interface
+
+# Add all optional methods:
+valid_optional_methods = all_ei_methods_except(())
+
+@implements ExpressionInterface{valid_optional_methods} MyCustomExpression [Arguments()]
+```
+
+You can then test the interface is implemented correctly using, for example,
+
+```julia
+@test Interface.test(ExpressionInterface, MyCustomExpression, [ex::MyCustomExpression])
+```
+
+Note that this may not flag all potential issues, so be sure to still read the details about
+what methods can be implemented and customized.

@@ -1,7 +1,13 @@
 module DynamicExpressionsOptimExt
 
 using DynamicExpressions:
-    AbstractExpressionNode, eval_tree_array, get_constant_refs, set_constant_refs!
+    AbstractExpression,
+    AbstractExpressionNode,
+    filter_map,
+    eval_tree_array,
+    get_scalar_constants,
+    set_scalar_constants!,
+    get_number_type
 using Compat: @inline
 
 import Optim: Optim, OptimizationResults, NLSolversBase
@@ -13,7 +19,7 @@ import Optim: Optim, OptimizationResults, NLSolversBase
 Optimization results for an expression, which wraps the base optimization results
 on a vector of constants.
 """
-struct ExpressionOptimizationResults{R<:OptimizationResults,N<:AbstractExpressionNode} <: OptimizationResults
+struct ExpressionOptimizationResults{R<:OptimizationResults,N<:Union{AbstractExpressionNode,AbstractExpression}} <: OptimizationResults
     _results::R # The raw results from Optim.
     tree::N # The final expression tree
 end
@@ -34,34 +40,39 @@ end
 
 """Wrap function or objective with insertion of values of the constant nodes."""
 function wrap_func(
-    f::F, tree::N, constant_refs::AbstractArray
-) where {F<:Function,T,N<:AbstractExpressionNode{T}}
+    f::F, tree::N, refs
+) where {F<:Function,T,N<:Union{AbstractExpressionNode{T},AbstractExpression{T}}}
     function wrapped_f(args::Vararg{Any,M}) where {M}
-        first_args = args[1:(end - 1)]
-        x = last(args)
-        set_constant_refs!(constant_refs, x)
+        first_args = args[begin:(end - 1)]
+        x = args[end]
+        set_scalar_constants!(tree, x, refs)
         return @inline(f(first_args..., tree))
     end
+    # without first args, it looks like this
+    # function wrapped_f(x)
+    #     set_scalar_constants!(tree, x, refs)
+    #     return @inline(f(tree))
+    # end
     return wrapped_f
 end
 function wrap_func(
-    ::Nothing, tree::N, constant_refs::AbstractArray
-) where {N<:AbstractExpressionNode}
+    ::Nothing, tree::N, refs
+) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
     return nothing
 end
 function wrap_func(
-    f::NLSolversBase.InplaceObjective, tree::N, constant_refs::AbstractArray
-) where {N<:AbstractExpressionNode}
+    f::NLSolversBase.InplaceObjective, tree::N, refs
+) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
     # Some objectives, like `Optim.only_fg!(fg!)`, are not functions but instead
     # `InplaceObjective`. These contain multiple functions, each of which needs to be
     # wrapped. Some functions are `nothing`; those can be left as-is.
     @assert fieldnames(NLSolversBase.InplaceObjective) == (:df, :fdf, :fgh, :hv, :fghv)
     return NLSolversBase.InplaceObjective(
-        wrap_func(f.df, tree, constant_refs),
-        wrap_func(f.fdf, tree, constant_refs),
-        wrap_func(f.fgh, tree, constant_refs),
-        wrap_func(f.hv, tree, constant_refs),
-        wrap_func(f.fghv, tree, constant_refs),
+        wrap_func(f.df, tree, refs),
+        wrap_func(f.fdf, tree, refs),
+        wrap_func(f.fgh, tree, refs),
+        wrap_func(f.hv, tree, refs),
+        wrap_func(f.fghv, tree, refs),
     )
 end
 
@@ -73,22 +84,30 @@ Returns an `ExpressionOptimizationResults` object, which wraps the base
 optimization results on a vector of constants. You may use `res.minimizer`
 to view the optimized expression tree.
 """
-function Optim.optimize(f::F, tree::AbstractExpressionNode, args...; kwargs...) where {F}
+function Optim.optimize(
+    f::F, tree::Union{AbstractExpressionNode,AbstractExpression}, args...; kwargs...
+) where {F}
     return Optim.optimize(f, nothing, tree, args...; kwargs...)
 end
 function Optim.optimize(
-    f::F, g!::G, tree::AbstractExpressionNode, args...; kwargs...
+    f::F, g!::G, tree::Union{AbstractExpressionNode,AbstractExpression}, args...; kwargs...
 ) where {F,G}
     return Optim.optimize(f, g!, nothing, tree, args...; kwargs...)
 end
 function Optim.optimize(
-    f::F, g!::G, h!::H, tree::AbstractExpressionNode{T}, args...; make_copy=true, kwargs...
+    f::F,
+    g!::G,
+    h!::H,
+    tree::Union{AbstractExpressionNode{T},AbstractExpression{T}},
+    args...;
+    make_copy=true,
+    kwargs...,
 ) where {F,G,H,T}
     if make_copy
         tree = copy(tree)
     end
-    constant_refs = get_constant_refs(tree)
-    x0 = map(t -> t.x, constant_refs)
+
+    x0, refs = get_scalar_constants(tree)
     if !isnothing(h!)
         throw(
             ArgumentError(
@@ -98,17 +117,14 @@ function Optim.optimize(
         )
     end
     base_res = if isnothing(g!)
-        Optim.optimize(wrap_func(f, tree, constant_refs), x0, args...; kwargs...)
+        Optim.optimize(wrap_func(f, tree, refs), x0, args...; kwargs...)
     else
         Optim.optimize(
-            wrap_func(f, tree, constant_refs),
-            wrap_func(g!, tree, constant_refs),
-            x0,
-            args...;
-            kwargs...,
+            wrap_func(f, tree, refs), wrap_func(g!, tree, refs), x0, args...; kwargs...
         )
     end
-    set_constant_refs!(constant_refs, Optim.minimizer(base_res))
+    minimizer = Optim.minimizer(base_res)
+    set_scalar_constants!(tree, minimizer, refs)
     return ExpressionOptimizationResults(base_res, tree)
 end
 
