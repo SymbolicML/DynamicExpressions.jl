@@ -20,6 +20,7 @@ using DispatchDoctor: @stable, @unstable
     include("Random.jl")
     include("Parse.jl")
     include("ParametricExpression.jl")
+    include("AsArray.jl")
 end
 
 import PackageExtensionCompat: @require_extensions
@@ -82,6 +83,7 @@ import .ExpressionModule:
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
 @reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode
+@reexport import .AsArrayModule: as_array
 
 @stable default_mode = "disable" begin
     include("Interfaces.jl")

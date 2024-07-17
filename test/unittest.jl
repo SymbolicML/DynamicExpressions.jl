@@ -122,6 +122,12 @@ end
     include("test_random.jl")
 end
 
+@testitem "Test CUDA" begin
+    if VERSION >= v"1.9"
+        include("test_cuda.jl")
+    end
+end
+
 include("test_expressions.jl")
 include("test_multi_expression.jl")
 include("test_parse.jl")
