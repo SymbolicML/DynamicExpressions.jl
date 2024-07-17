@@ -1,7 +1,7 @@
 module DynamicExpressionsCUDAExt
 
 # TODO: Switch to KernelAbstractions.jl (once they hit v1.0)
-using CUDA: @cuda, CuArray, blockDim, blockIdx, threadIdx
+using CUDA: @cuda, CuArray, blockDim, blockIdx, threadIdx, CG
 using DynamicExpressions: OperatorEnum, AbstractExpressionNode
 using DynamicExpressions.EvaluateEquationModule: get_nbin, get_nuna
 using DynamicExpressions.AsArrayModule: as_array
@@ -78,7 +78,7 @@ function eval_tree_array(
     gidx_r = @view gbuffer[7, :]
     gconstant = @view gbuffer[8, :]
 
-    num_threads = 256
+    num_threads = 1024
     num_blocks = nextpow(2, ceil(Int, num_elem * num_nodes / num_threads))
 
     #! format: off
@@ -113,25 +113,23 @@ function _launch_gpu_kernel!(
     (nuna > 10 || nbin > 10) &&
         error("Too many operators. Kernels are only compiled up to 10.")
     gpu_kernel! = create_gpu_kernel(operators, Val(nuna), Val(nbin))
-    for launch in one(I):I(num_launches)
-        #! format: off
-        if buffer isa CuArray
-            @cuda threads=num_threads blocks=num_blocks gpu_kernel!(
+    #! format: off
+    if buffer isa CuArray
+        @cuda cooperative=true threads=num_threads blocks=num_blocks gpu_kernel!(
+            buffer,
+            num_launches, num_elem, num_nodes, execution_order,
+            cX, idx_self, idx_l, idx_r,
+            degree, constant, val, feature, op
+        )
+    else
+        Threads.@threads for i in 1:(num_threads * num_blocks * num_launches)
+            gpu_kernel!(
                 buffer,
-                launch, num_elem, num_nodes, execution_order,
+                num_launches, num_elem, num_nodes, execution_order,
                 cX, idx_self, idx_l, idx_r,
-                degree, constant, val, feature, op
+                degree, constant, val, feature, op,
+                i
             )
-        else
-            Threads.@threads for i in 1:(num_threads * num_blocks)
-                gpu_kernel!(
-                    buffer,
-                    launch, num_elem, num_nodes, execution_order,
-                    cX, idx_self, idx_l, idx_r,
-                    degree, constant, val, feature, op,
-                    i
-                )
-            end
         end
         #! format: on
     end
@@ -151,7 +149,7 @@ for nuna in 0:10, nbin in 0:10
             # Storage:
             buffer,
             # Thread info:
-            launch::Integer, num_elem::Integer, num_nodes::Integer, execution_order::AbstractArray,
+            num_launches::Integer, num_elem::Integer, num_nodes::Integer, execution_order::AbstractArray,
             # Input data and tree
             cX::AbstractArray, idx_self::AbstractArray, idx_l::AbstractArray, idx_r::AbstractArray,
             degree::AbstractArray, constant::AbstractArray, val::AbstractArray, feature::AbstractArray, op::AbstractArray,
@@ -163,46 +161,56 @@ for nuna in 0:10, nbin in 0:10
             if i > num_elem * num_nodes
                 return nothing
             end
-
+            # 
             node = (i - 1) % num_nodes + 1
             elem = (i - node) ÷ num_nodes + 1
+            grid_group = CG.this_grid()
 
-            if execution_order[node] != launch
-                return nothing
-            end
-
-            cur_degree = degree[node]
-            cur_idx = idx_self[node]
-            if cur_degree == 0
-                if constant[node] == 1
-                    cur_val = val[node]
-                    buffer[elem, cur_idx] = cur_val
-                else
-                    cur_feature = feature[node]
-                    buffer[elem, cur_idx] = cX[cur_feature, elem]
+            for launch in 1:num_launches
+                if launch > 1
+                    # TODO: Investigate whether synchronizing within
+                    # group instead of whole grid is better.
+                    CG.sync(grid_group)
                 end
-            else
-                if cur_degree == 1 && $nuna > 0
-                    cur_op = op[node]
-                    l_idx = idx_l[node]
-                    Base.Cartesian.@nif(
-                        $nuna,
-                        i -> i == cur_op,
-                        i -> let op = operators.unaops[i]
-                            buffer[elem, cur_idx] = op(buffer[elem, l_idx])
-                        end
-                    )
-                elseif $nbin > 0  # Note this check is to avoid type inference issues when binops is empty
-                    cur_op = op[node]
-                    l_idx = idx_l[node]
-                    r_idx = idx_r[node]
-                    Base.Cartesian.@nif(
-                        $nbin,
-                        i -> i == cur_op,
-                        i -> let op = operators.binops[i]
-                            buffer[elem, cur_idx] = op(buffer[elem, l_idx], buffer[elem, r_idx])
-                        end
-                    )
+                if execution_order[node] != launch
+                    continue
+                end
+
+                cur_degree = degree[node]
+                cur_idx = idx_self[node]
+                if cur_degree == 0
+                    if constant[node] == 1
+                        cur_val = val[node]
+                        buffer[elem, cur_idx] = cur_val
+                    else
+                        cur_feature = feature[node]
+                        buffer[elem, cur_idx] = cX[cur_feature, elem]
+                    end
+                else
+                    if cur_degree == 1 && $nuna > 0
+                        cur_op = op[node]
+                        l_idx = idx_l[node]
+                        Base.Cartesian.@nif(
+                            $nuna,
+                            i -> i == cur_op,
+                            i -> let op = operators.unaops[i]
+                                buffer[elem, cur_idx] = op(buffer[elem, l_idx])
+                            end
+                        )
+                    elseif $nbin > 0  # Note this check is to avoid type inference issues when binops is empty
+                        cur_op = op[node]
+                        l_idx = idx_l[node]
+                        r_idx = idx_r[node]
+                        Base.Cartesian.@nif(
+                            $nbin,
+                            i -> i == cur_op,
+                            i -> let op = operators.binops[i]
+                                buffer[elem, cur_idx] = op(
+                                    buffer[elem, l_idx], buffer[elem, r_idx]
+                                )
+                            end
+                        )
+                    end
                 end
             end
             return nothing
