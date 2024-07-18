@@ -20,6 +20,7 @@ using DispatchDoctor: @stable, @unstable
     include("Random.jl")
     include("Parse.jl")
     include("ParametricExpression.jl")
+    include("Visualize.jl")
 end
 
 import PackageExtensionCompat: @require_extensions
@@ -71,7 +72,7 @@ import .NodeModule:
 @reexport import .OperatorEnumModule: AbstractOperatorEnum
 @reexport import .OperatorEnumConstructionModule:
     OperatorEnum, GenericOperatorEnum, @extend_operators, set_default_variable_names!
-@reexport import .EvaluateModule: eval_tree_array, differentiable_eval_tree_array, eval_tree_array_graph
+@reexport import .EvaluateModule: eval_tree_array, differentiable_eval_tree_array
 @reexport import .EvaluateDerivativeModule: eval_diff_tree_array, eval_grad_tree_array
 @reexport import .ChainRulesModule: NodeTangent, extract_gradient
 @reexport import .SimplifyModule: combine_operators, simplify_tree!
@@ -85,6 +86,7 @@ import .ExpressionModule:
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
 @reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode
+@reexport import .VisualizeModule: visualize
 
 @stable default_mode = "disable" begin
     include("Interfaces.jl")

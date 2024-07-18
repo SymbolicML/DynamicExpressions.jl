@@ -772,7 +772,7 @@ end
 
 # Parametric arguments don't use dynamic dispatch, calls with turbo/bumper won't resolve properly
 
-function eval_tree_array_graph(
+function eval_tree_array(
     root::GraphNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
