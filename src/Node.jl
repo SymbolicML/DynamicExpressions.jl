@@ -445,4 +445,44 @@ function _rec_randomised_toposort(gnode::GraphNode, order::Vector{GraphNode}, rn
     push!(order, gnode)
 end
 
+
+"""Topological sort of the tree following a depth-first search"""
+function topological_sort(tree::Node)
+    order = Vector{Node}()
+    _rec_toposort(tree, order)
+    return order
+end
+
+"""Topological sort of the tree following a randomised depth-first search"""
+function randomised_topological_sort(tree::Node, rng::AbstractRNG=default_rng())
+    order = Vector{Node}()
+    _rec_randomised_toposort(tree, order, rng)
+    return order
+end
+
+function _rec_toposort(tnode::Node, order::Vector{Node})
+    if tnode.degree == 1
+        _rec_toposort(tnode.l, order)
+    elseif tnode.degree == 2
+        _rec_toposort(tnode.l, order)
+        _rec_toposort(tnode.r, order)
+    end
+    push!(order, tnode)
+end
+
+function _rec_randomised_toposort(tnode::Node, order::Vector{Node}, rng::AbstractRNG)
+    if tnode.degree == 1
+        _rec_randomised_toposort(tnode.l, order, rng)
+    elseif tnode.degree == 2
+        if rand(rng, Bool)
+            _rec_randomised_toposort(tnode.l, order, rng)
+            _rec_randomised_toposort(tnode.r, order, rng)
+        else
+            _rec_randomised_toposort(tnode.r, order, rng)
+            _rec_randomised_toposort(tnode.l, order, rng)
+        end
+    end
+    push!(order, gnode)
+end
+
 end

@@ -8,7 +8,7 @@ using ..StringsModule: get_op_name
 # visualization probably best as an extension if pulled into master
 
 function visualize(
-    graph::GraphNode,
+    graph::Union{GraphNode,Node},  # types accepted by topological_sort
     operators::AbstractOperatorEnum,
     show = true
 )
