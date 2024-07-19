@@ -2,7 +2,7 @@ module DynamicExpressionsBumperExt
 
 using Bumper: @no_escape, @alloc
 using DynamicExpressions:
-    OperatorEnum, AbstractExpressionNode, tree_mapreduce, is_valid_array, EvaluationOptions
+    OperatorEnum, AbstractExpressionNode, tree_mapreduce, is_valid_array, EvalOptions
 using DynamicExpressions.UtilsModule: ResultOk, counttuple
 
 import DynamicExpressions.ExtensionInterfaceModule:
@@ -12,7 +12,7 @@ function bumper_eval_tree_array(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    eval_options::EvaluationOptions{turbo,true,early_exit},
+    eval_options::EvalOptions{turbo,true,early_exit},
 ) where {T,turbo,early_exit}
     result = similar(cX, axes(cX, 2))
     n = size(cX, 2)
@@ -50,10 +50,7 @@ function bumper_eval_tree_array(
 end
 
 function dispatch_kerns!(
-    operators,
-    branch_node,
-    cumulator,
-    eval_options::EvaluationOptions{<:Any,true,early_exit},
+    operators, branch_node, cumulator, eval_options::EvalOptions{<:Any,true,early_exit}
 ) where {early_exit}
     cumulator.ok || return cumulator
 
@@ -65,7 +62,7 @@ function dispatch_kerns!(
     branch_node,
     cumulator1,
     cumulator2,
-    eval_options::EvaluationOptions{<:Any,true,early_exit},
+    eval_options::EvalOptions{<:Any,true,early_exit},
 ) where {early_exit}
     cumulator1.ok || return cumulator1
     cumulator2.ok || return cumulator2
@@ -76,9 +73,7 @@ function dispatch_kerns!(
     return ResultOk(out, early_exit ? is_valid_array(out) : true)
 end
 
-@generated function dispatch_kern1!(
-    unaops, op_idx, cumulator, eval_options::EvaluationOptions
-)
+@generated function dispatch_kern1!(unaops, op_idx, cumulator, eval_options::EvalOptions)
     nuna = counttuple(unaops)
     quote
         Base.@nif(
@@ -91,7 +86,7 @@ end
     end
 end
 @generated function dispatch_kern2!(
-    binops, op_idx, cumulator1, cumulator2, eval_options::EvaluationOptions
+    binops, op_idx, cumulator1, cumulator2, eval_options::EvalOptions
 )
     nbin = counttuple(binops)
     quote
@@ -104,13 +99,11 @@ end
         )
     end
 end
-function bumper_kern1!(op::F, cumulator, ::EvaluationOptions{false,true}) where {F}
+function bumper_kern1!(op::F, cumulator, ::EvalOptions{false,true}) where {F}
     @. cumulator = op(cumulator)
     return cumulator
 end
-function bumper_kern2!(
-    op::F, cumulator1, cumulator2, ::EvaluationOptions{false,true}
-) where {F}
+function bumper_kern2!(op::F, cumulator1, cumulator2, ::EvalOptions{false,true}) where {F}
     @. cumulator1 = op(cumulator1, cumulator2)
     return cumulator1
 end

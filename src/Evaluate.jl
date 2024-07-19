@@ -28,16 +28,16 @@ macro return_on_nonfinite_array(array)
     )
 end
 
-struct EvaluationOptions{T,B,E}
+struct EvalOptions{T,B,E}
     turbo::Val{T}
     bumper::Val{B}
     early_exit::Val{E}
 end
-function EvaluationOptions(; turbo=Val(false), bumper=Val(false), early_exit=Val(true))
+function EvalOptions(; turbo=Val(false), bumper=Val(false), early_exit=Val(true))
     v_turbo = isa(turbo, Val) ? turbo : (turbo ? Val(true) : Val(false))
     v_bumper = isa(bumper, Val) ? bumper : (bumper ? Val(true) : Val(false))
     v_early_exit = isa(early_exit, Val) ? early_exit : (early_exit ? Val(true) : Val(false))
-    return EvaluationOptions(v_turbo, v_bumper, v_early_exit)
+    return EvalOptions(v_turbo, v_bumper, v_early_exit)
 end
 
 """
@@ -80,7 +80,7 @@ function eval_tree_array(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
-    eval_options::Union{EvaluationOptions,Nothing}=nothing,
+    eval_options::Union{EvalOptions,Nothing}=nothing,
     turbo::Union{Bool,Val,Nothing}=nothing,
     bumper::Union{Bool,Val,Nothing}=nothing,
 ) where {T}
@@ -97,7 +97,7 @@ function eval_tree_array(
                 "The `turbo` and `bumper` keyword arguments are deprecated. Please use `eval_options` instead.",
                 :eval_tree_array,
             )
-            EvaluationOptions(;
+            EvalOptions(;
                 turbo = turbo === nothing ? Val(false) : turbo,
                 bumper = bumper === nothing ? Val(false) : bumper,
             )
@@ -153,7 +153,7 @@ function _eval_tree_array(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    eval_options::EvaluationOptions,
+    eval_options::EvalOptions,
 )::ResultOk where {T}
     # First, we see if there are only constants in the tree - meaning
     # we can just return the constant result.
@@ -179,7 +179,7 @@ function deg2_eval(
     cumulator_l::AbstractVector{T},
     cumulator_r::AbstractVector{T},
     op::F,
-    ::EvaluationOptions{false},
+    ::EvalOptions{false},
 )::ResultOk where {T,F}
     @inbounds @simd for j in eachindex(cumulator_l)
         x = op(cumulator_l[j], cumulator_r[j])::T
@@ -189,7 +189,7 @@ function deg2_eval(
 end
 
 function deg1_eval(
-    cumulator::AbstractVector{T}, op::F, ::EvaluationOptions{false}
+    cumulator::AbstractVector{T}, op::F, ::EvalOptions{false}
 )::ResultOk where {T,F}
     @inbounds @simd for j in eachindex(cumulator)
         x = op(cumulator[j])::T
@@ -213,7 +213,7 @@ end
     cX::AbstractMatrix{T},
     op_idx::Integer,
     operators::OperatorEnum,
-    eval_options::EvaluationOptions,
+    eval_options::EvalOptions,
 ) where {T}
     nbin = get_nbin(operators)
     long_compilation_time = nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
@@ -271,7 +271,7 @@ end
     cX::AbstractMatrix{T},
     op_idx::Integer,
     operators::OperatorEnum,
-    eval_options::EvaluationOptions,
+    eval_options::EvalOptions,
 ) where {T}
     nuna = get_nuna(operators)
     long_compilation_time = nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
@@ -320,7 +320,7 @@ end
     op::F,
     l_op_idx::Integer,
     binops,
-    eval_options::EvaluationOptions,
+    eval_options::EvalOptions,
 ) where {T,F}
     nbin = counttuple(binops)
     # (Note this is only called from dispatch_deg1_eval, which has already
@@ -341,7 +341,7 @@ end
     op::F,
     l_op_idx::Integer,
     unaops,
-    eval_options::EvaluationOptions,
+    eval_options::EvalOptions,
 )::ResultOk where {T,F}
     nuna = counttuple(unaops)
     quote
@@ -360,7 +360,7 @@ function deg1_l2_ll0_lr0_eval(
     cX::AbstractMatrix{T},
     op::F,
     op_l::F2,
-    ::EvaluationOptions{false,false},
+    ::EvalOptions{false,false},
 ) where {T,F,F2}
     if tree.l.l.constant && tree.l.r.constant
         val_ll = tree.l.l.val
@@ -413,7 +413,7 @@ function deg1_l1_ll0_eval(
     cX::AbstractMatrix{T},
     op::F,
     op_l::F2,
-    ::EvaluationOptions{false,false},
+    ::EvalOptions{false,false},
 ) where {T,F,F2}
     if tree.l.l.constant
         val_ll = tree.l.l.val
@@ -440,7 +440,7 @@ function deg2_l0_r0_eval(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     op::F,
-    ::EvaluationOptions{false,false},
+    ::EvalOptions{false,false},
 ) where {T,F}
     if tree.l.constant && tree.r.constant
         val_l = tree.l.val
@@ -488,7 +488,7 @@ function deg2_l0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    ::EvaluationOptions{false,false},
+    ::EvalOptions{false,false},
 ) where {T,F}
     if tree.l.constant
         val = tree.l.val
@@ -514,7 +514,7 @@ function deg2_r0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    ::EvaluationOptions{false,false},
+    ::EvalOptions{false,false},
 ) where {T,F}
     if tree.r.constant
         val = tree.r.val

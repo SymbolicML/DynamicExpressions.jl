@@ -1,4 +1,5 @@
 using DynamicExpressions
+using DynamicExpressions: EvalOptions
 using DispatchDoctor: allow_unstable
 using Test
 
@@ -40,15 +41,14 @@ if VERSION >= v"1.9"
     @test_throws(
         "Please load the Bumper.jl package",
         allow_unstable(
-            () ->
-                tree(ones(2, 10), operators; options=EvaluationOptions(; bumper=Val(true))),
+            () -> tree(ones(2, 10), operators; options=EvalOptions(; bumper=Val(true)))
         )
     )
 
     @test_throws(
         "Please load the LoopVectorization.jl package",
         allow_unstable(
-            () -> tree(ones(2, 10), operators; options=EvaluationOptions(; turbo=Val(true)))
+            () -> tree(ones(2, 10), operators; options=EvalOptions(; turbo=Val(true)))
         )
     )
 end

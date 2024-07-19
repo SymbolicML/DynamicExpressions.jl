@@ -3,7 +3,7 @@ module DynamicExpressionsLoopVectorizationExt
 using LoopVectorization: @turbo
 using DynamicExpressions: AbstractExpressionNode
 using DynamicExpressions.UtilsModule: ResultOk, fill_similar
-using DynamicExpressions.EvaluateModule: @return_on_check, EvaluationOptions
+using DynamicExpressions.EvaluateModule: @return_on_check, EvalOptions
 import DynamicExpressions.EvaluateModule:
     deg1_eval,
     deg2_eval,
@@ -21,7 +21,7 @@ function deg2_eval(
     cumulator_l::AbstractVector{T},
     cumulator_r::AbstractVector{T},
     op::F,
-    ::EvaluationOptions{true},
+    ::EvalOptions{true},
 )::ResultOk where {T<:Number,F}
     @turbo for j in eachindex(cumulator_l)
         x = op(cumulator_l[j], cumulator_r[j])
@@ -31,7 +31,7 @@ function deg2_eval(
 end
 
 function deg1_eval(
-    cumulator::AbstractVector{T}, op::F, ::EvaluationOptions{true}
+    cumulator::AbstractVector{T}, op::F, ::EvalOptions{true}
 )::ResultOk where {T<:Number,F}
     @turbo for j in eachindex(cumulator)
         x = op(cumulator[j])
@@ -45,7 +45,7 @@ function deg1_l2_ll0_lr0_eval(
     cX::AbstractMatrix{T},
     op::F,
     op_l::F2,
-    ::EvaluationOptions{true},
+    ::EvalOptions{true},
 ) where {T<:Number,F,F2}
     if tree.l.l.constant && tree.l.r.constant
         val_ll = tree.l.l.val
@@ -97,7 +97,7 @@ function deg1_l1_ll0_eval(
     cX::AbstractMatrix{T},
     op::F,
     op_l::F2,
-    ::EvaluationOptions{true},
+    ::EvalOptions{true},
 ) where {T<:Number,F,F2}
     if tree.l.l.constant
         val_ll = tree.l.l.val
@@ -120,7 +120,7 @@ function deg1_l1_ll0_eval(
 end
 
 function deg2_l0_r0_eval(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, ::EvaluationOptions{true}
+    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, ::EvalOptions{true}
 ) where {T<:Number,F}
     if tree.l.constant && tree.r.constant
         val_l = tree.l.val
@@ -168,7 +168,7 @@ function deg2_l0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    ::EvaluationOptions{true},
+    ::EvalOptions{true},
 ) where {T<:Number,F}
     if tree.l.constant
         val = tree.l.val
@@ -193,7 +193,7 @@ function deg2_r0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    ::EvaluationOptions{true},
+    ::EvalOptions{true},
 ) where {T<:Number,F}
     if tree.r.constant
         val = tree.r.val
@@ -215,13 +215,13 @@ end
 
 ## Interface with Bumper.jl
 function bumper_kern1!(
-    op::F, cumulator, ::EvaluationOptions{true,true,early_exit}
+    op::F, cumulator, ::EvalOptions{true,true,early_exit}
 ) where {F,early_exit}
     @turbo @. cumulator = op(cumulator)
     return cumulator
 end
 function bumper_kern2!(
-    op::F, cumulator1, cumulator2, ::EvaluationOptions{true,true,early_exit}
+    op::F, cumulator1, cumulator2, ::EvalOptions{true,true,early_exit}
 ) where {F,early_exit}
     @turbo @. cumulator1 = op(cumulator1, cumulator2)
     return cumulator1

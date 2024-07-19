@@ -85,7 +85,7 @@ end
 
 @testitem "Test specific branches of evaluation" begin
     using DynamicExpressions, DynamicExpressions, Bumper, LoopVectorization
-    using DynamicExpressions.EvaluateModule: EvaluationOptions
+    using DynamicExpressions.EvaluateModule: EvalOptions
 
     include("test_params.jl")
 
@@ -101,7 +101,7 @@ end
         @test repr(tree) == "cos(cos(3.0))"
         tree = convert(Node{T}, tree)
         truth = cos(cos(T(3.0f0)))
-        @test DynamicExpressions.EvaluateModule.deg1_l1_ll0_eval(tree, [zero(T)]', cos, cos, EvaluationOptions(; turbo)).x[1] ≈
+        @test DynamicExpressions.EvaluateModule.deg1_l1_ll0_eval(tree, [zero(T)]', cos, cos, EvalOptions(; turbo)).x[1] ≈
             truth
 
         # op(<constant>, <constant>)
@@ -109,7 +109,7 @@ end
         @test repr(tree) == "3.0 + 4.0"
         tree = convert(Node{T}, tree)
         truth = T(3.0f0) + T(4.0f0)
-        @test DynamicExpressions.EvaluateModule.deg2_l0_r0_eval(tree, [zero(T)]', (+), EvaluationOptions(; turbo)).x[1] ≈
+        @test DynamicExpressions.EvaluateModule.deg2_l0_r0_eval(tree, [zero(T)]', (+), EvalOptions(; turbo)).x[1] ≈
             truth
 
         # op(op(<constant>, <constant>))
@@ -117,7 +117,7 @@ end
         @test repr(tree) == "cos(3.0 + 4.0)"
         tree = convert(Node{T}, tree)
         truth = cos(T(3.0f0) + T(4.0f0))
-        @test DynamicExpressions.EvaluateModule.deg1_l2_ll0_lr0_eval(tree, [zero(T)]', cos, (+), EvaluationOptions(; turbo)).x[1] ≈
+        @test DynamicExpressions.EvaluateModule.deg1_l2_ll0_lr0_eval(tree, [zero(T)]', cos, (+), EvalOptions(; turbo)).x[1] ≈
             truth
 
         # Test for presence of NaNs:
@@ -244,7 +244,7 @@ end
         )
         X = T[1.0 floatmax(T)]
         @test all(isnan.(ex(X)))
-        @test ex(X; eval_options=EvaluationOptions(; early_exit=Val(false))) ≈ [2.0, Inf]
+        @test ex(X; eval_options=EvalOptions(; early_exit=Val(false))) ≈ [2.0, Inf]
     end
 
     for turbo in [Val(false), Val(true)],
@@ -263,8 +263,8 @@ end
             1 floatmax(T)
             1 1
         ]
-        @test all(isnan.(ex(X; eval_options=EvaluationOptions(; bumper, turbo))))
-        y = ex(X; eval_options=EvaluationOptions(; bumper, turbo, early_exit=false))
+        @test all(isnan.(ex(X; eval_options=EvalOptions(; bumper, turbo))))
+        y = ex(X; eval_options=EvalOptions(; bumper, turbo, early_exit=false))
         @test y[1] == T(-1.618033988749895)
         # FIXME: this is NaN on macOS and -Inf on windows/ubuntu...
         @test !isfinite(y[2])
