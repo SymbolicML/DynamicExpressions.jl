@@ -27,21 +27,17 @@ macro return_on_nonfinite_array(array)
         end
     )
 end
+
 struct EvaluationOptions{T,B,E}
     turbo::Val{T}
     bumper::Val{B}
     early_exit::Val{E}
 end
-function EvaluationOptions(; turbo=false, bumper=false, early_exit=true)
+function EvaluationOptions(; turbo=Val(false), bumper=Val(false), early_exit=Val(true))
     v_turbo = isa(turbo, Val) ? turbo : (turbo ? Val(true) : Val(false))
     v_bumper = isa(bumper, Val) ? bumper : (bumper ? Val(true) : Val(false))
     v_early_exit = isa(early_exit, Val) ? early_exit : (early_exit ? Val(true) : Val(false))
     return EvaluationOptions(v_turbo, v_bumper, v_early_exit)
-end
-function EvaluationOptions{T,B,E}(;
-    turbo=Val(false), bumper=Val(false), early_exit=Val(true)
-) where {T,B,E}
-    return EvaluationOptions{T,B,E}(turbo, bumper, early_exit)
 end
 
 """
@@ -102,8 +98,8 @@ function eval_tree_array(
                 :eval_tree_array,
             )
             EvaluationOptions(;
-                turbo = turbo === nothing ? Val(false) : (turbo isa Val ? turbo : Val(turbo)),
-                bumper = bumper === nothing ? Val(false) : (bumper isa Val ? bumper : Val(bumper)),
+                turbo = turbo === nothing ? Val(false) : turbo,
+                bumper = bumper === nothing ? Val(false) : bumper,
             )
         end
     #! format: on
