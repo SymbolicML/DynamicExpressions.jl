@@ -144,7 +144,7 @@ for type in [Float16, Float32, Float64], turbo in [Val(true), Val(false)]
 end
 
 @testset "NodeIndex" begin
-    @eval import DynamicExpressions: get_constants, NodeIndex, index_constants
+    @eval import DynamicExpressions: get_scalar_constants, NodeIndex, index_constant_nodes
 
     operators = OperatorEnum(;
         binary_operators=(+, *, -, /, pow_abs2), unary_operators=(custom_cos, exp, sin)
@@ -166,7 +166,7 @@ end
         end
     end
 
-    @test check_tree(tree, index_constants(tree), first(get_constants(tree)))
+    @test check_tree(tree, index_constant_nodes(tree), first(get_scalar_constants(tree)))
 end
 
 @testset "Test many operators" begin

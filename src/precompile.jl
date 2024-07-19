@@ -116,13 +116,12 @@ function test_functions_on_trees(::Type{T}, operators) where {T}
 
     string_tree(tree, operators)
     count_nodes(tree)
-    count_constants(tree)
+    count_constant_nodes(tree)
     count_depth(tree)
-    index_constants(tree)
+    index_constant_nodes(tree)
     has_operators(tree)
     has_constants(tree)
-    get_constants(tree)
-    set_constants!(tree, get_constants(tree)...)
+    set_scalar_constants!(tree, get_scalar_constants(tree)...)
     combine_operators(tree, operators)
     simplify_tree!(tree, operators)
     return nothing

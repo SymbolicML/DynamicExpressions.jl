@@ -10,12 +10,12 @@ using ..ChainRulesModule: NodeTangent
 
 import ..NodeModule: constructorof, preserve_sharing, leaf_copy, leaf_hash, leaf_equal
 import ..NodeUtilsModule:
-    count_constants,
-    index_constants,
+    count_constant_nodes,
+    index_constant_nodes,
     has_operators,
     has_constants,
-    get_constants,
-    set_constants!
+    get_scalar_constants,
+    set_scalar_constants!
 import ..StringsModule: string_tree
 import ..EvaluateModule: eval_tree_array
 import ..EvaluateDerivativeModule: eval_grad_tree_array
@@ -30,6 +30,8 @@ import ..ExpressionModule:
     max_feature,
     default_node_type
 import ..ParseModule: parse_leaf
+import ..ValueInterfaceModule:
+    count_scalar_constants, pack_scalar_constants!, unpack_scalar_constants
 
 """A type of expression node that also stores a parameter index"""
 mutable struct ParametricNode{T} <: AbstractExpressionNode{T}
@@ -171,26 +173,8 @@ end
 ###############################################################################
 # Extra utilities for parametric-specific behavior ############################
 ###############################################################################
-## As explained in AbstractExpressionNode, we can implement custom behavior for
-## the parametric expression by implementing the following methods:
-# - `count_nodes`
-# - `count_constants`
-# - `count_depth`
-# - `index_constants`
-# - `has_operators`
-# - `has_constants`
-# - `get_constants`
-# - `set_constants!`
-# - `string_tree`
-# - `max_feature`
-# - `eval_tree_array`
-# - `eval_grad_tree_array`
-# - `_grad_evaluator`
-
-## For a parametric struct, we only wish to implement the following
 
 #! format: off
-
 struct InterfaceError <: Exception
 end
 _interface_error() = throw(InterfaceError())
@@ -200,26 +184,50 @@ Base.showerror(io::IO, e::InterfaceError) = print(io,
     "which has two concepts of what constitutes a constant: a static, global constant, " *
     "as well as a per-instance constant."
 )
-count_constants(::ParametricExpression; kws...) = _interface_error()
-index_constants(::ParametricExpression, ::Type{T}=UInt16) where {T} = _interface_error()
-has_constants(ex::ParametricExpression) = _interface_error()
+count_constant_nodes(::ParametricExpression; kws...) = _interface_error()
+index_constant_nodes(::ParametricExpression, ::Type{T}=UInt16) where {T} = _interface_error()
+has_constants(::ParametricExpression) = _interface_error()
 #! format: on
 
 has_operators(ex::ParametricExpression) = has_operators(get_tree(ex))
-function get_constants(ex::ParametricExpression{T}) where {T}
-    constants, constant_refs = get_constants(get_tree(ex))
+
+function _get_constants_array(parameter_refs, ::Type{BT}) where {BT}
+    size = sum(count_scalar_constants, parameter_refs)
+    flat = Vector{BT}(undef, size)
+    ix = 1
+    for p in parameter_refs
+        ix = pack_scalar_constants!(flat, ix, p)
+    end
+    return flat
+end
+
+function _set_constants_array!(parameter_refs, flat)
+    ix, i = 1, 1
+    while ix <= length(flat) && i <= length(parameter_refs)
+        ix, parameter_refs[i] = unpack_scalar_constants(flat, ix, parameter_refs[i])
+        i += 1
+    end
+end
+
+function get_scalar_constants(ex::ParametricExpression{T}) where {T}
+    constants, constant_refs = get_scalar_constants(get_tree(ex))
     parameters = get_metadata(ex).parameters
-    flat_parameters = parameters[:]
+    flat_parameters = _get_constants_array(parameters, eltype(constants))
     num_constants = length(constants)
     num_parameters = length(flat_parameters)
-    return vcat(constants, flat_parameters),
-    (; constant_refs, parameter_refs=parameters, num_parameters, num_constants)
+    combined_scalars = vcat(constants, flat_parameters)
+    refs = (; constant_refs, parameter_refs=parameters, num_parameters, num_constants)
+    return combined_scalars, refs
 end
-function set_constants!(ex::ParametricExpression{T}, x, refs) where {T}
+function set_scalar_constants!(ex::ParametricExpression{T}, x, refs) where {T}
     # First, set the usual constants
-    set_constants!(get_tree(ex), @view(x[1:(refs.num_constants)]), refs.constant_refs)
+    set_scalar_constants!(
+        get_tree(ex), @view(x[1:(refs.num_constants)]), refs.constant_refs
+    )
     # Then, copy in the parameters
-    get_metadata(ex).parameters[:] .= @view(x[(refs.num_constants + 1):end])
+    _set_constants_array!(
+        @view(get_metadata(ex).parameters[:]), @view(x[(refs.num_constants + 1):end])
+    )
     return ex
 end
 function extract_gradient(
@@ -238,7 +246,7 @@ function extract_gradient(
 ) where {T,N<:ParametricNode{T},NT<:NodeTangent{T,N},PARAM<:AbstractMatrix{T}}
     d_constants = extract_gradient(gradient.tree, get_tree(ex))
     d_params = gradient.metadata._data.parameters[:]
-    return vcat(d_constants, d_params)  # Same shape as `get_constants`
+    return vcat(d_constants, d_params)  # Same shape as `get_scalar_constants`
 end
 
 function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
