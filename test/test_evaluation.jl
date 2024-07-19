@@ -1,8 +1,7 @@
-using DynamicExpressions
-using Bumper
-using LoopVectorization
-using Random
-using Test
+#! format: off
+@testitem "Test validity of expression evaluation" begin
+using DynamicExpressions, Bumper, LoopVectorization, Random
+
 include("test_params.jl")
 include("tree_gen_utils.jl")
 
@@ -81,8 +80,14 @@ for turbo in [Val(false), Val(true)],
         end
     end
 end
+end
+#! format: on
 
-@testset "Test specific branches of evaluation" begin
+@testitem "Test specific branches of evaluation" begin
+    using DynamicExpressions, DynamicExpressions, Bumper, LoopVectorization
+
+    include("test_params.jl")
+
     for turbo in [false, true], T in [Float16, Float32, Float64, ComplexF32, ComplexF64]
         turbo && !(T in (Float32, Float64)) && continue
         # Test specific branches of evaluation code:
@@ -126,8 +131,10 @@ end
 end
 
 # Check if julia version >= 1.7:
-if VERSION >= v"1.7"
-    @testset "Test error catching for GenericOperatorEnum" begin
+@testitem "Test error catching for GenericOperatorEnum" begin
+    using DynamicExpressions
+
+    if VERSION >= v"1.7"
         # And, with generic operator enum, this should be an actual error:
         operators = GenericOperatorEnum(;
             binary_operators=[+, -, *, /], unary_operators=[cos, sin]
@@ -168,7 +175,11 @@ if VERSION >= v"1.7"
     end
 end
 
-@testset "Test many operators" begin
+@testitem "Test many operators" begin
+    using DynamicExpressions
+
+    include("tree_gen_utils.jl")
+
     # Since we use `@nif` in evaluating expressions,
     # we can see if there are any issues with LARGE numbers of operators.
     num_ops = 100
@@ -224,13 +235,15 @@ end
     using DynamicExpressions
     using Bumper, LoopVectorization
 
-    T = Float16
-    ex = @parse_expression(
-        2 * x, binary_operators = [*], variable_names = ["x"], node_type = Node{T}
-    )
-    X = T[1.0 floatmax(T)]
-    @test all(isnan.(ex(X)))
-    @test ex(X; options=EvaluationOptions(; early_exit=Val(false))) ≈ [2.0, Inf]
+    let
+        T = Float16
+        ex = @parse_expression(
+            2 * x, binary_operators = [*], variable_names = ["x"], node_type = Node{T}
+        )
+        X = T[1.0 floatmax(T)]
+        @test all(isnan.(ex(X)))
+        @test ex(X; eval_options=EvaluationOptions(; early_exit=Val(false))) ≈ [2.0, Inf]
+    end
 
     for turbo in [Val(false), Val(true)],
         T in [Float32, Float64],
@@ -248,8 +261,8 @@ end
             1 floatmax(T)
             1 1
         ]
-        @test all(isnan.(ex(X; options=EvaluationOptions(; bumper=bumper, turbo=turbo))))
-        y = ex(X; options=EvaluationOptions(; bumper=bumper, turbo=turbo, early_exit=false))
+        @test all(isnan.(ex(X; eval_options=EvaluationOptions(; bumper, turbo))))
+        y = ex(X; eval_options=EvaluationOptions(; bumper, turbo, early_exit=false))
         @test y[1] == T(-1.618033988749895)
         # FIXME: this is NaN on macOS and -Inf on windows/ubuntu...
         @test !isfinite(y[2])
