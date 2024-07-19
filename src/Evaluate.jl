@@ -731,8 +731,6 @@ function eval(current_node)
     throw_errors::Union{Val,Bool}=Val(true),
 ) where {T1,T2,N}
     v_throw_errors = throw_errors isa Val ? throw_errors : Val(throw_errors)
-    v_throw_errors isa Val{false} &&
-        return _eval_tree_array_generic(tree, cX, operators, v_throw_errors)
     try
         return _eval_tree_array_generic(tree, cX, operators, v_throw_errors)
     catch e

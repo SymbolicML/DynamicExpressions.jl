@@ -135,16 +135,17 @@ end
 @testitem "Test error catching for GenericOperatorEnum" begin
     using DynamicExpressions
 
-    if VERSION >= v"1.7"
+    @static if VERSION >= v"1.7"
         # And, with generic operator enum, this should be an actual error:
+        @eval my_fnc(x::Real) = x
         operators = GenericOperatorEnum(;
-            binary_operators=[+, -, *, /], unary_operators=[cos, sin]
+            binary_operators=[+, -, *, /], unary_operators=[cos, sin, my_fnc]
         )
+        @extend_operators operators
         x1 = Node(Float64; feature=1)
         tree = sin(x1 / 0.0)
         X = randn(Float32, 10)
         let
-            local stack
             try
                 tree(X, operators)[1]
                 @test false
@@ -153,25 +154,25 @@ end
                 # Check that "Failed to evaluate" is in the message:
                 @test occursin("Failed to evaluate", e.msg)
                 stack = current_exceptions()
+                @test length(stack) == 2
+                @test stack[1].exception isa DomainError
             end
-            @test length(stack) == 2
-            @test stack[1].exception isa DomainError
 
             # If a method is not defined, we should get a nothing:
-            X = randn(Float32, 1, 10)
-            @test tree(X, operators; throw_errors=false) === nothing
+            X2 = randn(ComplexF64, 1, 10)
+            tree2 = my_fnc(x1)
+            @test tree2(X2, operators; throw_errors=false) === nothing
             # or a MethodError:
             try
-                tree(X, operators; throw_errors=true)
+                tree2(X2, operators; throw_errors=true)
                 @test false
             catch e
                 @test e isa ErrorException
                 @test occursin("Failed to evaluate", e.msg)
-                stack = current_exceptions()
+                stack2 = current_exceptions()
+                @test length(stack2) == 2
+                @test stack2[1].exception isa MethodError
             end
-            @test length(stack) == 2
-            # Dividing by 0 should not be an MethodError
-            # @test stack[1].exception isa MethodError
         end
     end
 end
