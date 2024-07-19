@@ -736,7 +736,7 @@ function eval(current_node)
     try
         return _eval_tree_array_generic(tree, cX, operators, v_throw_errors)
     catch e
-        if !throw_errors
+        if v_throw_errors isa Val{false}
             return nothing, false
         end
         tree_s = string_tree(tree, operators)
