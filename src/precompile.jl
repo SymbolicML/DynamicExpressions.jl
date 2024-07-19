@@ -38,7 +38,7 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
         # Trivial:
         for l in (x, c)
             @ignore_domain_error eval_tree_array(
-                l, X, operators; options=EvaluationOptions(; turbo=use_turbo)
+                l, X, operators; eval_options=EvaluationOptions(; turbo=use_turbo)
             )
         end
 
@@ -47,7 +47,7 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
             tree = Node(i, l, r)
             tree = convert(Node{T}, tree)
             @ignore_domain_error eval_tree_array(
-                tree, X, operators; options=EvaluationOptions(; turbo=use_turbo)
+                tree, X, operators; eval_options=EvaluationOptions(; turbo=use_turbo)
             )
         end
 
@@ -56,13 +56,13 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
             tree = Node(j, l)
             tree = convert(Node{T}, tree)
             @ignore_domain_error eval_tree_array(
-                tree, X, operators; options=EvaluationOptions(; turbo=use_turbo)
+                tree, X, operators; eval_options=EvaluationOptions(; turbo=use_turbo)
             )
 
             tree = Node(j, Node(k, l))
             tree = convert(Node{T}, tree)
             @ignore_domain_error eval_tree_array(
-                tree, X, operators; options=EvaluationOptions(; turbo=use_turbo)
+                tree, X, operators; eval_options=EvaluationOptions(; turbo=use_turbo)
             )
         end
 
@@ -76,13 +76,13 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
             tree = Node(i, Node(j1, l), Node(j2, r))
             tree = convert(Node{T}, tree)
             @ignore_domain_error eval_tree_array(
-                tree, X, operators; options=EvaluationOptions(; turbo=use_turbo)
+                tree, X, operators; eval_options=EvaluationOptions(; turbo=use_turbo)
             )
 
             tree = Node(j1, Node(i, l, r))
             tree = convert(Node{T}, tree)
             @ignore_domain_error eval_tree_array(
-                tree, X, operators; options=EvaluationOptions(; turbo=use_turbo)
+                tree, X, operators; eval_options=EvaluationOptions(; turbo=use_turbo)
             )
         end
     end

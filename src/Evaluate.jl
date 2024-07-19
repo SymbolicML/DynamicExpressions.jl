@@ -260,7 +260,7 @@ end
                     eval_options.early_exit isa Val{true} &&
                         @return_on_nonfinite_array result_r.x
                     # op(x, y), for any x or y
-                    deg2_eval(result_l.x, result_r.x, op)
+                    deg2_eval(result_l.x, result_r.x, op, eval_options)
                 end
             end
         )
@@ -280,7 +280,7 @@ end
             result = _eval_tree_array(tree.l, cX, operators, eval_options)
             !result.ok && return result
             eval_options.early_exit isa Val{true} && @return_on_nonfinite_array result.x
-            deg1_eval(result.x, operators.unaops[op_idx])
+            deg1_eval(result.x, operators.unaops[op_idx], eval_options)
         end
     end
     # This @nif lets us generate an if statement over choice of operator,
@@ -308,7 +308,7 @@ end
                     !result.ok && return result
                     eval_options.early_exit isa Val{true} &&
                         @return_on_nonfinite_array result.x
-                    deg1_eval(result.x, op)
+                    deg1_eval(result.x, op, eval_options)
                 end
             end
         )
