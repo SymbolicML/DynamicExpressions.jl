@@ -230,7 +230,7 @@ end
     )
     X = T[1.0 floatmax(T)]
     @test all(isnan.(ex(X)))
-    @test ex(X; options=EvaluationOptions(early_exit=Val(false))) ≈ [2.0, Inf]
+    @test ex(X; options=EvaluationOptions(; early_exit=Val(false))) ≈ [2.0, Inf]
 
     for turbo in [Val(false), Val(true)],
         T in [Float32, Float64],
@@ -248,8 +248,8 @@ end
             1 floatmax(T)
             1 1
         ]
-        @test all(isnan.(ex(X; options=EvaluationOptions(bumper=bumper, turbo=turbo))))
-        y = ex(X; options=EvaluationOptions(bumper=bumper, turbo=turbo, early_exit=false))
+        @test all(isnan.(ex(X; options=EvaluationOptions(; bumper=bumper, turbo=turbo))))
+        y = ex(X; options=EvaluationOptions(; bumper=bumper, turbo=turbo, early_exit=false))
         @test y[1] == T(-1.618033988749895)
         # FIXME: this is NaN on macOS and -Inf on windows/ubuntu...
         @test !isfinite(y[2])

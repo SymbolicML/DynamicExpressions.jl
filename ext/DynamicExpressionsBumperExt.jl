@@ -12,7 +12,7 @@ function bumper_eval_tree_array(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    options::EvaluationOptions{turbo,true,early_exit}
+    options::EvaluationOptions{turbo,true,early_exit},
 ) where {T,turbo,early_exit}
     result = similar(cX, axes(cX, 2))
     n = size(cX, 2)
@@ -58,12 +58,18 @@ function dispatch_kerns!(
     return early_exit ? ResultOk(out, is_valid_array(out)) : ResultOk(out, true)
 end
 function dispatch_kerns!(
-    operators, branch_node, cumulator1, cumulator2, options::EvaluationOptions{turbo,true,early_exit}
+    operators,
+    branch_node,
+    cumulator1,
+    cumulator2,
+    options::EvaluationOptions{turbo,true,early_exit},
 ) where {turbo,early_exit}
     cumulator1.ok || return cumulator1
     cumulator2.ok || return cumulator2
 
-    out = dispatch_kern2!(operators.binops, branch_node.op, cumulator1.x, cumulator2.x, options)
+    out = dispatch_kern2!(
+        operators.binops, branch_node.op, cumulator1.x, cumulator2.x, options
+    )
     return early_exit ? ResultOk(out, is_valid_array(out)) : ResultOk(out, true)
 end
 
@@ -73,16 +79,18 @@ end
     nuna = counttuple(unaops)
     quote
         Base.@nif(
-            $nuna,
-            i -> i == op_idx,
-            i -> let op = unaops[i]
+            $nuna, i -> i == op_idx, i -> let op = unaops[i]
                 return bumper_kern1!(op, cumulator, options)
             end,
         )
     end
 end
 @generated function dispatch_kern2!(
-    binops, op_idx, cumulator1, cumulator2, options::EvaluationOptions{turbo,true,early_exit}
+    binops,
+    op_idx,
+    cumulator1,
+    cumulator2,
+    options::EvaluationOptions{turbo,true,early_exit},
 ) where {turbo,early_exit}
     nbin = counttuple(binops)
     quote

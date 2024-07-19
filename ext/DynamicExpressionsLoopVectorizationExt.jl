@@ -18,7 +18,10 @@ import DynamicExpressions.ExtensionInterfaceModule:
 _is_loopvectorization_loaded(::Int) = true
 
 function deg2_eval(
-    cumulator_l::AbstractVector{T}, cumulator_r::AbstractVector{T}, op::F, ::EvaluationOptions{true}
+    cumulator_l::AbstractVector{T},
+    cumulator_r::AbstractVector{T},
+    op::F,
+    ::EvaluationOptions{true},
 )::ResultOk where {T<:Number,F}
     @turbo for j in eachindex(cumulator_l)
         x = op(cumulator_l[j], cumulator_r[j])
@@ -38,7 +41,11 @@ function deg1_eval(
 end
 
 function deg1_l2_ll0_lr0_eval(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::EvaluationOptions{true}
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    op::F,
+    op_l::F2,
+    ::EvaluationOptions{true},
 ) where {T<:Number,F,F2}
     if tree.l.l.constant && tree.l.r.constant
         val_ll = tree.l.l.val
@@ -86,7 +93,11 @@ function deg1_l2_ll0_lr0_eval(
 end
 
 function deg1_l1_ll0_eval(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, op::F, op_l::F2, ::EvaluationOptions{true}
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    op::F,
+    op_l::F2,
+    ::EvaluationOptions{true},
 ) where {T<:Number,F,F2}
     if tree.l.l.constant
         val_ll = tree.l.l.val
@@ -157,7 +168,7 @@ function deg2_l0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    ::EvaluationOptions{true}
+    ::EvaluationOptions{true},
 ) where {T<:Number,F}
     if tree.l.constant
         val = tree.l.val
@@ -182,7 +193,7 @@ function deg2_r0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    ::EvaluationOptions{true}
+    ::EvaluationOptions{true},
 ) where {T<:Number,F}
     if tree.r.constant
         val = tree.r.val
