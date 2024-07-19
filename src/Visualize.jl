@@ -1,7 +1,7 @@
 module VisualizeModule
 
 using Plots, GraphRecipes
-using ..NodeModule: GraphNode, topological_sort
+using ..NodeModule: GraphNode, Node, topological_sort
 using ..OperatorEnumModule: AbstractOperatorEnum
 using ..StringsModule: get_op_name
 
