@@ -461,7 +461,7 @@ redefine operators for `AbstractExpressionNode` types, as well as `show`, `print
         @warn "Using `BroadcastFunction` in an `OperatorEnum` is not yet stable"
     end
 
-    operators = OperatorEnum(Tuple(binary_operators), Tuple(unary_operators))
+    operators = OperatorEnum((Tuple(unary_operators), Tuple(binary_operators)))
 
     if define_helper_functions
         @extend_operators_base operators empty_old_operators = empty_old_operators
@@ -498,7 +498,7 @@ and `(::AbstractExpressionNode)(X)`.
 )
     @assert length(binary_operators) > 0 || length(unary_operators) > 0
 
-    operators = GenericOperatorEnum(Tuple(binary_operators), Tuple(unary_operators))
+    operators = GenericOperatorEnum((Tuple(unary_operators), Tuple(binary_operators)))
 
     if define_helper_functions
         @extend_operators_base operators empty_old_operators = empty_old_operators
@@ -513,12 +513,14 @@ end
 function _overload_common_operators()
     # Overload the operators in batches (so that we don't hit the warning
     # about too many operators)
-    operators = OperatorEnum(
-        (+, -, *, /, ^, max, min, mod),
+    operators = OperatorEnum((
         (sin, cos, tan, exp, log, log1p, log2, log10, sqrt, cbrt, abs, sinh),
-    )
+        (+, -, *, /, ^, max, min, mod),
+    ))
     @extend_operators(operators, empty_old_operators = false, internal = true)
-    operators = OperatorEnum((), (cosh, tanh, atan, asinh, acosh, round, sign, floor, ceil))
+    operators = OperatorEnum((
+        (cosh, tanh, atan, asinh, acosh, round, sign, floor, ceil), ()
+    ))
     @extend_operators(operators, empty_old_operators = true, internal = true)
 
     empty!(LATEST_UNARY_OPERATOR_MAPPING)

@@ -113,8 +113,10 @@ function eval_tree_array(
     return eval_tree_array(tree, cX, operators; turbo, bumper)
 end
 
-get_nuna(::Type{<:OperatorEnum{B,U}}) where {B,U} = counttuple(U)
-get_nbin(::Type{<:OperatorEnum{B}}) where {B} = counttuple(B)
+#! format: off
+get_nuna(::Type{<:OperatorEnum{<:Tuple{Tuple{Vararg{Any,U}},Vararg}}}) where {U} = U
+get_nbin(::Type{<:OperatorEnum{<:Tuple{Tuple{Vararg},Tuple{Vararg{Any,B}},Vararg}}}) where {B} = B
+#! format: on
 
 function _eval_tree_array(
     tree::AbstractExpressionNode{T},
