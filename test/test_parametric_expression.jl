@@ -1,3 +1,25 @@
+@testitem "Conversion should not change metadata" begin
+    using DynamicExpressions
+
+    p1 = ParametricNode{Float64,2}()
+    p1.degree = 0
+    p1.constant = false
+    p1.is_parameter = true
+    p1.parameter = 2
+
+    # Default string prints the feature value (random value; as its undefined)
+    @test startswith(repr(p1), "x")
+
+    @test copy(p1).degree == 0
+    @test copy(p1).constant == false
+    @test copy(p1).is_parameter == true
+    @test copy(p1).parameter == 2
+
+    # Converting eltype shouldn't change this
+    @test convert(ParametricNode{Float32}, p1).degree == 0
+    @test convert(ParametricNode{Float32}, p1).constant == false
+    @test convert(ParametricNode{Float32}, p1).is_parameter == true
+end
 @testitem "Interface for parametric expressions" begin
     using DynamicExpressions
     using DynamicExpressions: ExpressionInterface, NodeInterface

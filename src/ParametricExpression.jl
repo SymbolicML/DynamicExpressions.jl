@@ -9,7 +9,14 @@ using ..ExpressionModule: AbstractExpression, Metadata
 using ..ChainRulesModule: NodeTangent
 
 import ..NodeModule:
-    constructorof, max_degree, preserve_sharing, leaf_copy, leaf_hash, leaf_equal
+    constructorof,
+    max_degree,
+    with_type_parameters,
+    preserve_sharing,
+    leaf_copy,
+    leaf_convert,
+    leaf_hash,
+    leaf_equal
 import ..NodeUtilsModule:
     count_constant_nodes,
     index_constant_nodes,
@@ -104,27 +111,39 @@ end
 default_node_type(::Type{<:ParametricExpression{T}}) where {T} = ParametricNode{T,2}
 preserve_sharing(::Union{Type{<:ParametricNode},ParametricNode}) = false # TODO: Change this?
 function leaf_copy(t::ParametricNode{T}) where {T}
-    out = if t.constant
-        constructorof(typeof(t))(; val=t.val)
+    if t.constant
+        return constructorof(typeof(t))(; val=t.val)
     elseif !t.is_parameter
-        constructorof(typeof(t))(T; feature=t.feature)
+        return constructorof(typeof(t))(T; feature=t.feature)
     else
         n = constructorof(typeof(t))(; val=zero(T))
         n.constant = false
         n.is_parameter = true
         n.parameter = t.parameter
-        n
+        return n
     end
-    return out
+end
+function leaf_convert(::Type{N}, t::ParametricNode) where {T,N<:ParametricNode{T}}
+    if t.constant
+        return constructorof(N)(T; val=convert(T, t.val))
+    elseif t.is_parameter
+        n = constructorof(N)(T; val=zero(T))
+        n.constant = false
+        n.is_parameter = true
+        n.parameter = t.parameter
+        return n
+    else
+        return constructorof(N)(T; feature=t.feature)
+    end
 end
 function leaf_hash(h::UInt, t::ParametricNode)
     if t.constant
-        hash((:constant, t.val), h)
+        return hash((:constant, t.val), h)
     else
         if t.is_parameter
-            hash((:parameter, t.parameter), h)
+            return hash((:parameter, t.parameter), h)
         else
-            hash((:feature, t.feature), h)
+            return hash((:feature, t.feature), h)
         end
     end
 end

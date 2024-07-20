@@ -1,6 +1,8 @@
 using DynamicExpressions
 using Test
 
+import DynamicExpressions: with_type_parameters
+
 mutable struct MyCustomNode{A,B} <: AbstractNode{2}
     degree::Int
     val1::A
