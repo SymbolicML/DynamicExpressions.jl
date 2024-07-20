@@ -162,7 +162,7 @@ when constructing or setting properties.
 """
 GraphNode
 
-@inline function Base.getproperty(n::Union{Node,GraphNode}, k::Symbol)
+@inline function Base.getproperty(n::AbstractExpressionNode, k::Symbol)
     if k == :l
         # TODO: Should a depwarn be raised here? Or too slow?
         return getfield(n, :children)[1][]
@@ -173,7 +173,7 @@ GraphNode
     end
 end
 #! format: off
-@inline function Base.setproperty!(n::Union{Node,GraphNode}, k::Symbol, v)
+@inline function Base.setproperty!(n::AbstractExpressionNode, k::Symbol, v)
     if k == :l
         # TODO: Should a depwarn be raised here? Or too slow?
         if isdefined(n, :children)
@@ -202,7 +202,7 @@ end
     elseif k == :children
         setfield!(n, :children, v)
     else
-        error("Invalid property: $k")
+        setfield!(n, k, convert(fieldtype(typeof(n), k), v))
     end
 end
 #! format: on
@@ -223,10 +223,10 @@ max_degree(::Type{<:AbstractNode{D}}) where {D} = D
 @unstable constructorof(::Type{N}) where {N<:GraphNode} =
     GraphNode{T,max_degree(N)} where {T}
 
+#! format: off
 with_type_parameters(::Type{N}, ::Type{T}) where {N<:Node,T} = Node{T,max_degree(N)}
-function with_type_parameters(::Type{N}, ::Type{T}) where {N<:GraphNode,T}
-    return GraphNode{T,max_degree(N)}
-end
+with_type_parameters(::Type{N}, ::Type{T}) where {N<:GraphNode,T} = GraphNode{T,max_degree(N)}
+#! format: on
 
 # with_degree(::Type{N}, ::Val{D}) where {T,N<:Node{T},D} = Node{T,D}
 # with_degree(::Type{N}, ::Val{D}) where {T,N<:GraphNode{T},D} = GraphNode{T,D}

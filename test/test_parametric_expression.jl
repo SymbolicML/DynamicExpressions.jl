@@ -171,7 +171,7 @@ end
 @testitem "Allowed empty operators in parametric expression" begin
     using DynamicExpressions: ParametricExpression, ParametricNode
 
-    tree = ParametricNode{Float64}()
+    tree = ParametricNode{Float64,2}()
     tree.degree = 0
     tree.constant = true
     tree.val = 0.0
@@ -192,7 +192,7 @@ end
 @testitem "Passing node within ParametricExpression parsing" begin
     using DynamicExpressions
 
-    tree = ParametricNode{Float32}()
+    tree = ParametricNode{Float32,2}()
     tree.degree = 0
     tree.constant = true
     tree.val = 1.5
@@ -328,7 +328,7 @@ end
     @test val isa Float64
     @test grad isa NamedTuple
     @test grad.tree isa DynamicExpressions.ChainRulesModule.NodeTangent{
-        Float64,ParametricNode{Float64},Vector{Float64}
+        Float64,<:ParametricNode{Float64},Vector{Float64}
     }
     @test grad.metadata._data.parameters isa Matrix{Float64}
 

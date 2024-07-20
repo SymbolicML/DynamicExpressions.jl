@@ -71,10 +71,10 @@ end
 struct ParametricExpression{
     T,
     N<:ParametricNode{T},
-    D<:NamedTuple{(:operators, :variable_names, :parameters, :parameter_names)},
+    META<:NamedTuple{(:operators, :variable_names, :parameters, :parameter_names)},
 } <: AbstractExpression{T,N}
     tree::N
-    metadata::Metadata{D}
+    metadata::Metadata{META}
 
     function ParametricExpression(tree::ParametricNode, metadata::Metadata)
         return new{eltype(tree),typeof(tree),typeof(_data(metadata))}(tree, metadata)
@@ -104,12 +104,15 @@ end
 ###############################################################################
 # Abstract expression node interface ##########################################
 ###############################################################################
-@unstable constructorof(::Type{N}) where {N<:ParametricNode} =
-    ParametricNode{T,max_degree(N)} where {T}
+#! format: off
+with_type_parameters(::Type{N}, ::Type{T}) where {N<:ParametricNode,T} = ParametricNode{T,max_degree(N)}
+@unstable constructorof(::Type{N}) where {N<:ParametricNode} = ParametricNode{T,max_degree(N)} where {T}
 @unstable constructorof(::Type{<:ParametricExpression}) = ParametricExpression
 @unstable default_node_type(::Type{<:ParametricExpression}) = ParametricNode{T,2} where {T}
 default_node_type(::Type{<:ParametricExpression{T}}) where {T} = ParametricNode{T,2}
 preserve_sharing(::Union{Type{<:ParametricNode},ParametricNode}) = false # TODO: Change this?
+#! format: on
+
 function leaf_copy(t::ParametricNode{T}) where {T}
     if t.constant
         return constructorof(typeof(t))(; val=t.val)
@@ -415,9 +418,8 @@ end
         end
         # Special logic for parsing parameter:
         j = findfirst(==(string(ex)), parameter_names)
-        n = node_type{Float64}()
+        n = node_type(; val=1)
         # HACK: Should implement conversion so we don't need this
-        n.degree = 0
         n.constant = false
         n.is_parameter = true
         n.parameter = j::Int

@@ -52,6 +52,7 @@ mutable struct MyCustomNode2{T} <: AbstractExpressionNode{T,2}
     op::UInt8
     children::NTuple{2,Base.RefValue{MyCustomNode2{T}}}
 end
+with_type_parameters(::Type{<:MyCustomNode2}, ::Type{T}) where {T} = MyCustomNode2{T}
 
 @test_throws ErrorException MyCustomNode2()
 @test_throws ErrorException MyCustomNode2{Float64}()

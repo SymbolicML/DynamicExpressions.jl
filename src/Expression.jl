@@ -84,9 +84,10 @@ expression tree (like `Node`) along with associated metadata for evaluation and 
 This type is intended for end-users to interact with and manipulate expressions at a high level,
 abstracting away the complexities of the underlying expression tree operations.
 """
-struct Expression{T,N<:AbstractExpressionNode{T},D<:NamedTuple} <: AbstractExpression{T,N}
+struct Expression{T,N<:AbstractExpressionNode{T},META<:NamedTuple} <:
+       AbstractExpression{T,N}
     tree::N
-    metadata::Metadata{D}
+    metadata::Metadata{META}
 end
 
 @inline function Expression(tree::AbstractExpressionNode{T}; metadata...) where {T}
