@@ -176,11 +176,23 @@ GraphNode
         return getfield(n, k)
     end
 end
+#! format: off
 @inline function Base.setproperty!(n::Union{Node,GraphNode}, k::Symbol, v)
     if k == :l
-        getfield(n, :children)[1][] = v
+        # TODO: Should a depwarn be raised here? Or too slow?
+        if isdefined(n, :children)
+            getfield(n, :children)[1][] = v
+        else
+            setfield!(n, :children, ntuple(i -> i == 1 ? Ref(v) : Ref{typeof(n)}(), Val(max_degree(typeof(n)))))
+            v
+        end
     elseif k == :r
-        getfield(n, :children)[2][] = v
+        if isdefined(n, :children)
+            getfield(n, :children)[2][] = v
+        else
+            setfield!(n, :children, ntuple(i -> i == 2 ? Ref(v) : Ref{typeof(n)}(), Val(max_degree(typeof(n)))))
+            v
+        end
     elseif k == :degree
         setfield!(n, :degree, convert(UInt8, v))
     elseif k == :constant
@@ -197,6 +209,7 @@ end
         error("Invalid property: $k")
     end
 end
+#! format: on
 
 ################################################################################
 #! format: on
