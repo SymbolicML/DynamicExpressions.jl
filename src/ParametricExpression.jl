@@ -8,7 +8,8 @@ using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
 using ..ExpressionModule: AbstractExpression, Metadata
 using ..ChainRulesModule: NodeTangent
 
-import ..NodeModule: constructorof, max_degree, preserve_sharing, leaf_copy, leaf_hash, leaf_equal
+import ..NodeModule:
+    constructorof, max_degree, preserve_sharing, leaf_copy, leaf_hash, leaf_equal
 import ..NodeUtilsModule:
     count_constant_nodes,
     index_constant_nodes,

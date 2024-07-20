@@ -217,6 +217,9 @@ end
 Base.eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = T
 Base.eltype(::AbstractExpressionNode{T}) where {T} = T
 
+_specifies_eltype(::Type{<:AbstractExpressionNode}) = false
+_specifies_eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = true
+
 max_degree(::Type{<:AbstractNode}) = 2  # Default
 max_degree(::Type{<:AbstractNode{D}}) where {D} = D
 
@@ -298,6 +301,7 @@ end
 ) where {N<:AbstractExpressionNode,F}
     T = promote_type(map(eltype, children)...)  # Always prefer existing nodes, so we don't mess up references from conversion
     D2 = length(children)
+    @assert all(Base.Fix2(isa, N), children)
     @assert D2 <= max_degree(N)
     NT = with_type_parameters(N, T)
     n = allocator(N, T)
@@ -308,11 +312,11 @@ end
 end
 
 @inline function node_factory_type(::Type{N}, ::Type{T1}, ::Type{T2}) where {N,T1,T2}
-    if T1 === Undefined && N isa UnionAll
+    if T1 === Undefined && !_specifies_eltype(N)
         T2
     elseif T1 === Undefined
         eltype(N)
-    elseif N isa UnionAll
+    elseif !_specifies_eltype(N)
         T1
     else
         eltype(N)
@@ -323,12 +327,12 @@ end
 function (::Type{N})(
     op::Integer, l::AbstractExpressionNode
 ) where {N<:AbstractExpressionNode}
-    return N(; op=op, l=l)
+    return N(; op=op, children=(l,))
 end
 function (::Type{N})(
     op::Integer, l::AbstractExpressionNode, r::AbstractExpressionNode
 ) where {N<:AbstractExpressionNode}
-    return N(; op=op, l=l, r=r)
+    return N(; op=op, children=(l, r))
 end
 function (::Type{N})(var_string::String) where {N<:AbstractExpressionNode}
     Base.depwarn(
