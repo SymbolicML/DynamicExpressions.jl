@@ -97,7 +97,8 @@ end
 ###############################################################################
 # Abstract expression node interface ##########################################
 ###############################################################################
-@unstable constructorof(::Type{N}) where {N<:ParametricNode} = ParametricNode{T,max_degree(N)} where {T}
+@unstable constructorof(::Type{N}) where {N<:ParametricNode} =
+    ParametricNode{T,max_degree(N)} where {T}
 @unstable constructorof(::Type{<:ParametricExpression}) = ParametricExpression
 @unstable default_node_type(::Type{<:ParametricExpression}) = ParametricNode{T,2} where {T}
 default_node_type(::Type{<:ParametricExpression{T}}) where {T} = ParametricNode{T,2}

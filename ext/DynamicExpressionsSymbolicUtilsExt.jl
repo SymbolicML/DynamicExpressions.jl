@@ -2,7 +2,7 @@ module DynamicExpressionsSymbolicUtilsExt
 
 using SymbolicUtils
 import DynamicExpressions.NodeModule:
-    AbstractExpressionNode, Node, constructorof, DEFAULT_NODE_TYPE
+    AbstractExpressionNode, Node, constructorof, max_degree, DEFAULT_NODE_TYPE
 import DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
 import DynamicExpressions.ValueInterfaceModule: is_valid
 import DynamicExpressions.UtilsModule: deprecate_varmap
@@ -95,10 +95,14 @@ function split_eq(
     else
         ind = findoperation(op, operators.binops)
     end
+    # TODO: Update this to use higher degree
+    @assert max_degree(N) == 2
     return constructorof(N)(;
         op=ind,
-        l=convert(N, args[1], operators; variable_names=variable_names),
-        r=convert(N, op(args[2:end]...), operators; variable_names=variable_names),
+        children=(
+            convert(N, args[1], operators; variable_names=variable_names),
+            convert(N, op(args[2:end]...), operators; variable_names=variable_names),
+        ),
     )
 end
 

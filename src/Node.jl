@@ -297,7 +297,7 @@ end
 end
 """Create an operator node."""
 @inline function node_factory(
-    ::Type{N}, ::Type, ::Nothing, ::Nothing, op::Integer, children::Tuple, allocator::F,
+    ::Type{N}, ::Type, ::Nothing, ::Nothing, op::Integer, children::Union{Tuple,AbstractVector}, allocator::F,
 ) where {N<:AbstractExpressionNode,F}
     T = promote_type(map(eltype, children)...)  # Always prefer existing nodes, so we don't mess up references from conversion
     D2 = length(children)
