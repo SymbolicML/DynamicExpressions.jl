@@ -6,6 +6,7 @@ using DynamicExpressions:
     Node,
     @extend_operators,
     OperatorEnum,
+    with_type_parameters,
     get_scalar_constants,
     set_scalar_constants!,
     pack_scalar_constants!,
@@ -160,11 +161,14 @@ Base.invokelatest(
     () -> begin
 
         # test operator extended operators
-        @test hasmethod(q, Tuple{Node{Max2Tensor{Float64}}})
-        @test hasmethod(a, Tuple{Max2Tensor{Float64},Node{Max2Tensor{Float64}}})
-        @test hasmethod(a, Tuple{Node{Max2Tensor{Float64}},Node{Max2Tensor{Float64}}})
-        @test !hasmethod(a, Tuple{Float64,Node{Float64}})
-        @test !hasmethod(a, Tuple{Node{Max2Tensor{Float32}},Node{Max2Tensor{Float32}}})
+        n = Node{Max2Tensor{Float64}}(; val=Max2Tensor{Float64}(1.0))
+        N = typeof(n)
+        @test hasmethod(q, Tuple{N})
+        @test hasmethod(a, Tuple{eltype(N),N})
+        @test hasmethod(a, Tuple{N,N})
+        @test !hasmethod(a, Tuple{Float64,with_type_parameters(N, Float64)})
+        N32 = with_type_parameters(N, Max2Tensor{Float32})
+        @test !hasmethod(a, Tuple{N32,N32})
 
         tree = a(Node{Max2Tensor{Float64}}(; feature=1), Max2Tensor{Float64}(3.0))
         results = tree(
