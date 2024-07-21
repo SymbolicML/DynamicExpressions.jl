@@ -63,7 +63,14 @@ end
     f = parse_expression(:(x * x - cos(2.5f0 * y + -0.5f0)); kws...)
     g = parse_expression(:(exp(-(y * y))); kws...)
 
-    ex = StructuredExpression((; f, g), my_factory)
+    c = [1]
+    ex = StructuredExpression((; f, g), my_factory; a=c)
+
+    @test ex.metadata.extra.a[] == 1
+    @test ex.metadata.extra.a === c
+
+    # Should copy everything down to the metadata:
+    @test copy(ex).metadata.extra.a !== c
 
     h(_) = 1
     h(::StructuredExpression{<:Any,typeof(my_factory)}) = 2
