@@ -47,3 +47,26 @@ end
 
     @test test(ExpressionInterface, StructuredExpression, [ex])
 end
+
+@testitem "Dispatching on a structured expression" begin
+    using DynamicExpressions
+    using DynamicExpressions: ExpressionInterface, NodeInterface
+    using Interfaces: test
+
+    kws = (;
+        binary_operators=[+, -, *, /],
+        unary_operators=[-, cos, exp],
+        variable_names=["x", "y"],
+    )
+    my_factory(nt) = nt.f + nt.g
+
+    f = parse_expression(:(x * x - cos(2.5f0 * y + -0.5f0)); kws...)
+    g = parse_expression(:(exp(-(y * y))); kws...)
+
+    ex = StructuredExpression((; f, g), my_factory)
+
+    h(_) = 1
+    h(::StructuredExpression{<:Any,typeof(my_factory)}) = 2
+
+    @test h(ex) == 2
+end

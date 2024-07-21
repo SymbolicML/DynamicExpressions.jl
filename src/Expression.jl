@@ -35,11 +35,13 @@ Base.propertynames(x::Metadata) = propertynames(_data(x))
 @unstable @inline Base.getproperty(x::Metadata, f::Symbol) = getproperty(_data(x), f)
 Base.show(io::IO, x::Metadata) = print(io, "Metadata(", _data(x), ")")
 @inline _copy(x) = copy(x)
+@inline _copy(x::NamedTuple) = copy_named_tuple(x)
 @inline _copy(x::Nothing) = nothing
+@inline function copy_named_tuple(nt::NamedTuple)
+    return NamedTuple{keys(nt)}(map(_copy, values(nt)))
+end
 @inline function Base.copy(metadata::Metadata)
-    nt = _data(metadata)
-    copied_nt = NamedTuple{keys(nt)}(map(_copy, values(nt)))
-    return Metadata(copied_nt)
+    return Metadata(_copy(_data(metadata)))
 end
 @inline Base.:(==)(x::Metadata, y::Metadata) = _data(x) == _data(y)
 @inline Base.hash(x::Metadata, h::UInt) = hash(_data(x), h)

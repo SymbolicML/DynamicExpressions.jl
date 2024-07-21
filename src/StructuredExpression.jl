@@ -12,6 +12,8 @@ import ..ExpressionModule:
     get_operators,
     get_variable_names,
     Metadata,
+    copy_named_tuple,
+    _copy,
     default_node_type,
     node_type,
     get_constants,
@@ -51,20 +53,28 @@ which will create a new method particular to this expression type defined on tha
 struct StructuredExpression{
     T,
     F,
+    EX<:NamedTuple,
     N<:AbstractExpressionNode{T},
     E<:AbstractExpression{T,N},
     TS<:NamedTuple{<:Any,<:NTuple{<:Any,E}},
-    D<:@NamedTuple{structure::F, operators::O, variable_names::V} where {O,V},
+    D<:@NamedTuple{structure::F, operators::O, variable_names::V, extra::EX} where {O,V},
 } <: AbstractExpression{T,N}
     trees::TS
     metadata::Metadata{D}
 
     function StructuredExpression(
         trees::TS, metadata::Metadata{D}
-    ) where {TS,D<:NamedTuple{(:structure, :operators, :variable_names)}}
+    ) where {
+        TS,
+        F,
+        EX,
+        D<:@NamedTuple{
+            structure::F, operators::O, variable_names::V, extra::EX
+        } where {O,V},
+    }
         E = typeof(first(values(trees)))
         N = node_type(E)
-        return new{eltype(N),typeof(metadata.structure),N,E,TS,D}(trees, metadata)
+        return new{eltype(N),F,EX,N,E,TS,D}(trees, metadata)
     end
 end
 
@@ -73,11 +83,12 @@ function StructuredExpression(
     structure::F;
     operators::Union{AbstractOperatorEnum,Nothing}=nothing,
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
+    extra...,
 ) where {F<:Function}
     example_tree = first(values(trees))
     operators = get_operators(example_tree, operators)
     variable_names = get_variable_names(example_tree, variable_names)
-    metadata = (; structure, operators, variable_names)
+    metadata = (; structure, operators, variable_names, extra=(; extra...))
     return StructuredExpression(trees, Metadata(metadata))
 end
 
@@ -89,8 +100,9 @@ function Base.copy(e::StructuredExpression)
         copy_ts,
         Metadata((;
             meta.structure,
-            operators=copy(meta.operators),
-            variable_names=copy(meta.variable_names),
+            operators=_copy(meta.operators),
+            variable_names=_copy(meta.variable_names),
+            extra=_copy(meta.extra),
         )),
     )
 end
