@@ -2,7 +2,7 @@
 
 using Test
 using DynamicExpressions
-using DynamicExpressions: constructorof, max_degree, NodeTuple
+using DynamicExpressions: constructorof, max_degree
 
 mutable struct FrozenNode{T,D} <: AbstractExpressionNode{T,D}
     degree::UInt8
@@ -11,7 +11,7 @@ mutable struct FrozenNode{T,D} <: AbstractExpressionNode{T,D}
     frozen::Bool  # Extra field!
     feature::UInt16
     op::UInt8
-    children::NodeTuple{D,FrozenNode{T,D}}
+    children::NTuple{D,Base.RefValue{FrozenNode{T,D}}}
 
     function FrozenNode{_T,_D}() where {_T,_D}
         n = new{_T,_D}()
@@ -99,5 +99,5 @@ ex = parse_expression(
 
 @test string_tree(ex) == "x + sin(y + 2.1)"
 @test ex.tree.frozen == false
-@test ex.tree.children[2].frozen == true
-@test ex.tree.children[2].children[1].frozen == false
+@test ex.tree.children[2][].frozen == true
+@test ex.tree.children[2][].children[1][].frozen == false

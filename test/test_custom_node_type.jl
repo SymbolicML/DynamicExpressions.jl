@@ -1,5 +1,4 @@
 using DynamicExpressions
-using DynamicExpressions: NodeTuple
 using Test
 
 import DynamicExpressions: with_type_parameters
@@ -8,21 +7,16 @@ mutable struct MyCustomNode{A,B} <: AbstractNode{2}
     degree::Int
     val1::A
     val2::B
-    children::NodeTuple{2,MyCustomNode{A,B}}
+    children::NTuple{2,Base.RefValue{MyCustomNode{A,B}}}
 
-    function MyCustomNode{_A,_B}() where {_A,_B}
-        return new{_A,_B}()
-    end
-    function MyCustomNode(val1, val2)
-        return new{typeof(val1),typeof(val2)}(0, val1, val2)
-    end
+    MyCustomNode(val1, val2) = new{typeof(val1),typeof(val2)}(0, val1, val2)
     function MyCustomNode(val1, val2, l)
         return new{typeof(val1),typeof(val2)}(
-            1, val1, val2, NodeTuple((l, MyCustomNode{typeof(val1),typeof(val2)}()))
+            1, val1, val2, (Ref(l), Ref{MyCustomNode{typeof(val1),typeof(val2)}}())
         )
     end
     function MyCustomNode(val1, val2, l, r)
-        return new{typeof(val1),typeof(val2)}(2, val1, val2, NodeTuple((l, r)))
+        return new{typeof(val1),typeof(val2)}(2, val1, val2, (Ref(l), Ref(r)))
     end
 end
 
@@ -37,7 +31,7 @@ node2 = MyCustomNode(1.5, 3, node1)
 
 @test typeof(node2) == MyCustomNode{Float64,Int}
 @test node2.degree == 1
-@test node2.children[1].degree == 0
+@test node2.children[1][].degree == 0
 @test count_depth(node2) == 2
 @test count_nodes(node2) == 2
 
@@ -56,7 +50,7 @@ mutable struct MyCustomNode2{T} <: AbstractExpressionNode{T,2}
     val::T
     feature::UInt16
     op::UInt8
-    children::NodeTuple{2,MyCustomNode2{T}}
+    children::NTuple{2,Base.RefValue{MyCustomNode2{T}}}
 end
 with_type_parameters(::Type{<:MyCustomNode2}, ::Type{T}) where {T} = MyCustomNode2{T}
 

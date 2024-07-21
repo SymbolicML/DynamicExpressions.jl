@@ -4,7 +4,7 @@ using DispatchDoctor: @stable, @unstable
 using ChainRulesCore: ChainRulesCore as CRC, NoTangent, @thunk
 
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
-using ..NodeModule: AbstractExpressionNode, Node, NodeTuple, tree_mapreduce
+using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
 using ..ExpressionModule: AbstractExpression, Metadata
 using ..ChainRulesModule: NodeTangent
 
@@ -52,7 +52,7 @@ mutable struct ParametricNode{T,D} <: AbstractExpressionNode{T,D}
     parameter::UInt16  # Stores index of per-class parameter
 
     op::UInt8
-    children::NodeTuple{D,ParametricNode{T,D}}  # Children nodes
+    children::NTuple{D,Base.RefValue{ParametricNode{T,D}}}  # Children nodes
 
     function ParametricNode{_T,_D}() where {_T,_D}
         n = new{_T,_D}()

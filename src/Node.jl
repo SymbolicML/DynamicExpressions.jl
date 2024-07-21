@@ -69,24 +69,6 @@ to your type.
 """
 abstract type AbstractExpressionNode{T,D} <: AbstractNode{D} end
 
-"""
-A wrapper of NTuple to fix the inference issue described in
-[this issue](https://github.com/JuliaLang/julia/issues/55189).
-"""
-struct NodeTuple{N,T}
-    data::NTuple{N,T}
-end
-# Convenience function for `ntuple`:
-@inline function NodeTuple(f::F, ::Val{n}) where {F<:Function,n}
-    return NodeTuple(ntuple(f, Val(n)))
-end
-for f in (:firstindex, :lastindex, :iterate, :length, :keys)
-    @eval Base.$f(t::NodeTuple) = $f(t.data)
-end
-for f in (:getindex, :iterate)
-    @eval Base.$f(t::NodeTuple, i) = $f(t.data, i)
-end
-
 for N in (:Node, :GraphNode)
     @eval mutable struct $N{T,D} <: AbstractExpressionNode{T,D}
         degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
@@ -94,7 +76,7 @@ for N in (:Node, :GraphNode)
         val::T  # If is a constant, this stores the actual value
         feature::UInt16  # (Possibly undefined) If is a variable (e.g., x in cos(x)), this stores the feature index.
         op::UInt8  # (Possibly undefined) If operator, this is the index of the operator in the degree-specific operator enum
-        children::NodeTuple{D,$N{T,D}}
+        children::NTuple{D,Base.RefValue{$N{T,D}}}  # Children nodes
 
         #################
         ## Constructors:
@@ -103,6 +85,7 @@ for N in (:Node, :GraphNode)
     end
 end
 
+#! format: off
 """
     Node{T,D} <: AbstractExpressionNode{T,D}
 
@@ -126,8 +109,7 @@ nodes, you can evaluate or print a given expression.
     operator in `operators.binops`. In other words, this is an enum
     of the operators, and is dependent on the specific `OperatorEnum`
     object. Only defined if `degree >= 1`
-- `children::NodeTuple{D,Node{T,D}}`: Children of the node stored as a tuple
-    of length `D`. Only defined up to `degree`.
+- `children::NTuple{D,Base.RefValue{Node{T,D}}}`: Children of the node. Only defined up to `degree`
 
 # Constructors
 
@@ -145,6 +127,7 @@ You may also choose to specify a default memory allocator for the node other tha
 in the `allocator` keyword argument.
 """
 Node
+
 
 """
     GraphNode{T,D} <: AbstractExpressionNode{T,D}
@@ -182,47 +165,30 @@ GraphNode
 @inline function Base.getproperty(n::AbstractExpressionNode, k::Symbol)
     if k == :l
         # TODO: Should a depwarn be raised here? Or too slow?
-        return getfield(n, :children).data[1]
+        return getfield(n, :children)[1][]
     elseif k == :r
-        return getfield(n, :children).data[2]
-    elseif k == :children
-        return getfield(n, :children).data
+        return getfield(n, :children)[2][]
     else
         return getfield(n, k)
     end
 end
+#! format: off
 @inline function Base.setproperty!(n::AbstractExpressionNode, k::Symbol, v)
     if k == :l
         # TODO: Should a depwarn be raised here? Or too slow?
         if isdefined(n, :children)
-            children = getfield(n, :children).data
-            setfield!(n, :children, NodeTuple((v, children[2:end]...)))
+            getfield(n, :children)[1][] = v
         else
-            setfield!(
-                n,
-                :children,
-                NodeTuple(
-                    i -> i == 1 ? v : default_allocator(typeof(v)),
-                    Val(max_degree(typeof(n))),
-                ),
-            )
+            setfield!(n, :children, ntuple(i -> i == 1 ? Ref(v) : Ref{typeof(n)}(), Val(max_degree(typeof(n)))))
+            v
         end
-        v
     elseif k == :r
         if isdefined(n, :children)
-            children = getfield(n, :children).data
-            setfield!(n, :children, NodeTuple((children[1], v, children[3:end]...)))
+            getfield(n, :children)[2][] = v
         else
-            setfield!(
-                n,
-                :children,
-                NodeTuple(
-                    i -> i == 2 ? v : default_allocator(typeof(v)),
-                    Val(max_degree(typeof(n))),
-                ),
-            )
+            setfield!(n, :children, ntuple(i -> i == 2 ? Ref(v) : Ref{typeof(n)}(), Val(max_degree(typeof(n)))))
+            v
         end
-        v
     elseif k == :degree
         setfield!(n, :degree, convert(UInt8, v))
     elseif k == :constant
@@ -234,13 +200,15 @@ end
     elseif k == :val
         setfield!(n, :val, convert(eltype(n), v))
     elseif k == :children
-        setfield!(n, :children, NodeTuple(v))
+        setfield!(n, :children, v)
     else
         setfield!(n, k, convert(fieldtype(typeof(n), k), v))
     end
 end
+#! format: on
 
 ################################################################################
+#! format: on
 
 Base.eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = T
 Base.eltype(::AbstractExpressionNode{T}) where {T} = T
@@ -251,9 +219,11 @@ _specifies_eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = true
 max_degree(::Type{<:AbstractNode}) = 2  # Default
 max_degree(::Type{<:AbstractNode{D}}) where {D} = D
 
-#! format: off
 @unstable constructorof(::Type{N}) where {N<:Node} = Node{T,max_degree(N)} where {T}
-@unstable constructorof(::Type{N}) where {N<:GraphNode} = GraphNode{T,max_degree(N)} where {T}
+@unstable constructorof(::Type{N}) where {N<:GraphNode} =
+    GraphNode{T,max_degree(N)} where {T}
+
+#! format: off
 with_type_parameters(::Type{N}, ::Type{T}) where {N<:Node,T} = Node{T,max_degree(N)}
 with_type_parameters(::Type{N}, ::Type{T}) where {N<:GraphNode,T} = GraphNode{T,max_degree(N)}
 #! format: on
@@ -261,12 +231,8 @@ with_type_parameters(::Type{N}, ::Type{T}) where {N<:GraphNode,T} = GraphNode{T,
 # with_degree(::Type{N}, ::Val{D}) where {T,N<:Node{T},D} = Node{T,D}
 # with_degree(::Type{N}, ::Val{D}) where {T,N<:GraphNode{T},D} = GraphNode{T,D}
 
-# TODO: Add this to the interface
-function default_allocator(::Type{N}) where {T,D,N<:AbstractExpressionNode{T,D}}
-    return N()
-end
 function default_allocator(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNode,T}
-    return default_allocator(with_type_parameters(N, T))
+    return with_type_parameters(N, T)()
 end
 
 """Trait declaring whether nodes share children or not."""
@@ -337,7 +303,7 @@ end
     n = allocator(N, T)
     n.degree = D2
     n.op = op
-    n.children = ntuple(i -> i <= D2 ? convert(NT, children[i]) : allocator(N, T), Val(max_degree(N)))
+    n.children = ntuple(i -> i <= D2 ? Ref(convert(NT, children[i])) : Ref{NT}(), Val(max_degree(N)))
     return n
 end
 
