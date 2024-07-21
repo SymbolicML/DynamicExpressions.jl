@@ -54,9 +54,7 @@ struct StructuredExpression{
     N<:AbstractExpressionNode{T},
     E<:AbstractExpression{T,N},
     TS<:NamedTuple{<:Any,<:NTuple{<:Any,E}},
-    O,
-    V,
-    D<:NamedTuple{structure::F,operators::O,variable_names::V},
+    D<:@NamedTuple{structure::F, operators::O, variable_names::V} where {O,V},
 } <: AbstractExpression{T,N}
     trees::TS
     metadata::Metadata{D}
@@ -66,7 +64,7 @@ struct StructuredExpression{
     ) where {TS,D<:NamedTuple{(:structure, :operators, :variable_names)}}
         E = typeof(first(values(trees)))
         N = node_type(E)
-        return new{eltype(N),N,E,TS,D}(trees, metadata)
+        return new{eltype(N),typeof(metadata.structure),N,E,TS,D}(trees, metadata)
     end
 end
 
@@ -122,12 +120,13 @@ function get_constants(e::StructuredExpression)
     return flat_constants, refs
 end
 function set_constants!(e::StructuredExpression, constants, refs)
-    cursor = 1
+    cursor = Ref(1)
     foreach(values(e.trees), refs) do tree, r
         n = r.n
-        c = constants[cursor:(cursor+n-1)]
+        i = cursor[]
+        c = constants[i:(i+n-1)]
         set_constants!(tree, c, r.ref)
-        cursor += n
+        cursor[] += n
     end
     return e
 end
