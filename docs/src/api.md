@@ -166,6 +166,13 @@ ParametricExpression
 ParametricNode
 ```
 
+Another example is the `StructuredExpression` type, for defining rigid
+predefined operations in an expression tree:
+
+```@docs
+StructuredExpression
+```
+
 You may use operators directly on `AbstractExpression` objects to create a new object
 containing the combined expression tree, so long as those objects have identical operators
 in their metadata.
