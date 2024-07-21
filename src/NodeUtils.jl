@@ -5,6 +5,7 @@ import ..NodeModule:
     AbstractNode,
     AbstractExpressionNode,
     Node,
+    NodeTuple,
     preserve_sharing,
     constructorof,
     copy_node,
@@ -147,30 +148,27 @@ mutable struct NodeIndex{T,D} <: AbstractNode{D}
     degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     val::T  # If is a constant, this stores the actual value
     # ------------------- (possibly undefined below)
-    children::NTuple{D,Base.RefValue{NodeIndex{T,D}}}
+    children::NodeTuple{D,NodeIndex{T,D}}
 
+    NodeIndex{_T,_D}() where {_T,_D} = new{_T,_D}()
     function NodeIndex(::Type{_T}, ::Val{_D}, val) where {_T,_D}
-        return new{_T,_D}(
-            0, convert(_T, val), ntuple(_ -> Ref{NodeIndex{_T,_D}}(), Val(_D))
-        )
+        return new{_T,_D}(0, convert(_T, val), NodeTuple(_ -> NodeIndex{_T,_D}(), Val(_D)))
     end
     function NodeIndex(
         ::Type{_T}, ::Val{_D}, children::Vararg{NodeIndex{_T,_D},_D2}
     ) where {_T,_D,_D2}
-        _children = ntuple(
-            i -> i <= _D2 ? Ref(children[i]) : Ref{NodeIndex{_T,_D}}(), Val(_D)
-        )
+        _children = NodeTuple(i -> i <= _D2 ? children[i] : NodeIndex{_T,_D}(), Val(_D))
         return new{_T,_D}(convert(UInt8, _D2), zero(_T), _children)
     end
 end
 NodeIndex(::Type{T}, ::Val{D}) where {T,D} = NodeIndex(T, Val(D), zero(T))
-
 @inline function Base.getproperty(n::NodeIndex, k::Symbol)
-    if k == :l
-        # TODO: Should a depwarn be raised here? Or too slow?
-        return getfield(n, :children)[1][]
+    if k == :children
+        return getfield(n, :children).data
+    elseif k == :l
+        return getfield(n, :children).data[1]
     elseif k == :r
-        return getfield(n, :children)[2][]
+        return getfield(n, :children).data[2]
     else
         return getfield(n, k)
     end

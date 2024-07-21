@@ -44,6 +44,8 @@ import .ValueInterfaceModule:
     filter_map,
     filter_map!
 import .NodeModule:
+    TreeMapreducer,
+    NodeTuple,
     constructorof,
     with_type_parameters,
     preserve_sharing,

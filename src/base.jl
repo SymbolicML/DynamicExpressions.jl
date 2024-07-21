@@ -133,7 +133,7 @@ end
                 mapreducer.op(
                     mapreducer.f_branch(tree),
                     Base.Cartesian.@ntuple(
-                        d_p_one - 1, i -> mapreducer(tree.children[i][])
+                        d_p_one - 1, i -> mapreducer(tree.children[i])
                     )...,
                 )
             end
