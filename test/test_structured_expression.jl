@@ -107,7 +107,7 @@ end
     f = x * x - cos(2.5f0 * y + -0.5f0)
     g = exp(2.0 - y * y)
 
-    @test typeof(f) == typeof(g) == typeof(x)
+    @test typeof(f) == typeof(g) == typeof(x)  #src
     f, g
     #=
     We can then create a `StructuredExpression` from these two expressions.
@@ -115,6 +115,7 @@ end
     expressions during evaluation.
     =#
     ex = StructuredExpression((; f, g), nt -> nt.f + nt.g)
+    @test typeof(ex) <: AbstractExpression{Float64,<:Node{Float64}}  #src
     ex
     #=
     Note that this is displayed as a single tree, with the `+` operator
@@ -126,6 +127,7 @@ end
     `AbstractExpressionNode`s:
     =#
     length(get_tree(ex))
+    @test length(get_tree(ex)) == 17  #src
 
     #literate_end
 end
