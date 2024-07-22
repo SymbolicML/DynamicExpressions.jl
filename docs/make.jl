@@ -26,9 +26,28 @@ function process_file(filepath)
 end
 
 function match_literate_blocks(content)
-    pattern = r"#literate_begin\s+file=\"(.*?)\"\n(.*?)#literate_end"s
+    pattern = r"^(\s*)#literate_begin\s+file=\"(.*?)\"\n(.*?)#literate_end"sm
     matches = collect(eachmatch(pattern, content))
-    return Dict(m.captures[1] => strip(m.captures[2]) for m in matches)
+    return Dict(
+        m.captures[2] => process_block_content(m.captures[1], m.captures[3]) for
+        m in matches
+    )
+end
+
+function process_block_content(indent, block_content)
+    if isempty(block_content)
+        return ""
+    end
+    indent_length = length(indent)
+    lines = split(block_content, '\n')
+    stripped_lines = [
+        if length(line) > indent_length
+            line[(indent_length + 1):end]
+        else
+            ""
+        end for line in lines
+    ]
+    return strip(join(stripped_lines, '\n'))
 end
 
 function process_literate_block(output_file, content, source_file)
