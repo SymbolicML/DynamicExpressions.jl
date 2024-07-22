@@ -28,6 +28,31 @@ macro return_on_nonfinite_array(array)
     )
 end
 
+"""
+    EvalOptions{T,B,E}
+
+EvalOptions contain flags for the different modes to evaluate an expression.
+
+# Fields
+
+- `turbo::Val`: If `Val{true}`, use LoopVectorization.jl for faster
+   evaluation.
+- `bumper::Val`: If `Val{true}, use Bumper.jl for faster evaluation.
+- `early_exit::Val`: If `Val{true}`, any element of any step becoming
+  `NaN` or `Inf` will terminate the computation and the whole buffer will be
+  returned with `NaN`s. This makes sure that expressions with singularities
+  don't wast compute cycles. Setting `Val{false}` will continue the computation
+  as usual and thus result in `NaN`s only in the elements that actually have
+  `NaN`s.
+
+# Constructors
+
+    EvalOptions(; turbo=Val(false), bumper=Val(false), early_exit=Val(true))
+
+Construct EvalOptions with defaults. Can also be called with boolean values
+instead of `Val`s for convenience, although this should be avoided as it
+introduces a type instability.
+"""
 struct EvalOptions{T,B,E}
     turbo::Val{T}
     bumper::Val{B}
@@ -41,7 +66,14 @@ function EvalOptions(; turbo=Val(false), bumper=Val(false), early_exit=Val(true)
 end
 
 """
-    eval_tree_array(tree::AbstractExpressionNode, cX::AbstractMatrix{T}, operators::OperatorEnum; turbo::Union{Bool,Val}=Val(false), bumper::Union{Bool,Val}=Val(false))
+    eval_tree_array(
+        tree::AbstractExpressionNode{T},
+        cX::AbstractMatrix{T},
+        operators::OperatorEnum;
+        eval_options::Union{EvalOptions,Nothing}=nothing,
+        turbo::Union{Bool,Val,Nothing}=nothing,
+        bumper::Union{Bool,Val,Nothing}=nothing,
+    ) where {T}
 
 Evaluate a binary tree (equation) over a given input data matrix. The
 operators contain all of the operators used. This function fuses doublets
@@ -51,8 +83,11 @@ and triplets of operations for lower memory usage.
 - `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
 - `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
 - `operators::OperatorEnum`: The operators used in the tree.
-- `turbo::Union{Bool,Val}`: Use LoopVectorization.jl for faster evaluation.
-- `bumper::Union{Bool,Val}`: Use Bumper.jl for faster evaluation.
+- `eval_options::Union{EvalOptions,Nothing}`: See EvalOptions for documenation
+  on the different evaluation modes.
+- `turbo::Union{Bool,Val,Nothing}`: Deprecated. Part of EvalOptions now.
+- `bumper::Union{Bool,Val,Nothing}`: Deprecated. Part of EvalOptions now.
+
 
 # Returns
 - `(output, complete)::Tuple{AbstractVector{T}, Bool}`: the result,
