@@ -6,14 +6,21 @@ Given an expression tree specified with a `Node` type, you may evaluate the expr
 over an array of data with the following command:
 
 ```@docs
-eval_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum) where {T<:Number}
+eval_tree_array(
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum;
+    eval_options::Union{EvalOptions,Nothing}=nothing,
+    turbo::Union{Bool,Val,Nothing}=nothing,
+    bumper::Union{Bool,Val,Nothing}=nothing,
+) where {T}
 ```
 
 Assuming you are only using a single `OperatorEnum`, you can also use
 the following shorthand by using the expression as a function:
 
 ```
-    (tree::AbstractExpressionNode)(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Union{Bool,Val}=false, bumper::Union{Bool,Val}=Val(false))
+    (tree::AbstractExpressionNode)(X, operators::OperatorEnum; kws...)
 
 Evaluate a binary tree (equation) over a given input data matrix. The
 operators contain all of the operators used. This function fuses doublets
@@ -23,8 +30,7 @@ and triplets of operations for lower memory usage.
 - `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
 - `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
 - `operators::OperatorEnum`: The operators used in the tree.
-- `turbo::Union{Bool,Val}`: Use LoopVectorization.jl for faster evaluation.
-- `bumper::Union{Bool,Val}`: Use Bumper.jl for faster evaluation.
+- `kws...`: Passed to `eval_tree_array`.
 
 # Returns
 - `output::AbstractVector{T}`: the result, which is a 1D array.
