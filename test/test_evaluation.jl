@@ -89,7 +89,9 @@ end
 
     include("test_params.jl")
 
-    for turbo in [Val(false), Val(true)], T in [Float16, Float32, Float64, ComplexF32, ComplexF64]
+    for turbo in [Val(false), Val(true)],
+        T in [Float16, Float32, Float64, ComplexF32, ComplexF64]
+
         turbo isa Val{true} && !(T in (Float32, Float64)) && continue
         # Test specific branches of evaluation code:
         # op(op(<constant>))
