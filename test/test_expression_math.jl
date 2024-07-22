@@ -84,6 +84,38 @@ end
     @test shower(ex5) == "(x + y) * 2.0"
 end
 
+@testitem "Math with non-numbers and expressions" begin
+    using DynamicExpressions
+
+    z = [1.0, 2.0]
+    ex = parse_expression(
+        :(x + y + $z);
+        binary_operators=[+, *],
+        variable_names=["x", "y"],
+        node_type=Node{typeof(z)},
+    )
+    shower(ex) = sprint((io, e) -> show(io, MIME"text/plain"(), e), ex)
+    @test typeof(ex) <: Expression{typeof(z)}
+    @test shower(ex) == "(x + y) + [1.0, 2.0]"
+
+    # Now, let's try to create a new expression with a vector added to this:
+    ex2 = ex + [-4.0, 0.0]
+    @test typeof(ex2) <: Expression{typeof(z)}
+    @test shower(ex2) == "((x + y) + [1.0, 2.0]) + [-4.0, 0.0]"
+
+    # Now, let's evaluate this:
+    X = Matrix{Vector{Float64}}(undef, 2, 32)
+    for i in eachindex(X)
+        X[i] = rand(Float64, 2)
+    end
+    y = ex2(X)
+    @test typeof(y) == Vector{Vector{Float64}}
+    @test length(y) == 32
+    @test length(first(y)) == 2
+    true_out = X[1, 1] + X[2, 1] + [1.0, 2.0] - [4.0, 0.0]
+    @test y[1] ≈ true_out
+end
+
 @testitem "Math with missing operators" begin
     using DynamicExpressions
     using DynamicExpressions.ExpressionAlgebraModule: MissingOperatorError
