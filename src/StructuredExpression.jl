@@ -29,6 +29,11 @@ and then combine them together in a new expression, `f_plus_g`,
 using a constructor function that simply adds them together:
 
 ```julia
+kws = (;
+    binary_operators=[+, -, *, /],
+    unary_operators=[-, cos, exp],
+    variable_names=["x", "y"],
+)
 f = parse_expression(:(x * x - cos(2.5f0 * y + -0.5f0)); kws...)
 g = parse_expression(:(exp(-(y * y))); kws...)
 
