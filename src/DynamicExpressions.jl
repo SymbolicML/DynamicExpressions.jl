@@ -4,6 +4,7 @@ using DispatchDoctor: @stable, @unstable
 
 @stable default_mode = "disable" begin
     include("Utils.jl")
+    include("ValueInterface.jl")
     include("ExtensionInterface.jl")
     include("OperatorEnum.jl")
     include("Node.jl")
@@ -27,6 +28,13 @@ import PackageExtensionCompat: @require_extensions
 import Reexport: @reexport
 macro ignore(args...) end
 
+import .ValueInterfaceModule:
+    is_valid,
+    is_valid_array,
+    get_number_type,
+    pack_scalar_constants!,
+    unpack_scalar_constants,
+    ValueInterface
 @reexport import .NodeModule:
     AbstractNode,
     AbstractExpressionNode,
@@ -49,14 +57,15 @@ import .NodeModule:
     branch_equal
 @reexport import .NodeUtilsModule:
     count_nodes,
-    count_constants,
+    count_constant_nodes,
     count_depth,
     NodeIndex,
-    index_constants,
+    index_constant_nodes,
     has_operators,
     has_constants,
-    get_constants,
-    set_constants!
+    count_scalar_constants,
+    get_scalar_constants,
+    set_scalar_constants!
 @reexport import .StringsModule: string_tree, print_tree
 @reexport import .OperatorEnumModule: AbstractOperatorEnum
 @reexport import .OperatorEnumConstructionModule:
