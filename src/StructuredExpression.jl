@@ -15,8 +15,8 @@ import ..ExpressionModule:
     _copy,
     default_node_type,
     node_type,
-    get_constants,
-    set_constants!
+    get_scalar_constants,
+    set_scalar_constants!
 
 """
     StructuredExpression
@@ -121,22 +121,22 @@ end
 function get_variable_names(e::StructuredExpression, variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing)
     return variable_names === nothing ? e.metadata.variable_names : variable_names
 end
-function get_constants(e::StructuredExpression)
+function get_scalar_constants(e::StructuredExpression)
     # Get constants for each inner expression
-    consts_and_refs = map(get_constants, values(e.trees))
+    consts_and_refs = map(get_scalar_constants, values(e.trees))
     flat_constants = vcat(map(first, consts_and_refs)...)
     # Collect info so we can put them back in the right place,
     # like the indexes of the constants in the flattened array
     refs = map(c_ref -> (; n=length(first(c_ref)), ref=last(c_ref)), consts_and_refs)
     return flat_constants, refs
 end
-function set_constants!(e::StructuredExpression, constants, refs)
+function set_scalar_constants!(e::StructuredExpression, constants, refs)
     cursor = Ref(1)
     foreach(values(e.trees), refs) do tree, r
         n = r.n
         i = cursor[]
         c = constants[i:(i+n-1)]
-        set_constants!(tree, c, r.ref)
+        set_scalar_constants!(tree, c, r.ref)
         cursor[] += n
     end
     return e
