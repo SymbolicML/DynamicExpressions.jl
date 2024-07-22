@@ -81,6 +81,8 @@ end
 @testitem "StructuredExpression Literate examples" begin
     #literate_begin file="src/structured_expression.md"
     #=
+    # `StructuredExpression` example
+
     `StructuredExpression`s allow you to specify a predefined structure for an
     expression that exists outside of the regular `AbstractExpressionNode` objects
     which store expressions as trees.
