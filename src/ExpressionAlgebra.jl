@@ -10,7 +10,7 @@ using ..ExpressionModule:
     constructorof
 
 function insert_operator_index(
-    op::Integer, exprs, example_expr::E
+    op::Integer, exprs::Tuple, example_expr::E
 ) where {T,N<:AbstractExpressionNode{T},E<:AbstractExpression{T,N}}
     _exprs = map(exprs) do expr
         if expr isa AbstractExpression
@@ -18,10 +18,10 @@ function insert_operator_index(
             # needs a custom method!
             expr
         else
-            expr = with_contents(copy(example_expr), constructorof(N)(T; val=expr)::N)
+            with_contents(copy(example_expr), constructorof(N)(T; val=expr)::N)
         end
     end
-    trees = map(t -> get_contents(t)::N, _exprs)
+    trees = map(get_contents, _exprs)::NTuple{length(_exprs),N}
     output_tree = constructorof(N)(; children=trees, op)::N
     return with_contents(first(_exprs), output_tree)
 end
