@@ -123,12 +123,12 @@ for op in (
     :nextfloat, :prevfloat, :transpose, :significand,
     :modf, :rem, :floor, :ceil, :round, :trunc,
     :inv, :sqrt, :cbrt, :abs2, :angle, :factorial,
-    :(!), :-, :+, :sign,
+    :(!), :-, :+, :sign, :identity,
 )
     @eval @declare_expression_operator Base.$(op) 1
 end
 for op in (
-    :*, :/, :+, :-, :^, :÷, :mod,
+    :*, :/, :+, :-, :^, :÷, :mod, :log,
     :atan, :atand, :copysign, :flipsign,
     :&, :|, :⊻, ://, :\,
 )
