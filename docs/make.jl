@@ -61,8 +61,8 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
+        "Examples" => ["examples/base_operations.md", "examples/structured_expression.md"],
         "Eval" => "eval.md",
-        "Examples" => ["examples/structured_expression.md"],
         "Utils" => "utils.md",
         "API" => "api.md",
     ],

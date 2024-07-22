@@ -101,6 +101,7 @@ end
 @testitem "Test Base" begin
     include("test_base.jl")
 end
+include("test_base_2.jl")
 
 @testitem "Test extra node fields" begin
     include("test_extra_node_fields.jl")
