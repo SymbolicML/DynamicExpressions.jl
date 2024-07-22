@@ -129,17 +129,16 @@ end
     length(get_tree(ex))
     @test length(get_tree(ex)) == 17  #src
     #=
-    Evaluation of an `AbstractExpression` is set up to forward through
-    `get_tree`, so this will work automatically.
-
-    Let's try to evaluate this on some random data:
+    Next, let's try to evaluate this on some random data:
     =#
     rng = Random.MersenneTwister(0)
     X = randn(rng, Float64, 2, 5)
     X
     #=
     Followed by the evaluation. Since we have stored the operators directly
-    in the expression object, we do not need to pass the operators explicitly:
+    in the expression object, we do not need to pass the operators explicitly.
+    Evaluation of an `AbstractExpression` is set up to forward through
+    `get_tree`, so this will work automatically.
     =#
     ex(X)
     #=
