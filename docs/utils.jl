@@ -48,13 +48,13 @@ function process_literate_block(output_file, content, source_file)
     write(temp_file, content)
 
     # Process the temporary file with Literate.markdown
-    output_dir = joinpath(@__DIR__, "src")
+    output_dir = joinpath(@__DIR__, "src", "examples")
     base_name = first(splitext(basename(output_file))) # Remove any existing extension
 
     markdown(temp_file, output_dir; name=base_name, documenter=true)
 
     # Generate the relative path for EditURL
-    edit_path = relpath(source_file, joinpath(@__DIR__, "src"))
+    edit_path = relpath(source_file, output_dir)
 
     # Read the generated markdown file
     md_file = joinpath(output_dir, base_name * ".md")

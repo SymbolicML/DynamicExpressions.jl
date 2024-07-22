@@ -79,7 +79,7 @@ end
 end
 
 @testitem "StructuredExpression Literate examples" begin
-    #literate_begin file="src/structured_expression.md"
+    #literate_begin file="src/examples/structured_expression.md"
     #=
     # `StructuredExpression` example
 
@@ -89,8 +89,7 @@ end
 
     Let's look at an example:
     =#
-    using DynamicExpressions
-    using Test
+    using DynamicExpressions, Random
 
     # First, we will create some normal `Expression` objects.
 
@@ -98,13 +97,12 @@ end
     variable_names = ["x", "y"]
     x = Expression(Node{Float64}(; feature=1); operators, variable_names)
     y = Expression(Node{Float64}(; feature=2); operators, variable_names)
-    @test typeof(x) <: AbstractExpression{Float64,<:Node{Float64}}
+    @test typeof(x) <: AbstractExpression{Float64,<:Node{Float64}}  #src
 
     typeof(x)
     #=
-    `AbstractExpression` can be composed together using standard Julia
-    operations. For example, let's create two complex expressions from these,
-    and check that they have the same type:
+    Any `AbstractExpression`, such as this `Expression` object, can be composed together
+    using standard Julia math operations. For example, let's some complex expressions from these:
     =#
     f = x * x - cos(2.5f0 * y + -0.5f0)
     g = exp(2.0 - y * y)
@@ -117,8 +115,8 @@ end
     expressions during evaluation.
     =#
     ex = StructuredExpression((; f, g), nt -> nt.f + nt.g)
-    @test typeof(ex) <: AbstractExpression{Float64,<:Node{Float64}}  #src
     ex
+    @test typeof(ex) <: AbstractExpression{Float64,<:Node{Float64}}  #src
     #=
     Note that this is displayed as a single tree, with the `+` operator
     used to combine them. Despite this, the expression is not actually
@@ -130,6 +128,25 @@ end
     =#
     length(get_tree(ex))
     @test length(get_tree(ex)) == 17  #src
+    #=
+    Evaluation of an `AbstractExpression` is set up to forward through
+    `get_tree`, so this will work automatically.
+
+    Let's try to evaluate this on some random data:
+    =#
+    rng = Random.MersenneTwister(0)
+    X = randn(rng, Float64, 2, 5)
+    X
+    #=
+    Followed by the evaluation. Since we have stored the operators directly
+    in the expression object, we do not need to pass the operators explicitly:
+    =#
+    ex(X)
+    #=
+    Which we can verify against the individual expressions:
+    =#
+    f(X) + g(X)
+    @test ex(X) ≈ f(X) + g(X) #src
 
     #literate_end
 end

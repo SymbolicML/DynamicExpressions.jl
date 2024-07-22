@@ -40,9 +40,6 @@ index_content = let r = read(readme, String)
     bottom_part = """
     ## Contents
 
-    ```@contents
-    Pages = ["utils.md", "api.md", "eval.md"]
-    ```
     """
 
     join((top_part, r, bottom_part), "\n")
@@ -62,6 +59,13 @@ makedocs(;
     format=Documenter.HTML(;
         canonical="https://symbolicml.org/DynamicExpressions.jl/stable"
     ),
+    pages=[
+        "Home" => "index.md",
+        "Eval" => "eval.md",
+        "Examples" => ["examples/structured_expression.md"],
+        "Utils" => "utils.md",
+        "API" => "api.md",
+    ],
 )
 
 # Forward links from old docs:
