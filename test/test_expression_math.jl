@@ -132,4 +132,16 @@ end
     @test_throws MissingOperatorError 1.0f0 / ex
     @test_throws MissingOperatorError 1.0 / ex
     @test_throws MissingOperatorError 1 / ex
+
+    if VERSION >= v"1.8-"
+        err = try
+            cos(ex)
+        catch e
+            e
+        end
+        @test occursin(
+            "Operator cos not found in operators for expression type",
+            sprint(showerror, err),
+        )
+    end
 end
