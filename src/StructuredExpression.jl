@@ -12,7 +12,6 @@ import ..ExpressionModule:
     get_operators,
     get_variable_names,
     Metadata,
-    copy_named_tuple,
     _copy,
     default_node_type,
     node_type,

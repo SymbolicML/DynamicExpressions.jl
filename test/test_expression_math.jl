@@ -103,6 +103,9 @@ end
     @test typeof(ex2) <: Expression{typeof(z)}
     @test shower(ex2) == "((x + y) + [1.0, 2.0]) + [-4.0, 0.0]"
 
+    # Same on left side:
+    @test shower([-4.0, 0.0] + ex) == "[-4.0, 0.0] + ((x + y) + [1.0, 2.0])"
+
     # Now, let's evaluate this:
     X = Matrix{Vector{Float64}}(undef, 2, 32)
     for i in eachindex(X)
