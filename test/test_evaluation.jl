@@ -89,8 +89,8 @@ end
 
     include("test_params.jl")
 
-    for turbo in [false, true], T in [Float16, Float32, Float64, ComplexF32, ComplexF64]
-        turbo && !(T in (Float32, Float64)) && continue
+    for turbo in [Val(false), Val(true)], T in [Float16, Float32, Float64, ComplexF32, ComplexF64]
+        turbo isa Val{true} && !(T in (Float32, Float64)) && continue
         # Test specific branches of evaluation code:
         # op(op(<constant>))
         local tree, operators
@@ -264,9 +264,8 @@ end
             1 1
         ]
         @test all(isnan.(ex(X; eval_options=EvalOptions(; bumper, turbo))))
-        y = ex(X; eval_options=EvalOptions(; bumper, turbo, early_exit=false))
+        y = ex(X; eval_options=EvalOptions(; bumper, turbo, early_exit=Val(false)))
         @test y[1] == T(-1.618033988749895)
-        # FIXME: this is NaN on macOS and -Inf on windows/ubuntu...
         @test !isfinite(y[2])
     end
 end
