@@ -123,46 +123,4 @@
     rand(rng, NodeSampler(; tree, filter=node -> node.degree == 1))
 
     #literate_end
-
-    # y = Node(Float64; feature=2)  # Represents variable y
-    # const_3 = Node(3.0)  # Constant node with value 3
-    # expr_tree = (x + y) * const_3 - sin(x)
-
-    # println("Original expression tree:")
-    # println(expr_tree)
-
-    # # Now, let's demonstrate some operations on this tree
-
-    # # 1. Counting nodes
-    # node_count = count_nodes(expr_tree)
-    # println("\nNumber of nodes in the tree: ", node_count)
-
-    # # 2. Finding all constant nodes
-    # constant_nodes = filter(t -> t.degree == 0 && t.constant, expr_tree)
-    # println("\nConstant nodes in the tree:")
-    # for node in constant_nodes
-    #     println(node)
-    # end
-
-    # # 3. Mapping: Double all constant values
-    # map(expr_tree) do t
-    #     if t.degree == 0 && t.constant
-    #         t.val *= 2
-    #     end
-    # end
-
-    # println("\nExpression after doubling constants:")
-    # println(expr_tree)
-
-    # # 4. Checking if a node is in the tree
-    # println("\nIs x in the tree? ", x in expr_tree)
-    # println("Is Node(4.0) in the tree? ", Node(4.0) in expr_tree)
-
-    # # 5. Sum of all constant values
-    # const_sum = sum(t -> t.degree == 0 && t.constant ? t.val : 0.0, expr_tree)
-    # println("\nSum of all constant values: ", const_sum)
-
-    # # This example showcases how to create expression trees using `Node`,
-    # # and how to use various operations like count, filter, map, in, and sum
-    # # to analyze and modify the tree structure.
 end
