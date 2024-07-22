@@ -319,7 +319,7 @@ for io in ((), (:(io::IO),))
     end
 end
 
-function Base.show(io::IO, ::MIME"text/plain", ex::AbstractExpression)
+function Base.show(io::IO, ex::AbstractExpression)
     return print(io, string_tree(ex))
 end
 
