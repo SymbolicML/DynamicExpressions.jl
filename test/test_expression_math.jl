@@ -58,7 +58,7 @@
     end
 end
 
-@testitem "Math with non-expressions" begin
+@testitem "Math with numbers and expressions" begin
     using DynamicExpressions
 
     ex = parse_expression(:(x + y); binary_operators=[+, *], variable_names=["x", "y"])
