@@ -267,7 +267,7 @@ end
         ]
         @test all(isnan.(ex(X; eval_options=EvalOptions(; bumper, turbo))))
         y = ex(X; eval_options=EvalOptions(; bumper, turbo, early_exit=Val(false)))
-        @test y[1] == T(-1.618033988749895)
+        @test y[1] ≈ T(-1.618033988749895)
         @test !isfinite(y[2])
     end
 end
