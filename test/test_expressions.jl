@@ -292,9 +292,10 @@ end
     complex_expr(randn(rng, 2, 5))
 
     #=
-    While creating expressions manually is possible, it can be cumbersome for more
-    complex expressions. DynamicExpressions provides a more convenient way to create
-    expressions using the `parse_expression` function:
+    While creating expressions manually is faster, and should be preferred within packages,
+    it can be cumbersome for quickly writing more complex expressions.
+    DynamicExpressions provides a more convenient way to create expressions using
+    the `parse_expression` function, which directly parses a Julia object:
     =#
     parsed_expr = parse_expression(
         :(sin(2.0 * x + exp(y + 5.0))); operators=operators, variable_names=variable_names
@@ -322,29 +323,22 @@ end
     with_contents(parsed_expr, Node(; op=2, l=get_contents(parsed_expr)))
 
     #=
-    One of the key features of `Expression` is that it can be evaluated
-    on data. Let's create some random input data and evaluate our expression:
-    =#
-    rng = Random.MersenneTwister(0)
-    X = rand(rng, 2, 5)  # 2 variables, 5 data points
-
-    result = parsed_expr(X)
-    @test size(result) == (1, 5)  #src
-
-    # We can verify this result against a direct calculation:
-    expected = @. sin(2.0 * X[1, :] + exp(X[2, :] + 5.0))
-    @test result ≈ expected  #src
-
-    #=
-    `Expression` objects also support various tree operations.
-    For example, we can count the number of nodes:
+    `Expression` objects support various operations defined on regular trees,
+    which permits us to overload specific methods with modified behavior.
+    For example, we can count the number of nodes, which simply forwards
+    to the method as it is defined on [`Node`](@ref):
     =#
     node_count = count_nodes(parsed_expr)
     println("Number of nodes: $node_count")
 
-    # Or find the depth of the expression tree:
-    depth = count_depth(parsed_expr)
-    println("Tree depth: $depth")
+    #=
+    The [`tree_mapreduce`] will by default call [`get_tree`](@ref) to get the tree,
+    so it can be used with any expression type that overloads this method.
+    For example, we can compute the depth of a tree:
+    =#
+    tree_mapreduce(
+        leaf -> 1, branch -> 1, (parent, child...) -> parent + max(child...), parsed_expr
+    )
 
     #=
     We can also perform more complex operations, like simplification:
@@ -352,7 +346,7 @@ end
     complex_expr = parse_expression(
         :((2.0 + x) + 3.0); operators=operators, variable_names=["x"]
     )
-    simplified_expr = combine_operators(complex_expr)
+    simplified_expr = combine_operators(copy(complex_expr))
     println("Original: ", complex_expr)
     println("Simplified: ", simplified_expr)
 

@@ -62,9 +62,9 @@ makedocs(;
     pages=[
         "Home" => "index.md",
         "Examples" => [
-            "examples/base_operations.md",
-            "examples/expression.md",
-            "examples/structured_expression.md",
+            "examples/base_operations.md", # Defined by `test/test_base_2.jl`
+            "examples/expression.md", # Defined by `test/test_expression.jl`
+            "examples/structured_expression.md", # Defined by `test/test_structured_expression.jl`
         ],
         "Eval" => "eval.md",
         "Utils" => "utils.md",
