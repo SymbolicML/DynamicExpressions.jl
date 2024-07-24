@@ -177,6 +177,16 @@ You may use operators directly on `AbstractExpression` objects to create a new o
 containing the combined expression tree, so long as those objects have identical operators
 in their metadata.
 
+You can extract and set contents and metadata with a few utility functions, including:
+
+```@docs
+get_contents
+with_contents
+get_metadata
+with_metadata
+get_tree
+```
+
 To declare a new operator for expressions, you may use:
 
 ```@docs

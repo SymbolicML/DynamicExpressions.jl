@@ -103,26 +103,11 @@ default_node_type(::Type{<:AbstractExpression{T}}) where {T} = Node{T}
 ########################################################
 # Abstract interface ###################################
 ########################################################
-"""
-    get_operators(ex::AbstractExpression, operators::Union{Nothing,Any})
-
-which will return the operators to be passed to internal functions
-such as `eval_tree_array` or `string_tree`, either from the expression itself,
-or `cur_operators` if it is not `nothing`. If left as default,
-it requires `cur_operators` to not be `nothing`.
-`cur_operators` would typically be an `OperatorEnum`.
-"""
 function get_operators(
     ex::AbstractExpression, operators::Union{AbstractOperatorEnum,Nothing}=nothing
 )
     return error("`get_operators` function must be implemented for $(typeof(ex)) types.")
 end
-
-"""
-    get_variable_names(ex::AbstractExpression, variable_names::Union{Nothing,AbstractVector{<:AbstractString}})
-
-The same as `operators`, but for variable names.
-"""
 function get_variable_names(
     ex::AbstractExpression,
     variable_names::Union{Nothing,AbstractVector{<:AbstractString}}=nothing,
@@ -132,12 +117,6 @@ function get_variable_names(
     )
 end
 
-"""
-    get_tree(ex::AbstractExpression)
-
-A method that extracts the expression tree from `AbstractExpression`
-and should return an `AbstractExpressionNode`.
-"""
 function get_tree(ex::AbstractExpression)
     return error("`get_tree` function must be implemented for $(typeof(ex)) types.")
 end
@@ -168,6 +147,50 @@ function get_metadata(ex::AbstractExpression)
     return error("`get_metadata` function must be implemented for $(typeof(ex)) types.")
 end
 ########################################################
+
+"""
+    get_operators(ex::AbstractExpression, operators::Union{Nothing,Any})
+
+which will return the operators to be passed to internal functions
+such as `eval_tree_array` or `string_tree`, either from the expression itself,
+or `cur_operators` if it is not `nothing`. If left as default,
+it requires `cur_operators` to not be `nothing`.
+`cur_operators` would typically be an `OperatorEnum`.
+"""
+get_operators
+
+"""
+    get_variable_names(ex::AbstractExpression, variable_names::Union{Nothing,AbstractVector{<:AbstractString}})
+
+The same as `operators`, but for variable names.
+"""
+get_variable_names
+
+"""
+    get_tree(ex::AbstractExpression)
+
+A method that extracts the expression tree from `AbstractExpression`
+and should return an `AbstractExpressionNode`.
+"""
+get_tree
+
+"""
+    get_contents(ex::AbstractExpression)
+
+Get the contents of the expression, which might be a plain
+`AbstractExpressionNode`, or some combination of them, or other data.
+This should include everything other than that returned by [`get_metadata`](@ref).
+"""
+get_contents
+
+"""
+    get_metadata(ex::AbstractExpression)
+
+Get the metadata of the expression, which might be a plain
+`NamedTuple`, or some combination of them, or other data.
+This should include everything other than that returned by [`get_contents`](@ref).
+"""
+get_metadata
 
 """
     with_contents(ex::AbstractExpression, tree::AbstractExpressionNode)
