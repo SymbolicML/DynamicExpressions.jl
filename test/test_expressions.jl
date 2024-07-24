@@ -351,10 +351,32 @@ end
     println("Simplified: ", simplified_expr)
 
     #=
-    These examples demonstrate some of the key features of `Expression` objects.
-    They provide a powerful way to represent, evaluate, and manipulate
-    mathematical expressions in DynamicExpressions.
+    `AbstractExpression` types also have many operators in `Base` defined, which
+    will automatically look up the matching index in the stored [`OperatorEnum`](@ref).
+    This means we can combine expressions like so:
     =#
+    xs = [Expression(Node{Float64}(; feature=i); operators, variable_names) for i in 1:5]
+
+    xs[1] + xs[2]
+    #=
+    This gives us an easy way to quickly construct expressions with minimal memory overhead,
+    and fast evaluation speed:
+    =#
+    ex = xs[1] * 2.1 - exp(3 * xs[2])
+
+    # Evaluation:
+    X = randn(rng, 5, 2)
+    ex(X)
+
+    # Or, if we have loaded Zygote, we can differentiate with respect
+    # to the variables:
+    using Zygote
+    ex'(X)
+
+    # Or the constants of the expression:
+    ex'(X; variable=Val(false))
+
+    # Which can be used for optimization.
 
     #literate_end
 end
