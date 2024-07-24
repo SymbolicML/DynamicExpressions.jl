@@ -358,6 +358,10 @@ end
     xs = [Expression(Node{Float64}(; feature=i); operators, variable_names) for i in 1:5]
 
     xs[1] + xs[2]
+    # These have the same type – they simply combine their `AbstractExpressionNode` objects
+    # and ensure the metadata is the same.
+    typeof(xs[1] + xs[2])
+
     #=
     This gives us an easy way to quickly construct expressions with minimal memory overhead,
     and fast evaluation speed:

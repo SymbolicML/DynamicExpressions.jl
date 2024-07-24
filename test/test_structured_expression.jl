@@ -114,7 +114,7 @@ end
     This is a composite `AbstractExpression` object that composes multiple
     expressions during evaluation.
     =#
-    ex = StructuredExpression((; f, g), nt -> nt.f + nt.g)
+    ex = StructuredExpression((; f, g), nt -> nt.f + nt.g; operators, variable_names)
     ex
     @test typeof(ex) <: AbstractExpression{Float64,<:Node{Float64}}  #src
     #=
