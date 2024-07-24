@@ -249,3 +249,118 @@ end
     tree = get_tree(ex)
     @test_throws ArgumentError get_operators(tree, nothing)
 end
+
+@testitem "Expression Literate examples" begin
+    #literate_begin file="src/examples/expression.md"
+    #=
+    # `Expression` example
+
+    `Expression` is a fundamental type in DynamicExpressions that represents
+    a mathematical expression as a tree structure. It combines an
+    `AbstractExpressionNode` (typically a `Node`) with metadata like operators
+    and variable names.
+
+    Let's explore how to create and work with `Expression` objects:
+    =#
+    using DynamicExpressions, Random
+
+    # First, let's define our operators and variable names:
+
+    operators = OperatorEnum(;
+        binary_operators=[+, -, *, /], unary_operators=[sin, cos, exp]
+    )
+    variable_names = ["x", "y"]
+
+    # Now, let's create a simple Expression manually:
+    x = Node{Float64}(; feature=1)
+    x_expr = Expression(x; operators, variable_names)
+
+    # We can build up more complex expressions using these basic building blocks:
+    y = Node{Float64}(; feature=2)
+    c = Node{Float64}(; val=2.0)
+    complex_node = Node(; op=3, l=x, r=Node(; op=1, l=y, r=c))
+    # where the `3` indicates `*` and `1` indicates `+`.
+    complex_expr = Expression(complex_node; operators, variable_names)
+
+    #=
+    This expression includes its own metadata: the operators and variable names,
+    and so there are no scope issues as with raw `AbstractExpressionNode` types
+    which depend on the last-used metadata for convenience functions like printing.
+    In other words, you can print this expression, or evaluate it, directly:
+    =#
+    rng = Random.MersenneTwister(0)
+    complex_expr(randn(rng, 2, 5))
+
+    #=
+    While creating expressions manually is possible, it can be cumbersome for more
+    complex expressions. DynamicExpressions provides a more convenient way to create
+    expressions using the `parse_expression` function:
+    =#
+    parsed_expr = parse_expression(
+        :(sin(2.0 * x + exp(y + 5.0))); operators=operators, variable_names=variable_names
+    )
+
+    # We can convert an expression into the primitive `AbstractExpressionNode` type
+    # with [`get_tree`](@ref):
+    tree = get_tree(parsed_expr)
+    @test tree isa AbstractExpressionNode  #src
+
+    # Some `AbstractExpression` types may choose to store their expression in
+    # a different way than simply saving it as one of the fields. For any expression,
+    # you can get the raw contents with [`get_contents`](@ref):
+    get_contents(parsed_expr)
+
+    #=
+    Similarly, you can get the metadata for an expression with [`get_metadata`](@ref):
+    =#
+    get_metadata(parsed_expr)
+
+    #=
+    These can be used with [`with_contents`](@ref) and [`with_metadata`](@ref) to
+    create new expressions based on the original:
+    =#
+    with_contents(parsed_expr, Node(; op=2, l=get_contents(parsed_expr)))
+
+    #=
+    One of the key features of `Expression` is that it can be evaluated
+    on data. Let's create some random input data and evaluate our expression:
+    =#
+    rng = Random.MersenneTwister(0)
+    X = rand(rng, 2, 5)  # 2 variables, 5 data points
+
+    result = parsed_expr(X)
+    @test size(result) == (1, 5)  #src
+
+    # We can verify this result against a direct calculation:
+    expected = @. sin(2.0 * X[1, :] + exp(X[2, :] + 5.0))
+    @test result ≈ expected  #src
+
+    #=
+    `Expression` objects also support various tree operations.
+    For example, we can count the number of nodes:
+    =#
+    node_count = count_nodes(parsed_expr)
+    println("Number of nodes: $node_count")
+
+    # Or find the depth of the expression tree:
+    depth = count_depth(parsed_expr)
+    println("Tree depth: $depth")
+
+    #=
+    We can also perform more complex operations, like simplification:
+    =#
+    complex_expr = parse_expression(
+        :((2.0 + x) + 3.0); operators=operators, variable_names=["x"]
+    )
+    simplified_expr = combine_operators(complex_expr)
+    println("Original: ", complex_expr)
+    println("Simplified: ", simplified_expr)
+
+    #=
+    These examples demonstrate some of the key features of `Expression` objects.
+    They provide a powerful way to represent, evaluate, and manipulate
+    mathematical expressions in DynamicExpressions.
+    =#
+
+    #literate_end
+end
