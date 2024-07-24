@@ -36,6 +36,8 @@ true_dX = cat(ones(100), -sin.(X[2, :]), zeros(100); dims=2)'
 
 @test true_dX ≈ dX
 
+#! format: off
+@static if false
 # Broken test (see https://github.com/EnzymeAD/Enzyme.jl/issues/1241)
 function my_loss_function(tree, X, operators)
     # Get the outputs
@@ -68,3 +70,6 @@ d_tree = begin
 end
 
 @test_broken get_scalar_constants(d_tree) ≈ [1.0, 0.717356]
+end
+
+#! format: on
