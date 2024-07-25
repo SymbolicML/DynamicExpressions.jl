@@ -30,7 +30,7 @@ and triplets of operations for lower memory usage.
 - `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
 - `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
 - `operators::OperatorEnum`: The operators used in the tree.
-- `kws...`: Passed to `eval_tree_array`.
+- `kws...`: Passed to [`eval_tree_array`](@ref).
 
 # Returns
 - `output::AbstractVector{T}`: the result, which is a 1D array.
