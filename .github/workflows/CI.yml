@@ -84,7 +84,9 @@ jobs:
       - uses: julia-actions/julia-buildpkg@v1
       - name: Add fixed version of Enzyme
         if: ${{ matrix.test_name == 'enzyme' }}
-        run: julia --color=yes --project=test/ -e 'import Pkg; Pkg.add(url="https://github.com/EnzymeAD/Enzyme.jl"; rev="ebc27a17dcae0d69f788c1647ef643dbcf20913d")'
+        run: |
+          julia --color=yes --project=test/ -e 'import Pkg; Pkg.add(url="https://github.com/EnzymeAD/Enzyme.jl"; rev="ebc27a17dcae0d69f788c1647ef643dbcf20913d")'
+          julia --color=yes --project=. -e 'import Pkg; Pkg.add(url="https://github.com/EnzymeAD/Enzyme.jl"; rev="ebc27a17dcae0d69f788c1647ef643dbcf20913d")'
       - name: Run tests
         run: |
             julia --color=yes -e 'import Pkg; Pkg.add("Coverage")'
