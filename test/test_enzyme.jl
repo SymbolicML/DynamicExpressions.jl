@@ -20,16 +20,20 @@ end
 output = [0.0]
 doutput = [1.0]
 
-fetch(schedule(Task(64 * 1024^2) do
-    autodiff(
-        Reverse,
-        f,
-        Const(tree),
-        Duplicated(X, dX),
-        Const(operators),
-        Duplicated(output, doutput),
-    )
-end))
+fetch(
+    schedule(
+        Task(64 * 1024^2) do
+            autodiff(
+                Reverse,
+                f,
+                Const(tree),
+                Duplicated(X, dX),
+                Const(operators),
+                Duplicated(output, doutput),
+            )
+        end,
+    ),
+)
 
 true_dX = cat(ones(100), -sin.(X[2, :]), zeros(100); dims=2)'
 
@@ -54,16 +58,20 @@ d_tree = begin
             node.val = 0.0
         end
     end
-    fetch(schedule(Task(64 * 1024^2) do
-        autodiff(
-            Reverse,
-            my_loss_function,
-            Active,
-            Duplicated(tree, storage_tree),
-            Const(X),
-            Const(operators),
-        )
-    end))
+    fetch(
+        schedule(
+            Task(64 * 1024^2) do
+                autodiff(
+                    Reverse,
+                    my_loss_function,
+                    Active,
+                    Duplicated(tree, storage_tree),
+                    Const(X),
+                    Const(operators),
+                )
+            end,
+        ),
+    )
     storage_tree
 end
 
