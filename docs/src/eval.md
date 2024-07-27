@@ -11,13 +11,10 @@ eval_tree_array(
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
     eval_options::Union{EvalOptions,Nothing}=nothing,
-    turbo::Union{Bool,Val,Nothing}=nothing,
-    bumper::Union{Bool,Val,Nothing}=nothing,
 ) where {T}
 ```
 
-Assuming you are only using a single `OperatorEnum`, you can also use
-the following shorthand by using the expression as a function:
+You can also use the following shorthand by using the expression as a function:
 
 ```
     (tree::AbstractExpressionNode)(X, operators::OperatorEnum; kws...)
@@ -58,6 +55,14 @@ It also re-defines `print`, `show`, and the various operators, to work with the 
     The `Node` type does not know about which `OperatorEnum` you used to create it.
     Thus, if you define an expression with one `OperatorEnum`, and then try to
     evaluate it or print it with a different `OperatorEnum`, you will get undefined behavior!
+
+    For safer behavior, you should use [`Expression`](@ref) objects.
+
+Evaluation options are specified using `EvalOptions`:
+
+```@docs
+EvalOptions
+```
 
 You can also work with arbitrary types, by defining a `GenericOperatorEnum` instead.
 The notation is the same for `eval_tree_array`, though it will return `nothing`

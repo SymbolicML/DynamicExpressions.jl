@@ -31,14 +31,14 @@ end
 """
     EvalOptions{T,B,E}
 
-EvalOptions contain flags for the different modes to evaluate an expression.
+This holds options for expression evaluation, such as evaluation backend.
 
 # Fields
 
-- `turbo::Val`: If `Val{true}`, use LoopVectorization.jl for faster
+- `turbo::Val{T}`: If `Val{true}`, use LoopVectorization.jl for faster
     evaluation.
-- `bumper::Val`: If `Val{true}, use Bumper.jl for faster evaluation.
-- `early_exit::Val`: If `Val{true}`, any element of any step becoming
+- `bumper::Val{B}`: If `Val{true}, use Bumper.jl for faster evaluation.
+- `early_exit::Val{E}`: If `Val{true}`, any element of any step becoming
     `NaN` or `Inf` will terminate the computation and the whole buffer will be
     returned with `NaN`s. This makes sure that expressions with singularities
     don't wast compute cycles. Setting `Val{false}` will continue the computation
@@ -101,7 +101,7 @@ and triplets of operations for lower memory usage.
 - `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
 - `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
 - `operators::OperatorEnum`: The operators used in the tree.
-- `eval_options::Union{EvalOptions,Nothing}`: See EvalOptions for documenation
+- `eval_options::Union{EvalOptions,Nothing}`: See [`EvalOptions`](@ref) for documentation
     on the different evaluation modes.
 
 
