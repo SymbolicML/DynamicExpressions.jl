@@ -36,33 +36,53 @@ EvalOptions contain flags for the different modes to evaluate an expression.
 # Fields
 
 - `turbo::Val`: If `Val{true}`, use LoopVectorization.jl for faster
-   evaluation.
+    evaluation.
 - `bumper::Val`: If `Val{true}, use Bumper.jl for faster evaluation.
 - `early_exit::Val`: If `Val{true}`, any element of any step becoming
-  `NaN` or `Inf` will terminate the computation and the whole buffer will be
-  returned with `NaN`s. This makes sure that expressions with singularities
-  don't wast compute cycles. Setting `Val{false}` will continue the computation
-  as usual and thus result in `NaN`s only in the elements that actually have
-  `NaN`s.
-
-# Constructors
-
-    EvalOptions(; turbo=Val(false), bumper=Val(false), early_exit=Val(true))
-
-Construct EvalOptions with defaults. Can also be called with boolean values
-instead of `Val`s for convenience, although this should be avoided as it
-introduces a type instability.
+    `NaN` or `Inf` will terminate the computation and the whole buffer will be
+    returned with `NaN`s. This makes sure that expressions with singularities
+    don't wast compute cycles. Setting `Val{false}` will continue the computation
+    as usual and thus result in `NaN`s only in the elements that actually have
+    `NaN`s.
 """
 struct EvalOptions{T,B,E}
     turbo::Val{T}
     bumper::Val{B}
     early_exit::Val{E}
 end
-function EvalOptions(; turbo=Val(false), bumper=Val(false), early_exit=Val(true))
-    v_turbo = isa(turbo, Val) ? turbo : (turbo ? Val(true) : Val(false))
-    v_bumper = isa(bumper, Val) ? bumper : (bumper ? Val(true) : Val(false))
-    v_early_exit = isa(early_exit, Val) ? early_exit : (early_exit ? Val(true) : Val(false))
-    return EvalOptions(v_turbo, v_bumper, v_early_exit)
+
+@inline _to_bool_val(x::Bool) = x ? Val(true) : Val(false)
+@inline _to_bool_val(x::Val{T}) where {T} = Val(T::Bool)
+
+function EvalOptions(;
+    turbo::Union{Bool,Val}=Val(false),
+    bumper::Union{Bool,Val}=Val(false),
+    early_exit::Union{Bool,Val}=Val(true),
+)
+    return EvalOptions(_to_bool_val(turbo), _to_bool_val(bumper), _to_bool_val(early_exit))
+end
+
+function _process_deprecated_kws(eval_options, deprecated_kws)
+    turbo = get(deprecated_kws, :turbo, nothing)
+    bumper = get(deprecated_kws, :bumper, nothing)
+    if any(Base.Fix2(∉, (:turbo, :bumper)), keys(deprecated_kws))
+        throw(ArgumentError("Invalid keyword argument(s): $(keys(deprecated_kws))"))
+    end
+    if !isempty(deprecated_kws)
+        @assert eval_options === nothing "Cannot use both `eval_options` and deprecated flags `turbo` and `bumper`."
+        Base.depwarn(
+            "The `turbo` and `bumper` keyword arguments are deprecated. Please use `eval_options` instead.",
+            :eval_tree_array,
+        )
+    end
+    if eval_options !== nothing
+        return eval_options
+    else
+        return EvalOptions(;
+            turbo=turbo === nothing ? Val(false) : turbo,
+            bumper=bumper === nothing ? Val(false) : bumper,
+        )
+    end
 end
 
 """
@@ -71,8 +91,6 @@ end
         cX::AbstractMatrix{T},
         operators::OperatorEnum;
         eval_options::Union{EvalOptions,Nothing}=nothing,
-        turbo::Union{Bool,Val,Nothing}=nothing,
-        bumper::Union{Bool,Val,Nothing}=nothing,
     ) where {T}
 
 Evaluate a binary tree (equation) over a given input data matrix. The
@@ -84,9 +102,7 @@ and triplets of operations for lower memory usage.
 - `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
 - `operators::OperatorEnum`: The operators used in the tree.
 - `eval_options::Union{EvalOptions,Nothing}`: See EvalOptions for documenation
-  on the different evaluation modes.
-- `turbo::Union{Bool,Val,Nothing}`: Deprecated. Part of EvalOptions now.
-- `bumper::Union{Bool,Val,Nothing}`: Deprecated. Part of EvalOptions now.
+    on the different evaluation modes.
 
 
 # Returns
@@ -116,28 +132,9 @@ function eval_tree_array(
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
     eval_options::Union{EvalOptions,Nothing}=nothing,
-    turbo::Union{Bool,Val,Nothing}=nothing,
-    bumper::Union{Bool,Val,Nothing}=nothing,
+    _deprecated_kws...,
 ) where {T}
-    @assert(
-        eval_options === nothing || (turbo === nothing && bumper === nothing),
-        "Cannot use both `eval_options` and deprecated flags `turbo` and `bumper`."
-    )
-    #! format: off
-    _eval_options =
-        if eval_options !== nothing
-            eval_options
-        else
-            (turbo !== nothing || bumper !== nothing) && Base.depwarn(
-                "The `turbo` and `bumper` keyword arguments are deprecated. Please use `eval_options` instead.",
-                :eval_tree_array,
-            )
-            EvalOptions(;
-                turbo = turbo === nothing ? Val(false) : turbo,
-                bumper = bumper === nothing ? Val(false) : bumper,
-            )
-        end
-    #! format: on
+    _eval_options = _process_deprecated_kws(eval_options, _deprecated_kws)
     if _eval_options.turbo isa Val{true} || _eval_options.bumper isa Val{true}
         @assert T in (Float32, Float64)
     end
