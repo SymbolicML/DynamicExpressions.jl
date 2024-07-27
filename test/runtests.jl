@@ -2,13 +2,20 @@ using SafeTestsets
 using TestItemRunner
 
 # Check if SR_ENZYME_TEST is set in env
-test_name = get(ENV, "SR_TEST", "main")
+test_name = split(get(ENV, "SR_TEST", "main"), ",")
 
-if test_name == "enzyme"
+unknown_tests = filter(Base.Fix2(∉, ["enzyme", "jet", "main"]), test_name)
+
+if !isempty(unknown_tests)
+    error("Unknown test names: $unknown_tests")
+end
+
+if "enzyme" in test_name
     @safetestset "Test enzyme derivatives" begin
         include("test_enzyme.jl")
     end
-elseif test_name == "jet"
+end
+if "jet" in test_name
     @safetestset "JET" begin
         using Preferences
         set_preferences!("DynamicExpressions", "instability_check" => "disable"; force=true)
@@ -37,9 +44,8 @@ elseif test_name == "jet"
             # https://github.com/aviatesk/JET.jl/issues/570#issuecomment-2199167755
         end
     end
-elseif test_name == "main"
+end
+if "main" in test_name
     include("unittest.jl")
     @run_package_tests
-else
-    error("Unknown test name: $test_name")
 end
