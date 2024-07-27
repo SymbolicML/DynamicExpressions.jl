@@ -34,7 +34,28 @@ end
         extra_metadata = (; parameters=ones(2, 5), parameter_names=["p1", "p2"]),
     )
     @test test(ExpressionInterface, ParametricExpression, [ex])
-    @test test(NodeInterface, ParametricNode, [ex.tree])
+
+    x1 = ParametricNode{Float64}(; feature=1)
+    x2 = ParametricNode{Float64}(; feature=2)
+
+    operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
+
+    tree_branch_deg2 = x1 + sin(x2 * 3.5)
+    tree_branch_deg1 = sin(x1)
+    tree_leaf_feature = x1
+    tree_leaf_constant = ParametricNode{Float64}(; val=1.0)
+
+    @test test(
+        NodeInterface,
+        ParametricNode,
+        [
+            ex.tree,
+            tree_branch_deg2,
+            tree_branch_deg1,
+            tree_leaf_feature,
+            tree_leaf_constant,
+        ],
+    )
 end
 @testitem "Basic evaluation of parametric expressions" begin
     using DynamicExpressions
