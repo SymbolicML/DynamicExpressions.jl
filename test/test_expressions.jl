@@ -237,6 +237,36 @@ end
     end
 end
 
+@testitem "No operators and variable names" begin
+    using DynamicExpressions
+
+    x1 = Node{Float64}(; feature=1)
+    expr = Expression(x1; operators=nothing, variable_names=nothing)
+
+    @test sprint(show, expr) == "x1"
+    @test copy(expr) == expr
+    @test hash(expr) == hash(copy(expr))
+
+    @test sprint(show, get_metadata(expr)) ==
+        "Metadata((operators = nothing, variable_names = nothing))"
+
+    cos_x1 = Node{Float64}(; op=1, l=x1)
+    expr = Expression(cos_x1; operators=nothing, variable_names=nothing)
+    @test sprint(show, expr) == "unary_operator[1](x1)"
+    @test copy(expr) == expr
+    @test hash(expr) == hash(copy(expr))
+
+    @test sprint(show, get_metadata(expr)) ==
+        "Metadata((operators = nothing, variable_names = nothing))"
+
+    @test_throws MethodError expr(rand(Float64, 2, 5))
+
+    # Now, with passing operators explicitly
+    X = rand(Float64, 2, 5)
+    operators = OperatorEnum(; unary_operators=[cos])
+    @test expr(X, operators) ≈ cos.(X[1, :])
+end
+
 @testitem "Miscellaneous expression calls" begin
     using DynamicExpressions
     using DynamicExpressions: get_tree, get_operators
