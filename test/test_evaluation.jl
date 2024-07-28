@@ -271,3 +271,15 @@ end
         @test !isfinite(y[2])
     end
 end
+
+@testitem "Test EvalOptions constructor" begin
+    using DynamicExpressions, LoopVectorization
+
+    @test EvalOptions(; turbo=true) isa EvalOptions{true}
+    @test EvalOptions(; turbo=Val(true)) isa EvalOptions{true}
+    @test EvalOptions(; turbo=false) isa EvalOptions{false}
+    @test EvalOptions(; turbo=Val(false)) isa EvalOptions{false}
+
+    ex = Expression(Node{Float64}(; feature=1))
+    @test_throws ArgumentError ex(randn(1, 5), OperatorEnum(); bad_arg=1)
+end
