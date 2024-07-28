@@ -56,48 +56,38 @@ end
     default_union_limit = 2,
     @inline _to_bool_val(x::Bool) = x ? Val(true) : Val(false)
 )
-@stable(default_mode = "disable", @inline _to_bool_val(x::Val{T}) where {T} = Val(T::Bool))
+@inline _to_bool_val(x::Val{T}) where {T} = Val(T::Bool)
 
-@stable(
-    default_mode = "disable",
-    default_union_limit = 4,
-    begin
-        function EvalOptions(;
-            turbo::Union{Bool,Val}=Val(false),
-            bumper::Union{Bool,Val}=Val(false),
-            early_exit::Union{Bool,Val}=Val(true),
-        )
-            return EvalOptions(
-                _to_bool_val(turbo), _to_bool_val(bumper), _to_bool_val(early_exit)
-            )
-        end
-
-        function _process_deprecated_kws(eval_options, deprecated_kws)
-            turbo = get(deprecated_kws, :turbo, nothing)
-            bumper = get(deprecated_kws, :bumper, nothing)
-            if any(Base.Fix2(∉, (:turbo, :bumper)), keys(deprecated_kws))
-                throw(
-                    ArgumentError("Invalid keyword argument(s): $(keys(deprecated_kws))")
-                )
-            end
-            if !isempty(deprecated_kws)
-                @assert eval_options === nothing "Cannot use both `eval_options` and deprecated flags `turbo` and `bumper`."
-                Base.depwarn(
-                    "The `turbo` and `bumper` keyword arguments are deprecated. Please use `eval_options` instead.",
-                    :eval_tree_array,
-                )
-            end
-            if eval_options !== nothing
-                return eval_options
-            else
-                return EvalOptions(;
-                    turbo=turbo === nothing ? Val(false) : turbo,
-                    bumper=bumper === nothing ? Val(false) : bumper,
-                )
-            end
-        end
-    end
+@unstable function EvalOptions(;
+    turbo::Union{Bool,Val}=Val(false),
+    bumper::Union{Bool,Val}=Val(false),
+    early_exit::Union{Bool,Val}=Val(true),
 )
+    return EvalOptions(_to_bool_val(turbo), _to_bool_val(bumper), _to_bool_val(early_exit))
+end
+
+@unstable function _process_deprecated_kws(eval_options, deprecated_kws)
+    turbo = get(deprecated_kws, :turbo, nothing)
+    bumper = get(deprecated_kws, :bumper, nothing)
+    if any(Base.Fix2(∉, (:turbo, :bumper)), keys(deprecated_kws))
+        throw(ArgumentError("Invalid keyword argument(s): $(keys(deprecated_kws))"))
+    end
+    if !isempty(deprecated_kws)
+        @assert eval_options === nothing "Cannot use both `eval_options` and deprecated flags `turbo` and `bumper`."
+        Base.depwarn(
+            "The `turbo` and `bumper` keyword arguments are deprecated. Please use `eval_options` instead.",
+            :eval_tree_array,
+        )
+    end
+    if eval_options !== nothing
+        return eval_options
+    else
+        return EvalOptions(;
+            turbo=turbo === nothing ? Val(false) : turbo,
+            bumper=bumper === nothing ? Val(false) : bumper,
+        )
+    end
+end
 
 """
     eval_tree_array(
