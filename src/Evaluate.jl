@@ -37,7 +37,7 @@ This holds options for expression evaluation, such as evaluation backend.
 
 - `turbo::Val{T}`: If `Val{true}`, use LoopVectorization.jl for faster
     evaluation.
-- `bumper::Val{B}`: If `Val{true}, use Bumper.jl for faster evaluation.
+- `bumper::Val{B}`: If `Val{true}`, use Bumper.jl for faster evaluation.
 - `early_exit::Val{E}`: If `Val{true}`, any element of any step becoming
     `NaN` or `Inf` will terminate the computation and the whole buffer will be
     returned with `NaN`s. This makes sure that expressions with singularities
