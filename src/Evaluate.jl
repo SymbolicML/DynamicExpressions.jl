@@ -35,15 +35,16 @@ This holds options for expression evaluation, such as evaluation backend.
 
 # Fields
 
-- `turbo::Val{T}`: If `Val{true}`, use LoopVectorization.jl for faster
+- `turbo::Val{T}=Val(false)`: If `Val{true}`, use LoopVectorization.jl for faster
     evaluation.
-- `bumper::Val{B}`: If `Val{true}`, use Bumper.jl for faster evaluation.
-- `early_exit::Val{E}`: If `Val{true}`, any element of any step becoming
-    `NaN` or `Inf` will terminate the computation and the whole buffer will be
-    returned with `NaN`s. This makes sure that expressions with singularities
-    don't wast compute cycles. Setting `Val{false}` will continue the computation
-    as usual and thus result in `NaN`s only in the elements that actually have
-    `NaN`s.
+- `bumper::Val{B}=Val(false)`: If `Val{true}`, use Bumper.jl for faster evaluation.
+- `early_exit::Val{E}=Val(true)`: If `Val{true}`, any element of any step becoming
+    `NaN` or `Inf` will terminate the computation. For `eval_tree_array`, this will
+    result in the second return value, the completion flag, being `false`. For 
+    calling an expression using `tree(X)`, this will result in `NaN`s filling
+    the entire buffer. This early exit is performed to avoid wasting compute cycles.
+    Setting `Val{false}` will continue the computation as usual and thus result in
+    `NaN`s only in the elements that actually have `NaN`s.
 """
 struct EvalOptions{T,B,E}
     turbo::Val{T}
