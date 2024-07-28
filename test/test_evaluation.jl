@@ -226,12 +226,16 @@ end
     num_tests = 100
     n_features = 3
     for _ in 1:num_tests
-        tree = gen_random_tree_fixed_size(20, only_basic_ops_operator, n_features, Float64)
-        X = randn(Float64, n_features, 10)
-        basic_eval = tree(X, only_basic_ops_operator)
-        many_ops_eval = tree(X, many_ops_operators)
-        @test (all(isnan, basic_eval) && all(isnan, many_ops_eval)) ||
-            basic_eval ≈ many_ops_eval
+        let tree = gen_random_tree_fixed_size(
+                20, only_basic_ops_operator, n_features, Float64
+            ),
+            X = randn(Float64, n_features, 10),
+            basic_eval = tree(X, only_basic_ops_operator),
+            many_ops_eval = tree(X, many_ops_operators)
+
+            @test (all(isnan, basic_eval) && all(isnan, many_ops_eval)) ||
+                basic_eval ≈ many_ops_eval
+        end
     end
 end
 
