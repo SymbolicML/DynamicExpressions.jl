@@ -481,13 +481,9 @@ function convert(
         return tree
     end
     return tree_mapreduce(
-        t -> if t.constant
-            constructorof(N1)(T1; val=convert(T1, t.val::T2))
-        else
-            constructorof(N1)(T1; feature=t.feature)
-        end,
+        Base.Fix1(leaf_convert, N1),
         identity,
-        (p, children...) -> constructorof(N1)(T1; op=p.op, children),
+        (p, children...) -> branch_convert(N1, p, children...),
         tree,
         N1,
     )
@@ -500,6 +496,20 @@ function convert(
 end
 function (::Type{N})(tree::AbstractExpressionNode) where {N<:AbstractExpressionNode}
     return convert(N, tree)
+end
+function leaf_convert(
+    ::Type{N1}, t::N2
+) where {T1,T2,N1<:AbstractExpressionNode{T1},N2<:AbstractExpressionNode{T2}}
+    if t.constant
+        return constructorof(N1)(T1; val=convert(T1, t.val::T2))
+    else
+        return constructorof(N1)(T1; feature=t.feature)
+    end
+end
+function branch_convert(
+    ::Type{N1}, t::N2, children::Vararg{Any,M}
+) where {T1,T2,N1<:AbstractExpressionNode{T1},N2<:AbstractExpressionNode{T2},M}
+    return constructorof(N1)(T1; op=t.op, children)
 end
 
 for func in (:reduce, :foldl, :foldr, :mapfoldl, :mapfoldr)
