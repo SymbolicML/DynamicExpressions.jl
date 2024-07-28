@@ -12,17 +12,17 @@ import ..ValueInterfaceModule: is_valid, is_valid_array
 
 const OPERATOR_LIMIT_BEFORE_SLOWDOWN = 15
 
-macro return_on_check(val, X)
+macro return_on_nonfinite_val(eval_options, val, X)
     :(
-        if !is_valid($(esc(val)))
+        if $(esc(eval_options)).early_exit isa Val{true} && !is_valid($(esc(val)))
             return $(ResultOk)(similar($(esc(X)), axes($(esc(X)), 2)), false)
         end
     )
 end
 
-macro return_on_nonfinite_array(array)
+macro return_on_nonfinite_array(eval_options, array)
     :(
-        if !is_valid_array($(esc(array)))
+        if $(esc(eval_options)).early_exit isa Val{true} && !is_valid_array($(esc(array)))
             return $(ResultOk)($(esc(array)), false)
         end
     )
@@ -257,10 +257,10 @@ end
         return quote
             result_l = _eval_tree_array(tree.l, cX, operators, eval_options)
             !result_l.ok && return result_l
-            eval_options.early_exit isa Val{true} && @return_on_nonfinite_array result_l.x
+            @return_on_nonfinite_array(eval_options, result_l.x)
             result_r = _eval_tree_array(tree.r, cX, operators, eval_options)
             !result_r.ok && return result_r
-            eval_options.early_exit isa Val{true} && @return_on_nonfinite_array result_r.x
+            @return_on_nonfinite_array(eval_options, result_r.x)
             # op(x, y), for any x or y
             deg2_eval(result_l.x, result_r.x, operators.binops[op_idx], eval_options)
         end
@@ -275,26 +275,22 @@ end
                 elseif tree.r.degree == 0
                     result_l = _eval_tree_array(tree.l, cX, operators, eval_options)
                     !result_l.ok && return result_l
-                    eval_options.early_exit isa Val{true} &&
-                        @return_on_nonfinite_array result_l.x
+                    @return_on_nonfinite_array(eval_options, result_l.x)
                     # op(x, y), where y is a constant or variable but x is not.
                     deg2_r0_eval(tree, result_l.x, cX, op, eval_options)
                 elseif tree.l.degree == 0
                     result_r = _eval_tree_array(tree.r, cX, operators, eval_options)
                     !result_r.ok && return result_r
-                    eval_options.early_exit isa Val{true} &&
-                        @return_on_nonfinite_array result_r.x
+                    @return_on_nonfinite_array(eval_options, result_r.x)
                     # op(x, y), where x is a constant or variable but y is not.
                     deg2_l0_eval(tree, result_r.x, cX, op, eval_options)
                 else
                     result_l = _eval_tree_array(tree.l, cX, operators, eval_options)
                     !result_l.ok && return result_l
-                    eval_options.early_exit isa Val{true} &&
-                        @return_on_nonfinite_array result_l.x
+                    @return_on_nonfinite_array(eval_options, result_l.x)
                     result_r = _eval_tree_array(tree.r, cX, operators, eval_options)
                     !result_r.ok && return result_r
-                    eval_options.early_exit isa Val{true} &&
-                        @return_on_nonfinite_array result_r.x
+                    @return_on_nonfinite_array(eval_options, result_r.x)
                     # op(x, y), for any x or y
                     deg2_eval(result_l.x, result_r.x, op, eval_options)
                 end
@@ -315,7 +311,7 @@ end
         return quote
             result = _eval_tree_array(tree.l, cX, operators, eval_options)
             !result.ok && return result
-            eval_options.early_exit isa Val{true} && @return_on_nonfinite_array result.x
+            @return_on_nonfinite_array(eval_options, result.x)
             deg1_eval(result.x, operators.unaops[op_idx], eval_options)
         end
     end
@@ -342,8 +338,7 @@ end
                     # op(x), for any x.
                     result = _eval_tree_array(tree.l, cX, operators, eval_options)
                     !result.ok && return result
-                    eval_options.early_exit isa Val{true} &&
-                        @return_on_nonfinite_array result.x
+                    @return_on_nonfinite_array(eval_options, result.x)
                     deg1_eval(result.x, op, eval_options)
                 end
             end
@@ -396,21 +391,21 @@ function deg1_l2_ll0_lr0_eval(
     cX::AbstractMatrix{T},
     op::F,
     op_l::F2,
-    ::EvalOptions{false,false},
+    eval_options::EvalOptions{false,false},
 ) where {T,F,F2}
     if tree.l.l.constant && tree.l.r.constant
         val_ll = tree.l.l.val
         val_lr = tree.l.r.val
-        @return_on_check val_ll cX
-        @return_on_check val_lr cX
+        @return_on_nonfinite_val(eval_options, val_ll, cX)
+        @return_on_nonfinite_val(eval_options, val_lr, cX)
         x_l = op_l(val_ll, val_lr)::T
-        @return_on_check x_l cX
+        @return_on_nonfinite_val(eval_options, x_l, cX)
         x = op(x_l)::T
-        @return_on_check x cX
+        @return_on_nonfinite_val(eval_options, x, cX)
         return ResultOk(fill_similar(x, cX, axes(cX, 2)), true)
     elseif tree.l.l.constant
         val_ll = tree.l.l.val
-        @return_on_check val_ll cX
+        @return_on_nonfinite_val(eval_options, val_ll, cX)
         feature_lr = tree.l.r.feature
         cumulator = similar(cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
@@ -422,7 +417,7 @@ function deg1_l2_ll0_lr0_eval(
     elseif tree.l.r.constant
         feature_ll = tree.l.l.feature
         val_lr = tree.l.r.val
-        @return_on_check val_lr cX
+        @return_on_nonfinite_val(eval_options, val_lr, cX)
         cumulator = similar(cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j], val_lr)::T
@@ -449,15 +444,15 @@ function deg1_l1_ll0_eval(
     cX::AbstractMatrix{T},
     op::F,
     op_l::F2,
-    ::EvalOptions{false,false},
+    eval_options::EvalOptions{false,false},
 ) where {T,F,F2}
     if tree.l.l.constant
         val_ll = tree.l.l.val
-        @return_on_check val_ll cX
+        @return_on_nonfinite_val(eval_options, val_ll, cX)
         x_l = op_l(val_ll)::T
-        @return_on_check x_l cX
+        @return_on_nonfinite_val(eval_options, x_l, cX)
         x = op(x_l)::T
-        @return_on_check x cX
+        @return_on_nonfinite_val(eval_options, x, cX)
         return ResultOk(fill_similar(x, cX, axes(cX, 2)), true)
     else
         feature_ll = tree.l.l.feature
@@ -476,20 +471,20 @@ function deg2_l0_r0_eval(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     op::F,
-    ::EvalOptions{false,false},
+    eval_options::EvalOptions{false,false},
 ) where {T,F}
     if tree.l.constant && tree.r.constant
         val_l = tree.l.val
-        @return_on_check val_l cX
+        @return_on_nonfinite_val(eval_options, val_l, cX)
         val_r = tree.r.val
-        @return_on_check val_r cX
+        @return_on_nonfinite_val(eval_options, val_r, cX)
         x = op(val_l, val_r)::T
-        @return_on_check x cX
+        @return_on_nonfinite_val(eval_options, x, cX)
         return ResultOk(fill_similar(x, cX, axes(cX, 2)), true)
     elseif tree.l.constant
         cumulator = similar(cX, axes(cX, 2))
         val_l = tree.l.val
-        @return_on_check val_l cX
+        @return_on_nonfinite_val(eval_options, val_l, cX)
         feature_r = tree.r.feature
         @inbounds @simd for j in axes(cX, 2)
             x = op(val_l, cX[feature_r, j])::T
@@ -500,7 +495,7 @@ function deg2_l0_r0_eval(
         cumulator = similar(cX, axes(cX, 2))
         feature_l = tree.l.feature
         val_r = tree.r.val
-        @return_on_check val_r cX
+        @return_on_nonfinite_val(eval_options, val_r, cX)
         @inbounds @simd for j in axes(cX, 2)
             x = op(cX[feature_l, j], val_r)::T
             cumulator[j] = x
@@ -524,11 +519,11 @@ function deg2_l0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    ::EvalOptions{false,false},
+    eval_options::EvalOptions{false,false},
 ) where {T,F}
     if tree.l.constant
         val = tree.l.val
-        @return_on_check val cX
+        @return_on_nonfinite_val(eval_options, val, cX)
         @inbounds @simd for j in eachindex(cumulator)
             x = op(val, cumulator[j])::T
             cumulator[j] = x
@@ -550,11 +545,11 @@ function deg2_r0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    ::EvalOptions{false,false},
+    eval_options::EvalOptions{false,false},
 ) where {T,F}
     if tree.r.constant
         val = tree.r.val
-        @return_on_check val cX
+        @return_on_nonfinite_val(eval_options, val, cX)
         @inbounds @simd for j in eachindex(cumulator)
             x = op(cumulator[j], val)::T
             cumulator[j] = x
