@@ -13,10 +13,7 @@ on:
     branches:
       - master
     paths:
-      - 'test/**'
-      - 'src/**'
-      - '.github/workflows/**'
-      - 'Project.toml'
+      - '**/*'
 
 jobs:
   test:
