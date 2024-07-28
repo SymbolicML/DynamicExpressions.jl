@@ -70,7 +70,8 @@ import .NodeModule:
 @reexport import .OperatorEnumModule: AbstractOperatorEnum
 @reexport import .OperatorEnumConstructionModule:
     OperatorEnum, GenericOperatorEnum, @extend_operators, set_default_variable_names!
-@reexport import .EvaluateModule: eval_tree_array, differentiable_eval_tree_array
+@reexport import .EvaluateModule:
+    eval_tree_array, differentiable_eval_tree_array, EvalOptions
 @reexport import .EvaluateDerivativeModule: eval_diff_tree_array, eval_grad_tree_array
 @reexport import .ChainRulesModule: NodeTangent, extract_gradient
 @reexport import .SimplifyModule: combine_operators, simplify_tree!

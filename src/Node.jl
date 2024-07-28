@@ -142,7 +142,7 @@ be performed with this assumption, to preserve structure of the graph.
 ```julia
 julia> operators = OperatorEnum(;
            binary_operators=[+, -, *], unary_operators=[cos, sin]
-       );
+        );
 
 julia> x = GraphNode(feature=1)
 x1

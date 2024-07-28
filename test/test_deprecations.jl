@@ -1,6 +1,4 @@
-using DynamicExpressions
-using Test
-using Zygote
+using Test, DynamicExpressions, Zygote, LoopVectorization
 using Suppressor: @capture_err
 using DispatchDoctor: allow_unstable
 
@@ -45,6 +43,14 @@ if VERSION >= v"1.9"
         n = Node(2, true, nothing, 1, 1, x1, x2);
         @assert (n.op == 1 && n.l === x1 && n.r === x2)
     )
+end
+
+# Old usage of evaluation options
+if VERSION >= v"1.9-"
+    ex = Expression(Node{Float64}(; feature=1))
+    @test_logs (:warn, r"The `turbo` and `bumper` keyword arguments are deprecated.*") (ex(
+        randn(Float64, 1, 10), OperatorEnum(); turbo=true
+    ))
 end
 
 # Test deprecated modules
