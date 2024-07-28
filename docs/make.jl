@@ -1,5 +1,4 @@
-using Documenter
-using DynamicExpressions
+using Documenter, DynamicExpressions, Zygote
 using Random: AbstractRNG
 using Literate: markdown
 

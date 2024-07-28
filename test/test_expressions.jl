@@ -289,19 +289,18 @@ end
     a mathematical expression as a tree structure. It combines an
     `AbstractExpressionNode` (typically a `Node`) with metadata like operators
     and variable names.
-
-    Let's explore how to create and work with `Expression` objects:
     =#
     using DynamicExpressions, Random
 
     # First, let's define our operators and variable names:
 
     operators = OperatorEnum(;
-        binary_operators=[+, -, *, /], unary_operators=[sin, cos, exp]
+        binary_operators=(+, -, *, /), unary_operators=(sin, cos, exp)
     )
+    #
     variable_names = ["x", "y"]
 
-    # Now, let's create a simple Expression manually:
+    # Now, let's create an Expression manually:
     x = Node{Float64}(; feature=1)
     x_expr = Expression(x; operators, variable_names)
 

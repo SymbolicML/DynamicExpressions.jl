@@ -46,9 +46,7 @@ end
     include("test_print.jl")
 end
 
-@testitem "Test validity of expression evaluation" begin
-    include("test_evaluation.jl")
-end
+include("test_evaluation.jl")
 
 @testitem "Test validity of integer expression evaluation" begin
     include("test_integer_evaluation.jl")
