@@ -826,4 +826,78 @@ function eval_tree_array(
     end
 end
 
+function eval_graph_array_diff(
+    root::GraphNode{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum,
+) where {T}
+
+    # vmap is faster with small cX sizes
+    # vmapnt (non-temporal) is faster with larger cX sizes (too big so not worth caching?)
+    dp = Dict{GraphNode, AbstractArray{T}}()
+    order = topological_sort(root)
+    for node in order
+        if node.degree == 0 && !node.constant
+            dp[node] = view(cX, node.feature, :)
+        elseif node.degree == 1
+            if node.l.constant
+                node.constant = true
+                node.val = operators.unaops[node.op](node.l.val)
+                if !is_valid(node.val) return false end
+            else
+                node.constant = false
+                dp[node] = map(operators.unaops[node.op], dp[node.l])
+                if !is_valid_array(dp[node]) return false end
+            end
+        elseif node.degree == 2
+            if node.l.constant
+                if node.r.constant
+                    node.constant = true
+                    node.val = operators.binops[node.op](node.l.val, node.r.val)
+                    if !is_valid(node.val) return false end
+                else
+                    node.constant = false
+                    dp[node] = map(Base.Fix1(operators.binops[node.op], node.l.val), dp[node.r])
+                    if !is_valid_array(dp[node]) return false end
+                end
+            else
+                if node.r.constant
+                    node.constant = false
+                    dp[node] = map(Base.Fix2(operators.binops[node.op], node.r.val), dp[node.l])
+                    if !is_valid_array(dp[node]) return false end
+                else
+                    node.constant = false
+                    dp[node] = map(operators.binops[node.op], dp[node.l], dp[node.r])
+                    if !is_valid_array(dp[node]) return false end
+                end
+            end
+        end
+    end
+    if root.constant
+        return fill(root.val, size(cX, 2))
+    else
+        return dp[root]
+    end
+end
+
+function eval_graph_single(
+    root::GraphNode{T},
+    cX::AbstractArray{T},
+    operators::OperatorEnum
+) where {T}
+    order = topological_sort(root)
+    for node in order
+        if node.degree == 0 && !node.constant
+            node.val = cX[node.feature]
+        elseif node.degree == 1
+            node.val = operators.unaops[node.op](node.l.val)
+            if !is_valid(node.val) return false end
+        elseif node.degree == 2
+            node.val = operators.binops[node.op](node.l.val, node.r.val)
+            if !is_valid(node.val) return false end
+        end
+    end
+    return root.val
+end
+
 end
