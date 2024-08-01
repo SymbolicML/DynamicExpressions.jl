@@ -29,28 +29,30 @@ function dispatch_op_name(::Val{deg}, operators::AbstractOperatorEnum, idx) wher
     end
 end
 
-@generated function get_op_name(op::F)::Vector{Char} where {F}
-    try
-        # Bit faster to just cache the name of the operator:
-        op_s = if F <: Broadcast.BroadcastFunction
-            string(F.parameters[1].instance) * '.'
+OP_NAME_CACHE = (; x=Dict{UInt64,Vector{Char}}(), lock=Threads.SpinLock())
+
+function get_op_name(op)
+    h = hash(op)
+    @lock OP_NAME_CACHE.lock let
+        cache = OP_NAME_CACHE.x
+        if haskey(cache, h)
+            return cache[h]
+        end
+        op_s = sizehint!(Char[], 10)
+        if op isa Broadcast.BroadcastFunction
+            append!(op_s, string(op.f))
+            if length(op_s) == 1 && first(op_s) in ('+', '-', '*', '/', '^')
+                # Like `.+`
+                pushfirst!(op_s, '.')
+            else
+                # Like `cos.`
+                push!(op_s, '.')
+            end
         else
-            string(F.instance)
+            append!(op_s, string(op))
         end
-        if length(op_s) == 2 && op_s[1] in ('+', '-', '*', '/', '^') && op_s[2] == '.'
-            op_s = '.' * op_s[1]
-        end
-        out = collect(get(OP_NAMES, op_s, op_s))
-        return :($out)
-    catch
-    end
-    return quote
-        op_s = typeof(op) <: Broadcast.BroadcastFunction ? string(op.f) * '.' : string(op)
-        if length(op_s) == 2 && op_s[1] in ('+', '-', '*', '/', '^') && op_s[2] == '.'
-            op_s = '.' * op_s[1]
-        end
-        out = collect(get(OP_NAMES, op_s, op_s))
-        return out
+        cache[h] = op_s
+        return op_s
     end
 end
 
