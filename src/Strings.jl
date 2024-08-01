@@ -21,7 +21,7 @@ end
 
 const OP_NAME_CACHE = (; x=Dict{UInt64,String}(), lock=Threads.SpinLock())
 
-function get_op_name(op)
+function get_op_name(op::F) where {F}
     h = hash(op)
     lock(OP_NAME_CACHE.lock)
     try
