@@ -13,13 +13,13 @@ function dispatch_op_name(::Val{deg}, ::Nothing, idx)::Vector{Char} where {deg}
 end
 function dispatch_op_name(::Val{deg}, operators::AbstractOperatorEnum, idx) where {deg}
     if deg == 1
-        return get_op_name(operators.unaops[idx])::Vector{Char}
+        return collect(get_op_name(operators.unaops[idx])::String)
     else
-        return get_op_name(operators.binops[idx])::Vector{Char}
+        return collect(get_op_name(operators.binops[idx])::String)
     end
 end
 
-const OP_NAME_CACHE = (; x=Dict{UInt64,Vector{Char}}(), lock=Threads.SpinLock())
+const OP_NAME_CACHE = (; x=Dict{UInt64,String}(), lock=Threads.SpinLock())
 
 function get_op_name(op)
     h = hash(op)
@@ -29,18 +29,17 @@ function get_op_name(op)
         if haskey(cache, h)
             return cache[h]
         end
-        op_s = sizehint!(Char[], 10)
-        if op isa Broadcast.BroadcastFunction
-            append!(op_s, string(op.f))
-            if length(op_s) == 1 && first(op_s) in ('+', '-', '*', '/', '^')
+        op_s = if op isa Broadcast.BroadcastFunction
+            base_op_s = string(op.f)
+            if length(base_op_s) == 1 && first(base_op_s) in ('+', '-', '*', '/', '^')
                 # Like `.+`
-                pushfirst!(op_s, '.')
+                string('.', base_op_s)
             else
                 # Like `cos.`
-                push!(op_s, '.')
+                string(base_op_s, '.')
             end
         else
-            append!(op_s, string(op))
+            string(op)
         end
         cache[h] = op_s
         return op_s
