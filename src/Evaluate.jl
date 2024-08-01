@@ -70,11 +70,11 @@ end
         throw(ArgumentError("Invalid keyword argument(s): $(keys(deprecated_kws))"))
     end
     if !isempty(deprecated_kws)
-        @assert eval_options === nothing "Cannot use both `eval_options` and deprecated flags `turbo` and `bumper`."
-        Base.depwarn(
-            "The `turbo` and `bumper` keyword arguments are deprecated. Please use `eval_options` instead.",
-            :eval_tree_array,
+        @assert(
+            eval_options === nothing,
+            "Cannot use both `eval_options` and deprecated flags `turbo` and `bumper`."
         )
+        # TODO: We don't do a depwarn as it can GREATLY bottleneck the search speed.
     end
     if eval_options !== nothing
         return eval_options
