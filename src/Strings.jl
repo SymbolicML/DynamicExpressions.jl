@@ -19,7 +19,7 @@ function dispatch_op_name(::Val{deg}, operators::AbstractOperatorEnum, idx) wher
     end
 end
 
-OP_NAME_CACHE = (; x=Dict{UInt64,Vector{Char}}(), lock=Threads.SpinLock())
+const OP_NAME_CACHE = (; x=Dict{UInt64,Vector{Char}}(), lock=Threads.SpinLock())
 
 function get_op_name(op)
     h = hash(op)
