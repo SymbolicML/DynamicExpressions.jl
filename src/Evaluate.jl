@@ -52,11 +52,7 @@ struct EvalOptions{T,B,E}
     early_exit::Val{E}
 end
 
-@stable(
-    default_mode = "disable",
-    default_union_limit = 2,
-    @inline _to_bool_val(x::Bool) = x ? Val(true) : Val(false)
-)
+@unstable @inline _to_bool_val(x::Bool) = x ? Val(true) : Val(false)
 @inline _to_bool_val(x::Val{T}) where {T} = Val(T::Bool)
 
 @unstable function EvalOptions(;
@@ -183,8 +179,10 @@ function eval_tree_array(
     return eval_tree_array(tree, cX, operators; kws...)
 end
 
-get_nuna(::Type{<:OperatorEnum{B,U}}) where {B,U} = counttuple(U)
-get_nbin(::Type{<:OperatorEnum{B}}) where {B} = counttuple(B)
+# These are marked unstable due to issues discussed on
+# https://github.com/JuliaLang/julia/issues/55147
+@unstable get_nuna(::Type{<:OperatorEnum{B,U}}) where {B,U} = counttuple(U)
+@unstable get_nbin(::Type{<:OperatorEnum{B}}) where {B} = counttuple(B)
 
 function _eval_tree_array(
     tree::AbstractExpressionNode{T},
