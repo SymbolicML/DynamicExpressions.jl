@@ -23,7 +23,8 @@ const OP_NAME_CACHE = (; x=Dict{UInt64,Vector{Char}}(), lock=Threads.SpinLock())
 
 function get_op_name(op)
     h = hash(op)
-    @lock OP_NAME_CACHE.lock let
+    lock(OP_NAME_CACHE.lock)
+    try
         cache = OP_NAME_CACHE.x
         if haskey(cache, h)
             return cache[h]
@@ -43,6 +44,8 @@ function get_op_name(op)
         end
         cache[h] = op_s
         return op_s
+    finally
+        unlock(OP_NAME_CACHE.lock)
     end
 end
 
