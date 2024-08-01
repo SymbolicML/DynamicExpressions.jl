@@ -4,16 +4,6 @@ using ..UtilsModule: deprecate_varmap
 using ..OperatorEnumModule: AbstractOperatorEnum
 using ..NodeModule: AbstractExpressionNode, tree_mapreduce
 
-const OP_NAMES = Base.ImmutableDict(
-    "safe_log" => "log",
-    "safe_log2" => "log2",
-    "safe_log10" => "log10",
-    "safe_log1p" => "log1p",
-    "safe_acosh" => "acosh",
-    "safe_sqrt" => "sqrt",
-    "safe_pow" => "^",
-)
-
 function dispatch_op_name(::Val{deg}, ::Nothing, idx)::Vector{Char} where {deg}
     if deg == 1
         return vcat(collect("unary_operator["), collect(string(idx)), [']'])
