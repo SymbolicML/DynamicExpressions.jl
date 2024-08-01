@@ -52,11 +52,7 @@ struct EvalOptions{T,B,E}
     early_exit::Val{E}
 end
 
-@stable(
-    default_mode = "disable",
-    default_union_limit = 2,
-    @inline _to_bool_val(x::Bool) = x ? Val(true) : Val(false)
-)
+@unstable @inline _to_bool_val(x::Bool) = x ? Val(true) : Val(false)
 @inline _to_bool_val(x::Val{T}) where {T} = Val(T::Bool)
 
 @unstable function EvalOptions(;
@@ -74,11 +70,11 @@ end
         throw(ArgumentError("Invalid keyword argument(s): $(keys(deprecated_kws))"))
     end
     if !isempty(deprecated_kws)
-        @assert eval_options === nothing "Cannot use both `eval_options` and deprecated flags `turbo` and `bumper`."
-        Base.depwarn(
-            "The `turbo` and `bumper` keyword arguments are deprecated. Please use `eval_options` instead.",
-            :eval_tree_array,
+        @assert(
+            eval_options === nothing,
+            "Cannot use both `eval_options` and deprecated flags `turbo` and `bumper`."
         )
+        # TODO: We don't do a depwarn as it can GREATLY bottleneck the search speed.
     end
     if eval_options !== nothing
         return eval_options
@@ -183,8 +179,10 @@ function eval_tree_array(
     return eval_tree_array(tree, cX, operators; kws...)
 end
 
-get_nuna(::Type{<:OperatorEnum{B,U}}) where {B,U} = counttuple(U)
-get_nbin(::Type{<:OperatorEnum{B}}) where {B} = counttuple(B)
+# These are marked unstable due to issues discussed on
+# https://github.com/JuliaLang/julia/issues/55147
+@unstable get_nuna(::Type{<:OperatorEnum{B,U}}) where {B,U} = counttuple(U)
+@unstable get_nbin(::Type{<:OperatorEnum{B}}) where {B} = counttuple(B)
 
 function _eval_tree_array(
     tree::AbstractExpressionNode{T},

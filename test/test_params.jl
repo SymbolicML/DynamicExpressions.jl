@@ -1,4 +1,5 @@
 using DynamicExpressions
+import DynamicExpressions as DE
 
 maximum_residual = 1e-2
 
@@ -26,6 +27,13 @@ maximum_residual = 1e-2
     greater(x, y) = (x > y)
 
     custom_cos(x) = cos(x)^2
+
+    DE.get_op_name(::typeof(safe_log)) = "log"
+    DE.get_op_name(::typeof(safe_log2)) = "log2"
+    DE.get_op_name(::typeof(safe_log10)) = "log10"
+    DE.get_op_name(::typeof(safe_log1p)) = "log1p"
+    DE.get_op_name(::typeof(safe_acosh)) = "acosh"
+    DE.get_op_name(::typeof(safe_sqrt)) = "sqrt"
 end
 
 HEADER_GUARD_TEST_PARAMS = true
