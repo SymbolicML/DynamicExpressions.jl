@@ -268,8 +268,9 @@ function extract_gradient(
     return vcat(d_constants, d_params)  # Same shape as `get_scalar_constants`
 end
 
-function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
-    num_params = UInt16(size(ex.metadata.parameters, 1))
+get_num_params(ex::ParametricExpression) = size(ex.metadata.parameters, 1)
+function Base.convert(::Type{N}, ex::ParametricExpression{T}) where {T,N<:Node}
+    num_params = UInt16(get_num_params(ex))
     return tree_mapreduce(
         leaf -> if leaf.constant
             Node(; val=leaf.val)
@@ -365,13 +366,17 @@ function string_tree(
 )
     # TODO: HACK we ignore display_variable_names and others
     variable_names2 = get_variable_names(ex, variable_names)
-    num_params = UInt16(size(ex.metadata.parameters, 1))
-    max_feature = maximum(get_tree(ex)) do node
-        if node.degree == 0 && !node.constant && !node.is_parameter
-            node.feature
-        else
-            UInt16(0)
+    num_params = UInt16(get_num_params(ex))
+    max_feature = if variable_names2 === nothing
+        maximum(get_tree(ex)) do node
+            if node.degree == 0 && !node.constant && !node.is_parameter
+                node.feature
+            else
+                UInt16(0)
+            end
         end
+    else
+        UInt16(length(variable_names2))
     end
     _parameter_names = ex.metadata.parameter_names
     parameter_names = if _parameter_names === nothing
