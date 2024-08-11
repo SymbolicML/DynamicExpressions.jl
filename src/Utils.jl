@@ -2,6 +2,7 @@
 module UtilsModule
 
 using MacroTools: postwalk, @capture, splitdef, combinedef
+using DispatchDoctor: @unstable
 
 # Returns two arrays
 macro return_on_false2(flag, retval, retval2)
@@ -27,7 +28,7 @@ function deprecate_varmap(variable_names, varMap, func_name)
     return variable_names
 end
 
-counttuple(::Type{<:NTuple{N,Any}}) where {N} = N
+@unstable counttuple(::Type{<:NTuple{N,Any}}) where {N} = N
 
 """
     Undefined

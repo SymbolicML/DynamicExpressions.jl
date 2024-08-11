@@ -46,9 +46,7 @@ end
     include("test_print.jl")
 end
 
-@testitem "Test validity of expression evaluation" begin
-    include("test_evaluation.jl")
-end
+include("test_evaluation.jl")
 
 @testitem "Test validity of integer expression evaluation" begin
     include("test_integer_evaluation.jl")
@@ -101,6 +99,7 @@ end
 @testitem "Test Base" begin
     include("test_base.jl")
 end
+include("test_base_2.jl")
 
 @testitem "Test extra node fields" begin
     include("test_extra_node_fields.jl")
@@ -128,3 +127,5 @@ include("test_parse.jl")
 include("test_parametric_expression.jl")
 include("test_operator_construction_edgecases.jl")
 include("test_node_interface.jl")
+include("test_expression_math.jl")
+include("test_structured_expression.jl")

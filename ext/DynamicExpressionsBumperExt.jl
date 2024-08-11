@@ -2,7 +2,7 @@ module DynamicExpressionsBumperExt
 
 using Bumper: @no_escape, @alloc
 using DynamicExpressions:
-    OperatorEnum, AbstractExpressionNode, tree_mapreduce, is_valid_array
+    OperatorEnum, AbstractExpressionNode, tree_mapreduce, is_valid_array, EvalOptions
 using DynamicExpressions.UtilsModule: ResultOk, counttuple
 
 import DynamicExpressions.ExtensionInterfaceModule:
@@ -12,8 +12,8 @@ function bumper_eval_tree_array(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    ::Val{turbo},
-) where {T,turbo}
+    eval_options::EvalOptions{turbo,true,early_exit},
+) where {T,turbo,early_exit}
     result = similar(cX, axes(cX, 2))
     n = size(cX, 2)
     all_ok = Ref(false)
@@ -26,7 +26,7 @@ function bumper_eval_tree_array(
                 ok = if leaf_node.constant
                     v = leaf_node.val
                     ar .= v
-                    isfinite(v)
+                    early_exit ? isfinite(v) : true
                 else
                     ar .= view(cX, leaf_node.feature, :)
                     true
@@ -38,7 +38,7 @@ function bumper_eval_tree_array(
             # In the evaluation kernel, we combine the branch nodes
             # with the arrays created by the leaf nodes:
             ((args::Vararg{Any,M}) where {M}) ->
-                dispatch_kerns!(operators, args..., Val(turbo)),
+                dispatch_kerns!(operators, args..., eval_options),
             tree;
             break_sharing=Val(true),
         )
@@ -49,55 +49,61 @@ function bumper_eval_tree_array(
     return (result, all_ok[])
 end
 
-function dispatch_kerns!(operators, branch_node, cumulator, ::Val{turbo}) where {turbo}
+function dispatch_kerns!(
+    operators, branch_node, cumulator, eval_options::EvalOptions{<:Any,true,early_exit}
+) where {early_exit}
     cumulator.ok || return cumulator
 
-    out = dispatch_kern1!(operators.unaops, branch_node.op, cumulator.x, Val(turbo))
-    return ResultOk(out, is_valid_array(out))
+    out = dispatch_kern1!(operators.unaops, branch_node.op, cumulator.x, eval_options)
+    return ResultOk(out, early_exit ? is_valid_array(out) : true)
 end
 function dispatch_kerns!(
-    operators, branch_node, cumulator1, cumulator2, ::Val{turbo}
-) where {turbo}
+    operators,
+    branch_node,
+    cumulator1,
+    cumulator2,
+    eval_options::EvalOptions{<:Any,true,early_exit},
+) where {early_exit}
     cumulator1.ok || return cumulator1
     cumulator2.ok || return cumulator2
 
     out = dispatch_kern2!(
-        operators.binops, branch_node.op, cumulator1.x, cumulator2.x, Val(turbo)
+        operators.binops, branch_node.op, cumulator1.x, cumulator2.x, eval_options
     )
-    return ResultOk(out, is_valid_array(out))
+    return ResultOk(out, early_exit ? is_valid_array(out) : true)
 end
 
-@generated function dispatch_kern1!(unaops, op_idx, cumulator, ::Val{turbo}) where {turbo}
+@generated function dispatch_kern1!(unaops, op_idx, cumulator, eval_options::EvalOptions)
     nuna = counttuple(unaops)
     quote
         Base.@nif(
             $nuna,
             i -> i == op_idx,
             i -> let op = unaops[i]
-                return bumper_kern1!(op, cumulator, Val(turbo))
+                return bumper_kern1!(op, cumulator, eval_options)
             end,
         )
     end
 end
 @generated function dispatch_kern2!(
-    binops, op_idx, cumulator1, cumulator2, ::Val{turbo}
-) where {turbo}
+    binops, op_idx, cumulator1, cumulator2, eval_options::EvalOptions
+)
     nbin = counttuple(binops)
     quote
         Base.@nif(
             $nbin,
             i -> i == op_idx,
             i -> let op = binops[i]
-                return bumper_kern2!(op, cumulator1, cumulator2, Val(turbo))
+                return bumper_kern2!(op, cumulator1, cumulator2, eval_options)
             end,
         )
     end
 end
-function bumper_kern1!(op::F, cumulator, ::Val{false}) where {F}
+function bumper_kern1!(op::F, cumulator, ::EvalOptions{false,true}) where {F}
     @. cumulator = op(cumulator)
     return cumulator
 end
-function bumper_kern2!(op::F, cumulator1, cumulator2, ::Val{false}) where {F}
+function bumper_kern2!(op::F, cumulator1, cumulator2, ::EvalOptions{false,true}) where {F}
     @. cumulator1 = op(cumulator1, cumulator2)
     return cumulator1
 end

@@ -1,6 +1,4 @@
-using DynamicExpressions
-using Test
-using Zygote
+using Test, DynamicExpressions, Zygote, LoopVectorization
 using Suppressor: @capture_err
 using DispatchDoctor: allow_unstable
 

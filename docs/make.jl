@@ -1,6 +1,17 @@
-using Documenter
-using DynamicExpressions
+using Documenter, DynamicExpressions, Zygote
 using Random: AbstractRNG
+using Literate: markdown
+
+####################################
+# Literate #########################
+####################################
+
+include("utils.jl")
+process_literate_blocks()
+
+####################################
+# index.md #########################
+####################################
 
 readme = joinpath(@__DIR__, "..", "README.md")
 
@@ -28,9 +39,6 @@ index_content = let r = read(readme, String)
     bottom_part = """
     ## Contents
 
-    ```@contents
-    Pages = ["utils.md", "api.md", "eval.md"]
-    ```
     """
 
     join((top_part, r, bottom_part), "\n")
@@ -41,13 +49,26 @@ open(index_md, "w") do f
     write(f, index_content)
 end
 
+####################################
+
 makedocs(;
     sitename="DynamicExpressions.jl",
     authors="Miles Cranmer",
-    doctest=false,
     clean=true,
-    format=Documenter.HTML(),
-    warnonly=true,
+    format=Documenter.HTML(;
+        canonical="https://symbolicml.org/DynamicExpressions.jl/stable"
+    ),
+    pages=[
+        "Home" => "index.md",
+        "Examples" => [
+            "examples/base_operations.md", # Defined by `test/test_base_2.jl`
+            "examples/expression.md", # Defined by `test/test_expression.jl`
+            "examples/structured_expression.md", # Defined by `test/test_structured_expression.jl`
+        ],
+        "Eval" => "eval.md",
+        "Utils" => "utils.md",
+        "API" => "api.md",
+    ],
 )
 
 # Forward links from old docs:

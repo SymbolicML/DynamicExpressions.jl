@@ -17,10 +17,12 @@ using DispatchDoctor: @stable, @unstable
     include("Simplify.jl")
     include("OperatorEnumConstruction.jl")
     include("Expression.jl")
+    include("ExpressionAlgebra.jl")
     include("Random.jl")
     include("Parse.jl")
     include("ParametricExpression.jl")
     include("Visualize.jl")
+    include("StructuredExpression.jl")
 end
 
 import PackageExtensionCompat: @require_extensions
@@ -72,7 +74,8 @@ import .NodeModule:
 @reexport import .OperatorEnumModule: AbstractOperatorEnum
 @reexport import .OperatorEnumConstructionModule:
     OperatorEnum, GenericOperatorEnum, @extend_operators, set_default_variable_names!
-@reexport import .EvaluateModule: eval_tree_array, differentiable_eval_tree_array, eval_graph_array_diff, eval_graph_single
+@reexport import .EvaluateModule:
+    eval_tree_array, differentiable_eval_tree_array, EvalOptions
 @reexport import .EvaluateDerivativeModule: eval_diff_tree_array, eval_grad_tree_array
 @reexport import .ChainRulesModule: NodeTangent, extract_gradient
 @reexport import .SimplifyModule: combine_operators, simplify_tree!
@@ -80,13 +83,21 @@ import .NodeModule:
 @reexport import .ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 @reexport import .RandomModule: NodeSampler
 @reexport import .ExpressionModule:
-    AbstractExpression, Expression, with_contents, with_metadata, get_contents, get_metadata
+    AbstractExpression,
+    Expression,
+    with_contents,
+    with_metadata,
+    get_contents,
+    get_metadata,
+    get_tree
 import .ExpressionModule:
-    get_tree, get_operators, get_variable_names, Metadata, default_node_type, node_type
+    get_operators, get_variable_names, Metadata, default_node_type, node_type
+@reexport import .ExpressionAlgebraModule: @declare_expression_operator
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
 @reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode
 @reexport import .VisualizeModule: visualize
+@reexport import .StructuredExpressionModule: StructuredExpression
 
 @stable default_mode = "disable" begin
     include("Interfaces.jl")

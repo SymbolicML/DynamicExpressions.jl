@@ -60,6 +60,12 @@
             multi_ex, nothing
         )
         @test_throws "`get_tree` function must be implemented for" DE.get_tree(multi_ex)
+        @test_throws "`get_contents` function must be implemented for" DE.get_contents(
+            multi_ex
+        )
+        @test_throws "`get_metadata` function must be implemented for" DE.get_metadata(
+            multi_ex
+        )
         @test_throws "`copy` function must be implemented for" copy(multi_ex)
         @test_throws "`get_scalar_constants` function must be implemented for" get_scalar_constants(
             multi_ex

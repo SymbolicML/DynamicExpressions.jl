@@ -13,9 +13,11 @@ using ..NodeModule:
     default_allocator,
     with_type_parameters,
     leaf_copy,
+    leaf_convert,
     leaf_hash,
     leaf_equal,
     branch_copy,
+    branch_convert,
     branch_hash,
     branch_equal,
     tree_mapreduce,
@@ -50,6 +52,7 @@ using ..ExpressionModule:
     with_metadata,
     default_node_type
 using ..ParametricExpressionModule: ParametricExpression, ParametricNode
+using ..StructuredExpressionModule: StructuredExpression
 
 ###############################################################################
 # ExpressionInterface #########################################################
@@ -189,6 +192,11 @@ ei_description = (
     ParametricExpression,
     [Arguments()]
 )
+@implements(
+    ExpressionInterface{all_ei_methods_except(())},
+    StructuredExpression,
+    [Arguments()]
+)
 #! format: on
 
 ###############################################################################
@@ -250,6 +258,11 @@ function _check_leaf_copy(tree::AbstractExpressionNode)
     tree.degree != 0 && return true
     return leaf_copy(tree) isa typeof(tree)
 end
+function _check_leaf_convert(tree::AbstractExpressionNode)
+    tree.degree != 0 && return true
+    return leaf_convert(typeof(tree), tree) isa typeof(tree) &&
+           leaf_convert(typeof(tree), tree) == tree
+end
 function _check_leaf_hash(tree::AbstractExpressionNode)
     tree.degree != 0 && return true
     return leaf_hash(UInt(0), tree) isa UInt64
@@ -265,6 +278,15 @@ function _check_branch_copy(tree::AbstractExpressionNode)
         return branch_copy(tree, tree.l) isa typeof(tree)
     else
         return branch_copy(tree, tree.l, tree.r) isa typeof(tree)
+    end
+end
+function _check_branch_convert(tree::AbstractExpressionNode)
+    if tree.degree == 0
+        return true
+    elseif tree.degree == 1
+        return branch_convert(typeof(tree), tree, tree.l) isa typeof(tree)
+    else
+        return branch_convert(typeof(tree), tree, tree.l, tree.r) isa typeof(tree)
     end
 end
 function _check_branch_hash(tree::AbstractExpressionNode)
@@ -326,9 +348,11 @@ ni_components = (
     ),
     optional = (
         leaf_copy = "copies a leaf node" => _check_leaf_copy,
+        leaf_convert = "converts a leaf node" => _check_leaf_convert,
         leaf_hash = "computes the hash of a leaf node" => _check_leaf_hash,
         leaf_equal = "checks equality of two leaf nodes" => _check_leaf_equal,
         branch_copy = "copies a branch node" => _check_branch_copy,
+        branch_convert = "converts a branch node" => _check_branch_convert,
         branch_hash = "computes the hash of a branch node" => _check_branch_hash,
         branch_equal = "checks equality of two branch nodes" => _check_branch_equal,
         count_depth = "calculates the depth of the tree" => _check_count_depth,

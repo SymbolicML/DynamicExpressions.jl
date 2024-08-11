@@ -55,22 +55,18 @@ this additionally must have fields for:
 See [`NodeInterface`](@ref DynamicExpressions.InterfacesModule.NodeInterface) for a full description
 of the interface implementation, as well as tests to verify correctness.
 
-You *must* define `CustomNode{_T} where {_T} = new{_T}()` for each custom node type.
+You *must* define `CustomNode{_T} where {_T} = new{_T}()` for each custom node type,
+as well as `constructorof` and `with_type_parameters`.
 
 In addition, you *may* choose to define the following functions, to override
 the defaults behavior, in particular if you wish to add additional fields
 to your type.
 
 - `leaf_copy` and `branch_copy`
+- `leaf_convert` and `branch_convert`
 - `leaf_equal` and `branch_equal`
 - `leaf_hash` and `branch_hash`
 - `preserve_sharing`
-
-You likely do not need to, but you could choose to override the following:
-
-- `constructorof`
-- `with_type_parameters`
-
 """
 abstract type AbstractExpressionNode{T,D} <: AbstractNode{D} end
 
