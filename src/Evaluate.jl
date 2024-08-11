@@ -1,7 +1,6 @@
 module EvaluateModule
 
 using DispatchDoctor: @unstable
-using LoopVectorization
 
 import ..NodeModule: AbstractExpressionNode, constructorof, GraphNode, topological_sort
 import ..StringsModule: string_tree
@@ -772,58 +771,73 @@ end
 
 # Parametric arguments don't use dynamic dispatch, calls with turbo/bumper won't resolve properly
 
+# overwritten in ext/DynamicExpressionsLoopVectorizationExt.jl
+function _eval_graph_array(
+    root::GraphNode{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum,
+    loopVectorization::Val{true}
+) where {T}
+    error("_is_loopvectorization_loaded(0) is true but _eval_graph_array has not been overwritten")
+end
+
+function _eval_graph_array(
+    root::GraphNode{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum,
+    loopVectorization::Val{false}
+) where {T}
+order = topological_sort(root)
+for node in order
+    if node.degree == 0 && !node.constant
+        node.cache = view(cX, node.feature, :)
+    elseif node.degree == 1
+        if node.l.constant
+            node.constant = true
+            node.val = operators.unaops[node.op](node.l.val)
+            if !is_valid(node.val) return ResultOk(Vector{T}(undef, size(cX, 2)), false) end
+        else
+            node.constant = false
+            node.cache = map(operators.unaops[node.op], node.l.cache)
+            if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+        end
+    elseif node.degree == 2
+        if node.l.constant
+            if node.r.constant
+                node.constant = true
+                node.val = operators.binops[node.op](node.l.val, node.r.val)
+                if !is_valid(node.val) return ResultOk(Vector{T}(undef, size(cX, 2)), false) end
+            else
+                node.constant = false
+                node.cache = map(Base.Fix1(operators.binops[node.op], node.l.val), node.r.cache)
+                if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+            end
+        else
+            if node.r.constant
+                node.constant = false
+                node.cache = map(Base.Fix2(operators.binops[node.op], node.r.val), node.l.cache)
+                if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+            else
+                node.constant = false
+                node.cache = map(operators.binops[node.op], node.l.cache, node.r.cache)
+                if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+            end
+        end
+    end
+end
+if root.constant
+    return ResultOk(fill(root.val, size(cX, 2)), true)
+else
+    return ResultOk(root.cache, true)
+end
+end
+
 function eval_tree_array(
     root::GraphNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
 ) where {T}
-
-    # vmap is faster with small cX sizes
-    # vmapnt (non-temporal) is faster with larger cX sizes (too big so not worth caching?)
-
-    order = topological_sort(root)
-    for node in order
-        if node.degree == 0 && !node.constant
-            node.cache = view(cX, node.feature, :)
-        elseif node.degree == 1
-            if node.l.constant
-                node.constant = true
-                node.val = operators.unaops[node.op](node.l.val)
-                if !is_valid(node.val) return ResultOk(Vector{T}(undef, size(cX, 2)), false) end
-            else
-                node.constant = false
-                node.cache = vmapnt(operators.unaops[node.op], node.l.cache)
-                if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
-            end
-        elseif node.degree == 2
-            if node.l.constant
-                if node.r.constant
-                    node.constant = true
-                    node.val = operators.binops[node.op](node.l.val, node.r.val)
-                    if !is_valid(node.val) return ResultOk(Vector{T}(undef, size(cX, 2)), false) end
-                else
-                    node.constant = false
-                    node.cache = vmapnt(Base.Fix1(operators.binops[node.op], node.l.val), node.r.cache)
-                    if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
-                end
-            else
-                if node.r.constant
-                    node.constant = false
-                    node.cache = vmapnt(Base.Fix2(operators.binops[node.op], node.r.val), node.l.cache)
-                    if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
-                else
-                    node.constant = false
-                    node.cache = vmapnt(operators.binops[node.op], node.l.cache, node.r.cache)
-                    if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
-                end
-            end
-        end
-    end
-    if root.constant
-        return ResultOk(fill(root.val, size(cX, 2)), true)
-    else
-        return ResultOk(root.cache, true)
-    end
+    return _eval_graph_array(root, cX, operators, Val(_is_loopvectorization_loaded(0)))
 end
 
 function eval_graph_array_diff(

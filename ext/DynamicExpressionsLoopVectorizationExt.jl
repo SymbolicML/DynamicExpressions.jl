@@ -1,7 +1,9 @@
 module DynamicExpressionsLoopVectorizationExt
 
-using LoopVectorization: @turbo
-using DynamicExpressions: AbstractExpressionNode
+using DynamicExpressions
+
+using LoopVectorization: @turbo, vmapnt
+using DynamicExpressions: AbstractExpressionNode, GraphNode, OperatorEnum
 using DynamicExpressions.UtilsModule: ResultOk, fill_similar
 using DynamicExpressions.EvaluateModule: @return_on_check
 import DynamicExpressions.EvaluateModule:
@@ -14,6 +16,7 @@ import DynamicExpressions.EvaluateModule:
     deg2_r0_eval
 import DynamicExpressions.ExtensionInterfaceModule:
     _is_loopvectorization_loaded, bumper_kern1!, bumper_kern2!
+import DynamicExpressions.ValueInterfaceModule: is_valid, is_valid_array
 
 _is_loopvectorization_loaded(::Int) = true
 
@@ -210,6 +213,65 @@ end
 function bumper_kern2!(op::F, cumulator1, cumulator2, ::Val{true}) where {F}
     @turbo @. cumulator1 = op(cumulator1, cumulator2)
     return cumulator1
+end
+
+
+
+# graph eval
+
+function DynamicExpressions.EvaluateModule._eval_graph_array(
+    root::GraphNode{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum,
+    loopVectorization::Val{true}
+) where {T}
+
+    # vmap is faster with small cX sizes
+    # vmapnt (non-temporal) is faster with larger cX sizes (too big so not worth caching?)
+
+    order = topological_sort(root)
+    for node in order
+        if node.degree == 0 && !node.constant
+            node.cache = view(cX, node.feature, :)
+        elseif node.degree == 1
+            if node.l.constant
+                node.constant = true
+                node.val = operators.unaops[node.op](node.l.val)
+                if !is_valid(node.val) return ResultOk(Vector{T}(undef, size(cX, 2)), false) end
+            else
+                node.constant = false
+                node.cache = vmapnt(operators.unaops[node.op], node.l.cache)
+                if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+            end
+        elseif node.degree == 2
+            if node.l.constant
+                if node.r.constant
+                    node.constant = true
+                    node.val = operators.binops[node.op](node.l.val, node.r.val)
+                    if !is_valid(node.val) return ResultOk(Vector{T}(undef, size(cX, 2)), false) end
+                else
+                    node.constant = false
+                    node.cache = vmapnt(Base.Fix1(operators.binops[node.op], node.l.val), node.r.cache)
+                    if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+                end
+            else
+                if node.r.constant
+                    node.constant = false
+                    node.cache = vmapnt(Base.Fix2(operators.binops[node.op], node.r.val), node.l.cache)
+                    if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+                else
+                    node.constant = false
+                    node.cache = vmapnt(operators.binops[node.op], node.l.cache, node.r.cache)
+                    if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+                end
+            end
+        end
+    end
+    if root.constant
+        return ResultOk(fill(root.val, size(cX, 2)), true)
+    else
+        return ResultOk(root.cache, true)
+    end
 end
 
 end
