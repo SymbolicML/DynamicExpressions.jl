@@ -20,8 +20,6 @@ Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
-Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
-GraphRecipes = "bd48cda9-67a9-57be-86fa-5b3c104eda73"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
 
 [extensions]
@@ -30,7 +28,6 @@ DynamicExpressionsOptimExt = "Optim"
 DynamicExpressionsSymbolicUtilsExt = "SymbolicUtils"
 DynamicExpressionsZygoteExt = "Zygote"
 DynamicExpressionsLoopVectorizationExt = "LoopVectorization"
-DynamicExpressionsVisualizeExt = ["Plots","GraphRecipes"]
 
 [compat]
 Bumper = "0.6"
