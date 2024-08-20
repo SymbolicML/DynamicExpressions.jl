@@ -863,7 +863,7 @@ function _eval_graph_array(
     operators::OperatorEnum,
     loopVectorization::Val{true}
 ) where {T}
-    error("_is_loopvectorization_loaded(0) is true but _eval_graph_array has not been overwritten")
+    error("DynamicExpressionsLoopVectorizationExt did not overwrite _eval_graph_array")
 end
 
 function _eval_graph_array(
@@ -925,8 +925,14 @@ function eval_tree_array(
     root::GraphNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
+    eval_options::Union{EvalOptions,Nothing}=nothing
 ) where {T}
-    return _eval_graph_array(root, cX, operators, Val(_is_loopvectorization_loaded(0)))
+    
+    if eval_options.turbo isa Val{true} || isnothing(eval_eval_options) && _is_loopvectorization_loaded(0)
+        return _eval_graph_array(root, cX, operators, Val(true))
+    else
+        return _eval_graph_array(root, cX, operators, Val(false))
+    end
 end
 
 function eval_graph_array_diff(
