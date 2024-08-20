@@ -94,11 +94,17 @@ mutable struct GraphNode{T,D} <: AbstractExpressionNode{T,D}
     children::NTuple{D,Base.RefValue{GraphNode{T,D}}}  # Children nodes
     visited::Bool  # search accounting, initialised to false
     cache::AbstractArray{T}
+    modified::Bool
 
     #################
     ## Constructors:
     #################
-    GraphNode{_T,_D}() where {_T,_D} = (x = new{_T,_D::Int}(); x.visited = false; x.children = ntuple(i -> Ref{GraphNode{_T,_D}}(), Val(max_degree(GraphNode))); x)
+    GraphNode{_T,_D}() where {_T,_D} = (
+        x = new{_T,_D::Int}(); 
+        x.visited = false; 
+        x.children = ntuple(i -> Ref{GraphNode{_T,_D}}(), Val(max_degree(GraphNode))); 
+        x.modified = true;
+        x)
 end
 
 #! format: off
@@ -209,6 +215,8 @@ end
         setfield!(n, :visited, v)
     elseif k == :cache && typeof(n) <: GraphNode
         setfield!(n, :cache, v)
+    elseif k == :modified && typeof(n) <: GraphNode
+        setfield!(n, :modified, v)
     else
         error("Invalid property: $k")
     end
@@ -388,6 +396,13 @@ function set_node!(tree::AbstractExpressionNode, new_tree::AbstractExpressionNod
         if new_tree.degree == 2
             tree.r = new_tree.r
         end
+    end
+
+    if typeof(tree) <: GraphNode && typeof(new_tree) <: GraphNode
+        tree.val = new_tree.val # val has additional meaning in GraphNodes so always copy
+        tree.visited = new_tree.visited
+        if isdefined(new_tree, :cache) tree.cache = new_tree.cache end
+        tree.modified = new_tree.modified
     end
     return nothing
 end

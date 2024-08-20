@@ -872,49 +872,53 @@ function _eval_graph_array(
     operators::OperatorEnum,
     loopVectorization::Val{false}
 ) where {T}
-order = topological_sort(root)
-for node in order
-    if node.degree == 0 && !node.constant
-        node.cache = view(cX, node.feature, :)
-    elseif node.degree == 1
-        if node.l.constant
-            node.constant = true
-            node.val = operators.unaops[node.op](node.l.val)
-            if !is_valid(node.val) return ResultOk(Vector{T}(undef, size(cX, 2)), false) end
-        else
-            node.constant = false
-            node.cache = map(operators.unaops[node.op], node.l.cache)
-            if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
-        end
-    elseif node.degree == 2
-        if node.l.constant
-            if node.r.constant
+    order = topological_sort(root)
+    skip = true
+    for node in order
+        skip &= !node.modified
+        if skip continue end
+        node.modified = false
+        if node.degree == 0 && !node.constant
+            node.cache = view(cX, node.feature, :)
+        elseif node.degree == 1
+            if node.l.constant
                 node.constant = true
-                node.val = operators.binops[node.op](node.l.val, node.r.val)
+                node.val = operators.unaops[node.op](node.l.val)
                 if !is_valid(node.val) return ResultOk(Vector{T}(undef, size(cX, 2)), false) end
             else
                 node.constant = false
-                node.cache = map(Base.Fix1(operators.binops[node.op], node.l.val), node.r.cache)
+                node.cache = map(operators.unaops[node.op], node.l.cache)
                 if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
             end
-        else
-            if node.r.constant
-                node.constant = false
-                node.cache = map(Base.Fix2(operators.binops[node.op], node.r.val), node.l.cache)
-                if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+        elseif node.degree == 2
+            if node.l.constant
+                if node.r.constant
+                    node.constant = true
+                    node.val = operators.binops[node.op](node.l.val, node.r.val)
+                    if !is_valid(node.val) return ResultOk(Vector{T}(undef, size(cX, 2)), false) end
+                else
+                    node.constant = false
+                    node.cache = map(Base.Fix1(operators.binops[node.op], node.l.val), node.r.cache)
+                    if !is_valid_array(cache[node]) return ResultOk(node.cache, false) end
+                end
             else
-                node.constant = false
-                node.cache = map(operators.binops[node.op], node.l.cache, node.r.cache)
-                if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+                if node.r.constant
+                    node.constant = false
+                    node.cache = map(Base.Fix2(operators.binops[node.op], node.r.val), node.l.cache)
+                    if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+                else
+                    node.constant = false
+                    node.cache = map(operators.binops[node.op], node.l.cache, node.r.cache)
+                    if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+                end
             end
         end
     end
-end
-if root.constant
-    return ResultOk(fill(root.val, size(cX, 2)), true)
-else
-    return ResultOk(root.cache, true)
-end
+    if root.constant
+        return ResultOk(fill(root.val, size(cX, 2)), true)
+    else
+        return ResultOk(root.cache, true)
+    end
 end
 
 function eval_tree_array(
