@@ -21,7 +21,7 @@ macro return_on_false(flag, retval)
 end
 
 function is_valid(x::SymbolicUtils.Symbolic)
-    return if SymbolicUtils.istree(x)
+    return if SymbolicUtils.iscall(x)
         all(is_valid.([SymbolicUtils.operation(x); SymbolicUtils.arguments(x)]))
     else
         true
@@ -140,7 +140,7 @@ function Base.convert(
     variable_names::Union{Array{String,1},Nothing}=nothing,
 ) where {N<:AbstractExpressionNode}
     variable_names = deprecate_varmap(variable_names, nothing, :convert)
-    if !SymbolicUtils.istree(expr)
+    if !SymbolicUtils.iscall(expr)
         variable_names === nothing && return constructorof(N)(String(expr.name))
         return constructorof(N)(String(expr.name), variable_names)
     end
@@ -234,7 +234,7 @@ function multiply_powers(eqn::Number)::Tuple{SYMBOLIC_UTILS_TYPES,Bool}
 end
 
 function multiply_powers(eqn::SymbolicUtils.Symbolic)::Tuple{SYMBOLIC_UTILS_TYPES,Bool}
-    if !SymbolicUtils.istree(eqn)
+    if !SymbolicUtils.iscall(eqn)
         return eqn, true
     end
     op = SymbolicUtils.operation(eqn)
