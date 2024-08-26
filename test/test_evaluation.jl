@@ -1,8 +1,7 @@
-using DynamicExpressions
-using Bumper
-using LoopVectorization
-using Random
-using Test
+#! format: off
+@testitem "Test validity of expression evaluation" begin
+using DynamicExpressions, Bumper, LoopVectorization, Random
+
 include("test_params.jl")
 include("tree_gen_utils.jl")
 
@@ -81,10 +80,19 @@ for turbo in [Val(false), Val(true)],
         end
     end
 end
+end
+#! format: on
 
-@testset "Test specific branches of evaluation" begin
-    for turbo in [false, true], T in [Float16, Float32, Float64, ComplexF32, ComplexF64]
-        turbo && !(T in (Float32, Float64)) && continue
+@testitem "Test specific branches of evaluation" begin
+    using DynamicExpressions, DynamicExpressions, Bumper, LoopVectorization
+    using DynamicExpressions.EvaluateModule: EvalOptions
+
+    include("test_params.jl")
+
+    for turbo in [Val(false), Val(true)],
+        T in [Float16, Float32, Float64, ComplexF32, ComplexF64]
+
+        turbo isa Val{true} && !(T in (Float32, Float64)) && continue
         # Test specific branches of evaluation code:
         # op(op(<constant>))
         local tree, operators
@@ -95,7 +103,7 @@ end
         @test repr(tree) == "cos(cos(3.0))"
         tree = convert(Node{T}, tree)
         truth = cos(cos(T(3.0f0)))
-        @test DynamicExpressions.EvaluateModule.deg1_l1_ll0_eval(tree, [zero(T)]', cos, cos, Val(turbo)).x[1] ≈
+        @test DynamicExpressions.EvaluateModule.deg1_l1_ll0_eval(tree, [zero(T)]', cos, cos, EvalOptions(; turbo)).x[1] ≈
             truth
 
         # op(<constant>, <constant>)
@@ -103,7 +111,7 @@ end
         @test repr(tree) == "3.0 + 4.0"
         tree = convert(Node{T}, tree)
         truth = T(3.0f0) + T(4.0f0)
-        @test DynamicExpressions.EvaluateModule.deg2_l0_r0_eval(tree, [zero(T)]', (+), Val(turbo)).x[1] ≈
+        @test DynamicExpressions.EvaluateModule.deg2_l0_r0_eval(tree, [zero(T)]', (+), EvalOptions(; turbo)).x[1] ≈
             truth
 
         # op(op(<constant>, <constant>))
@@ -111,7 +119,7 @@ end
         @test repr(tree) == "cos(3.0 + 4.0)"
         tree = convert(Node{T}, tree)
         truth = cos(T(3.0f0) + T(4.0f0))
-        @test DynamicExpressions.EvaluateModule.deg1_l2_ll0_lr0_eval(tree, [zero(T)]', cos, (+), Val(turbo)).x[1] ≈
+        @test DynamicExpressions.EvaluateModule.deg1_l2_ll0_lr0_eval(tree, [zero(T)]', cos, (+), EvalOptions(; turbo)).x[1] ≈
             truth
 
         # Test for presence of NaNs:
@@ -126,17 +134,20 @@ end
 end
 
 # Check if julia version >= 1.7:
-if VERSION >= v"1.7"
-    @testset "Test error catching for GenericOperatorEnum" begin
+@testitem "Test error catching for GenericOperatorEnum" begin
+    using DynamicExpressions
+
+    @static if VERSION >= v"1.7"
         # And, with generic operator enum, this should be an actual error:
+        @eval my_fnc(x::Real) = x
         operators = GenericOperatorEnum(;
-            binary_operators=[+, -, *, /], unary_operators=[cos, sin]
+            binary_operators=[+, -, *, /], unary_operators=[cos, sin, my_fnc]
         )
+        @extend_operators operators
         x1 = Node(Float64; feature=1)
         tree = sin(x1 / 0.0)
         X = randn(Float32, 10)
         let
-            local stack
             try
                 tree(X, operators)[1]
                 @test false
@@ -145,30 +156,34 @@ if VERSION >= v"1.7"
                 # Check that "Failed to evaluate" is in the message:
                 @test occursin("Failed to evaluate", e.msg)
                 stack = current_exceptions()
+                @test length(stack) == 2
+                @test stack[1].exception isa DomainError
             end
-            @test length(stack) == 2
-            @test stack[1].exception isa DomainError
 
             # If a method is not defined, we should get a nothing:
-            X = randn(Float32, 1, 10)
-            @test tree(X, operators; throw_errors=false) === nothing
+            X2 = randn(ComplexF64, 1, 10)
+            tree2 = my_fnc(x1)
+            @test tree2(X2, operators; throw_errors=false) === nothing
             # or a MethodError:
             try
-                tree(X, operators; throw_errors=true)
+                tree2(X2, operators; throw_errors=true)
                 @test false
             catch e
                 @test e isa ErrorException
                 @test occursin("Failed to evaluate", e.msg)
-                stack = current_exceptions()
+                stack2 = current_exceptions()
+                @test length(stack2) == 2
+                @test stack2[1].exception isa MethodError
             end
-            @test length(stack) == 2
-            # Dividing by 0 should not be an MethodError
-            # @test stack[1].exception isa MethodError
         end
     end
 end
 
-@testset "Test many operators" begin
+@testitem "Test many operators" begin
+    using DynamicExpressions
+
+    include("tree_gen_utils.jl")
+
     # Since we use `@nif` in evaluating expressions,
     # we can see if there are any issues with LARGE numbers of operators.
     num_ops = 100
@@ -211,11 +226,64 @@ end
     num_tests = 100
     n_features = 3
     for _ in 1:num_tests
-        tree = gen_random_tree_fixed_size(20, only_basic_ops_operator, n_features, Float64)
-        X = randn(Float64, n_features, 10)
-        basic_eval = tree(X, only_basic_ops_operator)
-        many_ops_eval = tree(X, many_ops_operators)
-        @test (all(isnan, basic_eval) && all(isnan, many_ops_eval)) ||
-            basic_eval ≈ many_ops_eval
+        let tree = gen_random_tree_fixed_size(
+                20, only_basic_ops_operator, n_features, Float64
+            ),
+            X = randn(Float64, n_features, 10),
+            basic_eval = tree(X, only_basic_ops_operator),
+            many_ops_eval = tree(X, many_ops_operators)
+
+            @test (all(isnan, basic_eval) && all(isnan, many_ops_eval)) ||
+                basic_eval ≈ many_ops_eval
+        end
     end
+end
+
+@testitem "Disable early exit" begin
+    using DynamicExpressions
+    using Bumper, LoopVectorization
+
+    let
+        T = Float16
+        ex = @parse_expression(
+            2 * x, binary_operators = [*], variable_names = ["x"], node_type = Node{T}
+        )
+        X = T[1.0 floatmax(T)]
+        @test all(isnan.(ex(X)))
+        @test ex(X; eval_options=EvalOptions(; early_exit=Val(false))) ≈ [2.0, Inf]
+    end
+
+    for turbo in [Val(false), Val(true)],
+        T in [Float32, Float64],
+        bumper in [Val(false), Val(true)]
+
+        ex = @parse_expression(
+            (-b - sqrt(b^2 - (4 * a) * c)) / (2 * c),
+            binary_operators = [-, *, /, ^],
+            unary_operators = [-, sqrt],
+            variable_names = ["a", "b", "c"],
+            node_type = Node{T}
+        )
+        X = T[
+            -1 -1
+            1 floatmax(T)
+            1 1
+        ]
+        @test all(isnan.(ex(X; eval_options=EvalOptions(; bumper, turbo))))
+        y = ex(X; eval_options=EvalOptions(; bumper, turbo, early_exit=Val(false)))
+        @test y[1] ≈ T(-1.618033988749895)
+        @test !isfinite(y[2])
+    end
+end
+
+@testitem "Test EvalOptions constructor" begin
+    using DynamicExpressions, LoopVectorization
+
+    @test EvalOptions(; turbo=true) isa EvalOptions{true}
+    @test EvalOptions(; turbo=Val(true)) isa EvalOptions{true}
+    @test EvalOptions(; turbo=false) isa EvalOptions{false}
+    @test EvalOptions(; turbo=Val(false)) isa EvalOptions{false}
+
+    ex = Expression(Node{Float64}(; feature=1))
+    @test_throws ArgumentError ex(randn(1, 5), OperatorEnum(); bad_arg=1)
 end

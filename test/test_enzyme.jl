@@ -54,7 +54,11 @@ X = [1.0; 1.0;;]
 d_tree = begin
     storage_tree = copy(tree)
     # Set all constants to zero:
-    Enzyme.make_zero!(storage_tree)
+    foreach(storage_tree) do node
+        if node.degree == 0 && node.constant
+            node.val = 0.0
+        end
+    end
     fetch(
         schedule(
             Task(64 * 1024^2) do

@@ -5,12 +5,9 @@
     # Node and Tree Operations
 
     This example demonstrates how to create and manipulate expression trees
-    using the [`Node`](@ref) type. We'll create a tree,
-    perform various operations, and show how to traverse and modify it.
+    using the [`Node`](@ref) type.
 
-    First, let's create a simple expression tree.
-    We can bootstrap this by creating a node to hold `feature=1`,
-    indicating the first input variable (first column of data):
+    First, let's create a node to reference `feature=1` of our dataset:
     =#
     using DynamicExpressions, Random
 
@@ -72,12 +69,14 @@
 
     Let's see an example. Say we just want to count the nodes in the tree:
     =#
-    tree_mapreduce(node -> 1, +, tree)
+    num_nodes = tree_mapreduce(node -> 1, +, tree)
+    @test num_nodes == 8 #src
     #=
     Here, the `+` handles both the cases of 1 child and 2 children.
     Here, we didn't need to specify a custom branch function, but we could do that too:
     =#
-    tree_mapreduce(leaf_node -> 1, branch_node -> 0, +, tree)
+    num_leafs = tree_mapreduce(leaf_node -> 1, branch_node -> 0, +, tree)
+    @test num_leafs == 4 #src
     #=
     This counts the number of leaf nodes in the tree. For `tree`,
     this was `x`, `y`, `const_1`, and `x`.
@@ -93,9 +92,10 @@
     As a more complex example, let's compute the depth of a tree. Here, we need
     to use a more complicated reduction operation – the `max`:
     =#
-    tree_mapreduce(
+    depth = tree_mapreduce(
         node -> 1, (parent, children...) -> 1 + max(children...), x + sin(sin(exp(x)))
     )
+    @test depth == 5 #src
     #=
     Here, the `max` handles both the cases of 1 child and 2 children.
     The parent node contributes `1` at each depth. Note that the inputs
