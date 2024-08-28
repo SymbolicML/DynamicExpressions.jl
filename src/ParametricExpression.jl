@@ -41,7 +41,7 @@ import ..ValueInterfaceModule:
     count_scalar_constants, pack_scalar_constants!, unpack_scalar_constants
 
 """A type of expression node that also stores a parameter index"""
-mutable struct ParametricNode{T} <: AbstractExpressionNode{T}
+mutable struct ParametricNode{T,D} <: AbstractExpressionNode{T,D}
     degree::UInt8
     constant::Bool  # if true => constant; if false, then check `is_parameter`
     val::T
@@ -51,11 +51,10 @@ mutable struct ParametricNode{T} <: AbstractExpressionNode{T}
     parameter::UInt16  # Stores index of per-class parameter
 
     op::UInt8
-    l::ParametricNode{T}
-    r::ParametricNode{T}
+    children::NTuple{D,Base.RefValue{ParametricNode{T,D}}}  # Children nodes
 
-    function ParametricNode{_T}() where {_T}
-        n = new{_T}()
+    function ParametricNode{_T,_D}() where {_T,_D}
+        n = new{_T,_D}()
         n.is_parameter = false
         n.parameter = UInt16(0)
         return n

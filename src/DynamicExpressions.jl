@@ -44,11 +44,14 @@ import .ValueInterfaceModule:
     set_node!,
     tree_mapreduce,
     filter_map,
-    filter_map!
+    filter_map!,
+    topological_sort,
+    randomised_topological_sort
 import .NodeModule:
     constructorof,
     with_type_parameters,
     preserve_sharing,
+    max_degree,
     leaf_copy,
     branch_copy,
     leaf_hash,
@@ -66,8 +69,7 @@ import .NodeModule:
     count_scalar_constants,
     get_scalar_constants,
     set_scalar_constants!
-@reexport import .StringsModule: string_tree, print_tree
-import .StringsModule: get_op_name
+@reexport import .StringsModule: string_tree, print_tree, get_op_name
 @reexport import .OperatorEnumModule: AbstractOperatorEnum
 @reexport import .OperatorEnumConstructionModule:
     OperatorEnum, GenericOperatorEnum, @extend_operators, set_default_variable_names!
@@ -103,6 +105,7 @@ end
 
 import .InterfacesModule:
     ExpressionInterface, NodeInterface, all_ei_methods_except, all_ni_methods_except
+
 
 function __init__()
     @require_extensions

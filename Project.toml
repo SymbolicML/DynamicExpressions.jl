@@ -17,17 +17,17 @@ TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [weakdeps]
 Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
-LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
+LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
 
 [extensions]
 DynamicExpressionsBumperExt = "Bumper"
-DynamicExpressionsLoopVectorizationExt = "LoopVectorization"
 DynamicExpressionsOptimExt = "Optim"
 DynamicExpressionsSymbolicUtilsExt = "SymbolicUtils"
 DynamicExpressionsZygoteExt = "Zygote"
+DynamicExpressionsLoopVectorizationExt = "LoopVectorization"
 
 [compat]
 Bumper = "0.6"
@@ -35,7 +35,6 @@ ChainRulesCore = "1"
 Compat = "3.37, 4"
 DispatchDoctor = "0.4"
 Interfaces = "0.3"
-LoopVectorization = "0.12"
 MacroTools = "0.4, 0.5"
 Optim = "0.19, 1"
 PackageExtensionCompat = "1"
@@ -47,7 +46,6 @@ julia = "1.6"
 
 [extras]
 Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
-LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"

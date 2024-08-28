@@ -25,7 +25,7 @@ import Base:
 
 using DispatchDoctor: @unstable
 using Compat: @inline, Returns
-using ..UtilsModule: @memoize_on, @with_memoize, Undefined
+using ..UtilsModule: Undefined
 
 """
     tree_mapreduce(
@@ -89,38 +89,76 @@ function tree_mapreduce(
     f_leaf::F1,
     f_branch::F2,
     op::G,
-    tree::AbstractNode,
+    tree::AbstractNode{D},
     result_type::Type{RT}=Undefined;
     f_on_shared::H=(result, is_shared) -> result,
-    break_sharing::Val=Val(false),
-) where {F1<:Function,F2<:Function,G<:Function,H<:Function,RT}
-
-    # Trick taken from here:
-    # https://discourse.julialang.org/t/recursive-inner-functions-a-thousand-times-slower/85604/5
-    # to speed up recursive closure
-    @memoize_on t f_on_shared function inner(inner, t)
-        if t.degree == 0
-            return @inline(f_leaf(t))
-        elseif t.degree == 1
-            return @inline(op(@inline(f_branch(t)), inner(inner, t.l)))
-        else
-            return @inline(op(@inline(f_branch(t)), inner(inner, t.l), inner(inner, t.r)))
-        end
-    end
-
-    sharing = preserve_sharing(typeof(tree)) && break_sharing === Val(false)
+    break_sharing::Val{BS}=Val(false),
+) where {F1<:Function,F2<:Function,G<:Function,D,H<:Function,RT,BS}
+    sharing = preserve_sharing(typeof(tree)) && !BS
 
     RT == Undefined &&
         sharing &&
         throw(ArgumentError("Need to specify `result_type` if nodes are shared.."))
 
     if sharing && RT != Undefined
-        d = allocate_id_map(tree, RT)
-        return @with_memoize inner(inner, tree) d
+        id_map = allocate_id_map(tree, RT)
+        reducer = TreeMapreducer(Val(D), id_map, f_leaf, f_branch, op, f_on_shared)
+        return reducer(tree)
     else
-        return inner(inner, tree)
+        reducer = TreeMapreducer(Val(D), nothing, f_leaf, f_branch, op, f_on_shared)
+        return reducer(tree)
     end
 end
+
+struct TreeMapreducer{D,ID,F1<:Function,F2<:Function,G<:Function,H<:Function}
+    max_degree::Val{D}
+    id_map::ID
+    f_leaf::F1
+    f_branch::F2
+    op::G
+    f_on_shared::H
+end
+
+@generated function (mapreducer::TreeMapreducer{MAX_DEGREE,ID})(
+    tree::AbstractNode
+) where {MAX_DEGREE,ID}
+    base_expr = quote
+        d = tree.degree
+        Base.Cartesian.@nif(
+            $(MAX_DEGREE + 1),
+            d_p_one -> (d_p_one - 1) == d,
+            d_p_one -> if d_p_one == 1
+                mapreducer.f_leaf(tree)
+            else
+                mapreducer.op(
+                    mapreducer.f_branch(tree),
+                    Base.Cartesian.@ntuple(
+                        d_p_one - 1, i -> mapreducer(tree.children[i][])
+                    )...,
+                )
+            end
+        )
+    end
+    if ID <: Nothing
+        # No sharing of nodes (is a tree, not a graph)
+        return base_expr
+    else
+        # Otherwise, we need to cache results in `id_map`
+        # according to `objectid` of the node
+        return quote
+            key = objectid(tree)
+            is_cached = haskey(mapreducer.id_map, key)
+            if is_cached
+                return mapreducer.f_on_shared(@inbounds(mapreducer.id_map[key]), true)
+            else
+                res = $base_expr
+                mapreducer.id_map[key] = res
+                return mapreducer.f_on_shared(res, false)
+            end
+        end
+    end
+end
+
 function allocate_id_map(tree::AbstractNode, ::Type{RT}) where {RT}
     d = Dict{UInt,RT}()
     # Preallocate maximum storage (counting with duplicates is fast)
@@ -128,7 +166,6 @@ function allocate_id_map(tree::AbstractNode, ::Type{RT}) where {RT}
     sizehint!(d, N)
     return d
 end
-
 # TODO: Raise Julia issue for this.
 # Surprisingly Dict{UInt,RT} is faster than IdDict{Node{T},RT} here!
 # I think it's because `setindex!` is declared with `@nospecialize` in IdDict.

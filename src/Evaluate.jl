@@ -2,7 +2,7 @@ module EvaluateModule
 
 using DispatchDoctor: @stable, @unstable
 
-import ..NodeModule: AbstractExpressionNode, constructorof
+import ..NodeModule: AbstractExpressionNode, constructorof, GraphNode, topological_sort
 import ..StringsModule: string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: fill_similar, counttuple, ResultOk
@@ -852,6 +852,161 @@ end
     else
         return op.(left, right), true
     end
+end
+
+# Parametric arguments don't use dynamic dispatch, calls with turbo/bumper won't resolve properly
+
+# overwritten in ext/DynamicExpressionsLoopVectorizationExt.jl
+function _eval_graph_array(
+    root::GraphNode{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum,
+    loopVectorization::Val{true}
+) where {T}
+    error("DynamicExpressionsLoopVectorizationExt did not overwrite _eval_graph_array")
+end
+
+function _eval_graph_array(
+    root::GraphNode{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum,
+    loopVectorization::Val{false}
+) where {T}
+    order = topological_sort(root)
+    skip = true
+    for node in order
+        skip &= !node.modified
+        if skip continue end
+        node.modified = false
+        if node.degree == 0 && !node.constant
+            node.cache = view(cX, node.feature, :)
+        elseif node.degree == 1
+            if node.l.constant
+                node.constant = true
+                node.val = operators.unaops[node.op](node.l.val)
+                if !is_valid(node.val) return ResultOk(Vector{T}(undef, size(cX, 2)), false) end
+            else
+                node.constant = false
+                node.cache = map(operators.unaops[node.op], node.l.cache)
+                if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+            end
+        elseif node.degree == 2
+            if node.l.constant
+                if node.r.constant
+                    node.constant = true
+                    node.val = operators.binops[node.op](node.l.val, node.r.val)
+                    if !is_valid(node.val) return ResultOk(Vector{T}(undef, size(cX, 2)), false) end
+                else
+                    node.constant = false
+                    node.cache = map(Base.Fix1(operators.binops[node.op], node.l.val), node.r.cache)
+                    if !is_valid_array(cache[node]) return ResultOk(node.cache, false) end
+                end
+            else
+                if node.r.constant
+                    node.constant = false
+                    node.cache = map(Base.Fix2(operators.binops[node.op], node.r.val), node.l.cache)
+                    if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+                else
+                    node.constant = false
+                    node.cache = map(operators.binops[node.op], node.l.cache, node.r.cache)
+                    if !is_valid_array(node.cache) return ResultOk(node.cache, false) end
+                end
+            end
+        end
+    end
+    if root.constant
+        return ResultOk(fill(root.val, size(cX, 2)), true)
+    else
+        return ResultOk(root.cache, true)
+    end
+end
+
+function eval_tree_array(
+    root::GraphNode{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum,
+    eval_options::Union{EvalOptions,Nothing}=nothing
+) where {T}
+    
+    if eval_options.turbo isa Val{true} || isnothing(eval_eval_options) && _is_loopvectorization_loaded(0)
+        return _eval_graph_array(root, cX, operators, Val(true))
+    else
+        return _eval_graph_array(root, cX, operators, Val(false))
+    end
+end
+
+function eval_graph_array_diff(
+    root::GraphNode{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum,
+) where {T}
+
+    # vmap is faster with small cX sizes
+    # vmapnt (non-temporal) is faster with larger cX sizes (too big so not worth caching?)
+    dp = Dict{GraphNode, AbstractArray{T}}()
+    order = topological_sort(root)
+    for node in order
+        if node.degree == 0 && !node.constant
+            dp[node] = view(cX, node.feature, :)
+        elseif node.degree == 1
+            if node.l.constant
+                node.constant = true
+                node.val = operators.unaops[node.op](node.l.val)
+                if !is_valid(node.val) return false end
+            else
+                node.constant = false
+                dp[node] = map(operators.unaops[node.op], dp[node.l])
+                if !is_valid_array(dp[node]) return false end
+            end
+        elseif node.degree == 2
+            if node.l.constant
+                if node.r.constant
+                    node.constant = true
+                    node.val = operators.binops[node.op](node.l.val, node.r.val)
+                    if !is_valid(node.val) return false end
+                else
+                    node.constant = false
+                    dp[node] = map(Base.Fix1(operators.binops[node.op], node.l.val), dp[node.r])
+                    if !is_valid_array(dp[node]) return false end
+                end
+            else
+                if node.r.constant
+                    node.constant = false
+                    dp[node] = map(Base.Fix2(operators.binops[node.op], node.r.val), dp[node.l])
+                    if !is_valid_array(dp[node]) return false end
+                else
+                    node.constant = false
+                    dp[node] = map(operators.binops[node.op], dp[node.l], dp[node.r])
+                    if !is_valid_array(dp[node]) return false end
+                end
+            end
+        end
+    end
+    if root.constant
+        return fill(root.val, size(cX, 2))
+    else
+        return dp[root]
+    end
+end
+
+function eval_graph_single(
+    root::GraphNode{T},
+    cX::AbstractArray{T},
+    operators::OperatorEnum
+) where {T}
+    order = topological_sort(root)
+    for node in order
+        if node.degree == 0 && !node.constant
+            node.val = cX[node.feature]
+        elseif node.degree == 1
+            node.val = operators.unaops[node.op](node.l.val)
+            if !is_valid(node.val) return false end
+        elseif node.degree == 2
+            node.val = operators.binops[node.op](node.l.val, node.r.val)
+            if !is_valid(node.val) return false end
+        end
+    end
+    return root.val
 end
 
 end
