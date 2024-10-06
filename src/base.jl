@@ -312,6 +312,7 @@ Collect all nodes in a tree into a flat array in depth-first order.
 function collect(tree::AbstractNode; break_sharing::Val{BS}=Val(false)) where {BS}
     return filter(Returns(true), tree; break_sharing=Val(BS))
 end
+Base.IteratorSize(::Type{<:AbstractNode}) = Base.HasLength()
 
 """
     map(f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; break_sharing::Val{BS}=Val(false)) where {F<:Function,RT,BS}
