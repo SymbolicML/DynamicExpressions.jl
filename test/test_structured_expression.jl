@@ -11,10 +11,10 @@
 
     shower(ex) = sprint((io, e) -> show(io, MIME"text/plain"(), e), ex)
 
-    f_plus_g = StructuredExpression((; f, g), nt -> nt.f + nt.g)
-    f_div_g = StructuredExpression((; f, g), nt -> nt.f / nt.g)
-    cos_f = StructuredExpression((; f), nt -> cos(nt.f))
-    exp_g = StructuredExpression((; g), nt -> exp(nt.g))
+    f_plus_g = StructuredExpression((; f, g); structure=nt -> nt.f + nt.g)
+    f_div_g = StructuredExpression((; f, g); structure=nt -> nt.f / nt.g)
+    cos_f = StructuredExpression((; f); structure=nt -> cos(nt.f))
+    exp_g = StructuredExpression((; g); structure=nt -> exp(nt.g))
 
     @test shower(f_plus_g) == "((x * x) - cos((2.5 * y) + -0.5)) + exp(-(y * y))"
     @test shower(f_div_g) == "((x * x) - cos((2.5 * y) + -0.5)) / exp(-(y * y))"
@@ -43,7 +43,7 @@ end
     f = parse_expression(:(x * x - cos(2.5f0 * y + -0.5f0)); kws...)
     g = parse_expression(:(exp(-(y * y))); kws...)
 
-    ex = StructuredExpression((; f, g), nt -> nt.f + nt.g)
+    ex = StructuredExpression((; f, g); structure=nt -> nt.f + nt.g)
 
     @test test(ExpressionInterface, StructuredExpression, [ex])
 end
@@ -64,7 +64,7 @@ end
     g = parse_expression(:(exp(-(y * y))); kws...)
 
     c = [1]
-    ex = StructuredExpression((; f, g), my_factory; a=c)
+    ex = StructuredExpression((; f, g); structure=my_factory, a=c)
 
     @test ex.metadata.extra.a[] == 1
     @test ex.metadata.extra.a === c
@@ -114,7 +114,7 @@ end
     This is a composite `AbstractExpression` object that composes multiple
     expressions during evaluation.
     =#
-    ex = StructuredExpression((; f, g), nt -> nt.f + nt.g; operators, variable_names)
+    ex = StructuredExpression((; f, g); structure=nt -> nt.f + nt.g, operators, variable_names)
     ex
     @test typeof(ex) <: AbstractExpression{Float64,<:Node{Float64}}  #src
     #=
