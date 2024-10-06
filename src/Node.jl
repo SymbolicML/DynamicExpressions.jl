@@ -220,7 +220,7 @@ include("base.jl")
 end
 validate_not_all_defaults(::Type{<:AbstractExpressionNode}, val, feature, op, l, r, children) = nothing
 validate_not_all_defaults(::Type{<:AbstractExpressionNode{T}}, val, feature, op, l, r, children) where {T} = nothing
-function validate_not_all_defaults(::Type{<:AbstractExpressionNode{T}}, ::Nothing, ::Nothing, ::Nothing, ::Nothing, ::Nothing, ::Nothing) where {T}
+function validate_not_all_defaults(::Type{N}, ::Nothing, ::Nothing, ::Nothing, ::Nothing, ::Nothing, ::Nothing) where {T,N<:AbstractExpressionNode{T}}
     error(
         "Type setup error for $N(). "
         * "Did you forget to define `$(Base.typename(N).wrapper){T}() where {T} = new{T}()`?"
