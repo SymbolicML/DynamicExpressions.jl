@@ -274,23 +274,23 @@ copy_node(ex::AbstractExpression; kws...) = copy(ex)
 count_nodes(ex::AbstractExpression; kws...) = count_nodes(get_tree(ex); kws...)
 
 function tree_mapreduce(
-    f::Function,
-    op::Function,
+    f::F,
+    op::G,
     ex::AbstractExpression,
-    result_type::Type=Undefined;
+    result_type::Type{RT}=Undefined;
     kws...,
-)
-    return tree_mapreduce(f, op, get_tree(ex), result_type; kws...)
+) where {F<:Function,G<:Function,RT}
+    return tree_mapreduce(f, op, get_tree(ex), RT; kws...)
 end
 function tree_mapreduce(
-    f_leaf::Function,
-    f_branch::Function,
-    op::Function,
+    f_leaf::F,
+    f_branch::G,
+    op::H,
     ex::AbstractExpression,
-    result_type::Type=Undefined;
+    result_type::Type{RT}=Undefined;
     kws...,
-)
-    return tree_mapreduce(f_leaf, f_branch, op, get_tree(ex), result_type; kws...)
+) where {F<:Function,G<:Function,H<:Function,RT}
+    return tree_mapreduce(f_leaf, f_branch, op, get_tree(ex), RT; kws...)
 end
 
 count_constant_nodes(ex::AbstractExpression) = count_constant_nodes(get_tree(ex))
