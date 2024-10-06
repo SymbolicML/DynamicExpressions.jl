@@ -81,9 +81,9 @@ function tree_mapreduce(
     tree::AbstractNode,
     result_type::Type{RT}=Undefined;
     f_on_shared::H=(result, is_shared) -> result,
-    break_sharing=Val(false),
-) where {RT,F<:Function,G<:Function,H<:Function}
-    return tree_mapreduce(f, f, op, tree, RT; f_on_shared, break_sharing)
+    break_sharing::Val{BS}=Val(false),
+) where {RT,F<:Function,G<:Function,H<:Function,BS}
+    return tree_mapreduce(f, f, op, tree, RT; f_on_shared, break_sharing=Val(BS))
 end
 function tree_mapreduce(
     f_leaf::F1,
@@ -92,8 +92,8 @@ function tree_mapreduce(
     tree::AbstractNode,
     result_type::Type{RT}=Undefined;
     f_on_shared::H=(result, is_shared) -> result,
-    break_sharing::Val=Val(false),
-) where {F1<:Function,F2<:Function,G<:Function,H<:Function,RT}
+    break_sharing::Val{BS}=Val(false),
+) where {F1<:Function,F2<:Function,G<:Function,H<:Function,RT,BS}
 
     # Trick taken from here:
     # https://discourse.julialang.org/t/recursive-inner-functions-a-thousand-times-slower/85604/5
@@ -108,7 +108,7 @@ function tree_mapreduce(
         end
     end
 
-    sharing = preserve_sharing(typeof(tree)) && break_sharing === Val(false)
+    sharing = preserve_sharing(typeof(tree)) && !BS
 
     RT == Undefined &&
         sharing &&
@@ -222,14 +222,14 @@ end
 
 Count the number of nodes in the tree.
 """
-function count_nodes(tree::AbstractNode; break_sharing=Val(false))
+function count_nodes(tree::AbstractNode; break_sharing::Val{BS}=Val(false)) where {BS}
     return tree_mapreduce(
         _ -> 1,
         +,
         tree,
         Int64;
         f_on_shared=(c, is_shared) -> is_shared ? 0 : c,
-        break_sharing,
+        break_sharing=Val(BS),
     )
 end
 
@@ -239,10 +239,14 @@ end
 Apply a function to each node in a tree without returning the results.
 """
 function foreach(
-    f::F, tree::AbstractNode; break_sharing::Val=Val(false)
-) where {F<:Function}
+    f::F, tree::AbstractNode; break_sharing::Val{BS}=Val(false)
+) where {F<:Function,BS}
     tree_mapreduce(
-        t -> (@inline(f(t)); nothing), Returns(nothing), tree, Nothing; break_sharing
+        t -> (@inline(f(t)); nothing),
+        Returns(nothing),
+        tree,
+        Nothing;
+        break_sharing=Val(BS),
     )
     return nothing
 end
@@ -260,10 +264,10 @@ function filter_map(
     map_fnc::G,
     tree::AbstractNode,
     result_type::Type{GT};
-    break_sharing::Val=Val(false),
-) where {F<:Function,G<:Function,GT}
-    stack = Array{GT}(undef, count(filter_fnc, tree; init=0, break_sharing))
-    filter_map!(filter_fnc, map_fnc, stack, tree; break_sharing)
+    break_sharing::Val{BS}=Val(false),
+) where {F<:Function,G<:Function,GT,BS}
+    stack = Array{GT}(undef, count(filter_fnc, tree; init=0, break_sharing=Val(BS)))
+    filter_map!(filter_fnc, map_fnc, stack, tree; break_sharing=Val(BS))
     return stack::Vector{GT}
 end
 
@@ -277,10 +281,10 @@ function filter_map!(
     map_fnc::G,
     destination::Vector{GT},
     tree::AbstractNode;
-    break_sharing::Val=Val(false),
-) where {GT,F<:Function,G<:Function}
+    break_sharing::Val{BS}=Val(false),
+) where {GT,F<:Function,G<:Function,BS}
     pointer = Ref(0)
-    foreach(tree; break_sharing) do t
+    foreach(tree; break_sharing=Val(BS)) do t
         if @inline(filter_fnc(t))
             map_result = @inline(map_fnc(t))::GT
             @inbounds destination[pointer.x += 1] = map_result
@@ -294,8 +298,10 @@ end
 
 Filter nodes of a tree, returning a flat array of the nodes for which the function returns `true`.
 """
-function filter(f::F, tree::AbstractNode; break_sharing::Val=Val(false)) where {F<:Function}
-    return filter_map(f, identity, tree, typeof(tree); break_sharing)
+function filter(
+    f::F, tree::AbstractNode; break_sharing::Val{BS}=Val(false)
+) where {F<:Function,BS}
+    return filter_map(f, identity, tree, typeof(tree); break_sharing=Val(BS))
 end
 
 """
@@ -303,46 +309,49 @@ end
 
 Collect all nodes in a tree into a flat array in depth-first order.
 """
-function collect(tree::AbstractNode; break_sharing::Val=Val(false))
-    return filter(Returns(true), tree; break_sharing)
+function collect(tree::AbstractNode; break_sharing::Val{BS}=Val(false)) where {BS}
+    return filter(Returns(true), tree; break_sharing=Val(BS))
 end
 
 """
-    map(f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; break_sharing::Val=Val(false)) where {F<:Function,RT}
+    map(f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; break_sharing::Val{BS}=Val(false)) where {F<:Function,RT,BS}
 
 Map a function over a tree and return a flat array of the results in depth-first order.
 Pre-specifying the `result_type` of the function can be used to avoid extra allocations.
 """
 function map(
-    f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; break_sharing::Val=Val(false)
-) where {F<:Function,RT}
+    f::F,
+    tree::AbstractNode,
+    result_type::Type{RT}=Nothing;
+    break_sharing::Val{BS}=Val(false),
+) where {F<:Function,RT,BS}
     if RT == Nothing
-        return map(f, collect(tree; break_sharing))
+        return map(f, collect(tree; break_sharing=Val(BS)))
     else
-        return filter_map(Returns(true), f, tree, result_type; break_sharing)
+        return filter_map(Returns(true), f, tree, result_type; break_sharing=Val(BS))
     end
 end
 
 """
-    count(f::F, tree::AbstractNode; init=0, break_sharing::Val=Val(false)) where {F<:Function}
+    count(f::F, tree::AbstractNode; init=0, break_sharing::Val{BS}=Val(false)) where {F<:Function,BS}
 
 Count the number of nodes in a tree for which the function returns `true`.
 """
 function count(
-    f::F, tree::AbstractNode; init=0, break_sharing::Val=Val(false)
-) where {F<:Function}
+    f::F, tree::AbstractNode; init=0, break_sharing::Val{BS}=Val(false)
+) where {F<:Function,BS}
     return tree_mapreduce(
         t -> @inline(f(t)) ? 1 : 0,
         +,
         tree,
         Int64;
         f_on_shared=(c, is_shared) -> is_shared ? 0 : c,
-        break_sharing,
+        break_sharing=Val(BS),
     ) + init
 end
 
 """
-    sum(f::Function, tree::AbstractNode; result_type=Undefined, f_on_shared=_default_shared_aggregation, break_sharing::Val=Val(false)) where {F<:Function}
+    sum(f::Function, tree::AbstractNode; result_type=Undefined, f_on_shared=_default_shared_aggregation, break_sharing::Val{BS}=Val(false)) where {F<:Function,BS}
 
 Sum the results of a function over a tree. For graphs with shared nodes
 such as [`GraphNode`](@ref), the function `f_on_shared` is called on the result
@@ -386,7 +395,7 @@ function mapreduce(
             "Must specify `result_type` as a keyword argument to `mapreduce` if `preserve_sharing` is true."
         )
     end
-    return tree_mapreduce(f, op, tree, RT; f_on_shared, break_sharing)
+    return tree_mapreduce(f, op, tree, RT; f_on_shared, break_sharing=Val(BS))
 end
 
 isempty(::AbstractNode) = false
@@ -396,8 +405,8 @@ end
 @unstable iterate(::AbstractNode, stack) =
     isempty(stack) ? nothing : (popfirst!(stack), stack)
 in(item, tree::AbstractNode) = any(t -> t == item, tree)
-function length(tree::AbstractNode; break_sharing::Val=Val(false))
-    return count_nodes(tree; break_sharing)
+function length(tree::AbstractNode; break_sharing::Val{BS}=Val(false)) where {BS}
+    return count_nodes(tree; break_sharing=Val(BS))
 end
 
 """
@@ -407,8 +416,8 @@ Compute a hash of a tree. This will compute a hash differently
 if nodes are shared in a tree. This is ignored if `break_sharing` is set to `Val(true)`.
 """
 function hash(
-    tree::AbstractExpressionNode{T}, h::UInt=zero(UInt); break_sharing::Val=Val(false)
-) where {T}
+    tree::AbstractExpressionNode{T}, h::UInt=zero(UInt); break_sharing::Val{BS}=Val(false)
+) where {T,BS}
     return tree_mapreduce(
         t -> leaf_hash(h, t),
         identity,
@@ -417,7 +426,7 @@ function hash(
         UInt;
         f_on_shared=(cur_hash, is_shared) ->
             is_shared ? hash((:shared, cur_hash), h) : cur_hash,
-        break_sharing,
+        break_sharing=Val(BS),
     )
 end
 function leaf_hash(h::UInt, t::AbstractExpressionNode)
@@ -428,7 +437,7 @@ function branch_hash(h::UInt, t::AbstractExpressionNode, children::Vararg{Any,M}
 end
 
 """
-    copy_node(tree::AbstractExpressionNode; break_sharing::Val=Val(false))
+    copy_node(tree::AbstractExpressionNode; break_sharing::Val{BS}=Val(false)) where {BS}
 
 Copy a node, recursively copying all children nodes.
 This is more efficient than the built-in copy.
@@ -436,9 +445,9 @@ This is more efficient than the built-in copy.
 If `break_sharing` is set to `Val(true)`, sharing in a tree will be ignored.
 """
 function copy_node(
-    tree::N; break_sharing::Val=Val(false)
-) where {T,N<:AbstractExpressionNode{T}}
-    return tree_mapreduce(leaf_copy, identity, branch_copy, tree, N; break_sharing)
+    tree::N; break_sharing::Val{BS}=Val(false)
+) where {T,N<:AbstractExpressionNode{T},BS}
+    return tree_mapreduce(leaf_copy, identity, branch_copy, tree, N; break_sharing=Val(BS))
 end
 function leaf_copy(t::N) where {T,N<:AbstractExpressionNode{T}}
     if t.constant
@@ -459,8 +468,8 @@ This is more efficient than the built-in copy.
 
 If `break_sharing` is set to `Val(true)`, sharing in a tree will be ignored.
 """
-function copy(tree::AbstractExpressionNode; break_sharing::Val=Val(false))
-    return copy_node(tree; break_sharing)
+function copy(tree::AbstractExpressionNode; break_sharing::Val{BS}=Val(false)) where {BS}
+    return copy_node(tree; break_sharing=Val(BS))
 end
 
 """

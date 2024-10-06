@@ -37,7 +37,7 @@ kws = (;
 f = parse_expression(:(x * x - cos(2.5f0 * y + -0.5f0)); kws...)
 g = parse_expression(:(exp(-(y * y))); kws...)
 
-f_plus_g = StructuredExpression((; f, g), nt -> nt.f + nt.g)
+f_plus_g = StructuredExpression((; f, g); structure=nt -> nt.f + nt.g)
 ```
 
 Now, when evaluating `f_plus_g`, this expression type will
@@ -83,8 +83,8 @@ struct StructuredExpression{
 end
 
 function StructuredExpression(
-    trees::NamedTuple,
-    structure::F;
+    trees::NamedTuple;
+    structure::F,
     operators::Union{AbstractOperatorEnum,Nothing}=nothing,
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
     extra...,
