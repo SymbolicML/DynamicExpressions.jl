@@ -222,7 +222,7 @@ validate_not_all_defaults(::Type{<:AbstractExpressionNode}, val, feature, op, l,
 validate_not_all_defaults(::Type{<:AbstractExpressionNode{T}}, val, feature, op, l, r, children) where {T} = nothing
 function validate_not_all_defaults(::Type{N}, ::Nothing, ::Nothing, ::Nothing, ::Nothing, ::Nothing, ::Nothing) where {T,N<:AbstractExpressionNode{T}}
     error(
-        "Type setup error for $N(). "
+        "Encountered the call for $N() inside the generic constructor. "
         * "Did you forget to define `$(Base.typename(N).wrapper){T}() where {T} = new{T}()`?"
     )
     return nothing
