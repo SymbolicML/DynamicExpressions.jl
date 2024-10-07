@@ -100,7 +100,7 @@ and triplets of operations for lower memory usage.
 
 # Arguments
 - `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
-- `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
+- `cX::AbstractMatrix{T}`: The input data to evaluate the tree on, with shape `[num_features, num_rows]`.
 - `operators::OperatorEnum`: The operators used in the tree.
 - `eval_options::Union{EvalOptions,Nothing}`: See [`EvalOptions`](@ref) for documentation
     on the different evaluation modes.

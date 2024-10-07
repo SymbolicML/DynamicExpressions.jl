@@ -317,6 +317,30 @@ function extract_gradient(
     return extract_gradient(gradient.tree, get_tree(ex))
 end
 
+"""
+    string_tree(
+        ex::AbstractExpression,
+        operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+        variable_names=nothing,
+        kws...
+    )
+
+Convert an expression to a string representation.
+
+This method unpacks the operators and variable names from the expression and calls [`string_tree`](@ref StringsModule.string_tree) for `AbstractExpressionNode`.
+
+# Arguments
+
+- `ex`: The expression to convert to a string.
+- `operators`: (Optional) Operators to use. If `nothing`, operators are obtained from the expression.
+- `variable_names`: (Optional) Variable names to use in the string representation. If `nothing`, variable names are obtained from the expression.
+- `kws...`: Additional keyword arguments.
+
+# Returns
+
+- A string representation of the expression.
+
+"""
 function string_tree(
     ex::AbstractExpression,
     operators::Union{AbstractOperatorEnum,Nothing}=nothing;
@@ -367,6 +391,30 @@ function _validate_input(
     return nothing
 end
 
+"""
+    eval_tree_array(
+        ex::AbstractExpression,
+        cX::AbstractMatrix,
+        operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+        kws...
+    )
+
+Evaluate an expression over a given input data matrix.
+
+This method unpacks the operators from the expression and calls [`eval_tree_array`](@ref EvaluateModule.eval_tree_array) for `AbstractExpressionNode`.
+
+# Arguments
+
+- `ex`: The expression to evaluate.
+- `cX`: The input data matrix.
+- `operators`: (Optional) Operators to use. If `nothing`, operators are obtained from the expression.
+- `kws...`: Additional keyword arguments.
+
+# Returns
+
+- A tuple `(output, complete)` indicating the result and success of the evaluation.
+
+"""
 function eval_tree_array(
     ex::AbstractExpression,
     cX::AbstractMatrix,
@@ -381,6 +429,30 @@ end
 #  - eval_diff_tree_array
 #  - differentiable_eval_tree_array
 
+"""
+    eval_grad_tree_array(
+        ex::AbstractExpression,
+        cX::AbstractMatrix,
+        operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+        kws...
+    )
+
+Compute the forward-mode derivative of an expression.
+
+This method unpacks the operators from the expression and calls [`eval_grad_tree_array`](@ref EvaluateDerivativeModule.eval_grad_tree_array) for `AbstractExpressionNode`.
+
+# Arguments
+
+- `ex`: The expression to evaluate.
+- `cX`: The data matrix.
+- `operators`: (Optional) Operators to use. If `nothing`, operators are obtained from the expression.
+- `kws...`: Additional keyword arguments.
+
+# Returns
+
+- A tuple `(output, gradient, complete)` indicating the result, gradient, and success of the evaluation.
+
+"""
 function eval_grad_tree_array(
     ex::AbstractExpression,
     cX::AbstractMatrix,
@@ -404,6 +476,25 @@ function _grad_evaluator(
     _validate_input(ex, cX, operators)
     return _grad_evaluator(get_tree(ex), cX, get_operators(ex, operators); variable, kws...)
 end
+
+"""
+    (ex::AbstractExpression)(X, operators::Union{AbstractOperatorEnum,Nothing}=nothing; kws...)
+
+Evaluate the expression `ex` over the input data `X`.
+
+This method unpacks the operators from the expression and calls the corresponding method for `AbstractExpressionNode`.
+
+# Arguments
+
+- `X`: The input data to evaluate the expression on.
+- `operators`: (Optional) Operators to use. If `nothing`, operators are obtained from the expression.
+- `kws...`: Additional keyword arguments.
+
+# Returns
+
+- The result of evaluating the expression over the input data `X`.
+
+"""
 function (ex::AbstractExpression)(
     X, operators::Union{AbstractOperatorEnum,Nothing}=nothing; kws...
 )
