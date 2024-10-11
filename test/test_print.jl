@@ -1,7 +1,6 @@
 using Test
 using DynamicExpressions
 import DynamicExpressions as DE
-import Compat: Returns
 
 include("test_params.jl")
 

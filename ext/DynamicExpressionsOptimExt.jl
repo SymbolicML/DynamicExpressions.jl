@@ -8,7 +8,6 @@ using DynamicExpressions:
     get_scalar_constants,
     set_scalar_constants!,
     get_number_type
-using Compat: @inline
 
 import Optim: Optim, OptimizationResults, NLSolversBase
 

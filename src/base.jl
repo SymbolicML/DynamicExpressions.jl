@@ -24,7 +24,6 @@ import Base:
     sum
 
 using DispatchDoctor: @unstable
-using Compat: @inline, Returns
 using ..UtilsModule: Undefined
 
 """
