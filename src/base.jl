@@ -121,23 +121,9 @@ struct TreeMapreducer{
     f_on_shared::H
 end
 
-function call_mapreducer(mapreducer::TreeMapreducer{2,Nothing}, tree::AbstractNode)
-    if tree.degree == 0
-        return mapreducer.f_leaf(tree)
-    elseif tree.degree == 1
-        return mapreducer.op(mapreducer.f_branch(tree), call_mapreducer(mapreducer, tree.l))
-    else
-        return mapreducer.op(
-            mapreducer.f_branch(tree),
-            call_mapreducer(mapreducer, tree.l),
-            call_mapreducer(mapreducer, tree.r),
-        )
-    end
-end
-function call_mapreducer(mapreducer::TreeMapreducer{2,<:Dict}, tree::AbstractNode)
-    key = objectid(tree)
-    is_cached = haskey(mapreducer.id_map, key)
-    if is_cached
+function call_mapreducer(mapreducer::TreeMapreducer{2,ID}, tree::AbstractNode) where {ID}
+    key = ID <: Dict ? objectid(tree) : nothing
+    if ID <: Dict && haskey(mapreducer.id_map, key)
         result = @inbounds(mapreducer.id_map[key])
         return mapreducer.f_on_shared(result, true)
     else
@@ -152,8 +138,12 @@ function call_mapreducer(mapreducer::TreeMapreducer{2,<:Dict}, tree::AbstractNod
                 call_mapreducer(mapreducer, tree.r),
             )
         end
-        mapreducer.id_map[key] = result
-        return mapreducer.f_on_shared(result, false)
+        if ID <: Dict
+            mapreducer.id_map[key] = result
+            return mapreducer.f_on_shared(result, false)
+        else
+            return result
+        end
     end
 end
 
