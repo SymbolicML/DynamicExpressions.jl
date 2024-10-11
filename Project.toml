@@ -1,7 +1,7 @@
 name = "DynamicExpressions"
 uuid = "a40a106e-89c9-4ca8-8020-a735e8728b6b"
 authors = ["MilesCranmer <miles.cranmer@gmail.com>"]
-version = "1.0.2"
+version = "1.1.0"
 
 [deps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
@@ -43,7 +43,7 @@ PrecompileTools = "1"
 Reexport = "1"
 SymbolicUtils = "0.19, ^1.0.5, 2, 3"
 Zygote = "0.6"
-julia = "1.6"
+julia = "1.10"
 
 [extras]
 Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
