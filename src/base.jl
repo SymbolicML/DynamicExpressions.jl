@@ -103,10 +103,10 @@ function tree_mapreduce(
     if sharing && RT != Undefined
         id_map = allocate_id_map(tree, RT)
         reducer = TreeMapreducer(Val(2), id_map, f_leaf, f_branch, op, f_on_shared)
-        return reducer(tree)
+        return call_mapreducer(reducer, tree)
     else
         reducer = TreeMapreducer(Val(2), nothing, f_leaf, f_branch, op, f_on_shared)
-        return reducer(tree)
+        return call_mapreducer(reducer, tree)
     end
 end
 
@@ -121,29 +121,36 @@ struct TreeMapreducer{
     f_on_shared::H
 end
 
-function (mapreducer::TreeMapreducer{2,Nothing})(tree::AbstractNode)
+function call_mapreducer(mapreducer::TreeMapreducer{2,Nothing}, tree::AbstractNode)
     if tree.degree == 0
         return mapreducer.f_leaf(tree)
     elseif tree.degree == 1
-        return mapreducer.op(mapreducer.f_branch(tree), mapreducer(tree.l))
+        return mapreducer.op(mapreducer.f_branch(tree), call_mapreducer(mapreducer, tree.l))
     else
         return mapreducer.op(
-            mapreducer.f_branch(tree), mapreducer(tree.l), mapreducer(tree.r)
+            mapreducer.f_branch(tree),
+            call_mapreducer(mapreducer, tree.l),
+            call_mapreducer(mapreducer, tree.r),
         )
     end
 end
-function (mapreducer::TreeMapreducer{2,Dict})(tree::AbstractNode)
+function call_mapreducer(mapreducer::TreeMapreducer{2,<:Dict}, tree::AbstractNode)
     key = objectid(tree)
     is_cached = haskey(mapreducer.id_map, key)
     if is_cached
-        return mapreducer.f_on_shared(@inbounds(mapreducer.id_map[key]), true)
+        result = @inbounds(mapreducer.id_map[key])
+        return mapreducer.f_on_shared(result, true)
     else
         result = if tree.degree == 0
             mapreducer.f_leaf(tree)
         elseif tree.degree == 1
-            mapreducer.op(mapreducer.f_branch(tree), mapreducer(tree.l))
+            mapreducer.op(mapreducer.f_branch(tree), call_mapreducer(mapreducer, tree.l))
         else
-            mapreducer.op(mapreducer.f_branch(tree), mapreducer(tree.l), mapreducer(tree.r))
+            mapreducer.op(
+                mapreducer.f_branch(tree),
+                call_mapreducer(mapreducer, tree.l),
+                call_mapreducer(mapreducer, tree.r),
+            )
         end
         mapreducer.id_map[key] = result
         return mapreducer.f_on_shared(result, false)
