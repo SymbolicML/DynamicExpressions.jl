@@ -3,7 +3,7 @@ module NodeModule
 using DispatchDoctor: @unstable
 
 import ..OperatorEnumModule: AbstractOperatorEnum
-import ..UtilsModule: @memoize_on, @with_memoize, deprecate_varmap, Undefined
+import ..UtilsModule: deprecate_varmap, Undefined
 
 const DEFAULT_NODE_TYPE = Float32
 

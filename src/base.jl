@@ -94,7 +94,7 @@ function tree_mapreduce(
     f_on_shared::H=(result, is_shared) -> result,
     break_sharing::Val{BS}=Val(false),
 ) where {F1<:Function,F2<:Function,G<:Function,H<:Function,RT,BS}
-    sharing = preserve_sharing(typeof(tree)) && !break_sharing
+    sharing = preserve_sharing(typeof(tree)) && !BS
 
     RT == Undefined &&
         sharing &&
@@ -110,7 +110,9 @@ function tree_mapreduce(
     end
 end
 
-struct TreeMapreducer{D,ID,F1<:Function,F2<:Function,G<:Function,H<:Function}
+struct TreeMapreducer{
+    D,ID<:Union{Nothing,Dict},F1<:Function,F2<:Function,G<:Function,H<:Function
+}
     max_degree::Val{D}
     id_map::ID
     f_leaf::F1
@@ -119,43 +121,32 @@ struct TreeMapreducer{D,ID,F1<:Function,F2<:Function,G<:Function,H<:Function}
     f_on_shared::H
 end
 
-@generated function (mapreducer::TreeMapreducer{MAX_DEGREE,ID})(
-    tree::AbstractNode
-) where {MAX_DEGREE,ID}
-    base_expr = quote
-        d = tree.degree
-        Base.Cartesian.@nif(
-            $(MAX_DEGREE + 1),
-            d_p_one -> (d_p_one - 1) == d,
-            d_p_one -> if d_p_one == 1
-                mapreducer.f_leaf(tree)
-            else
-                mapreducer.op(
-                    mapreducer.f_branch(tree),
-                    Base.Cartesian.@ntuple(
-                        d_p_one - 1, i -> mapreducer(tree.children[i][])
-                    )...,
-                )
-            end
+function (mapreducer::TreeMapreducer{2,Nothing})(tree::AbstractNode)
+    if tree.degree == 0
+        return mapreducer.f_leaf(tree)
+    elseif tree.degree == 1
+        return mapreducer.op(mapreducer.f_branch(tree), mapreducer(tree.l))
+    else
+        return mapreducer.op(
+            mapreducer.f_branch(tree), mapreducer(tree.l), mapreducer(tree.r)
         )
     end
-    if ID <: Nothing
-        # No sharing of nodes (is a tree, not a graph)
-        return base_expr
+end
+function (mapreducer::TreeMapreducer{2,Dict})(tree::AbstractNode)
+    key = objectid(tree)
+    is_cached = haskey(mapreducer.id_map, key)
+    if is_cached
+        return mapreducer.f_on_shared(@inbounds(mapreducer.id_map[key]), true)
     else
-        # Otherwise, we need to cache results in `id_map`
-        # according to `objectid` of the node
-        return quote
-            key = objectid(tree)
-            is_cached = haskey(mapreducer.id_map, key)
-            if is_cached
-                return mapreducer.f_on_shared(@inbounds(mapreducer.id_map[key]), true)
-            else
-                res = $base_expr
-                mapreducer.id_map[key] = res
-                return mapreducer.f_on_shared(res, false)
-            end
+        result = if tree.degree == 0
+            mapreducer.f_leaf(tree)
+        elseif tree.degree == 1
+            mapreducer.op(mapreducer.f_branch(tree), mapreducer(tree.l))
+        else
+            mapreducer.op(mapreducer.f_branch(tree), mapreducer(tree.l), mapreducer(tree.r))
         end
+        mapreducer.id_map[key] = result
+        return mapreducer.f_on_shared(result, false)
     end
 end
 
