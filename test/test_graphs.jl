@@ -109,17 +109,6 @@ end
             :(_convert(Node{T1}, tree, IdDict{Node{T2},Node{T1}}())),
         )
     end
-
-    @testset "@with_memoize" begin
-        ex = @macroexpand DynamicExpressions.UtilsModule.@with_memoize(
-            _convert(Node{T1}, tree), IdDict{Node{T2},Node{T1}}()
-        )
-        true_ex = quote
-            _convert(Node{T1}, tree, IdDict{Node{T2},Node{T1}}())
-        end
-
-        @test expr_eql(ex, true_ex)
-    end
 end
 
 @testset "Operations on graphs" begin
