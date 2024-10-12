@@ -24,7 +24,6 @@ using DispatchDoctor: @stable, @unstable
     include("StructuredExpression.jl")
 end
 
-import PackageExtensionCompat: @require_extensions
 import Reexport: @reexport
 macro ignore(args...) end
 
@@ -103,10 +102,6 @@ end
 
 import .InterfacesModule:
     ExpressionInterface, NodeInterface, all_ei_methods_except, all_ni_methods_except
-
-function __init__()
-    @require_extensions
-end
 
 include("deprecated.jl")
 

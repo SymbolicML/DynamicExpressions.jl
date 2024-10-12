@@ -34,9 +34,7 @@ jobs:
           - macOS-latest
         include:
           - os: ubuntu-latest
-            julia-version: '1.7'
-          - os: ubuntu-latest
-            julia-version: '1.6'
+            julia-version: '1.10'
 
     steps:
       - uses: actions/checkout@v2
