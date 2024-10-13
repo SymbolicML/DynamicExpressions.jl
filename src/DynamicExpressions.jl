@@ -21,6 +21,7 @@ using DispatchDoctor: @stable, @unstable
     include("Random.jl")
     include("Parse.jl")
     include("ParametricExpression.jl")
+    include("ReadOnlyNode.jl")
     include("StructuredExpression.jl")
 end
 
@@ -92,6 +93,7 @@ import .ExpressionModule:
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
 @reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode
+import .ReadOnlyNodeModule: ReadOnlyNode
 @reexport import .StructuredExpressionModule: StructuredExpression
 import .StructuredExpressionModule: AbstractStructuredExpression
 

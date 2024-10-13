@@ -52,6 +52,7 @@ using ..ExpressionModule:
     with_metadata,
     default_node_type
 using ..ParametricExpressionModule: ParametricExpression, ParametricNode
+using ..ReadOnlyNodeModule: AbstractReadOnlyNode
 using ..StructuredExpressionModule: StructuredExpression
 
 ###############################################################################
@@ -68,7 +69,7 @@ function _check_get_metadata(ex::AbstractExpression)
     return new_ex == ex && new_ex isa typeof(ex)
 end
 function _check_get_tree(ex::AbstractExpression{T,N}) where {T,N}
-    return get_tree(ex) isa N
+    return get_tree(ex) isa N || get_tree(ex) isa AbstractReadOnlyNode{T,N}
 end
 function _check_get_operators(ex::AbstractExpression)
     return get_operators(ex) isa AbstractOperatorEnum
@@ -134,7 +135,8 @@ function _check_constructorof(ex::AbstractExpression)
     return constructorof(typeof(ex)) isa Base.Callable
 end
 function _check_tree_mapreduce(ex::AbstractExpression{T,N}) where {T,N}
-    return tree_mapreduce(node -> [node], vcat, ex) isa Vector{N}
+    return tree_mapreduce(node -> [node], vcat, ex) isa
+           (Vector{N2} where {N2<:Union{N,AbstractReadOnlyNode{T,N}}})
 end
 
 #! format: off
