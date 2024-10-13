@@ -93,6 +93,7 @@ import .ExpressionModule:
 import .ParseModule: parse_leaf
 @reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode
 @reexport import .StructuredExpressionModule: StructuredExpression
+import .StructuredExpressionModule: AbstractStructuredExpression
 
 @stable default_mode = "disable" begin
     include("Interfaces.jl")

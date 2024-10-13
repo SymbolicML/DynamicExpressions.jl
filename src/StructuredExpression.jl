@@ -21,11 +21,11 @@ import ..ExpressionModule:
     set_scalar_constants!
 
 abstract type AbstractStructuredExpression{
-    T,F<:Function,N<:AbstractExpressionNode{T},E<:AbstractExpression{T,N}
+    T,F<:Function,N<:AbstractExpressionNode{T},E<:AbstractExpression{T,N},D<:NamedTuple
 } <: AbstractExpression{T,N} end
 
 """
-    StructuredExpression{T,F,N,E,TS,D} <: AbstractStructuredExpression{T,F,N,E} <: AbstractExpression{T,N}
+    StructuredExpression{T,F,N,E,TS,D} <: AbstractStructuredExpression{T,F,N,E,D} <: AbstractExpression{T,N}
 
 This expression type allows you to combine multiple expressions
 together in a predefined way.
@@ -78,7 +78,7 @@ struct StructuredExpression{
     E<:AbstractExpression{T,N},
     TS<:NamedTuple{<:Any,<:NTuple{<:Any,E}},
     D<:@NamedTuple{structure::F, operators::O, variable_names::V} where {O,V},
-} <: AbstractStructuredExpression{T,F,N,E}
+} <: AbstractStructuredExpression{T,F,N,E,D}
     trees::TS
     metadata::Metadata{D}
 
