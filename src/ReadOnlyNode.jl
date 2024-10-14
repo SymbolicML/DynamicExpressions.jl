@@ -6,7 +6,7 @@ import ..NodeModule: default_allocator, with_type_parameters, constructorof
 abstract type AbstractReadOnlyNode{T,N<:AbstractExpressionNode{T}} <:
               AbstractExpressionNode{T} end
 
-"""A type of expression node that also stores a parameter index"""
+"""A type of expression node that prevents writing to the inner node"""
 struct ReadOnlyNode{T,N} <: AbstractReadOnlyNode{T,N}
     _inner::N
 
