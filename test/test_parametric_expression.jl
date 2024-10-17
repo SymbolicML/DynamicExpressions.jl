@@ -329,7 +329,7 @@ end
                 X[1, i] * X[1, i] - cos(c[1] * X[2, i]) + params[1, classes[i]] for
                 i in 1:32
             ]
-            sum(abs2, pred .- y)
+            return sum(abs2, pred .- y)
         end
 
     operators = OperatorEnum(; unary_operators=[cos], binary_operators=[+, *, -])

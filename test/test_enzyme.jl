@@ -24,7 +24,7 @@ doutput = [1.0]
 fetch(
     schedule(
         Task(64 * 1024^2) do
-            autodiff(
+            return autodiff(
                 Reverse,
                 f,
                 Const(tree),
@@ -62,7 +62,7 @@ d_tree = begin
     fetch(
         schedule(
             Task(64 * 1024^2) do
-                autodiff(
+                return autodiff(
                     Reverse,
                     my_loss_function,
                     Active,

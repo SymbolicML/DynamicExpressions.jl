@@ -54,7 +54,7 @@ end
         # Capture stdout to variable:
         pipe = Pipe()
         redirect_stdout(pipe) do
-            print_tree(tree, operators)
+            return print_tree(tree, operators)
         end
         close(pipe.in)
         s = read(pipe.out, String)

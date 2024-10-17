@@ -29,7 +29,7 @@ if "jet" in test_name
         )
             s_mod = string(mod.mod)
             any(report.vst) do vst
-                occursin(s_mod, string(JET.linfomod(vst.linfo)))
+                return occursin(s_mod, string(JET.linfomod(vst.linfo)))
             end
         end
         if VERSION >= v"1.10"

@@ -276,7 +276,7 @@ function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
         elseif leaf.is_parameter
             Node(T; feature=leaf.parameter)
         else
-            Node(T; feature=leaf.feature + num_params)
+            Node(T; feature=(leaf.feature + num_params))
         end,
         branch -> branch.op,
         (op, children...) -> Node(; op, children),
@@ -322,8 +322,8 @@ end
 #! format: on
 function (ex::ParametricExpression)(
     X::AbstractMatrix{T},
-    classes::AbstractVector{<:Integer},
-    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+    classes::AbstractVector{<:Integer};
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing,
     kws...,
 ) where {T}
     (output, flag) = eval_tree_array(ex, X, classes, operators; kws...)
@@ -335,8 +335,8 @@ end
 function eval_tree_array(
     ex::ParametricExpression{T},
     X::AbstractMatrix{T},
-    classes::AbstractVector{<:Integer},
-    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+    classes::AbstractVector{<:Integer};
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing,
     kws...,
 ) where {T}
     @assert length(classes) == size(X, 2)

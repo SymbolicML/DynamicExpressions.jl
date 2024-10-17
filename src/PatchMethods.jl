@@ -9,7 +9,7 @@ import ..SimplifyModule: combine_operators, simplify_tree!
 
 # Avoid implementing a generic version for these, as it is less likely to generalize
 function combine_operators(
-    ex::Union{Expression{T,N},ParametricExpression{T,N}},
+    ex::Union{Expression{T,N},ParametricExpression{T,N}};
     operators::Union{AbstractOperatorEnum,Nothing}=nothing,
 ) where {T,N}
     return with_contents(
@@ -17,7 +17,7 @@ function combine_operators(
     )
 end
 function simplify_tree!(
-    ex::Union{Expression{T,N},ParametricExpression{T,N}},
+    ex::Union{Expression{T,N},ParametricExpression{T,N}};
     operators::Union{AbstractOperatorEnum,Nothing}=nothing,
 ) where {T,N}
     return with_contents(ex, simplify_tree!(get_contents(ex), get_operators(ex, operators)))

@@ -77,8 +77,8 @@ end  # Get list of constants. (regular mapreduce also works)
 function tree_mapreduce(
     f::F,
     op::G,
-    tree::AbstractNode,
-    result_type::Type{RT}=Undefined;
+    tree::AbstractNode;
+    result_type::Type{RT}=Undefined,
     f_on_shared::H=(result, is_shared) -> result,
     break_sharing::Val{BS}=Val(false),
 ) where {RT,F<:Function,G<:Function,H<:Function,BS}
@@ -88,8 +88,8 @@ function tree_mapreduce(
     f_leaf::F1,
     f_branch::F2,
     op::G,
-    tree::AbstractNode,
-    result_type::Type{RT}=Undefined;
+    tree::AbstractNode;
+    result_type::Type{RT}=Undefined,
     f_on_shared::H=(result, is_shared) -> result,
     break_sharing::Val{BS}=Val(false),
 ) where {F1<:Function,F2<:Function,G<:Function,H<:Function,RT,BS}
@@ -346,8 +346,8 @@ Pre-specifying the `result_type` of the function can be used to avoid extra allo
 """
 function map(
     f::F,
-    tree::AbstractNode,
-    result_type::Type{RT}=Nothing;
+    tree::AbstractNode;
+    result_type::Type{RT}=Nothing,
     break_sharing::Val{BS}=Val(false),
 ) where {F<:Function,RT,BS}
     if RT == Nothing
@@ -441,7 +441,7 @@ Compute a hash of a tree. This will compute a hash differently
 if nodes are shared in a tree. This is ignored if `break_sharing` is set to `Val(true)`.
 """
 function hash(
-    tree::AbstractExpressionNode{T}, h::UInt=zero(UInt); break_sharing::Val{BS}=Val(false)
+    tree::AbstractExpressionNode{T}; h::UInt=zero(UInt), break_sharing::Val{BS}=Val(false)
 ) where {T,BS}
     return tree_mapreduce(
         t -> leaf_hash(h, t),

@@ -159,7 +159,7 @@ function set_scalar_constants!(e::AbstractStructuredExpression, constants, refs)
         i = cursor[]
         c = constants[i:(i + n - 1)]
         set_scalar_constants!(tree, c, r.ref)
-        cursor[] += n
+        return cursor[] += n
     end
     return e
 end

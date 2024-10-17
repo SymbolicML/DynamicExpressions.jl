@@ -42,8 +42,9 @@ end
 
 Sample a node from a tree according to the default sampler `NodeSampler(; tree)`.
 """
-rand(rng::AbstractRNG, tree::Union{AbstractNode,AbstractExpression}) =
-    rand(rng, NodeSampler(; tree))
+function rand(rng::AbstractRNG, tree::Union{AbstractNode,AbstractExpression})
+    return rand(rng, NodeSampler(; tree))
+end
 
 """
     rand(rng::AbstractRNG, sampler::NodeSampler)
@@ -79,7 +80,7 @@ function _get_node(
         if @inline(filter_f(node)) && (i[] += 1) == idx
             out[] = node
         end
-        nothing
+        return nothing
     end
     return out[]
 end

@@ -46,7 +46,7 @@ end
 
 index_md = joinpath(@__DIR__, "src", "index.md")
 open(index_md, "w") do f
-    write(f, index_content)
+    return write(f, index_content)
 end
 
 ####################################
@@ -97,7 +97,7 @@ types_dir = joinpath(@__DIR__, "build", "types")
 mkpath(types_dir)
 redirect_file = joinpath(types_dir, "index.html")
 open(redirect_file, "w") do f
-    write(f, redirect_page)
+    return write(f, redirect_page)
 end
 
 deploydocs(; repo="github.com/SymbolicML/DynamicExpressions.jl.git")

@@ -37,7 +37,7 @@ subs_bad(x) = is_valid(x) ? x : Inf
 
 function parse_tree_to_eqs(
     tree::AbstractExpressionNode{T},
-    operators::AbstractOperatorEnum,
+    operators::AbstractOperatorEnum;
     index_functions::Bool=false,
 ) where {T}
     if tree.degree == 0
@@ -86,8 +86,8 @@ convert_to_function(x, operators::AbstractOperatorEnum) = x
 function split_eq(
     op,
     args,
-    operators::AbstractOperatorEnum,
-    ::Type{N}=Node;
+    operators::AbstractOperatorEnum;
+    (::Type{N})=Node,
     variable_names::Union{Array{String,1},Nothing}=nothing,
     # Deprecated:
     varMap=nothing,
@@ -225,8 +225,8 @@ end
 
 function symbolic_to_node(
     eqn::SymbolicUtils.Symbolic,
-    operators::AbstractOperatorEnum,
-    ::Type{N}=Node;
+    operators::AbstractOperatorEnum;
+    (::Type{N})=Node,
     variable_names::Union{Array{String,1},Nothing}=nothing,
     # Deprecated:
     varMap=nothing,

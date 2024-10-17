@@ -135,8 +135,8 @@ Convert an equation to a string.
 - `variable_names::Union{Array{String, 1}, Nothing}=nothing`: (optional) what variables to print for each feature.
 """
 function string_tree(
-    tree::AbstractExpressionNode{T},
-    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+    tree::AbstractExpressionNode{T};
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing,
     f_variable::F1=string_variable,
     f_constant::F2=string_constant,
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,

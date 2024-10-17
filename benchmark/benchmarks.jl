@@ -236,14 +236,14 @@ function benchmark_utilities()
             [get_set_constants!(ex) for ex in exs],
             seconds = 10.0,
             setup = (
-                operators = $operators;
-                ntrees = 100;
-                n = 20;
-                n_features = 5;
-                n_params = 3;
-                n_param_classes = 10;
-                rng = Random.MersenneTwister(0);
-                exs = [
+                operators=($operators);
+                ntrees=100;
+                n=20;
+                n_features=5;
+                n_params=3;
+                n_param_classes=10;
+                rng=Random.MersenneTwister(0);
+                exs=[
                     let tree = gen_random_tree_fixed_size(
                             n, operators, n_features, Float32, ParametricNode, rng
                         )

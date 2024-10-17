@@ -317,7 +317,7 @@ end
             Base.Cartesian.@nif($nbin, i -> i == op_idx, i -> $deg2_branch_skeleton)
         end
     end
-    quote
+    return quote
         if tree.degree == 0
             grad_deg0_eval(tree, n_gradients, index_tree, cX, Val(mode))
         elseif tree.degree == 1

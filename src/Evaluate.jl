@@ -355,7 +355,7 @@ end
     nbin = counttuple(binops)
     # (Note this is only called from dispatch_deg1_eval, which has already
     # checked for long compilation times, so we don't need to check here)
-    quote
+    return quote
         Base.Cartesian.@nif(
             $nbin,
             j -> j == l_op_idx,
@@ -374,7 +374,7 @@ end
     eval_options::EvalOptions,
 )::ResultOk where {T,F}
     nuna = counttuple(unaops)
-    quote
+    return quote
         Base.Cartesian.@nif(
             $nuna,
             j -> j == l_op_idx,
@@ -661,7 +661,7 @@ end
 )::ResultOk where {T<:Number,T1}
     nuna = get_nuna(operators)
     nbin = get_nbin(operators)
-    quote
+    return quote
         if tree.degree == 0
             if tree.constant
                 ResultOk(fill_similar(one(T), cX, axes(cX, 2)) .* tree.val, true)

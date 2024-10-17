@@ -65,7 +65,7 @@ end
     ctree = copy(tree)
     counter = Ref(0)
     foreach(ctree) do t
-        counter.x += 1
+        return counter.x += 1
     end
     @test counter.x == 24
     foreach(ctree) do t
@@ -148,7 +148,7 @@ end
         t -> Int(t.degree), (p, c...) -> prod(x -> max(x, 1), (p, c...)), tree
     ) == 2048
     @test mapreduce(+, tree) do t
-        1
+        return 1
     end == 24
 end
 

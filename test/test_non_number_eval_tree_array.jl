@@ -61,7 +61,7 @@ end
 DE.get_number_type(::Type{<:DynamicTensor{T}}) where {T} = T
 
 @generated function DE.is_valid(val::DynamicTensor{<:Any,N}) where {N}
-    quote
+    return quote
         @nif($(N + 1), i -> i == val.dims + 1, i -> if i == 1
             is_valid(val.data[i][])
         else
@@ -83,7 +83,7 @@ end
 end
 
 @generated function DE.count_scalar_constants(val::DynamicTensor{<:Any,N}) where {N}
-    quote
+    return quote
         @nif($(N + 1), i -> i == val.dims + 1, i -> i == 1 ? 1 : length(val.data[i]))
     end
 end
@@ -91,7 +91,7 @@ end
 @generated function DE.pack_scalar_constants!(
     nvals::AbstractVector{BT}, idx::Int64, val::DynamicTensor{BT,N}
 ) where {BT<:Number,N}
-    quote
+    return quote
         @nif($(N + 1), i -> i == val.dims + 1, i -> if i == 1
             nvals[idx] = val.data[i][]
             idx + 1
@@ -107,7 +107,7 @@ end
 @generated function DE.unpack_scalar_constants(
     nvals::AbstractVector{BT}, idx::Int64, val::DynamicTensor{BT,N}
 ) where {BT<:Number,N}
-    quote
+    return quote
         @nif(
             $(N + 1),
             i -> i == val.dims + 1,

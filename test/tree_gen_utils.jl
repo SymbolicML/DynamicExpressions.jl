@@ -15,7 +15,7 @@ Return a random node from the tree. You may optionally
 filter the nodes matching some condition before sampling.
 """
 function random_node(
-    tree::AbstractNode, rng::AbstractRNG=default_rng(); filter::F=Returns(true)
+    tree::AbstractNode; rng::AbstractRNG=default_rng(), filter::F=Returns(true)
 ) where {F<:Function}
     Base.depwarn(
         "Instead of `random_node(tree, filter)`, use `rand(NodeSampler(; tree, filter))`",
@@ -25,7 +25,7 @@ function random_node(
 end
 
 function make_random_leaf(
-    nfeatures::Int, ::Type{T}, ::Type{N}, rng::AbstractRNG=default_rng()
+    nfeatures::Int, ::Type{T}, ::Type{N}; rng::AbstractRNG=default_rng()
 ) where {T,N<:AbstractExpressionNode}
     if rand(rng, Bool)
         return constructorof(N)(; val=randn(rng, T))
@@ -38,8 +38,8 @@ end
 function append_random_op(
     tree::AbstractExpressionNode{T},
     operators,
-    nfeatures::Int,
-    rng::AbstractRNG=default_rng();
+    nfeatures::Int;
+    rng::AbstractRNG=default_rng(),
     makeNewBinOp::Union{Bool,Nothing}=nothing,
 ) where {T}
     node = rand(rng, NodeSampler(; tree, filter=t -> t.degree == 0))
@@ -72,7 +72,7 @@ function gen_random_tree_fixed_size(
     node_count::Int,
     operators,
     nfeatures::Int,
-    ::Type{T},
+    ::Type{T};
     node_type=Node,
     rng::AbstractRNG=default_rng(),
 ) where {T}

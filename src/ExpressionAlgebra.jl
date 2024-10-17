@@ -83,32 +83,28 @@ the operator is unary (1) or binary (2).
 macro declare_expression_operator(op, arity)
     @assert arity ∈ (1, 2)
     if arity == 1
-        return esc(
-            quote
-                $op(l::AbstractExpression) = $(apply_operator)($op, l)
-            end,
-        )
+        return esc(quote
+            $op(l::AbstractExpression) = $(apply_operator)($op, l)
+        end)
     elseif arity == 2
-        return esc(
-            quote
-                function $op(l::AbstractExpression, r::AbstractExpression)
-                    return $(apply_operator)($op, l, r)
-                end
-                function $op(l::T, r::AbstractExpression{T}) where {T}
-                    return $(apply_operator)($op, l, r)
-                end
-                function $op(l::AbstractExpression{T}, r::T) where {T}
-                    return $(apply_operator)($op, l, r)
-                end
-                # Convenience methods for Number types
-                function $op(l::Number, r::AbstractExpression{T}) where {T}
-                    return $(apply_operator)($op, l, r)
-                end
-                function $op(l::AbstractExpression{T}, r::Number) where {T}
-                    return $(apply_operator)($op, l, r)
-                end
-            end,
-        )
+        return esc(quote
+            function $op(l::AbstractExpression, r::AbstractExpression)
+                return $(apply_operator)($op, l, r)
+            end
+            function $op(l::T, r::AbstractExpression{T}) where {T}
+                return $(apply_operator)($op, l, r)
+            end
+            function $op(l::AbstractExpression{T}, r::T) where {T}
+                return $(apply_operator)($op, l, r)
+            end
+            # Convenience methods for Number types
+            function $op(l::Number, r::AbstractExpression{T}) where {T}
+                return $(apply_operator)($op, l, r)
+            end
+            function $op(l::AbstractExpression{T}, r::Number) where {T}
+                return $(apply_operator)($op, l, r)
+            end
+        end)
     end
 end
 

@@ -239,12 +239,12 @@ end
         @test count(_ -> true, tree; break_sharing=Val(true)) == 3
         c = typeof(x)[]
         foreach(tree) do n
-            push!(c, n)
+            return push!(c, n)
         end
         @test c == [tree, x]
         c = typeof(x)[]
         foreach(tree; break_sharing=Val(true)) do n
-            push!(c, n)
+            return push!(c, n)
         end
         @test c == [tree, x, x]
 
