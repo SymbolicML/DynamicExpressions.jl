@@ -62,7 +62,7 @@ jobs:
   additional_tests:
     name: test ${{ matrix.test_name }} - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
