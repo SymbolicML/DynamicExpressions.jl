@@ -33,29 +33,29 @@ has_identity_one(_) = false
 simplifies_given_equal_operands(::typeof(/)) = true
 simplifies_given_equal_operands(_) = false
 
-combine_operators(tree::AbstractExpressionNode, ::AbstractOperatorEnum) = tree
+combine_operators!(tree::AbstractExpressionNode, ::AbstractOperatorEnum) = tree
 
-function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
+function combine_operators!(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
     deg = tree.degree
     deg == 0 && return tree
-    tree.l = combine_operators(tree.l, operators)
+    tree.l = combine_operators!(tree.l, operators)
     deg == 1 && return tree
-    tree.r = combine_operators(tree.r, operators)
-    return dispatch_deg2_simplify(tree, operators)
+    tree.r = combine_operators!(tree.r, operators)
+    return dispatch_deg2_simplify!(tree, operators)
 end
-@generated function dispatch_deg2_simplify(
+@generated function dispatch_deg2_simplify!(
     tree::Node{T}, operators::AbstractOperatorEnum
 ) where {T}
     nbin = get_nbin(operators)
     quote
         op_idx = tree.op
         return Base.Cartesian.@nif(
-            $nbin, i -> i == op_idx, i -> _combine_operators_on(operators.binops[i], tree)
+            $nbin, i -> i == op_idx, i -> _combine_operators_on!(tree, operators.binops[i])
         )
     end
 end
 
-function _combine_operators_on(f::F, tree::Node{T}) where {F,T}
+function _combine_operators_on!(tree::Node{T}, f::F) where {F,T}
     # NOTE: This assumes tree.degree == 2 and tree.op corresponds to f
     # Handle basic simplifications first
     if is_node_constant(tree.r)

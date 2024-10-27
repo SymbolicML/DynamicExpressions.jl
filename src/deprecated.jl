@@ -2,6 +2,7 @@ import Base: @deprecate
 import .NodeModule: Node, GraphNode
 
 @deprecate simplify_tree(tree, operators) simplify_tree!(tree, operators)
+@deprecate combine_operators(tree, operators) combine_operators!(tree, operators)
 
 for N in (:Node, :GraphNode)
     @eval begin

@@ -94,12 +94,12 @@ end
         Node(1, Node(1, Node(; val=0.1), Node(; val=0.2)) + Node(; val=0.2)) +
         Node(; val=2.0)
     @test repr(tree) ≈ "(cos((0.1 + 0.2) + 0.2) + 2.0)"
-    @test repr(combine_operators(tree, operators)) ≈ "(cos(0.4 + 0.1) + 2.0)"
+    @test repr(combine_operators!(tree, operators)) ≈ "(cos(0.4 + 0.1) + 2.0)"
 end
 
 @testitem "Basic operator simplifications" begin
     using DynamicExpressions, Test
-    import DynamicExpressions.SimplifyModule: combine_operators
+    import DynamicExpressions.SimplifyModule: combine_operators!
 
     operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(cos, sin))
     x = Node(; feature=1)
@@ -110,52 +110,52 @@ end
 
     # multiplication by 0
     tree = zero_node * x
-    @test combine_operators(tree, operators) == zero_node
+    @test combine_operators!(tree, operators) == zero_node
     tree = x * zero_node
-    @test combine_operators(tree, operators) == zero_node
+    @test combine_operators!(tree, operators) == zero_node
 
     # multiplication by 1
     tree = one_node * x
-    @test combine_operators(tree, operators) == x
+    @test combine_operators!(tree, operators) == x
     tree = x * one_node
-    @test combine_operators(tree, operators) == x
+    @test combine_operators!(tree, operators) == x
 
     # addition by 0
     tree = zero_node + x
-    @test combine_operators(tree, operators) == x
+    @test combine_operators!(tree, operators) == x
     tree = x + zero_node
-    @test combine_operators(tree, operators) == x
+    @test combine_operators!(tree, operators) == x
 
     # division by self -> 1
     tree = x / x
-    @test combine_operators(tree, operators).val == 1.0
+    @test combine_operators!(tree, operators).val == 1.0
 
     # nested multiplication by constants
     tree1 = (two_node * x) * three_node
     tree2 = Node(; val=6.0) * x
-    @test combine_operators(tree1, operators) == combine_operators(tree2, operators)
+    @test combine_operators!(tree1, operators) == combine_operators!(tree2, operators)
 end
 
 @testitem "Constant combination" begin
     using DynamicExpressions, Test
-    import DynamicExpressions.SimplifyModule: combine_operators
+    import DynamicExpressions.SimplifyModule: combine_operators!
 
     operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(cos, sin))
     x1 = Node(; feature=1)
 
     # Test commutative constant combination
     tree = Node(; val=0.5) + (Node(; val=0.2) + x1)
-    @test combine_operators(tree, operators) == x1 + Node(; val=0.7)
+    @test combine_operators!(tree, operators) == x1 + Node(; val=0.7)
 
     # Test nested multiplication by constants
     tree = (Node(; val=2.0) * x1) * Node(; val=3.0)
-    @test combine_operators(tree, operators) == x1 * Node(; val=6.0)
+    @test combine_operators!(tree, operators) == x1 * Node(; val=6.0)
 
     # Test nested addition by constants
     tree = (Node(; val=2.0) + x1) + Node(; val=3.0)
-    @test combine_operators(tree, operators) == x1 + Node(; val=5.0)
+    @test combine_operators!(tree, operators) == x1 + Node(; val=5.0)
 
     # Test mixed operations don't combine incorrectly
     tree = (Node(; val=2.0) * x1) + Node(; val=3.0)
-    @test combine_operators(tree, operators) == tree
+    @test combine_operators!(tree, operators) == tree
 end
