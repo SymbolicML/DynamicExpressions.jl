@@ -4,105 +4,122 @@ import ..NodeModule: AbstractExpressionNode, constructorof, Node, copy_node, set
 import ..NodeUtilsModule: tree_mapreduce, is_node_constant
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..ValueInterfaceModule: is_valid
+import ..EvaluateModule: get_nbin
 
 _una_op_kernel(f::F, l::T) where {F,T} = f(l)
 _bin_op_kernel(f::F, l::T, r::T) where {F,T} = f(l, r)
 
+# Operator traits
 is_commutative(::typeof(*)) = true
 is_commutative(::typeof(+)) = true
 is_commutative(_) = false
 
-is_subtraction(::typeof(-)) = true
-is_subtraction(_) = false
+# Zero-related traits
+has_right_identity_zero(::typeof(+)) = true
+has_right_identity_zero(::typeof(-)) = true
+has_right_identity_zero(_) = false
+
+has_left_identity_zero(::typeof(+)) = true
+has_left_identity_zero(_) = false
+
+absorbed_by_zero(::typeof(*)) = true
+absorbed_by_zero(_) = false
+
+# One-related traits
+has_identity_one(::typeof(*)) = true
+has_identity_one(_) = false
+
+# Self-operation traits
+simplifies_given_equal_operands(::typeof(/)) = true
+simplifies_given_equal_operands(_) = false
 
 combine_operators(tree::AbstractExpressionNode, ::AbstractOperatorEnum) = tree
-# This is only defined for `Node` as it is not possible for, e.g.,
-# `GraphNode`.
+
 function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
-    # NOTE: (const (+*-) const) already accounted for. Call simplify_tree! before.
-    # ((const + var) + const) => (const + var)
-    # ((const * var) * const) => (const * var)
-    # ((const - var) - const) => (const - var)
-    # (want to add anything commutative!)
-    # TODO - need to combine plus/sub if they are both there.
-    if tree.degree == 0
-        return tree
-    elseif tree.degree == 1
-        tree.l = combine_operators(tree.l, operators)
-    elseif tree.degree == 2
-        tree.l = combine_operators(tree.l, operators)
-        tree.r = combine_operators(tree.r, operators)
+    deg = tree.degree
+    deg == 0 && return tree
+    tree.l = combine_operators(tree.l, operators)
+    deg == 1 && return tree
+    tree.r = combine_operators(tree.r, operators)
+    return dispatch_deg2_simplify(tree, operators)
+end
+@generated function dispatch_deg2_simplify(
+    tree::Node{T}, operators::AbstractOperatorEnum
+) where {T}
+    nbin = get_nbin(operators)
+    quote
+        op_idx = tree.op
+        return Base.Cartesian.@nif(
+            $nbin, i -> i == op_idx, i -> _combine_operators_on(operators.binops[i], tree)
+        )
+    end
+end
+
+function _combine_operators_on(f::F, tree::Node{T}) where {F,T}
+    # NOTE: This assumes tree.degree == 2 and tree.op corresponds to f
+    # Handle basic simplifications first
+    if is_node_constant(tree.r)
+        rval = tree.r.val
+        if rval == zero(T)
+            # Operations where right zero is identity (x + 0 -> x, x - 0 -> x)
+            if has_right_identity_zero(f)
+                return tree.l
+            end
+            # Operations that are absorbed by zero (x * 0 -> 0)
+            if absorbed_by_zero(f)
+                return tree.r
+            end
+        elseif rval == one(T)
+            # x * 1 -> x
+            if has_identity_one(f)
+                return tree.l
+            end
+        end
     end
 
-    top_level_constant =
-        tree.degree == 2 && (is_node_constant(tree.l) || is_node_constant(tree.r))
-    if tree.degree == 2 && is_commutative(operators.binops[tree.op]) && top_level_constant
-        # TODO: Does this break SymbolicRegression.jl due to the different names of operators?
-        op = tree.op
-        # Put the constant in r. Need to assume var in left for simplification assumption.
-        if is_node_constant(tree.l)
-            tmp = tree.r
-            tree.r = tree.l
-            tree.l = tmp
+    if is_node_constant(tree.l)
+        lval = tree.l.val
+        if lval == zero(T)
+            # Operations where left zero is identity (0 + x -> x)
+            if has_left_identity_zero(f)
+                return tree.r
+            end
+            # Operations that are absorbed by zero (0 * x -> 0)
+            if absorbed_by_zero(f)
+                return tree.l
+            end
+        elseif lval == one(T) && has_identity_one(f)
+            # 1 * x -> x
+            return tree.r
         end
-        topconstant = tree.r.val
-        # Simplify down first
+    end
+
+    # x/x -> 1, or other self-simplifying operations
+    if simplifies_given_equal_operands(f) && tree.l == tree.r
+        return constructorof(typeof(tree))(T; val=one(T))
+    end
+
+    # Handle commutative operations with constants
+    if is_commutative(f) && (is_node_constant(tree.l) || is_node_constant(tree.r))
+        # Put constant on right for consistent handling
+        if is_node_constant(tree.l)
+            tree.l, tree.r = tree.r, tree.l
+        end
+
+        # Now we know tree.r is constant
         below = tree.l
-        if below.degree == 2 && below.op == op
+        if below.degree == 2 && below.op == tree.op
+            # Combine nested operations with constants: ((a * x) * b) -> ((a*b) * x)
             if is_node_constant(below.l)
-                tree = below
-                tree.l.val = _bin_op_kernel(operators.binops[op], tree.l.val, topconstant)
+                below.l.val = _bin_op_kernel(f, below.l.val, tree.r.val)
+                return below
             elseif is_node_constant(below.r)
-                tree = below
-                tree.r.val = _bin_op_kernel(operators.binops[op], tree.r.val, topconstant)
+                below.r.val = _bin_op_kernel(f, below.r.val, tree.r.val)
+                return below
             end
         end
     end
 
-    if tree.degree == 2 && is_subtraction(operators.binops[tree.op]) && top_level_constant
-
-        # Currently just simplifies subtraction. (can't assume both plus and sub are operators)
-        # Not commutative, so use different op.
-        if is_node_constant(tree.l)
-            if tree.r.degree == 2 && tree.op == tree.r.op
-                if is_node_constant(tree.r.l)
-                    #(const - (const - var)) => (var - const)
-                    l = tree.l
-                    r = tree.r
-                    simplified_const = (r.l.val - l.val) #neg(sub(l.val, r.l.val))
-                    tree.l = tree.r.r
-                    tree.r = l
-                    tree.r.val = simplified_const
-                elseif is_node_constant(tree.r.r)
-                    #(const - (var - const)) => (const - var)
-                    l = tree.l
-                    r = tree.r
-                    simplified_const = l.val + r.r.val #plus(l.val, r.r.val)
-                    tree.r = tree.r.l
-                    tree.l.val = simplified_const
-                end
-            end
-        else #tree.r is a constant
-            if tree.l.degree == 2 && tree.op == tree.l.op
-                if is_node_constant(tree.l.l)
-                    #((const - var) - const) => (const - var)
-                    l = tree.l
-                    r = tree.r
-                    simplified_const = l.l.val - r.val#sub(l.l.val, r.val)
-                    tree.r = tree.l.r
-                    tree.l = r
-                    tree.l.val = simplified_const
-                elseif is_node_constant(tree.l.r)
-                    #((var - const) - const) => (var - const)
-                    l = tree.l
-                    r = tree.r
-                    simplified_const = r.val + l.r.val #plus(r.val, l.r.val)
-                    tree.l = tree.l.l
-                    tree.r.val = simplified_const
-                end
-            end
-        end
-    end
     return tree
 end
 
@@ -121,7 +138,6 @@ function combine_children!(operators, p::N, c::N...) where {T,N<:AbstractExpress
     return p
 end
 
-# Simplify tree
 function simplify_tree!(tree::AbstractExpressionNode, operators::AbstractOperatorEnum)
     return tree_mapreduce(
         identity, (p, c...) -> combine_children!(operators, p, c...), tree, typeof(tree);

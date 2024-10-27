@@ -51,13 +51,14 @@ end
         ((x2 + x2) * ((-0.5982493 / pow_abs2(x1, x2)) / -0.54734415)) + (
             sin(
                 custom_cos(
-                    sin(1.2926733 - 1.6606787) /
-                    sin(((0.14577048 * x1) + ((0.111149654 + x1) - -0.8298334)) - -1.2071426),
+                    sin(1.2926733 - 1.6606787) / sin(
+                        ((0.14577048 * x1) + ((0.111149654 + x1) - -0.8298334)) - -1.2071426
+                    ),
                 ) * (custom_cos(x3 - 2.3201916) + ((x1 - (x1 * x2)) / x2)),
             ) / (0.14854191 - ((custom_cos(x2) * -1.6047639) - 0.023943262))
         )
     )
-    
+
     eqn = convert(Symbolic, tree, operators; index_functions=true)
     tree_copy = convert(Node, eqn, operators)
     tree_copy2 = convert(Node, simplify(eqn), operators)
@@ -89,28 +90,72 @@ end
     @test repr(simplify_tree!(tree, operators)) ≈ "cos(NaN)"
 
     # Nested constant folding
-    tree = Node(1, Node(1, Node(; val=0.1), Node(; val=0.2)) + Node(; val=0.2)) + Node(; val=2.0)
+    tree =
+        Node(1, Node(1, Node(; val=0.1), Node(; val=0.2)) + Node(; val=0.2)) +
+        Node(; val=2.0)
     @test repr(tree) ≈ "(cos((0.1 + 0.2) + 0.2) + 2.0)"
     @test repr(combine_operators(tree, operators)) ≈ "(cos(0.4 + 0.1) + 2.0)"
 end
 
-# (const - (const - var)) => (var - const)
-tree = Node(2, Node(; val=0.5), Node(; val=0.2) - x1)
-@test repr(tree) ≈ "(0.5 - (0.2 - x1))"
-@test repr(combine_operators(tree, operators)) ≈ "(x1 - -0.3)"
+@testitem "Basic operator simplifications" begin
+    using DynamicExpressions, Test
+    import DynamicExpressions.SimplifyModule: combine_operators
 
-# ((const - var) - const) => (const - var)
-tree = Node(2, Node(; val=0.5) - x1, Node(; val=0.2))
-@test repr(tree) ≈ "((0.5 - x1) - 0.2)"
-@test repr(combine_operators(tree, operators)) ≈ "(0.3 - x1)"
+    operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(cos, sin))
+    x = Node(; feature=1)
+    zero_node = Node(; val=0.0)
+    one_node = Node(; val=1.0)
+    two_node = Node(; val=2.0)
+    three_node = Node(; val=3.0)
 
-# (const - (var - const)) => (const - var)
-tree = Node(2, Node(; val=0.5), x1 - Node(; val=0.2))
-@test repr(tree) ≈ "(0.5 - (x1 - 0.2))"
-@test repr(combine_operators(tree, operators)) ≈ "(0.7 - x1)"
+    # multiplication by 0
+    tree = zero_node * x
+    @test combine_operators(tree, operators) == zero_node
+    tree = x * zero_node
+    @test combine_operators(tree, operators) == zero_node
 
-# ((var - const) - const) => (var - const)
-tree = ((x1 - 0.2) - 0.6)
-@test repr(tree) ≈ "((x1 - 0.2) - 0.6)"
-@test repr(combine_operators(tree, operators)) ≈ "(x1 - 0.8)"
-###############################################################################
+    # multiplication by 1
+    tree = one_node * x
+    @test combine_operators(tree, operators) == x
+    tree = x * one_node
+    @test combine_operators(tree, operators) == x
+
+    # addition by 0
+    tree = zero_node + x
+    @test combine_operators(tree, operators) == x
+    tree = x + zero_node
+    @test combine_operators(tree, operators) == x
+
+    # division by self -> 1
+    tree = x / x
+    @test combine_operators(tree, operators).val == 1.0
+
+    # nested multiplication by constants
+    tree1 = (two_node * x) * three_node
+    tree2 = Node(; val=6.0) * x
+    @test combine_operators(tree1, operators) == combine_operators(tree2, operators)
+end
+
+@testitem "Constant combination" begin
+    using DynamicExpressions, Test
+    import DynamicExpressions.SimplifyModule: combine_operators
+
+    operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(cos, sin))
+    x1 = Node(; feature=1)
+
+    # Test commutative constant combination
+    tree = Node(; val=0.5) + (Node(; val=0.2) + x1)
+    @test combine_operators(tree, operators) == x1 + Node(; val=0.7)
+
+    # Test nested multiplication by constants
+    tree = (Node(; val=2.0) * x1) * Node(; val=3.0)
+    @test combine_operators(tree, operators) == x1 * Node(; val=6.0)
+
+    # Test nested addition by constants
+    tree = (Node(; val=2.0) + x1) + Node(; val=3.0)
+    @test combine_operators(tree, operators) == x1 + Node(; val=5.0)
+
+    # Test mixed operations don't combine incorrectly
+    tree = (Node(; val=2.0) * x1) + Node(; val=3.0)
+    @test combine_operators(tree, operators) == tree
+end

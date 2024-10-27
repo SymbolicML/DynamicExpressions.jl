@@ -161,7 +161,8 @@ end
 
     (init_out, true_out) = map(
         p -> [
-            (X[1, i] * p[2, classes[i]] + X[2, i] + p[1, classes[i]]) for i in 1:size(X, 2)
+            (X[1, i] * p[2, classes[i]] + X[2, i] + p[1, classes[i]]) for
+            i in eachindex(axes(X, 2))
         ],
         (init_parameters, true_parameters),
     )
