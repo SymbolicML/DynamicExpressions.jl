@@ -145,3 +145,40 @@ end
         )
     end
 end
+@testitem "Custom operators and aliases" begin
+    using DynamicExpressions
+
+    # Define a custom safe sqrt that avoids negative numbers
+    safe_sqrt(x) = x < 0 ? zero(x) : sqrt(x)
+    # And a custom function that squares its input
+    my_func(x) = x^2
+
+    # Define that safe_sqrt should match sqrt in expressions, with correct type!
+    DynamicExpressions.declare_operator_alias(::typeof(safe_sqrt), ::Val{1}) = sqrt
+
+    # Declare my_func as a new operator
+    @declare_expression_operator my_func 1
+
+    # Create an expression with just safe_sqrt:
+    ex = parse_expression(
+        :(x);
+        expression_type=Expression{Float64},
+        unary_operators=[safe_sqrt, my_func],
+        variable_names=["x"],
+    )
+
+    # Test that sqrt(ex) maps to safe_sqrt through the alias:
+    ex_sqrt = sqrt(ex)
+    ex_my = my_func(ex)
+
+    shower(ex) = sprint((io, e) -> show(io, MIME"text/plain"(), e), ex)
+
+    @test shower(ex_sqrt) == "safe_sqrt(x)"
+    @test shower(ex_my) == "my_func(x)"
+
+    # Test evaluation:
+    X = [4.0 -4.0]
+
+    @test ex_sqrt(X) ≈ [2.0; 0.0]
+    @test ex_my(X) ≈ [16.0; 16.0]
+end

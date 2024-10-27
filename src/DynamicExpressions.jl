@@ -90,6 +90,7 @@ import .StringsModule: get_op_name
 import .ExpressionModule:
     get_operators, get_variable_names, Metadata, default_node_type, node_type
 @reexport import .ExpressionAlgebraModule: @declare_expression_operator
+import .ExpressionAlgebraModule: declare_operator_alias
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
 @reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode

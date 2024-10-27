@@ -34,9 +34,31 @@ function Base.showerror(io::IO, e::MissingOperatorError)
     return print(io, e.msg)
 end
 
+"""
+    declare_operator_alias(op::Function, ::Val{arity})::Function
+
+Define how an internal operator should be matched against user-provided operators in expression trees.
+
+By default, operators match themselves. Override this method to specify that an internal operator
+should match a different operator when searching the operator lists in expressions.
+
+For example, to make `safe_sqrt` match `sqrt` user-space:
+
+```julia
+DynamicExpressions.declare_operator_alias(safe_sqrt, Val(1)) = sqrt
+```
+
+Which would allow a user to write `sqrt(x::Expression)`
+and have it match the operator `safe_sqrt` stored in the binary operators
+of the expression.
+"""
+declare_operator_alias(op::F, _) where {F<:Function} = op
+
 function apply_operator(op::F, l::AbstractExpression) where {F<:Function}
     operators = get_operators(l, nothing)
-    op_idx = findfirst(==(op), operators.unaops)
+    op_idx = findfirst(
+        ==(op), map(Base.Fix2(declare_operator_alias, Val(1)), operators.unaops)
+    )
     if op_idx === nothing
         throw(
             MissingOperatorError(
@@ -56,7 +78,9 @@ function apply_operator(op::F, l, r) where {F<:Function}
         r::AbstractExpression
         (get_operators(r, nothing), r)
     end
-    op_idx = findfirst(==(op), operators.binops)
+    op_idx = findfirst(
+        ==(op), map(Base.Fix2(declare_operator_alias, Val(2)), operators.binops)
+    )
     if op_idx === nothing
         throw(
             MissingOperatorError(
