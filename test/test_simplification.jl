@@ -159,3 +159,56 @@ end
     tree = (Node(; val=2.0) * x1) + Node(; val=3.0)
     @test combine_operators!(tree, operators) == tree
 end
+
+@testitem "Random tree simplification" begin
+    using DynamicExpressions, Test
+    import DynamicExpressions.SimplifyModule: combine_operators!, simplify_tree!
+    import Random: MersenneTwister
+    include("tree_gen_utils.jl")
+
+    operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(sin, cos))
+
+    initial_sizes = Int[]
+    simplified_sizes = Int[]
+
+    for i in 1:100
+        rng = MersenneTwister(i)
+
+        # Generate a random tree with 3 features and size ~50 nodes
+        tree = gen_random_tree_fixed_size(50, operators, 3, Float64, Node, rng)
+
+        # Randomly set some nodes to 0 or 1
+        if rand(rng) < 0.5
+            any(tree) do node
+                if node.degree == 0 && node.constant && rand(rng) < 0.5
+                    node.val = rand(rng) < 0.5 ? 0.0 : 1.0
+                    true
+                else
+                    false
+                end
+            end
+        end
+
+        # Simplify it
+        simplified = combine_operators!(copy(tree), operators)
+
+        # Simplified tree should not be larger than original
+        push!(initial_sizes, count_nodes(tree))
+        push!(simplified_sizes, count_nodes(simplified))
+
+        # Evaluate both trees on the same output
+        X = randn(rng, Float64, 3, 10)
+        output1, flag1 = eval_tree_array(tree, X, operators)
+        output2, flag2 = eval_tree_array(simplified, X, operators)
+
+        # Both should succeed or fail together
+        @test flag1 == flag2
+
+        if flag1 && flag2
+            # Results should be approximately equal
+            @test isapprox(output1, output2, rtol=1e-10)
+        end
+    end
+    # At least SOME should simplify
+    @test any(i -> initial_sizes[i] > simplified_sizes[i], 1:length(initial_sizes))
+end

@@ -109,7 +109,7 @@ end
         operators = OperatorEnum(; binary_operators=[+, -]),
         variable_names = [:x],
     )
-    out = combine_operators(ex)
+    out = combine_operators!(ex)
     @test typeof(out) === typeof(ex)
     @test string_tree(out) == "x + 5.0"
 end
@@ -375,7 +375,7 @@ end
     complex_expr = parse_expression(
         :((2.0 + x) + 3.0); operators=operators, variable_names=["x"]
     )
-    simplified_expr = combine_operators(copy(complex_expr))
+    simplified_expr = combine_operators!(copy(complex_expr))
     println("Original: ", complex_expr)
     println("Simplified: ", simplified_expr)
 
