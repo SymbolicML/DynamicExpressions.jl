@@ -38,9 +38,7 @@ end
     include("test_undefined_derivatives.jl")
 end
 
-@testitem "Test simplification" begin
-    include("test_simplification.jl")
-end
+include("test_simplification.jl")
 
 @testitem "Test printing" begin
     include("test_print.jl")
