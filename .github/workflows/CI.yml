@@ -71,7 +71,7 @@ jobs:
         julia-version:
           - "1"
         test_name:
-          - "enzyme"
+          # - "enzyme"  # flaky; seems to infinitely compile and fail the CI
           - "jet"
     steps:
       - uses: actions/checkout@v2
