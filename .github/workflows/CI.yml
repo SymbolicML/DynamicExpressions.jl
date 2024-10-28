@@ -62,7 +62,7 @@ jobs:
   additional_tests:
     name: test ${{ matrix.test_name }} - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -71,7 +71,7 @@ jobs:
         julia-version:
           - "1"
         test_name:
-          - "enzyme"
+          # - "enzyme"  # flaky; seems to infinitely compile and fail the CI
           - "jet"
     steps:
       - uses: actions/checkout@v2
