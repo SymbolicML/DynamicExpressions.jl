@@ -140,9 +140,14 @@ function string_tree(
     f_variable::F1=string_variable,
     f_constant::F2=string_constant,
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
+    pretty::Union{Bool,Nothing}=nothing, # Not used, but can be used by other types
     # Deprecated
+    raw::Union{Bool,Nothing}=nothing,
     varMap=nothing,
 )::String where {T,F1<:Function,F2<:Function}
+    !isnothing(raw) &&
+        Base.depwarn("`raw` is deprecated; use `pretty` instead", :string_tree)
+    pretty = @something(pretty, _not(raw), false)
     variable_names = deprecate_varmap(variable_names, varMap, :string_tree)
     raw_output = tree_mapreduce(
         let f_constant = f_constant,
@@ -186,14 +191,22 @@ for io in ((), (:(io::IO),))
         f_variable::F1=string_variable,
         f_constant::F2=string_constant,
         variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
+        pretty::Union{Bool,Nothing}=nothing, # Not used, but can be used by other types
         # Deprecated
+        raw::Union{Bool,Nothing}=nothing,
         varMap=nothing,
     ) where {F1<:Function,F2<:Function}
+        !isnothing(raw) &&
+            Base.depwarn("`raw` is deprecated; use `pretty` instead", :print_tree)
+        pretty = @something(pretty, _not(raw), false)
         variable_names = deprecate_varmap(variable_names, varMap, :print_tree)
         return println(
-            $(io...), string_tree(tree, operators; f_variable, f_constant, variable_names)
+            $(io...),
+            string_tree(tree, operators; f_variable, f_constant, variable_names, pretty),
         )
     end
 end
+_not(::Nothing) = nothing
+_not(x) = !x
 
 end
