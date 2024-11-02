@@ -360,7 +360,6 @@ function string_tree(
     display_variable_names=nothing,
     X_sym_units=nothing,
     y_sym_units=nothing,
-    raw=false,
     kws...,
 )
     # TODO: HACK we ignore display_variable_names and others
