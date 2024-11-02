@@ -123,7 +123,7 @@ function _check_set_constants!(ex::AbstractExpression)
     return first(get_scalar_constants(ex)) ≈ x2
 end
 function _check_string_tree(ex::AbstractExpression)
-    return string_tree(ex) isa String
+    return string_tree(ex) isa AbstractString
 end
 function _check_default_node(ex::AbstractExpression{T}) where {T}
     ET = typeof(ex)
