@@ -56,7 +56,7 @@ makedocs(;
     authors="Miles Cranmer",
     clean=true,
     format=Documenter.HTML(;
-        canonical="https://symbolicml.org/DynamicExpressions.jl/stable"
+        canonical="https://ai.damtp.cam.ac.uk/dynamicexpressions/stable"
     ),
     pages=[
         "Home" => "index.md",
@@ -101,3 +101,8 @@ open(redirect_file, "w") do f
 end
 
 deploydocs(; repo="github.com/SymbolicML/DynamicExpressions.jl.git")
+
+# Mirror to DAMTP:
+ENV["DOCUMENTER_KEY"] = ENV["DOCUMENTER_KEY_CAM"]
+ENV["GITHUB_REPOSITORY"] = "ai-damtp-cam-ac-uk/dynamicexpressions.git"
+deploydocs(; repo="github.com/ai-damtp-cam-ac-uk/dynamicexpressions.git")
