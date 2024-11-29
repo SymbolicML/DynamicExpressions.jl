@@ -3,13 +3,16 @@ module AsArrayModule
 using ..NodeModule: AbstractExpressionNode, tree_mapreduce, count_nodes
 
 function as_array(
+    ::Type{I}, trees::N; buffer=nothing
+) where {T,N<:AbstractExpressionNode{T},I}
+    return as_array(I, (trees,); buffer=buffer)
+end
+
+function as_array(
     ::Type{I},
-    trees::Union{N,Tuple{N,Vararg{N}},AbstractVector{N}};
+    trees::Union{Tuple{N,Vararg{N}},AbstractVector{N}};
     buffer::Union{AbstractArray,Nothing}=nothing,
 ) where {T,N<:AbstractExpressionNode{T},I}
-    if trees isa N
-        return as_array(I, (trees,); buffer=buffer)
-    end
     each_num_nodes = (t -> count_nodes(t; break_sharing=Val(true))).(trees)
     num_nodes = sum(each_num_nodes)
 
@@ -25,7 +28,7 @@ function as_array(
     val = Array{T}(undef, num_nodes)
 
     ## Views of the same matrix:
-    buffer = buffer === nothing ? Array{I}(undef, 8, num_nodes) : buffer
+    buffer = @something(buffer, Array{I}(undef, 8, num_nodes))
     degree = @view buffer[1, :]
     feature = @view buffer[2, :]
     op = @view buffer[3, :]

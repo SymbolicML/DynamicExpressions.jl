@@ -51,11 +51,7 @@ function eval_tree_array(
     ## the GPU kernel, with size equal to the number of rows
     ## in the input data by the number of nodes in the tree.
     ## It has one extra row to store the constant values.
-    gworkspace = if gpu_workspace === nothing
-        similar(gcX, num_elem + 1, num_nodes)
-    else
-        gpu_workspace
-    end
+    gworkspace = @something(gpu_workspace, similar(gcX, num_elem + 1, num_nodes))
     gval = @view gworkspace[end, :]
     if _update_buffers
         copyto!(gval, val)
