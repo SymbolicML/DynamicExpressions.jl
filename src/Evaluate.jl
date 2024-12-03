@@ -621,7 +621,7 @@ end
 
 @inline function deg0_eval_constant(tree::AbstractExpressionNode{T}) where {T}
     output = tree.val
-    return ResultOk([output], true)::ResultOk{Vector{T}}
+    return ResultOk([output], is_valid(output))::ResultOk{Vector{T}}
 end
 
 function deg1_eval_constant(
