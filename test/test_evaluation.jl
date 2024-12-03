@@ -287,3 +287,41 @@ end
     ex = Expression(Node{Float64}(; feature=1))
     @test_throws ArgumentError ex(randn(1, 5), OperatorEnum(); bad_arg=1)
 end
+
+@testitem "Test Inf val" begin
+    using DynamicExpressions
+
+    include("tree_gen_utils.jl")
+
+    # Even if the `.val` is `Inf`, we should
+    # be able to safely evaluate the expression.
+    some_unsafe_operators = OperatorEnum(;
+        binary_operators=[+, -, *, /], unary_operators=[sin, cos]
+    )
+
+    function fill_vals!(tree, val)
+        foreach(tree) do node
+            if node.degree == 0 && node.constant
+                node.val = val
+            end
+        end
+    end
+
+    # We want to compare them:
+    num_tests = 100
+    n_features = 3
+    for _ in 1:num_tests
+        let tree, X, eval
+            tree = gen_random_tree_fixed_size(
+                20, some_unsafe_operators, n_features, Float64
+            )
+            # Now, we set all the constant values to Inf:
+            X = zeros(Float64, n_features, 10)
+            # Smoke test – we just want to make sure we can evaluate the expression!
+            eval_tree_array(tree, X, some_unsafe_operators)
+            fill_vals!(tree, Inf)
+            eval_tree_array(tree, X, some_unsafe_operators)
+            fill_vals!(tree, NaN)
+        end
+    end
+end
