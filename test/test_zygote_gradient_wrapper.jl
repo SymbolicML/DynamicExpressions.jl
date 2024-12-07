@@ -25,6 +25,9 @@
     first_partial = _zygote_gradient(log, Val(2), Val(1))
     nested = _zygote_gradient(first_partial, Val(1))
     @test repr(nested) == "∂∂₁log"
+
+    # Also should work with text/plain
+    @test repr(MIME"text/plain", nested) == "∂∂₁log"
 end
 
 @testitem "ZygoteGradient evaluation" begin

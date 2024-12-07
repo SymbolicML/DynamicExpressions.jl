@@ -23,6 +23,7 @@ function Base.show(io::IO, g::ZygoteGradient{F,degree,arg}) where {F,degree,arg}
     print(io, g.op)
     return nothing
 end
+Base.show(io::IO, ::MIME"text/plain", g::ZygoteGradient) = show(io, g)
 
 function _zygote_gradient(args...)
     return error("Please load the Zygote.jl package.")
