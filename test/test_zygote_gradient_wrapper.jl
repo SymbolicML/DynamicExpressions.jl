@@ -27,7 +27,7 @@
     @test repr(nested) == "∂∂₁log"
 
     # Also should work with text/plain
-    @test repr(MIME"text/plain", nested) == "∂∂₁log"
+    @test repr("text/plain", nested) == "∂∂₁log"
 end
 
 @testitem "ZygoteGradient evaluation" begin
