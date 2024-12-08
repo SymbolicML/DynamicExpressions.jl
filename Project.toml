@@ -5,6 +5,7 @@ version = "1.6.0"
 
 [deps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
 DispatchDoctor = "8d63f2c5-f18a-4cf2-ba9d-b3f60fc568c8"
 Interfaces = "85a1e053-f937-4924-92a5-1367d23b7b87"
 MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
@@ -30,6 +31,7 @@ DynamicExpressionsZygoteExt = "Zygote"
 [compat]
 Bumper = "0.6"
 ChainRulesCore = "1"
+DifferentiationInterface = "0.6.27"
 DispatchDoctor = "0.4"
 Interfaces = "0.3"
 LoopVectorization = "0.12"

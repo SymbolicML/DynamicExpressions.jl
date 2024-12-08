@@ -12,21 +12,4 @@ function _zygote_gradient(op::F, ::Val{2}, ::Val{side}=Val(nothing)) where {F,si
     return ZygoteGradient{F,2,side}(op)
 end
 
-function (g::ZygoteGradient{F,1,1})(x) where {F}
-    out = only(gradient(g.op, x))
-    return out === nothing ? zero(x) : out
-end
-function (g::ZygoteGradient{F,2,nothing})(x, y) where {F}
-    (∂x, ∂y) = gradient(g.op, x, y)
-    return (∂x === nothing ? zero(x) : ∂x, ∂y === nothing ? zero(y) : ∂y)
-end
-function (g::ZygoteGradient{F,2,1})(x, y) where {F}
-    ∂x = only(gradient(Base.Fix2(g.op, y), x))
-    return ∂x === nothing ? zero(x) : ∂x
-end
-function (g::ZygoteGradient{F,2,2})(x, y) where {F}
-    ∂y = only(gradient(Base.Fix1(g.op, x), y))
-    return ∂y === nothing ? zero(y) : ∂y
-end
-
 end
