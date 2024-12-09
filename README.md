@@ -19,8 +19,7 @@ A dynamic expression is a snippet of code that can change throughout runtime - c
 3. It then generates specialized [evaluation kernels](https://github.com/SymbolicML/DynamicExpressions.jl/blob/fe8e6dfa160d12485fb77c226d22776dd6ed697a/src/EvaluateEquation.jl#L29-L66) for the space of potential operators.
 4. It also generates kernels for the [first-order derivatives](https://github.com/SymbolicML/DynamicExpressions.jl/blob/fe8e6dfa160d12485fb77c226d22776dd6ed697a/src/EvaluateEquationDerivative.jl#L139-L175), using [Zygote.jl](https://github.com/FluxML/Zygote.jl).
 5. DynamicExpressions.jl can also operate on arbitrary other types (vectors, tensors, symbols, strings, or even unions) - see last part below.
-
-It also has import and export functionality with [SymbolicUtils.jl](https://github.com/JuliaSymbolics/SymbolicUtils.jl), so you can move your runtime expression into a CAS!
+6. It also has import and export functionality with [SymbolicUtils.jl](https://github.com/JuliaSymbolics/SymbolicUtils.jl).
 
 
 ## Example
@@ -29,17 +28,16 @@ It also has import and export functionality with [SymbolicUtils.jl](https://gith
 using DynamicExpressions
 
 operators = OperatorEnum(; binary_operators=[+, -, *], unary_operators=[cos])
+variable_names = ["x1", "x2"]
 
-x1 = Node{Float64}(feature=1)
-x2 = Node{Float64}(feature=2)
+x1 = Expression(Node{Float64}(feature=1); operators, variable_names)
+x2 = Expression(Node{Float64}(feature=2); operators, variable_names)
 
 expression = x1 * cos(x2 - 3.2)
 
 X = randn(Float64, 2, 100);
-expression(X, operators) # 100-element Vector{Float64}
+expression(X) # 100-element Vector{Float64}
 ```
-
-(We can construct this expression with normal operators, since calling `OperatorEnum()` will `@eval` new functions on `Node` that use the specified enum.)
 
 ## Speed
 
@@ -53,27 +51,25 @@ First, what happens if we naively use Julia symbols to define and then evaluate 
 This is quite slow, meaning it will be hard to quickly search over the space of expressions. Let's see how DynamicExpressions.jl compares:
 
 ```julia
-@btime expression(X, operators)
-# 693 ns
+@btime expression(X)
+# 607 ns
 ```
 
-Much faster! And we didn't even need to compile it. (Internally, this is calling `eval_tree_array(expression, X, operators)`). 
+Much faster! And we didn't even need to compile it. (Internally, this is calling `eval_tree_array(expression, X)`). 
 
 If we change `expression` dynamically with a random number generator, it will have the same performance:
 
 ```julia
-@btime begin
-    expression.op = rand(1:3)  # random operator in [+, -, *]
-    expression(X, operators)
-end
-# 842 ns
+@btime ex(X) setup=(ex = copy(expression); ex.tree.op = rand(1:3) #= random operator in [+, -, *] =#)
+# 640 ns
 ```
+
 Now, let's see the performance if we had hard-coded these expressions:
 
 ```julia
 f(X) = X[1, :] .* cos.(X[2, :] .- 3.2)
 @btime f(X)
-# 708 ns
+# 629 ns
 ```
 
 So, our dynamic expression evaluation is about the same (or even a bit faster) as evaluating a basic hard-coded expression! Let's see if we can optimize the speed of the hard-coded version:
@@ -102,49 +98,37 @@ We can also compute gradients with the same speed:
 ```julia
 using Zygote  # trigger extension
 
-operators = OperatorEnum(;
-    binary_operators=[+, -, *],
-    unary_operators=[cos],
-)
-x1 = Node(; feature=1)
-x2 = Node(; feature=2)
+operators = OperatorEnum(; binary_operators=[+, -, *], unary_operators=[cos])
+variable_names = ["x1", "x2"]
+x1, x2 = (Expression(Node{Float64}(feature=i); operators, variable_names) for i in 1:2)
+
 expression = x1 * cos(x2 - 3.2)
 ```
 
 We can take the gradient with respect to inputs with simply the `'` character:
 
 ```julia
-grad = expression'(X, operators)
+grad = expression'(X)
 ```
 
 This is quite fast:
 
 ```julia
-@btime expression'(X, operators)
-# 2894 ns
+@btime expression'(X)
+# 2333 ns
 ```
 
 and again, we can change this expression at runtime, without loss in performance!
 
 ```julia
-@btime begin
-    expression.op = rand(1:3)
-    expression'(X, operators)
-end
-# 3198 ns
+@btime ex'(X) setup=(ex = copy(expression); ex.tree.op = rand(1:3))
+# 2333 ns
 ```
 
 Internally, this is calling the `eval_grad_tree_array` function, which performs forward-mode automatic differentiation on the expression tree with Zygote-compiled kernels. We can also compute the derivative with respect to constants:
 
 ```julia
-result, grad, did_finish = eval_grad_tree_array(expression, X, operators; variable=false)
-```
-
-or with respect to variables, and only in a single direction:
-
-```julia
-feature = 2
-result, grad, did_finish = eval_diff_tree_array(expression, X, operators, feature)
+result, grad, did_finish = eval_grad_tree_array(expression, X; variable=false)
 ```
 
 ## Generic types
@@ -154,42 +138,37 @@ result, grad, did_finish = eval_diff_tree_array(expression, X, operators, featur
 I'm so glad you asked. `DynamicExpressions.jl` actually will work for **arbitrary types**! However, to work on operators other than real scalars, you need to use the `GenericOperatorEnum <: AbstractOperatorEnum` instead of the normal `OperatorEnum`. Let's try it with strings!
 
 ```julia
-x1 = Node(String; feature=1) 
+_x1 = Node{String}(; feature=1) 
 ```
 
 This node, will be used to index input data (whatever it may be) with either `data[feature]` (1D abstract arrays) or `selectdim(data, 1, feature)` (ND abstract arrays). Let's now define some operators to use:
 
 ```julia
+using DynamicExpressions: @declare_expression_operator
+
 my_string_func(x::String) = "ello $x"
+@declare_expression_operator(my_string_func, 1)
 
-operators = GenericOperatorEnum(;
-    binary_operators=[*],
-    unary_operators=[my_string_func]
-)
-```
+operators = GenericOperatorEnum(; binary_operators=[*], unary_operators=[my_string_func])
 
-Now, let's extend our operators to work with the
-expression types used by `DynamicExpressions.jl`:
-
-```julia
-@extend_operators operators
+x1 = Expression(_x1; operators, variable_names)
 ```
 
 Now, let's create an expression:
 
 ```julia
-tree = "H" * my_string_func(x1)
+expression = "H" * my_string_func(x1)
 # ^ `(H * my_string_func(x1))`
 
-tree(["World!", "Me?"], operators)
+expression(["World!", "Me?"])
 # Hello World!
 ```
 
 So indeed it works for arbitrary types. It is a bit slower due to the potential for type instability, but it's not too bad:
 
 ```julia
-@btime tree(["Hello", "Me?"], operators)
-# 1738 ns
+@btime expression(["Hello", "Me?"])
+# 103.105 ns (4 allocations: 144 bytes)
 ``` 
 
 ## Tensors
@@ -200,28 +179,33 @@ Also yes! Let's see:
 
 ```julia
 using DynamicExpressions
+using DynamicExpressions: @declare_expression_operator
 
 T = Union{Float64,Vector{Float64}}
-
-c1 = Node(T; val=0.0)  # Scalar constant
-c2 = Node(T; val=[1.0, 2.0, 3.0])  # Vector constant
-x1 = Node(T; feature=1)
 
 # Some operators on tensors (multiple dispatch can be used for different behavior!)
 vec_add(x, y) = x .+ y
 vec_square(x) = x .* x
 
+# Enable these operators for DynamicExpressions.jl:
+@declare_expression_operator(vec_add, 2)
+@declare_expression_operator(vec_square, 1)
+
 # Set up an operator enum:
 operators = GenericOperatorEnum(;binary_operators=[vec_add], unary_operators=[vec_square])
-@extend_operators operators
 
 # Construct the expression:
-tree = vec_add(vec_add(vec_square(x1), c2), c1)
+variable_names = ["x1"]
+c1 = Expression(Node{T}(; val=0.0); operators, variable_names)  # Scalar constant
+c2 = Expression(Node{T}(; val=[1.0, 2.0, 3.0]); operators, variable_names)  # Vector constant
+x1 = Expression(Node{T}(; feature=1); operators, variable_names)
+
+expression = vec_add(vec_add(vec_square(x1), c2), c1)
 
 X = [[-1.0, 5.2, 0.1], [0.0, 0.0, 0.0]]
 
 # Evaluate!
-tree(X, operators)  # [2.0, 29.04, 3.01]
+expression(X)  # [2.0, 29.04, 3.01]
 ```
 
 Note that if an operator is not defined for the particular input, `nothing` will be returned instead.
@@ -229,8 +213,8 @@ Note that if an operator is not defined for the particular input, `nothing` will
 This is all still pretty fast, too:
 
 ```julia
-@btime tree(X, operators)
-# 2,949 ns
+@btime expression(X)
+# 461.086 ns (13 allocations: 448 bytes)
 @btime eval(:(vec_add(vec_add(vec_square(X[1]), [1.0, 2.0, 3.0]), 0.0)))
 # 115,000 ns
 ```
