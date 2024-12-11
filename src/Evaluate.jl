@@ -56,19 +56,17 @@ function get_filled_array(::Nothing, value, template::AbstractArray, axes...)
 end
 function get_filled_array(buffer::ArrayBuffer, value, template::AbstractArray, axes...)
     i = next_index!(buffer)
-    out = @view(buffer.array[i, :])
-    out .= value
-    return out
+    @inbounds buffer.array[i, :] .= value
+    return @view(buffer.array[i, :])
 end
 
 function get_feature_array(::Nothing, X::AbstractMatrix, feature::Integer)
-    return X[feature, :]
+    return @inbounds(X[feature, :])
 end
 function get_feature_array(buffer::ArrayBuffer, X::AbstractMatrix, feature::Integer)
     i = next_index!(buffer)
-    out = @view(buffer.array[i, :])
-    out .= X[feature, :]
-    return out
+    @inbounds buffer.array[i, :] .= X[feature, :]
+    return @view(buffer.array[i, :])
 end
 
 """
