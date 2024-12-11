@@ -15,7 +15,7 @@ const OPERATOR_LIMIT_BEFORE_SLOWDOWN = 15
 macro return_on_nonfinite_val(eval_options, val, X)
     :(
         if $(esc(eval_options)).early_exit isa Val{true} && !is_valid($(esc(val)))
-            return $(ResultOk)(similar($(esc(X)), axes($(esc(X)), 2)), false)
+            return $(ResultOk)(_similar($(esc(X)), $(esc(eval_options)), axes($(esc(X)), 2)), false)
         end
     )
 end
@@ -46,10 +46,12 @@ This holds options for expression evaluation, such as evaluation backend.
     Setting `Val{false}` will continue the computation as usual and thus result in
     `NaN`s only in the elements that actually have `NaN`s.
 """
-struct EvalOptions{T,B,E}
+struct EvalOptions{T,B,E,A,R}
     turbo::Val{T}
     bumper::Val{B}
     early_exit::Val{E}
+    buffer::A
+    buffer_ref::R
 end
 
 @unstable @inline _to_bool_val(x::Bool) = x ? Val(true) : Val(false)
@@ -59,8 +61,16 @@ end
     turbo::Union{Bool,Val}=Val(false),
     bumper::Union{Bool,Val}=Val(false),
     early_exit::Union{Bool,Val}=Val(true),
+    buffer::Union{AbstractMatrix,Nothing}=nothing,
+    buffer_ref::Union{Base.RefValue{<:Integer},Nothing}=nothing,
 )
-    return EvalOptions(_to_bool_val(turbo), _to_bool_val(bumper), _to_bool_val(early_exit))
+    return EvalOptions(
+        _to_bool_val(turbo),
+        _to_bool_val(bumper),
+        _to_bool_val(early_exit),
+        buffer,
+        buffer_ref,
+    )
 end
 
 @unstable function _process_deprecated_kws(eval_options, deprecated_kws)
@@ -193,12 +203,12 @@ function _eval_tree_array(
     # First, we see if there are only constants in the tree - meaning
     # we can just return the constant result.
     if tree.degree == 0
-        return deg0_eval(tree, cX)
+        return deg0_eval(tree, cX, eval_options)
     elseif is_constant(tree)
         # Speed hack for constant trees.
         const_result = dispatch_constant_tree(tree, operators)::ResultOk{Vector{T}}
-        !const_result.ok && return ResultOk(similar(cX, axes(cX, 2)), false)
-        return ResultOk(fill_similar(const_result.x[], cX, axes(cX, 2)), true)
+        !const_result.ok && return ResultOk(_similar(cX, eval_options, axes(cX, 2)), false)
+        return ResultOk(_fill_similar(const_result.x[], cX, eval_options, axes(cX, 2)), true)
     elseif tree.degree == 1
         op_idx = tree.op
         return dispatch_deg1_eval(tree, cX, op_idx, operators, eval_options)
@@ -234,12 +244,46 @@ function deg1_eval(
 end
 
 function deg0_eval(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}
+    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, eval_options::EvalOptions
 )::ResultOk where {T}
     if tree.constant
-        return ResultOk(fill_similar(tree.val, cX, axes(cX, 2)), true)
+        return ResultOk(_fill_similar(tree.val, cX, eval_options, axes(cX, 2)), true)
     else
-        return ResultOk(cX[tree.feature, :], true)
+        return ResultOk(_index_X(cX, tree.feature, eval_options), true)
+    end
+end
+
+function _fill_similar(value, array, eval_options::EvalOptions, args...)
+    if eval_options.buffer === nothing
+        return fill_similar(value, array, args...)
+    else
+        # TODO HACK: Treat `axes` here explicitly!
+        i = eval_options.buffer_ref[]
+        out = @inbounds(@view(eval_options.buffer[i, :]))
+        out .= value
+        eval_options.buffer_ref[] = i + 1
+        return out
+    end
+end
+function _similar(X, eval_options::EvalOptions, args...)
+    if eval_options.buffer === nothing
+        return similar(X, args...)
+    else
+        i = eval_options.buffer_ref[]
+        out = @inbounds(@view(eval_options.buffer[i, args...]))
+        eval_options.buffer_ref[] = i + 1
+        return out
+    end
+end
+function _index_X(X, feature, eval_options::EvalOptions)
+    if eval_options.buffer === nothing
+        return X[feature, :]
+    else
+        i = eval_options.buffer_ref[]
+        out = @inbounds(@view(eval_options.buffer[i, :]))
+        eval_options.buffer_ref[] = i + 1
+        out .= X[feature, :]
+        return out
     end
 end
 
@@ -401,12 +445,12 @@ function deg1_l2_ll0_lr0_eval(
         @return_on_nonfinite_val(eval_options, x_l, cX)
         x = op(x_l)::T
         @return_on_nonfinite_val(eval_options, x, cX)
-        return ResultOk(fill_similar(x, cX, axes(cX, 2)), true)
+        return ResultOk(_fill_similar(x, cX, eval_options, axes(cX, 2)), true)
     elseif tree.l.l.constant
         val_ll = tree.l.l.val
         @return_on_nonfinite_val(eval_options, val_ll, cX)
         feature_lr = tree.l.r.feature
-        cumulator = similar(cX, axes(cX, 2))
+        cumulator = _similar(cX, eval_options, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(val_ll, cX[feature_lr, j])::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
@@ -417,7 +461,7 @@ function deg1_l2_ll0_lr0_eval(
         feature_ll = tree.l.l.feature
         val_lr = tree.l.r.val
         @return_on_nonfinite_val(eval_options, val_lr, cX)
-        cumulator = similar(cX, axes(cX, 2))
+        cumulator = _similar(cX, eval_options, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j], val_lr)::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
@@ -427,7 +471,7 @@ function deg1_l2_ll0_lr0_eval(
     else
         feature_ll = tree.l.l.feature
         feature_lr = tree.l.r.feature
-        cumulator = similar(cX, axes(cX, 2))
+        cumulator = _similar(cX, eval_options, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
@@ -452,10 +496,10 @@ function deg1_l1_ll0_eval(
         @return_on_nonfinite_val(eval_options, x_l, cX)
         x = op(x_l)::T
         @return_on_nonfinite_val(eval_options, x, cX)
-        return ResultOk(fill_similar(x, cX, axes(cX, 2)), true)
+        return ResultOk(_fill_similar(x, cX, eval_options, axes(cX, 2)), true)
     else
         feature_ll = tree.l.l.feature
-        cumulator = similar(cX, axes(cX, 2))
+        cumulator = _similar(cX, eval_options, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j])::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
@@ -479,9 +523,9 @@ function deg2_l0_r0_eval(
         @return_on_nonfinite_val(eval_options, val_r, cX)
         x = op(val_l, val_r)::T
         @return_on_nonfinite_val(eval_options, x, cX)
-        return ResultOk(fill_similar(x, cX, axes(cX, 2)), true)
+        return ResultOk(_fill_similar(x, cX, eval_options, axes(cX, 2)), true)
     elseif tree.l.constant
-        cumulator = similar(cX, axes(cX, 2))
+        cumulator = _similar(cX, eval_options, axes(cX, 2))
         val_l = tree.l.val
         @return_on_nonfinite_val(eval_options, val_l, cX)
         feature_r = tree.r.feature
@@ -491,7 +535,7 @@ function deg2_l0_r0_eval(
         end
         return ResultOk(cumulator, true)
     elseif tree.r.constant
-        cumulator = similar(cX, axes(cX, 2))
+        cumulator = _similar(cX, eval_options, axes(cX, 2))
         feature_l = tree.l.feature
         val_r = tree.r.val
         @return_on_nonfinite_val(eval_options, val_r, cX)
@@ -501,7 +545,7 @@ function deg2_l0_r0_eval(
         end
         return ResultOk(cumulator, true)
     else
-        cumulator = similar(cX, axes(cX, 2))
+        cumulator = _similar(cX, eval_options, axes(cX, 2))
         feature_l = tree.l.feature
         feature_r = tree.r.feature
         @inbounds @simd for j in axes(cX, 2)
@@ -664,9 +708,9 @@ end
     quote
         if tree.degree == 0
             if tree.constant
-                ResultOk(fill_similar(one(T), cX, axes(cX, 2)) .* tree.val, true)
+                ResultOk(_fill_similar(one(T), cX, eval_options, axes(cX, 2)) .* tree.val, true)
             else
-                ResultOk(cX[tree.feature, :], true)
+                ResultOk(_index_X(cX, tree.feature, eval_options), true)
             end
         elseif tree.degree == 1
             op_idx = tree.op
