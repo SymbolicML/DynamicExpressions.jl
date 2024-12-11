@@ -106,7 +106,7 @@ end
     v_bumper = _to_bool_val(bumper)
     v_early_exit = _to_bool_val(early_exit)
 
-    if v_turbo isa Val{true} || v_bumper isa Val{true}
+    if v_bumper isa Val{true}
         @assert buffer === nothing && buffer_ref === nothing
     end
 

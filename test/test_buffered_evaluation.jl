@@ -119,6 +119,7 @@ end
 @testitem "Random tree buffer evaluation" begin
     using DynamicExpressions
     using Random
+    using LoopVectorization
     include("tree_gen_utils.jl")
 
     # Test setup
@@ -127,18 +128,19 @@ end
         binary_operators=[+, -, *, /], unary_operators=[sin, cos, exp]
     )
 
-    for i in 1:100
+    for turbo in (false, true), i in 1:100
         # Generate a random tree with varying size (1-10 nodes)
         n_nodes = rand(1:10)
         tree = gen_random_tree_fixed_size(n_nodes, operators, size(X, 1), Float64, Node)
 
         # Regular evaluation
-        result1, ok1 = eval_tree_array(tree, X, operators)
+        eval_options_no_buffer = EvalOptions(; turbo)
+        result1, ok1 = eval_tree_array(tree, X, operators; eval_options=eval_options_no_buffer)
 
         # Buffer evaluation
         buffer = Array{Float64}(undef, 2n_nodes, size(X, 2))
         buffer_ref = Ref(rand(1:10))  # Random starting index (will be reset)
-        eval_options = EvalOptions(; buffer=buffer, buffer_ref=buffer_ref)
+        eval_options = EvalOptions(; turbo, buffer, buffer_ref)
         result2, ok2 = eval_tree_array(tree, X, operators; eval_options)
 
         # Results should be identical
