@@ -229,7 +229,6 @@ function eval_tree_array(
     kws...,
 ) where {T1,T2}
     T = promote_type(T1, T2)
-    @warn "Warning: eval_tree_array received mixed types: tree=$(T1) and data=$(T2)."
     tree = convert(constructorof(typeof(tree)){T}, tree)
     cX = Base.Fix1(convert, T).(cX)
     return eval_tree_array(tree, cX, operators; kws...)
