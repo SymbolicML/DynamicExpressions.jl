@@ -15,10 +15,7 @@
     @test eval_options.buffer.array === buffer
     @test eval_options.buffer.index === buffer_ref
 
-    # Test buffer is not allowed with turbo/bumper
-    @test_throws AssertionError EvalOptions(;
-        turbo=true, buffer=buffer, buffer_ref=buffer_ref
-    )
+    # Test buffer is not allowed with bumper
     @test_throws AssertionError EvalOptions(;
         bumper=true, buffer=buffer, buffer_ref=buffer_ref
     )
@@ -135,7 +132,9 @@ end
 
         # Regular evaluation
         eval_options_no_buffer = EvalOptions(; turbo)
-        result1, ok1 = eval_tree_array(tree, X, operators; eval_options=eval_options_no_buffer)
+        result1, ok1 = eval_tree_array(
+            tree, X, operators; eval_options=eval_options_no_buffer
+        )
 
         # Buffer evaluation
         buffer = Array{Float64}(undef, 2n_nodes, size(X, 2))
