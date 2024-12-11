@@ -1,6 +1,5 @@
 @testitem "Buffer creation and validation" begin
     using DynamicExpressions
-    using Test
 
     # Test data setup
     X = rand(2, 10)  # 2 features, 10 samples
@@ -32,7 +31,6 @@ end
 
 @testitem "Buffer correctness" begin
     using DynamicExpressions
-    using Test
 
     X = rand(2, 10)
     operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
@@ -61,7 +59,6 @@ end
 
 @testitem "Buffer index management" begin
     using DynamicExpressions
-    using Test
 
     X = rand(2, 10)
     operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
@@ -99,7 +96,6 @@ end
 
 @testitem "Buffer error handling" begin
     using DynamicExpressions
-    using Test
 
     X = rand(2, 10)
     operators = OperatorEnum(; binary_operators=[+, /, *], unary_operators=[sin])
@@ -118,4 +114,35 @@ end
     # Test with early_exit=true
     result1, ok1 = eval_tree_array(tree, X, operators; eval_options)
     @test !ok1
+end
+
+@testitem "Random tree buffer evaluation" begin
+    using DynamicExpressions
+    using Random
+    include("tree_gen_utils.jl")
+
+    # Test setup
+    X = rand(2, 10)
+    operators = OperatorEnum(;
+        binary_operators=[+, -, *, /], unary_operators=[sin, cos, exp]
+    )
+
+    for i in 1:100
+        # Generate a random tree with varying size (1-10 nodes)
+        n_nodes = rand(1:10)
+        tree = gen_random_tree_fixed_size(n_nodes, operators, size(X, 1), Float64, Node)
+
+        # Regular evaluation
+        result1, ok1 = eval_tree_array(tree, X, operators)
+
+        # Buffer evaluation
+        buffer = Array{Float64}(undef, 2n_nodes, size(X, 2))
+        buffer_ref = Ref(rand(1:10))  # Random starting index (will be reset)
+        eval_options = EvalOptions(; buffer=buffer, buffer_ref=buffer_ref)
+        result2, ok2 = eval_tree_array(tree, X, operators; eval_options)
+
+        # Results should be identical
+        @test result1 ≈ result2
+        @test ok1 == ok2
+    end
 end
