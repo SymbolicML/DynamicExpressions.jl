@@ -30,6 +30,47 @@ macro return_on_nonfinite_array(eval_options, array)
     )
 end
 
+"""Buffer management for array allocations during evaluation."""
+struct ArrayBuffer{A<:AbstractMatrix,R<:Base.RefValue{<:Integer}}
+    array::A
+    index::R
+end
+
+reset_index!(buffer::ArrayBuffer) = buffer.index[] = 0
+reset_index!(::Nothing) = nothing
+
+next_index!(buffer::ArrayBuffer) = buffer.index[] += 1
+
+function get_array(::Nothing, template::AbstractArray, axes...)
+    return similar(template, axes...)
+end
+
+function get_array(buffer::ArrayBuffer, template::AbstractArray, axes...)
+    i = next_index!(buffer)
+    out = @view(buffer.array[i, :])
+    return out
+end
+
+function get_filled_array(::Nothing, value, template::AbstractArray, axes...)
+    return fill_similar(value, template, axes...)
+end
+function get_filled_array(buffer::ArrayBuffer, value, template::AbstractArray, axes...)
+    i = next_index!(buffer)
+    out = @view(buffer.array[i, :])
+    out .= value
+    return out
+end
+
+function get_feature_array(::Nothing, X::AbstractMatrix, feature::Integer)
+    return X[feature, :]
+end
+function get_feature_array(buffer::ArrayBuffer, X::AbstractMatrix, feature::Integer)
+    i = next_index!(buffer)
+    out = @view(buffer.array[i, :])
+    out .= X[feature, :]
+    return out
+end
+
 """
     EvalOptions{T,B,E}
 
@@ -48,16 +89,13 @@ This holds options for expression evaluation, such as evaluation backend.
     Setting `Val{false}` will continue the computation as usual and thus result in
     `NaN`s only in the elements that actually have `NaN`s.
 """
-struct EvalOptions{T,B,E,A,R}
+
+struct EvalOptions{T,B,E,BUF<:Union{ArrayBuffer,Nothing}}
     turbo::Val{T}
     bumper::Val{B}
     early_exit::Val{E}
-    buffer::A
-    buffer_ref::R
+    buffer::BUF
 end
-
-@unstable @inline _to_bool_val(x::Bool) = x ? Val(true) : Val(false)
-@inline _to_bool_val(x::Val{T}) where {T} = Val(T::Bool)
 
 @unstable function EvalOptions(;
     turbo::Union{Bool,Val}=Val(false),
@@ -69,11 +107,22 @@ end
     v_turbo = _to_bool_val(turbo)
     v_bumper = _to_bool_val(bumper)
     v_early_exit = _to_bool_val(early_exit)
+
     if v_turbo isa Val{true} || v_bumper isa Val{true}
         @assert buffer === nothing && buffer_ref === nothing
     end
-    return EvalOptions(v_turbo, v_bumper, v_early_exit, buffer, buffer_ref)
+
+    array_buffer = if buffer === nothing
+        nothing
+    else
+        ArrayBuffer(buffer, buffer_ref)
+    end
+
+    return EvalOptions(v_turbo, v_bumper, v_early_exit, array_buffer)
 end
+
+@unstable @inline _to_bool_val(x::Bool) = x ? Val(true) : Val(false)
+@inline _to_bool_val(::Val{T}) where {T} = Val(T::Bool)
 
 @unstable function _process_deprecated_kws(eval_options, deprecated_kws)
     turbo = get(deprecated_kws, :turbo, nothing)
@@ -165,7 +214,7 @@ function eval_tree_array(
         return bumper_eval_tree_array(tree, cX, operators, _eval_options)
     end
 
-    _reset_buffer_ref!(_eval_options)
+    reset_index!(_eval_options.buffer)
 
     result = _eval_tree_array(tree, cX, operators, _eval_options)
     return (
@@ -251,9 +300,11 @@ function deg0_eval(
     tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, eval_options::EvalOptions
 )::ResultOk where {T}
     if tree.constant
-        return ResultOk(_fill_similar(tree.val, cX, eval_options, axes(cX, 2)), true)
+        return ResultOk(
+            get_filled_array(eval_options.buffer, tree.val, cX, axes(cX, 2)), true
+        )
     else
-        return ResultOk(_index_X(cX, tree.feature, eval_options), true)
+        return ResultOk(get_feature_array(eval_options.buffer, cX, tree.feature), true)
     end
 end
 
@@ -455,12 +506,12 @@ function deg1_l2_ll0_lr0_eval(
         @return_on_nonfinite_val(eval_options, x_l, cX)
         x = op(x_l)::T
         @return_on_nonfinite_val(eval_options, x, cX)
-        return ResultOk(_fill_similar(x, cX, eval_options, axes(cX, 2)), true)
+        return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
     elseif tree.l.l.constant
         val_ll = tree.l.l.val
         @return_on_nonfinite_val(eval_options, val_ll, cX)
         feature_lr = tree.l.r.feature
-        cumulator = _similar(cX, eval_options, axes(cX, 2))
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(val_ll, cX[feature_lr, j])::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
@@ -471,7 +522,7 @@ function deg1_l2_ll0_lr0_eval(
         feature_ll = tree.l.l.feature
         val_lr = tree.l.r.val
         @return_on_nonfinite_val(eval_options, val_lr, cX)
-        cumulator = _similar(cX, eval_options, axes(cX, 2))
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j], val_lr)::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
@@ -481,7 +532,7 @@ function deg1_l2_ll0_lr0_eval(
     else
         feature_ll = tree.l.l.feature
         feature_lr = tree.l.r.feature
-        cumulator = _similar(cX, eval_options, axes(cX, 2))
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
@@ -506,10 +557,10 @@ function deg1_l1_ll0_eval(
         @return_on_nonfinite_val(eval_options, x_l, cX)
         x = op(x_l)::T
         @return_on_nonfinite_val(eval_options, x, cX)
-        return ResultOk(_fill_similar(x, cX, eval_options, axes(cX, 2)), true)
+        return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
     else
         feature_ll = tree.l.l.feature
-        cumulator = _similar(cX, eval_options, axes(cX, 2))
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j])::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
@@ -533,9 +584,9 @@ function deg2_l0_r0_eval(
         @return_on_nonfinite_val(eval_options, val_r, cX)
         x = op(val_l, val_r)::T
         @return_on_nonfinite_val(eval_options, x, cX)
-        return ResultOk(_fill_similar(x, cX, eval_options, axes(cX, 2)), true)
+        return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
     elseif tree.l.constant
-        cumulator = _similar(cX, eval_options, axes(cX, 2))
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         val_l = tree.l.val
         @return_on_nonfinite_val(eval_options, val_l, cX)
         feature_r = tree.r.feature
@@ -545,7 +596,7 @@ function deg2_l0_r0_eval(
         end
         return ResultOk(cumulator, true)
     elseif tree.r.constant
-        cumulator = _similar(cX, eval_options, axes(cX, 2))
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         feature_l = tree.l.feature
         val_r = tree.r.val
         @return_on_nonfinite_val(eval_options, val_r, cX)
@@ -555,7 +606,7 @@ function deg2_l0_r0_eval(
         end
         return ResultOk(cumulator, true)
     else
-        cumulator = _similar(cX, eval_options, axes(cX, 2))
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         feature_l = tree.l.feature
         feature_r = tree.r.feature
         @inbounds @simd for j in axes(cX, 2)
