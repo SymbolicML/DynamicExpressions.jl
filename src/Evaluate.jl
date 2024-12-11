@@ -70,7 +70,7 @@ function get_feature_array(buffer::ArrayBuffer, X::AbstractMatrix, feature::Inte
 end
 
 """
-    EvalOptions{T,B,E}
+    EvalOptions
 
 This holds options for expression evaluation, such as evaluation backend.
 
@@ -86,8 +86,10 @@ This holds options for expression evaluation, such as evaluation backend.
     the entire buffer. This early exit is performed to avoid wasting compute cycles.
     Setting `Val{false}` will continue the computation as usual and thus result in
     `NaN`s only in the elements that actually have `NaN`s.
+- `buffer::Union{ArrayBuffer,Nothing}`: If not `nothing`, use this buffer for evaluation.
+    This should be an instance of `ArrayBuffer` which has an `array` field and an
+    `index` field used to iterate which buffer slot to use.
 """
-
 struct EvalOptions{T,B,E,BUF<:Union{ArrayBuffer,Nothing}}
     turbo::Val{T}
     bumper::Val{B}
@@ -99,24 +101,17 @@ end
     turbo::Union{Bool,Val}=Val(false),
     bumper::Union{Bool,Val}=Val(false),
     early_exit::Union{Bool,Val}=Val(true),
-    buffer::Union{AbstractMatrix,Nothing}=nothing,
-    buffer_ref::Union{Base.RefValue{<:Integer},Nothing}=nothing,
+    buffer::Union{ArrayBuffer,Nothing}=nothing,
 )
     v_turbo = _to_bool_val(turbo)
     v_bumper = _to_bool_val(bumper)
     v_early_exit = _to_bool_val(early_exit)
 
     if v_bumper isa Val{true}
-        @assert buffer === nothing && buffer_ref === nothing
+        @assert buffer === nothing
     end
 
-    array_buffer = if buffer === nothing
-        nothing
-    else
-        ArrayBuffer(buffer, buffer_ref)
-    end
-
-    return EvalOptions(v_turbo, v_bumper, v_early_exit, array_buffer)
+    return EvalOptions(v_turbo, v_bumper, v_early_exit, buffer)
 end
 
 @unstable @inline _to_bool_val(x::Bool) = x ? Val(true) : Val(false)
