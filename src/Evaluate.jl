@@ -15,7 +15,9 @@ const OPERATOR_LIMIT_BEFORE_SLOWDOWN = 15
 macro return_on_nonfinite_val(eval_options, val, X)
     :(
         if $(esc(eval_options)).early_exit isa Val{true} && !is_valid($(esc(val)))
-            return $(ResultOk)(_similar($(esc(X)), $(esc(eval_options)), axes($(esc(X)), 2)), false)
+            return $(ResultOk)(
+                _similar($(esc(X)), $(esc(eval_options)), axes($(esc(X)), 2)), false
+            )
         end
     )
 end
@@ -64,13 +66,13 @@ end
     buffer::Union{AbstractMatrix,Nothing}=nothing,
     buffer_ref::Union{Base.RefValue{<:Integer},Nothing}=nothing,
 )
-    return EvalOptions(
-        _to_bool_val(turbo),
-        _to_bool_val(bumper),
-        _to_bool_val(early_exit),
-        buffer,
-        buffer_ref,
-    )
+    v_turbo = _to_bool_val(turbo)
+    v_bumper = _to_bool_val(bumper)
+    v_early_exit = _to_bool_val(early_exit)
+    if v_turbo isa Val{true} || v_bumper isa Val{true}
+        @assert buffer === nothing && buffer_ref === nothing
+    end
+    return EvalOptions(v_turbo, v_bumper, v_early_exit, buffer, buffer_ref)
 end
 
 @unstable function _process_deprecated_kws(eval_options, deprecated_kws)
@@ -163,6 +165,8 @@ function eval_tree_array(
         return bumper_eval_tree_array(tree, cX, operators, _eval_options)
     end
 
+    _reset_buffer_ref!(_eval_options)
+
     result = _eval_tree_array(tree, cX, operators, _eval_options)
     return (
         result.x,
@@ -208,7 +212,9 @@ function _eval_tree_array(
         # Speed hack for constant trees.
         const_result = dispatch_constant_tree(tree, operators)::ResultOk{Vector{T}}
         !const_result.ok && return ResultOk(_similar(cX, eval_options, axes(cX, 2)), false)
-        return ResultOk(_fill_similar(const_result.x[], cX, eval_options, axes(cX, 2)), true)
+        return ResultOk(
+            _fill_similar(const_result.x[], cX, eval_options, axes(cX, 2)), true
+        )
     elseif tree.degree == 1
         op_idx = tree.op
         return dispatch_deg1_eval(tree, cX, op_idx, operators, eval_options)
@@ -253,13 +259,19 @@ function deg0_eval(
     end
 end
 
+function _reset_buffer_ref!(eval_options::EvalOptions)
+    if eval_options.buffer_ref !== nothing
+        eval_options.buffer_ref[] = 1
+    end
+    return nothing
+end
 function _fill_similar(value, array, eval_options::EvalOptions, args...)
     if eval_options.buffer === nothing
         return fill_similar(value, array, args...)
     else
         # TODO HACK: Treat `axes` here explicitly!
         i = eval_options.buffer_ref[]
-        out = @inbounds(@view(eval_options.buffer[i, :]))
+        out = @view(eval_options.buffer[i, :])
         out .= value
         eval_options.buffer_ref[] = i + 1
         return out
@@ -270,7 +282,7 @@ function _similar(X, eval_options::EvalOptions, args...)
         return similar(X, args...)
     else
         i = eval_options.buffer_ref[]
-        out = @inbounds(@view(eval_options.buffer[i, args...]))
+        out = @view(eval_options.buffer[i, :])
         eval_options.buffer_ref[] = i + 1
         return out
     end
@@ -280,7 +292,7 @@ function _index_X(X, feature, eval_options::EvalOptions)
         return X[feature, :]
     else
         i = eval_options.buffer_ref[]
-        out = @inbounds(@view(eval_options.buffer[i, :]))
+        out = @view(eval_options.buffer[i, :])
         eval_options.buffer_ref[] = i + 1
         out .= X[feature, :]
         return out
@@ -708,9 +720,9 @@ end
     quote
         if tree.degree == 0
             if tree.constant
-                ResultOk(_fill_similar(one(T), cX, eval_options, axes(cX, 2)) .* tree.val, true)
+                ResultOk(fill_similar(one(T), cX, axes(cX, 2)) .* tree.val, true)
             else
-                ResultOk(_index_X(cX, tree.feature, eval_options), true)
+                ResultOk(cX[tree.feature, :], true)
             end
         elseif tree.degree == 1
             op_idx = tree.op
