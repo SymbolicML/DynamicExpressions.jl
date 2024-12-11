@@ -16,7 +16,7 @@ macro return_on_nonfinite_val(eval_options, val, X)
     :(
         if $(esc(eval_options)).early_exit isa Val{true} && !is_valid($(esc(val)))
             return $(ResultOk)(
-                _similar($(esc(X)), $(esc(eval_options)), axes($(esc(X)), 2)), false
+                get_array($(esc(eval_options)).buffer, $(esc(X)), axes($(esc(X)), 2)), false
             )
         end
     )
@@ -258,8 +258,11 @@ function _eval_tree_array(
     elseif is_constant(tree)
         # Speed hack for constant trees.
         const_result = dispatch_constant_tree(tree, operators)::ResultOk{T}
-        !const_result.ok && return ResultOk(_similar(cX, eval_options, axes(cX, 2)), false)
-        return ResultOk(_fill_similar(const_result.x, cX, eval_options, axes(cX, 2)), true)
+        !const_result.ok &&
+            return ResultOk(get_array(eval_options.buffer, cX, axes(cX, 2)), false)
+        return ResultOk(
+            get_filled_array(eval_options.buffer, const_result.x, cX, axes(cX, 2)), true
+        )
     elseif tree.degree == 1
         op_idx = tree.op
         return dispatch_deg1_eval(tree, cX, op_idx, operators, eval_options)
@@ -303,46 +306,6 @@ function deg0_eval(
         )
     else
         return ResultOk(get_feature_array(eval_options.buffer, cX, tree.feature), true)
-    end
-end
-
-function _reset_buffer_ref!(eval_options::EvalOptions)
-    if eval_options.buffer_ref !== nothing
-        eval_options.buffer_ref[] = 1
-    end
-    return nothing
-end
-function _fill_similar(value, array, eval_options::EvalOptions, args...)
-    if eval_options.buffer === nothing
-        return fill_similar(value, array, args...)
-    else
-        # TODO HACK: Treat `axes` here explicitly!
-        i = eval_options.buffer_ref[]
-        out = @view(eval_options.buffer[i, :])
-        out .= value
-        eval_options.buffer_ref[] = i + 1
-        return out
-    end
-end
-function _similar(X, eval_options::EvalOptions, args...)
-    if eval_options.buffer === nothing
-        return similar(X, args...)
-    else
-        i = eval_options.buffer_ref[]
-        out = @view(eval_options.buffer[i, :])
-        eval_options.buffer_ref[] = i + 1
-        return out
-    end
-end
-function _index_X(X, feature, eval_options::EvalOptions)
-    if eval_options.buffer === nothing
-        return X[feature, :]
-    else
-        i = eval_options.buffer_ref[]
-        out = @view(eval_options.buffer[i, :])
-        eval_options.buffer_ref[] = i + 1
-        out .= X[feature, :]
-        return out
     end
 end
 
