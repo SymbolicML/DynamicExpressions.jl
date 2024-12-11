@@ -35,11 +35,11 @@ end
     operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
 
     # Test different tree structures
-    @testset "Tree type: \$description" for (description, tree) in [
-        ("Single feature", Node(Float64; feature=1)),
-        ("Constant", Node(Float64; val=1.5)),
-        ("Binary op", Node(; op=1, l=Node(Float64; feature=1), r=Node(Float64; val=2.0))),
-        ("Unary op", Node(; op=1, l=Node(Float64; feature=1))),
+    for tree in [
+        Node(Float64; feature=1),
+        Node(Float64; val=1.5),
+        Node(; op=1, l=Node(Float64; feature=1), r=Node(Float64; val=2.0)),
+        Node(; op=1, l=Node(Float64; feature=1)),
     ]
         # Regular evaluation
         result1, ok1 = eval_tree_array(tree, X, operators)
