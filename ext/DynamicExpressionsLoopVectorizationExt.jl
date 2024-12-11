@@ -57,7 +57,7 @@ function deg1_l2_ll0_lr0_eval(
         @return_on_nonfinite_val(eval_options, x_l, cX)
         x = op(x_l)::T
         @return_on_nonfinite_val(eval_options, x, cX)
-        return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)))
+        return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
     elseif tree.l.l.constant
         val_ll = tree.l.l.val
         @return_on_nonfinite_val(eval_options, val_ll, cX)
@@ -107,7 +107,7 @@ function deg1_l1_ll0_eval(
         @return_on_nonfinite_val(eval_options, x_l, cX)
         x = op(x_l)::T
         @return_on_nonfinite_val(eval_options, x, cX)
-        return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)))
+        return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
     else
         feature_ll = tree.l.l.feature
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
@@ -133,7 +133,7 @@ function deg2_l0_r0_eval(
         @return_on_nonfinite_val(eval_options, val_r, cX)
         x = op(val_l, val_r)::T
         @return_on_nonfinite_val(eval_options, x, cX)
-        return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)))
+        return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
     elseif tree.l.constant
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         val_l = tree.l.val
