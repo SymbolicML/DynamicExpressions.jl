@@ -210,11 +210,9 @@ function _eval_tree_array(
         return deg0_eval(tree, cX, eval_options)
     elseif is_constant(tree)
         # Speed hack for constant trees.
-        const_result = dispatch_constant_tree(tree, operators)::ResultOk{Vector{T}}
+        const_result = dispatch_constant_tree(tree, operators)::ResultOk{T}
         !const_result.ok && return ResultOk(_similar(cX, eval_options, axes(cX, 2)), false)
-        return ResultOk(
-            _fill_similar(const_result.x[], cX, eval_options, axes(cX, 2)), true
-        )
+        return ResultOk(_fill_similar(const_result.x, cX, eval_options, axes(cX, 2)), true)
     elseif tree.degree == 1
         op_idx = tree.op
         return dispatch_deg1_eval(tree, cX, op_idx, operators, eval_options)
@@ -634,37 +632,33 @@ over an entire array when the values are all the same.
     nbin = get_nbin(operators)
     deg1_branch = if nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
         quote
-            deg1_eval_constant(tree, operators.unaops[op_idx], operators)::ResultOk{Vector{T}}
+            deg1_eval_constant(tree, operators.unaops[op_idx], operators)::ResultOk{T}
         end
     else
         quote
             Base.Cartesian.@nif(
                 $nuna,
                 i -> i == op_idx,
-                i -> deg1_eval_constant(
-                    tree, operators.unaops[i], operators
-                )::ResultOk{Vector{T}}
+                i -> deg1_eval_constant(tree, operators.unaops[i], operators)::ResultOk{T}
             )
         end
     end
     deg2_branch = if nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
         quote
-            deg2_eval_constant(tree, operators.binops[op_idx], operators)::ResultOk{Vector{T}}
+            deg2_eval_constant(tree, operators.binops[op_idx], operators)::ResultOk{T}
         end
     else
         quote
             Base.Cartesian.@nif(
                 $nbin,
                 i -> i == op_idx,
-                i -> deg2_eval_constant(
-                    tree, operators.binops[i], operators
-                )::ResultOk{Vector{T}}
+                i -> deg2_eval_constant(tree, operators.binops[i], operators)::ResultOk{T}
             )
         end
     end
     return quote
         if tree.degree == 0
-            return deg0_eval_constant(tree)::ResultOk{Vector{T}}
+            return deg0_eval_constant(tree)::ResultOk{T}
         elseif tree.degree == 1
             op_idx = tree.op
             return $deg1_branch
@@ -677,7 +671,7 @@ end
 
 @inline function deg0_eval_constant(tree::AbstractExpressionNode{T}) where {T}
     output = tree.val
-    return ResultOk([output], is_valid(output))::ResultOk{Vector{T}}
+    return ResultOk(output, is_valid(output))::ResultOk{T}
 end
 
 function deg1_eval_constant(
@@ -685,8 +679,8 @@ function deg1_eval_constant(
 ) where {T,F}
     result = dispatch_constant_tree(tree.l, operators)
     !result.ok && return result
-    output = op(result.x[])::T
-    return ResultOk([output], is_valid(output))::ResultOk{Vector{T}}
+    output = op(result.x)::T
+    return ResultOk(output, is_valid(output))::ResultOk{T}
 end
 
 function deg2_eval_constant(
@@ -696,8 +690,8 @@ function deg2_eval_constant(
     !cumulator.ok && return cumulator
     result_r = dispatch_constant_tree(tree.r, operators)
     !result_r.ok && return result_r
-    output = op(cumulator.x[], result_r.x[])::T
-    return ResultOk([output], is_valid(output))::ResultOk{Vector{T}}
+    output = op(cumulator.x, result_r.x)::T
+    return ResultOk(output, is_valid(output))::ResultOk{T}
 end
 
 """
