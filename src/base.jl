@@ -499,6 +499,7 @@ function copy_node!(
     break_sharing::Val{BS}=Val(false),
     ref::Base.RefValue{<:Integer}=Ref(0),
 ) where {BS,N<:AbstractExpressionNode}
+    ref.x = 0
     return tree_mapreduce(
         leaf -> leaf_copy!(@inbounds(dest[ref.x += 1]), leaf),
         identity,

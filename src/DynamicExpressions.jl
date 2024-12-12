@@ -41,6 +41,7 @@ import .ValueInterfaceModule:
     GraphNode,
     Node,
     copy_node,
+    copy_node!,
     set_node!,
     tree_mapreduce,
     filter_map,
