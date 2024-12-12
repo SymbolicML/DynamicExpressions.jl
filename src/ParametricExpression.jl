@@ -13,9 +13,11 @@ import ..NodeModule:
     with_type_parameters,
     preserve_sharing,
     leaf_copy,
+    leaf_copy!,
     leaf_convert,
     leaf_hash,
-    leaf_equal
+    leaf_equal,
+    branch_copy!
 import ..NodeUtilsModule:
     count_constant_nodes,
     index_constant_nodes,
@@ -121,6 +123,22 @@ function leaf_copy(t::ParametricNode{T}) where {T}
         n.parameter = t.parameter
         return n
     end
+end
+function leaf_copy!(dest::N, src::N) where {T,N<:ParametricNode{T}}
+    dest.degree = 0
+    if src.constant
+        dest.constant = true
+        dest.val = src.val
+    elseif !src.is_parameter
+        dest.constant = false
+        dest.is_parameter = false
+        dest.feature = src.feature
+    else
+        dest.constant = false
+        dest.is_parameter = true
+        dest.parameter = src.parameter
+    end
+    return dest
 end
 function leaf_convert(::Type{N}, t::ParametricNode) where {T,N<:ParametricNode{T}}
     if t.constant

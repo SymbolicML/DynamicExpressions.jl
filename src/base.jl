@@ -485,6 +485,54 @@ function branch_copy(t::N, children::Vararg{Any,M}) where {T,N<:AbstractExpressi
     return constructorof(N)(T; op=t.op, children)
 end
 
+# In-place versions
+
+"""
+    copy_node!(dest::AbstractArray{N}, src::N; break_sharing::Val{BS}=Val(false)) where {BS,N<:AbstractExpressionNode}
+
+Copy a node, recursively copying all children nodes, in-place to an
+array of pre-allocated nodes. This should result in no extra allocations.
+"""
+function copy_node!(
+    dest::AbstractArray{N},
+    src::N;
+    break_sharing::Val{BS}=Val(false),
+    ref::Base.RefValue{<:Integer}=Ref(0),
+) where {BS,N<:AbstractExpressionNode}
+    ref.x = 0
+    return tree_mapreduce(
+        leaf -> leaf_copy!(@inbounds(dest[ref.x += 1]), leaf),
+        identity,
+        ((p, c::Vararg{Any,M}) where {M}) ->
+            branch_copy!(@inbounds(dest[ref.x += 1]), p, c...),
+        src,
+        N;
+        break_sharing=Val(BS),
+    )
+end
+function leaf_copy!(dest::N, src::N) where {T,N<:AbstractExpressionNode{T}}
+    dest.degree = 0
+    if src.constant
+        dest.constant = true
+        dest.val = src.val
+    else
+        dest.constant = false
+        dest.feature = src.feature
+    end
+    return dest
+end
+function branch_copy!(
+    dest::N, src::N, children::Vararg{N,M}
+) where {T,N<:AbstractExpressionNode{T},M}
+    dest.degree = M
+    dest.op = src.op
+    dest.l = children[1]
+    if M == 2
+        dest.r = children[2]
+    end
+    return dest
+end
+
 """
     copy(tree::AbstractExpressionNode; break_sharing::Val=Val(false))
 
