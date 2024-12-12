@@ -15,7 +15,9 @@ const OPERATOR_LIMIT_BEFORE_SLOWDOWN = 15
 macro return_on_nonfinite_val(eval_options, val, X)
     :(
         if $(esc(eval_options)).early_exit isa Val{true} && !is_valid($(esc(val)))
-            return $(ResultOk)(similar($(esc(X)), axes($(esc(X)), 2)), false)
+            return $(ResultOk)(
+                get_array($(esc(eval_options)).buffer, $(esc(X)), axes($(esc(X)), 2)), false
+            )
         end
     )
 end
@@ -28,8 +30,47 @@ macro return_on_nonfinite_array(eval_options, array)
     )
 end
 
+"""Buffer management for array allocations during evaluation."""
+struct ArrayBuffer{A<:AbstractMatrix,R<:Base.RefValue{<:Integer}}
+    array::A
+    index::R
+end
+
+reset_index!(buffer::ArrayBuffer) = buffer.index[] = 0
+reset_index!(::Nothing) = nothing
+
+next_index!(buffer::ArrayBuffer) = buffer.index[] += 1
+
+function get_array(::Nothing, template::AbstractArray, axes...)
+    return similar(template, axes...)
+end
+
+function get_array(buffer::ArrayBuffer, template::AbstractArray, axes...)
+    i = next_index!(buffer)
+    out = @view(buffer.array[i, :])
+    return out
+end
+
+function get_filled_array(::Nothing, value, template::AbstractArray, axes...)
+    return fill_similar(value, template, axes...)
+end
+function get_filled_array(buffer::ArrayBuffer, value, template::AbstractArray, axes...)
+    i = next_index!(buffer)
+    @inbounds buffer.array[i, :] .= value
+    return @view(buffer.array[i, :])
+end
+
+function get_feature_array(::Nothing, X::AbstractMatrix, feature::Integer)
+    return @inbounds(X[feature, :])
+end
+function get_feature_array(buffer::ArrayBuffer, X::AbstractMatrix, feature::Integer)
+    i = next_index!(buffer)
+    @inbounds buffer.array[i, :] .= X[feature, :]
+    return @view(buffer.array[i, :])
+end
+
 """
-    EvalOptions{T,B,E}
+    EvalOptions
 
 This holds options for expression evaluation, such as evaluation backend.
 
@@ -45,23 +86,36 @@ This holds options for expression evaluation, such as evaluation backend.
     the entire buffer. This early exit is performed to avoid wasting compute cycles.
     Setting `Val{false}` will continue the computation as usual and thus result in
     `NaN`s only in the elements that actually have `NaN`s.
+- `buffer::Union{ArrayBuffer,Nothing}`: If not `nothing`, use this buffer for evaluation.
+    This should be an instance of `ArrayBuffer` which has an `array` field and an
+    `index` field used to iterate which buffer slot to use.
 """
-struct EvalOptions{T,B,E}
+struct EvalOptions{T,B,E,BUF<:Union{ArrayBuffer,Nothing}}
     turbo::Val{T}
     bumper::Val{B}
     early_exit::Val{E}
+    buffer::BUF
 end
-
-@unstable @inline _to_bool_val(x::Bool) = x ? Val(true) : Val(false)
-@inline _to_bool_val(x::Val{T}) where {T} = Val(T::Bool)
 
 @unstable function EvalOptions(;
     turbo::Union{Bool,Val}=Val(false),
     bumper::Union{Bool,Val}=Val(false),
     early_exit::Union{Bool,Val}=Val(true),
+    buffer::Union{ArrayBuffer,Nothing}=nothing,
 )
-    return EvalOptions(_to_bool_val(turbo), _to_bool_val(bumper), _to_bool_val(early_exit))
+    v_turbo = _to_bool_val(turbo)
+    v_bumper = _to_bool_val(bumper)
+    v_early_exit = _to_bool_val(early_exit)
+
+    if v_bumper isa Val{true}
+        @assert buffer === nothing
+    end
+
+    return EvalOptions(v_turbo, v_bumper, v_early_exit, buffer)
 end
+
+@unstable @inline _to_bool_val(x::Bool) = x ? Val(true) : Val(false)
+@inline _to_bool_val(::Val{T}) where {T} = Val(T::Bool)
 
 @unstable function _process_deprecated_kws(eval_options, deprecated_kws)
     turbo = get(deprecated_kws, :turbo, nothing)
@@ -153,6 +207,8 @@ function eval_tree_array(
         return bumper_eval_tree_array(tree, cX, operators, _eval_options)
     end
 
+    reset_index!(_eval_options.buffer)
+
     result = _eval_tree_array(tree, cX, operators, _eval_options)
     return (
         result.x,
@@ -173,7 +229,6 @@ function eval_tree_array(
     kws...,
 ) where {T1,T2}
     T = promote_type(T1, T2)
-    @warn "Warning: eval_tree_array received mixed types: tree=$(T1) and data=$(T2)."
     tree = convert(constructorof(typeof(tree)){T}, tree)
     cX = Base.Fix1(convert, T).(cX)
     return eval_tree_array(tree, cX, operators; kws...)
@@ -193,12 +248,15 @@ function _eval_tree_array(
     # First, we see if there are only constants in the tree - meaning
     # we can just return the constant result.
     if tree.degree == 0
-        return deg0_eval(tree, cX)
+        return deg0_eval(tree, cX, eval_options)
     elseif is_constant(tree)
         # Speed hack for constant trees.
-        const_result = dispatch_constant_tree(tree, operators)::ResultOk{Vector{T}}
-        !const_result.ok && return ResultOk(similar(cX, axes(cX, 2)), false)
-        return ResultOk(fill_similar(const_result.x[], cX, axes(cX, 2)), true)
+        const_result = dispatch_constant_tree(tree, operators)::ResultOk{T}
+        !const_result.ok &&
+            return ResultOk(get_array(eval_options.buffer, cX, axes(cX, 2)), false)
+        return ResultOk(
+            get_filled_array(eval_options.buffer, const_result.x, cX, axes(cX, 2)), true
+        )
     elseif tree.degree == 1
         op_idx = tree.op
         return dispatch_deg1_eval(tree, cX, op_idx, operators, eval_options)
@@ -234,12 +292,14 @@ function deg1_eval(
 end
 
 function deg0_eval(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}
+    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, eval_options::EvalOptions
 )::ResultOk where {T}
     if tree.constant
-        return ResultOk(fill_similar(tree.val, cX, axes(cX, 2)), true)
+        return ResultOk(
+            get_filled_array(eval_options.buffer, tree.val, cX, axes(cX, 2)), true
+        )
     else
-        return ResultOk(cX[tree.feature, :], true)
+        return ResultOk(get_feature_array(eval_options.buffer, cX, tree.feature), true)
     end
 end
 
@@ -401,12 +461,12 @@ function deg1_l2_ll0_lr0_eval(
         @return_on_nonfinite_val(eval_options, x_l, cX)
         x = op(x_l)::T
         @return_on_nonfinite_val(eval_options, x, cX)
-        return ResultOk(fill_similar(x, cX, axes(cX, 2)), true)
+        return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
     elseif tree.l.l.constant
         val_ll = tree.l.l.val
         @return_on_nonfinite_val(eval_options, val_ll, cX)
         feature_lr = tree.l.r.feature
-        cumulator = similar(cX, axes(cX, 2))
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(val_ll, cX[feature_lr, j])::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
@@ -417,7 +477,7 @@ function deg1_l2_ll0_lr0_eval(
         feature_ll = tree.l.l.feature
         val_lr = tree.l.r.val
         @return_on_nonfinite_val(eval_options, val_lr, cX)
-        cumulator = similar(cX, axes(cX, 2))
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j], val_lr)::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
@@ -427,7 +487,7 @@ function deg1_l2_ll0_lr0_eval(
     else
         feature_ll = tree.l.l.feature
         feature_lr = tree.l.r.feature
-        cumulator = similar(cX, axes(cX, 2))
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
@@ -452,10 +512,10 @@ function deg1_l1_ll0_eval(
         @return_on_nonfinite_val(eval_options, x_l, cX)
         x = op(x_l)::T
         @return_on_nonfinite_val(eval_options, x, cX)
-        return ResultOk(fill_similar(x, cX, axes(cX, 2)), true)
+        return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
     else
         feature_ll = tree.l.l.feature
-        cumulator = similar(cX, axes(cX, 2))
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j])::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
@@ -479,9 +539,9 @@ function deg2_l0_r0_eval(
         @return_on_nonfinite_val(eval_options, val_r, cX)
         x = op(val_l, val_r)::T
         @return_on_nonfinite_val(eval_options, x, cX)
-        return ResultOk(fill_similar(x, cX, axes(cX, 2)), true)
+        return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
     elseif tree.l.constant
-        cumulator = similar(cX, axes(cX, 2))
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         val_l = tree.l.val
         @return_on_nonfinite_val(eval_options, val_l, cX)
         feature_r = tree.r.feature
@@ -491,7 +551,7 @@ function deg2_l0_r0_eval(
         end
         return ResultOk(cumulator, true)
     elseif tree.r.constant
-        cumulator = similar(cX, axes(cX, 2))
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         feature_l = tree.l.feature
         val_r = tree.r.val
         @return_on_nonfinite_val(eval_options, val_r, cX)
@@ -501,7 +561,7 @@ function deg2_l0_r0_eval(
         end
         return ResultOk(cumulator, true)
     else
-        cumulator = similar(cX, axes(cX, 2))
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         feature_l = tree.l.feature
         feature_r = tree.r.feature
         @inbounds @simd for j in axes(cX, 2)
@@ -578,37 +638,33 @@ over an entire array when the values are all the same.
     nbin = get_nbin(operators)
     deg1_branch = if nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
         quote
-            deg1_eval_constant(tree, operators.unaops[op_idx], operators)::ResultOk{Vector{T}}
+            deg1_eval_constant(tree, operators.unaops[op_idx], operators)::ResultOk{T}
         end
     else
         quote
             Base.Cartesian.@nif(
                 $nuna,
                 i -> i == op_idx,
-                i -> deg1_eval_constant(
-                    tree, operators.unaops[i], operators
-                )::ResultOk{Vector{T}}
+                i -> deg1_eval_constant(tree, operators.unaops[i], operators)::ResultOk{T}
             )
         end
     end
     deg2_branch = if nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
         quote
-            deg2_eval_constant(tree, operators.binops[op_idx], operators)::ResultOk{Vector{T}}
+            deg2_eval_constant(tree, operators.binops[op_idx], operators)::ResultOk{T}
         end
     else
         quote
             Base.Cartesian.@nif(
                 $nbin,
                 i -> i == op_idx,
-                i -> deg2_eval_constant(
-                    tree, operators.binops[i], operators
-                )::ResultOk{Vector{T}}
+                i -> deg2_eval_constant(tree, operators.binops[i], operators)::ResultOk{T}
             )
         end
     end
     return quote
         if tree.degree == 0
-            return deg0_eval_constant(tree)::ResultOk{Vector{T}}
+            return deg0_eval_constant(tree)::ResultOk{T}
         elseif tree.degree == 1
             op_idx = tree.op
             return $deg1_branch
@@ -621,7 +677,7 @@ end
 
 @inline function deg0_eval_constant(tree::AbstractExpressionNode{T}) where {T}
     output = tree.val
-    return ResultOk([output], is_valid(output))::ResultOk{Vector{T}}
+    return ResultOk(output, is_valid(output))::ResultOk{T}
 end
 
 function deg1_eval_constant(
@@ -629,8 +685,8 @@ function deg1_eval_constant(
 ) where {T,F}
     result = dispatch_constant_tree(tree.l, operators)
     !result.ok && return result
-    output = op(result.x[])::T
-    return ResultOk([output], is_valid(output))::ResultOk{Vector{T}}
+    output = op(result.x)::T
+    return ResultOk(output, is_valid(output))::ResultOk{T}
 end
 
 function deg2_eval_constant(
@@ -640,8 +696,8 @@ function deg2_eval_constant(
     !cumulator.ok && return cumulator
     result_r = dispatch_constant_tree(tree.r, operators)
     !result_r.ok && return result_r
-    output = op(cumulator.x[], result_r.x[])::T
-    return ResultOk([output], is_valid(output))::ResultOk{Vector{T}}
+    output = op(cumulator.x, result_r.x)::T
+    return ResultOk(output, is_valid(output))::ResultOk{T}
 end
 
 """
