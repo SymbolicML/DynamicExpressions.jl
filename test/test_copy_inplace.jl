@@ -51,3 +51,45 @@ end
         @test result === dest_array[1]
     end
 end
+
+@testitem "copy_into! with expressions" begin
+    using DynamicExpressions
+    using DynamicExpressions:
+        copy_into!, allocate_container, get_operators, get_variable_names
+
+    operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
+    variable_names = ["x", "y"]
+
+    # Test regular Expression
+    ex = @parse_expression(
+        sin(x + 2.0 * y), operators = operators, variable_names = variable_names
+    )
+    container = allocate_container(ex)
+    result = copy_into!(container, ex)
+
+    @test result == ex
+    @test result !== ex
+    @test get_tree(result) !== get_tree(ex)
+    @test get_operators(result, nothing) === get_operators(ex, nothing)
+    @test get_variable_names(result, nothing) === get_variable_names(ex, nothing)
+
+    # Test ParametricExpression
+    parameters = [1.0 2.0; 3.0 4.0]
+    pex = @parse_expression(
+        sin(x + p1 * y + p2),
+        operators = operators,
+        variable_names = variable_names,
+        expression_type = ParametricExpression,
+        extra_metadata = (; parameters=parameters, parameter_names=["p1", "p2"])
+    )
+    container = allocate_container(pex)
+    result = copy_into!(container, pex)
+
+    @test result == pex
+    @test result !== pex
+    @test get_tree(result) !== get_tree(pex)
+    @test get_operators(result, nothing) === get_operators(pex, nothing)
+    @test get_variable_names(result, nothing) === get_variable_names(pex, nothing)
+    @test result.metadata.parameters !== pex.metadata.parameters
+    @test result.metadata.parameters == pex.metadata.parameters
+end
