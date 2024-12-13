@@ -321,23 +321,12 @@ function Base.promote_rule(::Type{GraphNode{T1}}, ::Type{GraphNode{T2}}) where {
     return GraphNode{promote_type(T1, T2)}
 end
 
-# TODO: Verify using this helps with garbage collection
-create_dummy_node(::Type{N}) where {N<:AbstractExpressionNode} = N()
-
 """
     set_node!(tree::AbstractExpressionNode{T}, new_tree::AbstractExpressionNode{T}) where {T}
 
 Set every field of `tree` equal to the corresponding field of `new_tree`.
 """
 function set_node!(tree::AbstractExpressionNode, new_tree::AbstractExpressionNode)
-    # First, ensure we free some memory:
-    if new_tree.degree < 2 && tree.degree == 2
-        tree.r = create_dummy_node(typeof(tree))
-    end
-    if new_tree.degree < 1 && tree.degree >= 1
-        tree.l = create_dummy_node(typeof(tree))
-    end
-
     tree.degree = new_tree.degree
     if new_tree.degree == 0
         tree.constant = new_tree.constant
