@@ -126,21 +126,29 @@ function leaf_copy(t::ParametricNode{T}) where {T}
         return n
     end
 end
-function leaf_copy!(dest::N, src::N) where {T,N<:ParametricNode{T}}
-    dest.degree = 0
-    if src.constant
-        dest.constant = true
-        dest.val = src.val
-    elseif !src.is_parameter
-        dest.constant = false
-        dest.is_parameter = false
-        dest.feature = src.feature
+function set_node!(tree::ParametricNode, new_tree::ParametricNode)
+    tree.degree = new_tree.degree
+    if new_tree.degree == 0
+        if new_tree.constant
+            tree.constant = true
+            tree.val = new_tree.val
+        elseif !new_tree.is_parameter
+            tree.constant = false
+            tree.is_parameter = false
+            tree.feature = new_tree.feature
+        else
+            tree.constant = false
+            tree.is_parameter = true
+            tree.parameter = new_tree.parameter
+        end
     else
-        dest.constant = false
-        dest.is_parameter = true
-        dest.parameter = src.parameter
+        tree.op = new_tree.op
+        tree.l = new_tree.l
+        if new_tree.degree == 2
+            tree.r = new_tree.r
+        end
     end
-    return dest
+    return nothing
 end
 function leaf_convert(::Type{N}, t::ParametricNode) where {T,N<:ParametricNode{T}}
     if t.constant
