@@ -99,7 +99,7 @@ end
 function _check_copy_into!(ex::AbstractExpression)
     container = allocate_container(ex)
     prealloc_ex = copy_into!(container, ex)
-    return container !== nothing && prealloc_ex == ex && prealloc_ex !== container
+    return container !== nothing && prealloc_ex == ex && prealloc_ex !== ex
 end
 function _check_count_nodes(ex::AbstractExpression)
     return count_nodes(ex) isa Int64
