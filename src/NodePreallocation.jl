@@ -9,10 +9,26 @@ using ..NodeModule:
     set_node!
 
 """
+    allocate_container(prototype::AbstractExpressionNode, n=nothing)
+
+Preallocate an array of `n` empty nodes matching the type of `prototype`.
+If `n` is not provided, it will be computed from `length(prototype)`.
+
+A given return value of this will be passed to `copy_into!` as the first argument,
+so it should be compatible.
+"""
+function allocate_container(
+    prototype::N, n::Union{Nothing,Integer}=nothing
+) where {T,N<:AbstractExpressionNode{T}}
+    num_nodes = @something(n, length(prototype))
+    return N[with_type_parameters(N, T)() for _ in 1:num_nodes]
+end
+
+"""
     copy_into!(dest::AbstractArray{N}, src::N) where {N<:AbstractExpressionNode}
 
-Copy a node, recursively copying all children nodes, in-place to an
-array of pre-allocated nodes. This should result in no extra allocations.
+Copy a node, recursively copying all children nodes, in-place to a preallocated container.
+This should result in no extra allocations.
 """
 function copy_into!(
     dest::AbstractArray{N}, src::N; ref::Union{Nothing,Base.RefValue{<:Integer}}=nothing
@@ -48,20 +64,5 @@ function branch_copy_into!(
     return dest
 end
 
-"""
-    allocate_container(prototype::AbstractExpressionNode, n=nothing)
-
-Preallocate an array of `n` empty nodes matching the type of `prototype`.
-If `n` is not provided, it will be computed from `length(prototype)`.
-
-A given return value of this will be passed to `copy_into!` as the first argument,
-so it should be compatible.
-"""
-function allocate_container(
-    prototype::N, n::Union{Nothing,Integer}=nothing
-) where {T,N<:AbstractExpressionNode{T}}
-    num_nodes = @something(n, length(prototype))
-    return N[with_type_parameters(N, T)() for _ in 1:num_nodes]
-end
 
 end
