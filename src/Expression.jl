@@ -506,12 +506,14 @@ end
 # We don't require users to overload this, as it's not part of the required interface.
 # Also, there's no way to generally do this from the required interface, so for backwards
 # compatibility, we just return nothing.
+# COV_EXCL_START
 function copy_into!(::Nothing, src::AbstractExpression)
     return copy(src)
 end
 function allocate_container(::AbstractExpression, ::Union{Nothing,Integer}=nothing)
     return nothing
 end
+# COV_EXCL_STOP
 function allocate_container(prototype::Expression, n::Union{Nothing,Integer}=nothing)
     return (; tree=allocate_container(get_contents(prototype), n))
 end
