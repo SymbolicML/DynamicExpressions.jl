@@ -6,12 +6,14 @@ using ..ExpressionModule: AbstractExpression, Metadata, node_type
 using ..ChainRulesModule: NodeTangent
 
 import ..NodeModule: constructorof
+import ..NodePreallocationModule: copy_into!, allocate_container
 import ..ExpressionModule:
     get_contents,
     get_metadata,
     get_tree,
     get_operators,
     get_variable_names,
+    with_contents,
     Metadata,
     _copy,
     _data,
@@ -162,6 +164,18 @@ function set_scalar_constants!(e::AbstractStructuredExpression, constants, refs)
         cursor[] += n
     end
     return e
+end
+
+function allocate_container(
+    e::AbstractStructuredExpression, n::Union{Nothing,Integer}=nothing
+)
+    ts = get_contents(e)
+    return (; trees=NamedTuple{keys(ts)}(map(t -> allocate_container(t, n), values(ts))))
+end
+function copy_into!(dest::NamedTuple, src::AbstractStructuredExpression)
+    ts = get_contents(src)
+    new_contents = NamedTuple{keys(ts)}(map(copy_into!, values(dest.trees), values(ts)))
+    return with_contents(src, new_contents)
 end
 
 end

@@ -19,6 +19,7 @@ import ..NodeUtilsModule:
     count_scalar_constants,
     get_scalar_constants,
     set_scalar_constants!
+import ..NodePreallocationModule: copy_into!, allocate_container
 import ..EvaluateModule: eval_tree_array, differentiable_eval_tree_array
 import ..EvaluateDerivativeModule: eval_grad_tree_array
 import ..EvaluationHelpersModule: _grad_evaluator
