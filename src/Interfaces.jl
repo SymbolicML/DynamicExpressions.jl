@@ -13,12 +13,10 @@ using ..NodeModule:
     default_allocator,
     with_type_parameters,
     leaf_copy,
-    leaf_copy_into!,
     leaf_convert,
     leaf_hash,
     leaf_equal,
     branch_copy,
-    branch_copy_into!,
     branch_convert,
     branch_hash,
     branch_equal,
@@ -38,6 +36,8 @@ using ..NodeUtilsModule:
     has_constants,
     get_scalar_constants,
     set_scalar_constants!
+using ..NodePreallocationModule:
+    copy_into!, leaf_copy_into!, branch_copy_into!, allocate_container
 using ..StringsModule: string_tree
 using ..EvaluateModule: eval_tree_array
 using ..EvaluateDerivativeModule: eval_grad_tree_array
@@ -96,6 +96,11 @@ function _check_with_metadata(ex::AbstractExpression)
 end
 
 ## optional
+function _check_copy_into!(ex::AbstractExpression)
+    container = allocate_container(ex)
+    prealloc_ex = copy_into!(container, ex)
+    return container !== nothing && prealloc_ex == ex && prealloc_ex !== container
+end
 function _check_count_nodes(ex::AbstractExpression)
     return count_nodes(ex) isa Int64
 end
@@ -156,6 +161,7 @@ ei_components = (
         with_metadata = "returns the expression with different metadata" => _check_with_metadata,
     ),
     optional = (
+        copy_into! = "copies an expression into a preallocated container" => _check_copy_into!,
         count_nodes = "counts the number of nodes in the expression tree" => _check_count_nodes,
         count_constant_nodes = "counts the number of constant nodes in the expression tree" => _check_count_constant_nodes,
         count_depth = "calculates the depth of the expression tree" => _check_count_depth,
@@ -260,6 +266,11 @@ function _check_tree_mapreduce(tree::AbstractExpressionNode)
 end
 
 ## optional
+function _check_copy_into!(tree::AbstractExpressionNode)
+    container = allocate_container(tree)
+    prealloc_tree = copy_into!(container, tree)
+    return container !== nothing && prealloc_tree == tree && prealloc_tree !== container
+end
 function _check_leaf_copy(tree::AbstractExpressionNode)
     tree.degree != 0 && return true
     return leaf_copy(tree) isa typeof(tree)
@@ -372,6 +383,7 @@ ni_components = (
         tree_mapreduce = "applies a function across the tree" => _check_tree_mapreduce
     ),
     optional = (
+        copy_into! = "copies a node into a preallocated container" => _check_copy_into!,
         leaf_copy = "copies a leaf node" => _check_leaf_copy,
         leaf_copy_into! = "copies a leaf node in-place" => _check_leaf_copy_into!,
         leaf_convert = "converts a leaf node" => _check_leaf_convert,

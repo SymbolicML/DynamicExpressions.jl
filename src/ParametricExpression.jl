@@ -4,9 +4,8 @@ using DispatchDoctor: @stable, @unstable
 using ChainRulesCore: ChainRulesCore as CRC, NoTangent, @thunk
 
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
-using ..NodeModule:
-    AbstractExpressionNode, Node, tree_mapreduce, with_contents, with_metadata
-using ..ExpressionModule: AbstractExpression, Metadata
+using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
+using ..ExpressionModule: AbstractExpression, Metadata, with_contents, with_metadata
 using ..ChainRulesModule: NodeTangent
 
 import ..NodeModule:
@@ -17,9 +16,8 @@ import ..NodeModule:
     leaf_convert,
     leaf_hash,
     leaf_equal,
-    set_node!,
-    copy_into!,
-    allocate_container
+    set_node!
+import ..NodePreallocationModule: copy_into!, allocate_container
 import ..NodeUtilsModule:
     count_constant_nodes,
     index_constant_nodes,

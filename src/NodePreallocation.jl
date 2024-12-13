@@ -9,7 +9,7 @@ using ..NodeModule:
     set_node!
 
 """
-    copy_into!(dest::AbstractArray{N}, src::N) where {BS,N<:AbstractExpressionNode}
+    copy_into!(dest::AbstractArray{N}, src::N) where {N<:AbstractExpressionNode}
 
 Copy a node, recursively copying all children nodes, in-place to an
 array of pre-allocated nodes. This should result in no extra allocations.
@@ -29,8 +29,7 @@ function copy_into!(
         ((p, c::Vararg{Any,M}) where {M}) ->
             branch_copy_into!(@inbounds(dest[_ref.x += 1]), p, c...),
         src,
-        N;
-        break_sharing=Val(BS),
+        N,
     )
 end
 function leaf_copy_into!(dest::N, src::N) where {N<:AbstractExpressionNode}
