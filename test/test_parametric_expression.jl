@@ -26,7 +26,7 @@ end
     using Interfaces: test
 
     ex = @parse_expression(
-        x + y + p1 * p2,
+        x + y + p1 * p2 + 1.5,
         binary_operators = [+, -, *, /],
         variable_names = ["x", "y"],
         node_type = ParametricNode,

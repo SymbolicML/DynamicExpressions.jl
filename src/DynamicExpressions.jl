@@ -9,6 +9,7 @@ using DispatchDoctor: @stable, @unstable
     include("OperatorEnum.jl")
     include("Node.jl")
     include("NodeUtils.jl")
+    include("NodePreallocation.jl")
     include("Strings.jl")
     include("Evaluate.jl")
     include("EvaluateDerivative.jl")
@@ -41,11 +42,11 @@ import .ValueInterfaceModule:
     GraphNode,
     Node,
     copy_node,
-    copy_node!,
     set_node!,
     tree_mapreduce,
     filter_map,
     filter_map!
+import .NodePreallocationModule: allocate_container, copy_into!
 import .NodeModule:
     constructorof,
     with_type_parameters,

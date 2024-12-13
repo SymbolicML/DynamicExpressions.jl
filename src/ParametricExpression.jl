@@ -5,7 +5,7 @@ using ChainRulesCore: ChainRulesCore as CRC, NoTangent, @thunk
 
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
-using ..ExpressionModule: AbstractExpression, Metadata
+using ..ExpressionModule: AbstractExpression, Metadata, with_contents, with_metadata
 using ..ChainRulesModule: NodeTangent
 
 import ..NodeModule:
@@ -13,11 +13,11 @@ import ..NodeModule:
     with_type_parameters,
     preserve_sharing,
     leaf_copy,
-    leaf_copy!,
     leaf_convert,
     leaf_hash,
     leaf_equal,
-    branch_copy!
+    set_node!
+import ..NodePreallocationModule: copy_into!, allocate_container
 import ..NodeUtilsModule:
     count_constant_nodes,
     index_constant_nodes,
@@ -124,21 +124,29 @@ function leaf_copy(t::ParametricNode{T}) where {T}
         return n
     end
 end
-function leaf_copy!(dest::N, src::N) where {T,N<:ParametricNode{T}}
-    dest.degree = 0
-    if src.constant
-        dest.constant = true
-        dest.val = src.val
-    elseif !src.is_parameter
-        dest.constant = false
-        dest.is_parameter = false
-        dest.feature = src.feature
+function set_node!(tree::ParametricNode, new_tree::ParametricNode)
+    tree.degree = new_tree.degree
+    if new_tree.degree == 0
+        if new_tree.constant
+            tree.constant = true
+            tree.val = new_tree.val
+        elseif !new_tree.is_parameter
+            tree.constant = false
+            tree.is_parameter = false
+            tree.feature = new_tree.feature
+        else
+            tree.constant = false
+            tree.is_parameter = true
+            tree.parameter = new_tree.parameter
+        end
     else
-        dest.constant = false
-        dest.is_parameter = true
-        dest.parameter = src.parameter
+        tree.op = new_tree.op
+        tree.l = new_tree.l
+        if new_tree.degree == 2
+            tree.r = new_tree.r
+        end
     end
-    return dest
+    return nothing
 end
 function leaf_convert(::Type{N}, t::ParametricNode) where {T,N<:ParametricNode{T}}
     if t.constant
@@ -443,6 +451,28 @@ end
     else
         return node_type(; val=ex)
     end
+end
+function allocate_container(
+    prototype::ParametricExpression, n::Union{Nothing,Integer}=nothing
+)
+    return (;
+        tree=allocate_container(get_contents(prototype), n),
+        parameters=similar(get_metadata(prototype).parameters),
+    )
+end
+function copy_into!(dest::NamedTuple, src::ParametricExpression)
+    new_tree = copy_into!(dest.tree, get_contents(src))
+    metadata = get_metadata(src)
+    new_parameters = dest.parameters
+    new_parameters .= metadata.parameters
+    new_metadata = Metadata((;
+        operators=metadata.operators,
+        variable_names=metadata.variable_names,
+        parameters=new_parameters,
+        parameter_names=metadata.parameter_names,
+    ))
+    # TODO: Better interface for this^
+    return with_metadata(with_contents(src, new_tree), new_metadata)
 end
 ###############################################################################
 

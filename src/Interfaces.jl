@@ -13,12 +13,10 @@ using ..NodeModule:
     default_allocator,
     with_type_parameters,
     leaf_copy,
-    leaf_copy!,
     leaf_convert,
     leaf_hash,
     leaf_equal,
     branch_copy,
-    branch_copy!,
     branch_convert,
     branch_hash,
     branch_equal,
@@ -38,6 +36,8 @@ using ..NodeUtilsModule:
     has_constants,
     get_scalar_constants,
     set_scalar_constants!
+using ..NodePreallocationModule:
+    copy_into!, leaf_copy_into!, branch_copy_into!, allocate_container
 using ..StringsModule: string_tree
 using ..EvaluateModule: eval_tree_array
 using ..EvaluateDerivativeModule: eval_grad_tree_array
@@ -96,6 +96,11 @@ function _check_with_metadata(ex::AbstractExpression)
 end
 
 ## optional
+function _check_copy_into!(ex::AbstractExpression)
+    container = allocate_container(ex)
+    prealloc_ex = copy_into!(container, ex)
+    return container !== nothing && prealloc_ex == ex && prealloc_ex !== ex
+end
 function _check_count_nodes(ex::AbstractExpression)
     return count_nodes(ex) isa Int64
 end
@@ -156,6 +161,7 @@ ei_components = (
         with_metadata = "returns the expression with different metadata" => _check_with_metadata,
     ),
     optional = (
+        copy_into! = "copies an expression into a preallocated container" => _check_copy_into!,
         count_nodes = "counts the number of nodes in the expression tree" => _check_count_nodes,
         count_constant_nodes = "counts the number of constant nodes in the expression tree" => _check_count_constant_nodes,
         count_depth = "calculates the depth of the expression tree" => _check_count_depth,
@@ -260,14 +266,19 @@ function _check_tree_mapreduce(tree::AbstractExpressionNode)
 end
 
 ## optional
+function _check_copy_into!(tree::AbstractExpressionNode)
+    container = allocate_container(tree)
+    prealloc_tree = copy_into!(container, tree)
+    return container !== nothing && prealloc_tree == tree && prealloc_tree !== container
+end
 function _check_leaf_copy(tree::AbstractExpressionNode)
     tree.degree != 0 && return true
     return leaf_copy(tree) isa typeof(tree)
 end
-function _check_leaf_copy!(tree::AbstractExpressionNode{T}) where {T}
+function _check_leaf_copy_into!(tree::AbstractExpressionNode{T}) where {T}
     tree.degree != 0 && return true
     new_leaf = constructorof(typeof(tree))(; val=zero(T))
-    ret = leaf_copy!(new_leaf, tree)
+    ret = leaf_copy_into!(new_leaf, tree)
     return new_leaf == tree && ret === new_leaf
 end
 function _check_leaf_convert(tree::AbstractExpressionNode)
@@ -292,16 +303,16 @@ function _check_branch_copy(tree::AbstractExpressionNode)
         return branch_copy(tree, tree.l, tree.r) isa typeof(tree)
     end
 end
-function _check_branch_copy!(tree::AbstractExpressionNode{T}) where {T}
+function _check_branch_copy_into!(tree::AbstractExpressionNode{T}) where {T}
     if tree.degree == 0
         return true
     end
     new_branch = constructorof(typeof(tree))(; val=zero(T))
     if tree.degree == 1
-        ret = branch_copy!(new_branch, tree, copy(tree.l))
+        ret = branch_copy_into!(new_branch, tree, copy(tree.l))
         return new_branch == tree && ret === new_branch
     else
-        ret = branch_copy!(new_branch, tree, copy(tree.l), copy(tree.r))
+        ret = branch_copy_into!(new_branch, tree, copy(tree.l), copy(tree.r))
         return new_branch == tree && ret === new_branch
     end
 end
@@ -372,13 +383,14 @@ ni_components = (
         tree_mapreduce = "applies a function across the tree" => _check_tree_mapreduce
     ),
     optional = (
+        copy_into! = "copies a node into a preallocated container" => _check_copy_into!,
         leaf_copy = "copies a leaf node" => _check_leaf_copy,
-        leaf_copy! = "copies a leaf node in-place" => _check_leaf_copy!,
+        leaf_copy_into! = "copies a leaf node in-place" => _check_leaf_copy_into!,
         leaf_convert = "converts a leaf node" => _check_leaf_convert,
         leaf_hash = "computes the hash of a leaf node" => _check_leaf_hash,
         leaf_equal = "checks equality of two leaf nodes" => _check_leaf_equal,
         branch_copy = "copies a branch node" => _check_branch_copy,
-        branch_copy! = "copies a branch node in-place" => _check_branch_copy!,
+        branch_copy_into! = "copies a branch node in-place" => _check_branch_copy_into!,
         branch_convert = "converts a branch node" => _check_branch_convert,
         branch_hash = "computes the hash of a branch node" => _check_branch_hash,
         branch_equal = "checks equality of two branch nodes" => _check_branch_equal,
@@ -419,7 +431,7 @@ ni_description = (
     [Arguments()]
 )
 @implements(
-    NodeInterface{all_ni_methods_except((:leaf_copy!, :branch_copy!))},
+    NodeInterface{all_ni_methods_except(())},
     GraphNode,
     [Arguments()]
 )
