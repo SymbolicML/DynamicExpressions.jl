@@ -317,14 +317,6 @@ function extract_gradient(
     return extract_gradient(gradient.tree, get_tree(ex))
 end
 
-function preallocate_expression(prototype::Expression, n::Union{Nothing,Integer}=nothing)
-    return (; tree=preallocate_expression(DE.get_contents(prototype), n))
-end
-function DE.copy_node!(dest::NamedTuple, src::Expression)
-    tree = DE.copy_node!(dest.tree, DE.get_contents(src))
-    return DE.with_contents(src, tree)
-end
-
 """
     string_tree(
         ex::AbstractExpression,
@@ -508,6 +500,23 @@ function (ex::AbstractExpression)(
 )
     _validate_input(ex, X, operators)
     return get_tree(ex)(X, get_operators(ex, operators); kws...)
+end
+
+# We don't require users to overload this, as it's not part of the required interface.
+# Also, there's no way to generally do this from the required interface, so for backwards
+# compatibility, we just return nothing.
+function copy_into!(::Nothing, src::AbstractExpression)
+    return copy(src)
+end
+function allocate_container(::AbstractExpression, ::Union{Nothing,Integer}=nothing)
+    return nothing
+end
+function allocate_container(prototype::Expression, n::Union{Nothing,Integer}=nothing)
+    return (; tree=allocate_container(get_contents(prototype), n))
+end
+function copy_into!(dest::NamedTuple, src::Expression)
+    tree = copy_into!(dest.tree, get_contents(src))
+    return with_contents(src, tree)
 end
 
 end

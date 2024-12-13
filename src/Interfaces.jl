@@ -13,12 +13,12 @@ using ..NodeModule:
     default_allocator,
     with_type_parameters,
     leaf_copy,
-    leaf_copy!,
+    leaf_copy_into!,
     leaf_convert,
     leaf_hash,
     leaf_equal,
     branch_copy,
-    branch_copy!,
+    branch_copy_into!,
     branch_convert,
     branch_hash,
     branch_equal,
@@ -264,10 +264,10 @@ function _check_leaf_copy(tree::AbstractExpressionNode)
     tree.degree != 0 && return true
     return leaf_copy(tree) isa typeof(tree)
 end
-function _check_leaf_copy!(tree::AbstractExpressionNode{T}) where {T}
+function _check_leaf_copy_into!(tree::AbstractExpressionNode{T}) where {T}
     tree.degree != 0 && return true
     new_leaf = constructorof(typeof(tree))(; val=zero(T))
-    ret = leaf_copy!(new_leaf, tree)
+    ret = leaf_copy_into!(new_leaf, tree)
     return new_leaf == tree && ret === new_leaf
 end
 function _check_leaf_convert(tree::AbstractExpressionNode)
@@ -292,16 +292,16 @@ function _check_branch_copy(tree::AbstractExpressionNode)
         return branch_copy(tree, tree.l, tree.r) isa typeof(tree)
     end
 end
-function _check_branch_copy!(tree::AbstractExpressionNode{T}) where {T}
+function _check_branch_copy_into!(tree::AbstractExpressionNode{T}) where {T}
     if tree.degree == 0
         return true
     end
     new_branch = constructorof(typeof(tree))(; val=zero(T))
     if tree.degree == 1
-        ret = branch_copy!(new_branch, tree, copy(tree.l))
+        ret = branch_copy_into!(new_branch, tree, copy(tree.l))
         return new_branch == tree && ret === new_branch
     else
-        ret = branch_copy!(new_branch, tree, copy(tree.l), copy(tree.r))
+        ret = branch_copy_into!(new_branch, tree, copy(tree.l), copy(tree.r))
         return new_branch == tree && ret === new_branch
     end
 end
@@ -373,12 +373,12 @@ ni_components = (
     ),
     optional = (
         leaf_copy = "copies a leaf node" => _check_leaf_copy,
-        leaf_copy! = "copies a leaf node in-place" => _check_leaf_copy!,
+        leaf_copy_into! = "copies a leaf node in-place" => _check_leaf_copy_into!,
         leaf_convert = "converts a leaf node" => _check_leaf_convert,
         leaf_hash = "computes the hash of a leaf node" => _check_leaf_hash,
         leaf_equal = "checks equality of two leaf nodes" => _check_leaf_equal,
         branch_copy = "copies a branch node" => _check_branch_copy,
-        branch_copy! = "copies a branch node in-place" => _check_branch_copy!,
+        branch_copy_into! = "copies a branch node in-place" => _check_branch_copy_into!,
         branch_convert = "converts a branch node" => _check_branch_convert,
         branch_hash = "computes the hash of a branch node" => _check_branch_hash,
         branch_equal = "checks equality of two branch nodes" => _check_branch_equal,
@@ -419,7 +419,7 @@ ni_description = (
     [Arguments()]
 )
 @implements(
-    NodeInterface{all_ni_methods_except((:leaf_copy!, :branch_copy!))},
+    NodeInterface{all_ni_methods_except((:leaf_copy_into!, :branch_copy_into!))},
     GraphNode,
     [Arguments()]
 )
