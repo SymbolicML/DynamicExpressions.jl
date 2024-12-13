@@ -317,6 +317,14 @@ function extract_gradient(
     return extract_gradient(gradient.tree, get_tree(ex))
 end
 
+function preallocate_expression(prototype::Expression, n::Union{Nothing,Integer}=nothing)
+    return (; tree=preallocate_expression(DE.get_contents(prototype), n))
+end
+function DE.copy_node!(dest::NamedTuple, src::Expression)
+    tree = DE.copy_node!(dest.tree, DE.get_contents(src))
+    return DE.with_contents(src, tree)
+end
+
 """
     string_tree(
         ex::AbstractExpression,

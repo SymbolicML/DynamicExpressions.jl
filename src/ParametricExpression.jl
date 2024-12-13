@@ -4,7 +4,8 @@ using DispatchDoctor: @stable, @unstable
 using ChainRulesCore: ChainRulesCore as CRC, NoTangent, @thunk
 
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
-using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
+using ..NodeModule:
+    AbstractExpressionNode, Node, tree_mapreduce, with_contents, with_metadata
 using ..ExpressionModule: AbstractExpression, Metadata
 using ..ChainRulesModule: NodeTangent
 
@@ -17,7 +18,9 @@ import ..NodeModule:
     leaf_convert,
     leaf_hash,
     leaf_equal,
-    branch_copy!
+    branch_copy!,
+    copy_node!,
+    preallocate_expression
 import ..NodeUtilsModule:
     count_constant_nodes,
     index_constant_nodes,
@@ -443,6 +446,28 @@ end
     else
         return node_type(; val=ex)
     end
+end
+function preallocate_expression(
+    prototype::ParametricExpression, n::Union{Nothing,Integer}=nothing
+)
+    return (;
+        tree=preallocate_expression(get_contents(prototype), n),
+        parameters=similar(get_metadata(prototype).parameters),
+    )
+end
+function copy_node!(dest::NamedTuple, src::ParametricExpression)
+    new_tree = copy_node!(dest.tree, get_contents(src))
+    metadata = get_metadata(src)
+    new_parameters = dest.parameters
+    new_parameters .= metadata.parameters
+    new_metadata = Metadata((;
+        operators=metadata.operators,
+        variable_names=metadata.variable_names,
+        parameters=new_parameters,
+        parameter_names=metadata.parameter_names,
+    ))
+    # TODO: Better interface for this^
+    return with_metadata(with_contents(src, new_tree), new_metadata)
 end
 ###############################################################################
 

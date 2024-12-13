@@ -488,23 +488,25 @@ end
 # In-place versions
 
 """
-    copy_node!(dest::AbstractArray{N}, src::N; break_sharing::Val{BS}=Val(false)) where {BS,N<:AbstractExpressionNode}
+    copy_node!(dest::AbstractArray{N}, src::N) where {BS,N<:AbstractExpressionNode}
 
 Copy a node, recursively copying all children nodes, in-place to an
 array of pre-allocated nodes. This should result in no extra allocations.
 """
 function copy_node!(
-    dest::AbstractArray{N},
-    src::N;
-    break_sharing::Val{BS}=Val(false),
-    ref::Base.RefValue{<:Integer}=Ref(0),
-) where {BS,N<:AbstractExpressionNode}
-    ref.x = 0
+    dest::AbstractArray{N}, src::N; ref::Union{Nothing,Base.RefValue{<:Integer}}=nothing
+) where {N<:AbstractExpressionNode}
+    _ref = if ref === nothing
+        Ref(0)
+    else
+        ref.x = 0
+        ref
+    end
     return tree_mapreduce(
-        leaf -> leaf_copy!(@inbounds(dest[ref.x += 1]), leaf),
+        leaf -> leaf_copy!(@inbounds(dest[_ref.x += 1]), leaf),
         identity,
         ((p, c::Vararg{Any,M}) where {M}) ->
-            branch_copy!(@inbounds(dest[ref.x += 1]), p, c...),
+            branch_copy!(@inbounds(dest[_ref.x += 1]), p, c...),
         src,
         N;
         break_sharing=Val(BS),
@@ -532,6 +534,31 @@ function branch_copy!(
     end
     return dest
 end
+
+"""
+    preallocate_expression(prototype::AbstractExpressionNode, n=nothing)
+
+Preallocate an array of empty nodes matching the type of `prototype`. If `n` is provided, use that length, otherwise use `length(prototype)`.
+
+A given return value of this will be passed to `copy_node!` as the first argument,
+so it should be compatible.
+"""
+function preallocate_expression(
+    prototype::N, n::Union{Nothing,Integer}=nothing
+) where {T,N<:AbstractExpressionNode{T}}
+    num_nodes = @something(n, length(prototype))
+    return N[with_type_parameters(N, T)() for _ in 1:num_nodes]
+end
+
+function copy_node!(::Nothing, src::AbstractExpression)
+    return copy(src)
+end
+function preallocate_expression(::AbstractExpression, ::Union{Nothing,Integer}=nothing)
+    return nothing
+end
+# We don't require users to overload this, as it's not part of the required interface.
+# Also, there's no way to generally do this from the required interface, so for backwards
+# compatibility, we just return nothing.
 
 """
     copy(tree::AbstractExpressionNode; break_sharing::Val=Val(false))
