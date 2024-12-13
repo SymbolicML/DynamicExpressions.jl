@@ -419,7 +419,7 @@ ni_description = (
     [Arguments()]
 )
 @implements(
-    NodeInterface{all_ni_methods_except((:leaf_copy_into!, :branch_copy_into!))},
+    NodeInterface{all_ni_methods_except(())},
     GraphNode,
     [Arguments()]
 )
