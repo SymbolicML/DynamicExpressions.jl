@@ -99,14 +99,18 @@ end
 
 @testitem "This also works for parsing mixed types" begin
     using DynamicExpressions
+    using DispatchDoctor
+
     v = [1, 2, 3]
-    ex = @parse_expression(
-        $v * tan(cos(5 + x)),
-        operators = GenericOperatorEnum(;
-            binary_operators=[*, +], unary_operators=[tan, cos]
-        ),
-        variable_names = ["x"],
-    )
+    ex = allow_unstable() do
+        @parse_expression(
+            $v * tan(cos(5 + x)),
+            operators = GenericOperatorEnum(;
+                binary_operators=[*, +], unary_operators=[tan, cos]
+            ),
+            variable_names = ["x"],
+        )
+    end
 
     @test typeof(ex.tree) <: Node{Any}
     @test typeof(ex.metadata.operators) <: GenericOperatorEnum

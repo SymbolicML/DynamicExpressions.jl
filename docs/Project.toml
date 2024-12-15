@@ -1,3 +1,6 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DynamicExpressions = "a40a106e-89c9-4ca8-8020-a735e8728b6b"
+Interfaces = "85a1e053-f937-4924-92a5-1367d23b7b87"
+Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"

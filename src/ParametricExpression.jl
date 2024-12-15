@@ -5,10 +5,19 @@ using ChainRulesCore: ChainRulesCore as CRC, NoTangent, @thunk
 
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
-using ..ExpressionModule: AbstractExpression, Metadata
+using ..ExpressionModule: AbstractExpression, Metadata, with_contents, with_metadata
 using ..ChainRulesModule: NodeTangent
 
-import ..NodeModule: constructorof, preserve_sharing, leaf_copy, leaf_hash, leaf_equal
+import ..NodeModule:
+    constructorof,
+    with_type_parameters,
+    preserve_sharing,
+    leaf_copy,
+    leaf_convert,
+    leaf_hash,
+    leaf_equal,
+    set_node!
+import ..NodePreallocationModule: copy_into!, allocate_container
 import ..NodeUtilsModule:
     count_constant_nodes,
     index_constant_nodes,
@@ -103,27 +112,63 @@ end
 default_node_type(::Type{<:ParametricExpression{T}}) where {T} = ParametricNode{T}
 preserve_sharing(::Union{Type{<:ParametricNode},ParametricNode}) = false # TODO: Change this?
 function leaf_copy(t::ParametricNode{T}) where {T}
-    out = if t.constant
-        constructorof(typeof(t))(; val=t.val)
+    if t.constant
+        return constructorof(typeof(t))(; val=t.val)
     elseif !t.is_parameter
-        constructorof(typeof(t))(T; feature=t.feature)
+        return constructorof(typeof(t))(T; feature=t.feature)
     else
         n = constructorof(typeof(t))(; val=zero(T))
         n.constant = false
         n.is_parameter = true
         n.parameter = t.parameter
-        n
+        return n
     end
-    return out
+end
+function set_node!(tree::ParametricNode, new_tree::ParametricNode)
+    tree.degree = new_tree.degree
+    if new_tree.degree == 0
+        if new_tree.constant
+            tree.constant = true
+            tree.val = new_tree.val
+        elseif !new_tree.is_parameter
+            tree.constant = false
+            tree.is_parameter = false
+            tree.feature = new_tree.feature
+        else
+            tree.constant = false
+            tree.is_parameter = true
+            tree.parameter = new_tree.parameter
+        end
+    else
+        tree.op = new_tree.op
+        tree.l = new_tree.l
+        if new_tree.degree == 2
+            tree.r = new_tree.r
+        end
+    end
+    return nothing
+end
+function leaf_convert(::Type{N}, t::ParametricNode) where {T,N<:ParametricNode{T}}
+    if t.constant
+        return constructorof(N)(T; val=convert(T, t.val))
+    elseif t.is_parameter
+        n = constructorof(N)(T; val=zero(T))
+        n.constant = false
+        n.is_parameter = true
+        n.parameter = t.parameter
+        return n
+    else
+        return constructorof(N)(T; feature=t.feature)
+    end
 end
 function leaf_hash(h::UInt, t::ParametricNode)
     if t.constant
-        hash((:constant, t.val), h)
+        return hash((:constant, t.val), h)
     else
         if t.is_parameter
-            hash((:parameter, t.parameter), h)
+            return hash((:parameter, t.parameter), h)
         else
-            hash((:feature, t.feature), h)
+            return hash((:feature, t.feature), h)
         end
     end
 end
@@ -341,7 +386,6 @@ function string_tree(
     display_variable_names=nothing,
     X_sym_units=nothing,
     y_sym_units=nothing,
-    raw=false,
     kws...,
 )
     # TODO: HACK we ignore display_variable_names and others
@@ -407,6 +451,28 @@ end
     else
         return node_type(; val=ex)
     end
+end
+function allocate_container(
+    prototype::ParametricExpression, n::Union{Nothing,Integer}=nothing
+)
+    return (;
+        tree=allocate_container(get_contents(prototype), n),
+        parameters=similar(get_metadata(prototype).parameters),
+    )
+end
+function copy_into!(dest::NamedTuple, src::ParametricExpression)
+    new_tree = copy_into!(dest.tree, get_contents(src))
+    metadata = get_metadata(src)
+    new_parameters = dest.parameters
+    new_parameters .= metadata.parameters
+    new_metadata = Metadata((;
+        operators=metadata.operators,
+        variable_names=metadata.variable_names,
+        parameters=new_parameters,
+        parameter_names=metadata.parameter_names,
+    ))
+    # TODO: Better interface for this^
+    return with_metadata(with_contents(src, new_tree), new_metadata)
 end
 ###############################################################################
 
