@@ -123,12 +123,6 @@ end
     include("test_random.jl")
 end
 
-@testitem "Test CUDA" begin
-    if VERSION >= v"1.9"
-        include("test_cuda.jl")
-    end
-end
-
 include("test_expressions.jl")
 include("test_multi_expression.jl")
 include("test_parse.jl")
@@ -139,3 +133,4 @@ include("test_expression_math.jl")
 include("test_structured_expression.jl")
 include("test_readonlynode.jl")
 include("test_zygote_gradient_wrapper.jl")
+include("test_cuda.jl")
