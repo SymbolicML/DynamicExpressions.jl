@@ -5,6 +5,7 @@ using CUDA: @cuda, CuArray, blockDim, blockIdx, threadIdx
 using DynamicExpressions: OperatorEnum, AbstractExpressionNode
 using DynamicExpressions.EvaluateEquationModule: get_nbin, get_nuna
 using DynamicExpressions.AsArrayModule: as_array
+using DispatchDoctor: @stable
 
 import DynamicExpressions.EvaluateEquationModule: eval_tree_array
 
@@ -19,17 +20,19 @@ Base.size(x::FakeCuArray) = size(x.a)
 
 const MaybeCuArray{T,N} = Union{CuArray{T,N},FakeCuArray{T,N}}
 
-to_device(a, ::CuArray) = CuArray(a)
-to_device(a, ::FakeCuArray) = FakeCuArray(a)
+@stable default_mode = "disable" begin
+    to_device(a, ::CuArray) = CuArray(a)
+    to_device(a, ::FakeCuArray) = FakeCuArray(a)
+end
 
-function eval_tree_array(
+@stable default_mode = "disable" function eval_tree_array(
     tree::AbstractExpressionNode{T}, gcX::MaybeCuArray{T,2}, operators::OperatorEnum; kws...
 ) where {T<:Number}
     (outs, is_good) = eval_tree_array((tree,), gcX, operators; kws...)
     return (only(outs), only(is_good))
 end
 
-function eval_tree_array(
+@stable default_mode = "disable" function eval_tree_array(
     trees::Union{Tuple{N,Vararg{N}},AbstractVector{N}},
     gcX::MaybeCuArray{T,2},
     operators::OperatorEnum;
@@ -95,7 +98,7 @@ function eval_tree_array(
 end
 
 #! format: off
-function _launch_gpu_kernel!(
+@stable default_mode = "disable" function _launch_gpu_kernel!(
     num_threads, num_blocks, num_launches::Integer, buffer::AbstractArray{T,2},
     # Thread info:
     num_elem::Integer, num_nodes::Integer, execution_order::AbstractArray{I},
@@ -141,7 +144,9 @@ end
 #      ifs to generate at that time, so we can't simply use specialization.
 #   3. We can't use `@generated` because we can't create closures in those.
 for nuna in 0:10, nbin in 0:10
-    @eval function create_gpu_kernel(operators::OperatorEnum, ::Val{$nuna}, ::Val{$nbin})
+    @eval @stable default_mode = "disable" function create_gpu_kernel(
+        operators::OperatorEnum, ::Val{$nuna}, ::Val{$nbin}
+    )
         #! format: off
         function (
             # Storage:
