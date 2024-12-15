@@ -53,6 +53,11 @@ end
 const Max2Tensor{T} = DynamicTensor{T,2,Tuple{Base.RefValue{T},Vector{T},Matrix{T}}}
 Max2Tensor{T}(x) where {T} = DynamicTensor{T,2}(x)
 
+# Before implementing, we get a nice error message:
+if VERSION >= v"1.9-"
+    @test_throws "Base number type of type" DE.get_number_type(DynamicTensor{Float64,2})
+end
+
 DE.get_number_type(::Type{<:DynamicTensor{T}}) where {T} = T
 
 @generated function DE.is_valid(val::DynamicTensor{<:Any,N}) where {N}

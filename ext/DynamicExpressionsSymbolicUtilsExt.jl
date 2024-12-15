@@ -12,6 +12,12 @@ import DynamicExpressions: AbstractExpression, get_tree, get_operators
 const SYMBOLIC_UTILS_TYPES = Union{<:Number,SymbolicUtils.Symbolic{<:Number}}
 const SUPPORTED_OPS = (cos, sin, exp, cot, tan, csc, sec, +, -, *, /)
 
+@static if isdefined(SymbolicUtils, :iscall)
+    iscall(x) = SymbolicUtils.iscall(x)
+else
+    iscall(x) = SymbolicUtils.istree(x)
+end
+
 macro return_on_false(flag, retval)
     :(
         if !$(esc(flag))
@@ -21,7 +27,7 @@ macro return_on_false(flag, retval)
 end
 
 function is_valid(x::SymbolicUtils.Symbolic)
-    return if SymbolicUtils.istree(x)
+    return if iscall(x)
         all(is_valid.([SymbolicUtils.operation(x); SymbolicUtils.arguments(x)]))
     else
         true
@@ -140,7 +146,7 @@ function Base.convert(
     variable_names::Union{Array{String,1},Nothing}=nothing,
 ) where {N<:AbstractExpressionNode}
     variable_names = deprecate_varmap(variable_names, nothing, :convert)
-    if !SymbolicUtils.istree(expr)
+    if !iscall(expr)
         variable_names === nothing && return constructorof(N)(String(expr.name))
         return constructorof(N)(String(expr.name), variable_names)
     end
@@ -234,7 +240,7 @@ function multiply_powers(eqn::Number)::Tuple{SYMBOLIC_UTILS_TYPES,Bool}
 end
 
 function multiply_powers(eqn::SymbolicUtils.Symbolic)::Tuple{SYMBOLIC_UTILS_TYPES,Bool}
-    if !SymbolicUtils.istree(eqn)
+    if !iscall(eqn)
         return eqn, true
     end
     op = SymbolicUtils.operation(eqn)

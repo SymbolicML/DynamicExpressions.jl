@@ -5,11 +5,18 @@ import ..OperatorEnumModule: OperatorEnum
 import ..UtilsModule: fill_similar, ResultOk2
 import ..ValueInterfaceModule: is_valid_array
 import ..NodeUtilsModule: count_constant_nodes, index_constant_nodes, NodeIndex
-import ..EvaluateModule: deg0_eval, get_nuna, get_nbin, OPERATOR_LIMIT_BEFORE_SLOWDOWN
+import ..EvaluateModule:
+    deg0_eval, get_nuna, get_nbin, OPERATOR_LIMIT_BEFORE_SLOWDOWN, EvalOptions
 import ..ExtensionInterfaceModule: _zygote_gradient
 
 """
-    eval_diff_tree_array(tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Integer; turbo::Union{Bool,Val}=Val(false))
+    eval_diff_tree_array(
+        tree::AbstractExpressionNode{T},
+        cX::AbstractMatrix{T},
+        operators::OperatorEnum,
+        direction::Integer;
+        turbo::Union{Bool,Val}=Val(false)
+    ) where {T<:Number}
 
 Compute the forward derivative of an expression, using a similar
 structure and optimization to eval_tree_array. `direction` is the index of a particular
@@ -19,7 +26,7 @@ respect to `x1`.
 # Arguments
 
 - `tree::AbstractExpressionNode`: The expression tree to evaluate.
-- `cX::AbstractMatrix{T}`: The data matrix, with each column being a data point.
+- `cX::AbstractMatrix{T}`: The data matrix, with shape `[num_features, num_rows]`.
 - `operators::OperatorEnum`: The operators used to create the `tree`.
 - `direction::Integer`: The index of the variable to take the derivative with respect to.
 - `turbo::Union{Bool,Val}`: Use LoopVectorization.jl for faster evaluation. Currently this does not have
@@ -114,7 +121,7 @@ end
 function diff_deg0_eval(
     tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, direction::Integer
 ) where {T<:Number}
-    const_part = deg0_eval(tree, cX).x
+    const_part = deg0_eval(tree, cX, EvalOptions()).x
     derivative_part = if ((!tree.constant) && tree.feature == direction)
         fill_similar(one(T), cX, axes(cX, 2))
     else
@@ -329,7 +336,7 @@ function grad_deg0_eval(
     cX::AbstractMatrix{T},
     ::Val{mode},
 )::ResultOk2 where {T<:Number,mode}
-    const_part = deg0_eval(tree, cX).x
+    const_part = deg0_eval(tree, cX, EvalOptions()).x
 
     zero_mat = if isa(cX, Array)
         fill_similar(zero(T), cX, n_gradients, axes(cX, 2))
