@@ -239,8 +239,8 @@ function eval_tree_array(
     operators::OperatorEnum;
     kws...,
 ) where {T<:Number,N<:AbstractExpressionNode{T}}
-    outs = (t -> eval_tree_array(t, cX, operators; kws...)).(trees)
-    return first.(outs), last.(outs)
+    outs = map(t -> eval_tree_array(t, cX, operators; kws...), trees)
+    return map(first, outs), map(last, outs)
 end
 
 # These are marked unstable due to issues discussed on

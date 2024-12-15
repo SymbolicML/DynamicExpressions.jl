@@ -13,7 +13,7 @@ function as_array(
     trees::Union{Tuple{N,Vararg{N}},AbstractVector{N}};
     buffer::Union{AbstractArray,Nothing}=nothing,
 ) where {T,N<:AbstractExpressionNode{T},I}
-    each_num_nodes = (t -> count_nodes(t; break_sharing=Val(true))).(trees)
+    each_num_nodes = map(t -> count_nodes(t; break_sharing=Val(true)), trees)
     num_nodes = sum(each_num_nodes)
 
     # Want `roots` to be tuple if `trees` is tuple and similar for vector

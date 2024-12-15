@@ -88,8 +88,8 @@ function eval_tree_array(
     )
     #! format: on
 
-    out = (r -> @view(gworkspace[begin:(end - 1), r])).(roots)
-    is_good = (_ -> true).(trees)
+    out = map(r -> @view(gworkspace[begin:(end - 1), r]), roots)
+    is_good = map(Returns(true), trees)
 
     return (out, is_good)
 end
