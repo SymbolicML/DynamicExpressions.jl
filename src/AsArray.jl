@@ -39,7 +39,7 @@ function as_array(
     constant = @view buffer[8, :]
 
     cursor = Ref(zero(I))
-    num_launches = zero(I)
+    num_launches = Ref(zero(I))
     for (root, tree) in zip(roots, trees)
         @assert root == cursor[] + 1
         tree_mapreduce(
@@ -78,8 +78,8 @@ function as_array(
                 execution_order[parent.id] = parent_execution_order
 
                 # Global number of launches equal to maximum execution order
-                if parent_execution_order > num_launches
-                    num_launches = parent_execution_order
+                if parent_execution_order > num_launches[]
+                    num_launches[] = parent_execution_order
                 end
 
                 (id=parent.id, order=parent_execution_order)
@@ -96,7 +96,7 @@ function as_array(
         feature,
         op,
         execution_order,
-        num_launches,
+        num_launches=num_launches[],
         idx_self,
         idx_l,
         idx_r,
