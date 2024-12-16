@@ -37,6 +37,15 @@ Base.@kwdef struct TreeBuffer{
     buffer::D
 end
 
+const IDX_DEGREE = 1
+const IDX_FEATURE = 2
+const IDX_OP = 3
+const IDX_EXECUTION_ORDER = 4
+const IDX_SELF = 5
+const IDX_L = 6
+const IDX_R = 7
+const IDX_CONSTANT = 8
+
 function as_array(
     ::Type{I},
     trees::Union{Tuple{N,Vararg{N}},AbstractVector{N}};
@@ -61,14 +70,14 @@ function as_array(
 
     # Obtain arrays from the buffer. Each call to get_array consumes one "slot".
     #! format: off
-    degree =          @view buffer[1, :]
-    feature =         @view buffer[2, :]
-    op =              @view buffer[3, :]
-    execution_order = @view buffer[4, :]
-    idx_self =        @view buffer[5, :]
-    idx_l =           @view buffer[6, :]
-    idx_r =           @view buffer[7, :]
-    constant =        @view buffer[8, :]
+    degree =          @view buffer[IDX_DEGREE, :]
+    feature =         @view buffer[IDX_FEATURE, :]
+    op =              @view buffer[IDX_OP, :]
+    execution_order = @view buffer[IDX_EXECUTION_ORDER, :]
+    idx_self =        @view buffer[IDX_SELF, :]
+    idx_l =           @view buffer[IDX_L, :]
+    idx_r =           @view buffer[IDX_R, :]
+    constant =        @view buffer[IDX_CONSTANT, :]
     #! format: on
 
     tree_buffers = TreeBuffer(;
