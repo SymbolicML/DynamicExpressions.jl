@@ -1,109 +1,170 @@
 module AsArrayModule
 
+using Compat: Fix
+
 using ..NodeModule: AbstractExpressionNode, tree_mapreduce, count_nodes
+using ..EvaluateModule: ArrayBuffer, get_array, get_filled_array
 
 function as_array(
-    ::Type{I}, trees::N; buffer=nothing
+    ::Type{I}, trees::N; buffer::Union{ArrayBuffer,Nothing}=nothing
 ) where {T,N<:AbstractExpressionNode{T},I}
     return as_array(I, (trees,); buffer=buffer)
+end
+
+Base.@kwdef struct TreeBuffer{
+    T,I,A<:AbstractArray{I},B<:AbstractArray{T},C,D<:AbstractArray{I}
+}
+    # Corresponds to the `Node` fields
+    degree::A
+    constant::A
+    val::B
+    feature::A
+    op::A
+    idx_l::A
+    idx_r::A
+
+    # Indexing information
+    execution_order::A
+    idx_self::A
+    num_launches::Base.RefValue{I}
+    cursor::Base.RefValue{I}
+
+    # Segment information
+    roots::C
+    num_nodes::I
+
+    # Original buffer
+    buffer::D
 end
 
 function as_array(
     ::Type{I},
     trees::Union{Tuple{N,Vararg{N}},AbstractVector{N}};
-    buffer::Union{AbstractArray,Nothing}=nothing,
+    buffer::Union{AbstractArray{I},Nothing}=nothing,
 ) where {T,N<:AbstractExpressionNode{T},I}
     each_num_nodes = map(t -> count_nodes(t; break_sharing=Val(true)), trees)
     num_nodes = sum(each_num_nodes)
 
-    # Want `roots` to be tuple if `trees` is tuple and similar for vector
+    # Compute the roots array for indexing.
     roots = cumsum(
         if each_num_nodes isa Tuple
-            tuple(one(I), each_num_nodes[1:(end - 1)]...)
+            tuple(one(I), each_num_nodes[begin:(end - 1)]...)
         else
-            vcat(one(I), each_num_nodes[1:(end - 1)])
+            vcat(one(I), @view(each_num_nodes[begin:(end - 1)]))
         end,
     )
 
     val = Array{T}(undef, num_nodes)
 
-    ## Views of the same matrix:
+    # If no buffer is provided, create a new ArrayBuffer from scratch
     buffer = @something(buffer, Array{I}(undef, 8, num_nodes))
-    degree = @view buffer[1, :]
-    feature = @view buffer[2, :]
-    op = @view buffer[3, :]
+
+    # Obtain arrays from the buffer. Each call to get_array consumes one "slot".
+    #! format: off
+    degree =          @view buffer[1, :]
+    feature =         @view buffer[2, :]
+    op =              @view buffer[3, :]
     execution_order = @view buffer[4, :]
-    idx_self = @view buffer[5, :]
-    idx_l = @view buffer[6, :]
-    idx_r = @view buffer[7, :]
-    constant = @view buffer[8, :]
+    idx_self =        @view buffer[5, :]
+    idx_l =           @view buffer[6, :]
+    idx_r =           @view buffer[7, :]
+    constant =        @view buffer[8, :]
+    #! format: on
 
-    cursor = Ref(zero(I))
-    num_launches = Ref(zero(I))
-    for (root, tree) in zip(roots, trees)
-        @assert root == cursor[] + 1
-        tree_mapreduce(
-            leaf -> begin
-                self = (cursor[] += one(I))
-                idx_self[self] = self
-                degree[self] = 0
-                execution_order[self] = one(I)
-                constant[self] = leaf.constant
-                if leaf.constant
-                    val[self] = leaf.val::T
-                else
-                    feature[self] = leaf.feature
-                end
+    tree_buffers = TreeBuffer(;
+        degree=degree,
+        constant=constant,
+        val=val,
+        feature=feature,
+        op=op,
+        idx_l=idx_l,
+        idx_r=idx_r,
 
-                (id=self, order=one(I))
-            end,
-            branch -> begin
-                self = (cursor[] += one(I))
-                idx_self[self] = self
-                op[self] = branch.op
-                degree[self] = branch.degree
+        # Indexing information
+        execution_order=execution_order,
+        idx_self=idx_self,
+        num_launches=Ref(zero(I)),
+        cursor=Ref(zero(I)),
 
-                (id=self, order=one(I))  # this order is unused
-            end,
-            ((parent, children::Vararg{Any,C}) where {C}) -> begin
-                idx_l[parent.id] = children[1].id
-                if C == 2
-                    idx_r[parent.id] = children[2].id
-                end
-                parent_execution_order = if C == 1
-                    children[1].order + one(I)
-                else
-                    max(children[1].order, children[2].order) + one(I)
-                end
-                execution_order[parent.id] = parent_execution_order
+        # Segment information
+        roots=roots,
+        num_nodes=I(num_nodes),
 
-                # Global number of launches equal to maximum execution order
-                if parent_execution_order > num_launches[]
-                    num_launches[] = parent_execution_order
-                end
+        # Original buffer
+        buffer=buffer,
+    )
 
-                (id=parent.id, order=parent_execution_order)
-            end,
-            tree;
-            break_sharing=Val(true),
-        )
+    fill_tree_buffer!(tree_buffers, trees)
+
+    return tree_buffers
+end
+
+function fill_tree_buffer!(
+    tree_buffers::TreeBuffer{T,I}, trees::Union{Tuple{N,Vararg{N}},AbstractVector{N}}
+) where {T,I,N<:AbstractExpressionNode{T}}
+    return foreach(Fix{1}(fill_single_tree!, tree_buffers), trees)
+end
+
+function fill_single_tree!(
+    tree_buffers::TreeBuffer{T,I}, tree::N
+) where {T,I,N<:AbstractExpressionNode{T}}
+    return tree_mapreduce(
+        Fix{1}(fill_single_leaf!, tree_buffers),
+        Fix{1}(fill_single_branch!, tree_buffers),
+        Fix{1}(link_parent_and_children!, tree_buffers),
+        tree;
+        break_sharing=Val(true),
+    )
+end
+
+function fill_single_leaf!(
+    tree_buffers::TreeBuffer{T,I}, leaf::N
+) where {T,I,N<:AbstractExpressionNode{T}}
+    self = (tree_buffers.cursor[] += one(I))
+    tree_buffers.idx_self[self] = self
+    tree_buffers.degree[self] = 0
+    tree_buffers.execution_order[self] = one(I)
+    tree_buffers.constant[self] = leaf.constant
+    if leaf.constant
+        tree_buffers.val[self] = leaf.val::T
+    else
+        tree_buffers.feature[self] = leaf.feature
     end
 
-    return (;
-        degree,
-        constant,
-        val,
-        feature,
-        op,
-        execution_order,
-        num_launches=num_launches[],
-        idx_self,
-        idx_l,
-        idx_r,
-        roots,
-        buffer,
-        num_nodes,
-    )
+    return (id=self, order=one(I))
+end
+
+function fill_single_branch!(
+    tree_buffers::TreeBuffer{T,I}, branch::N
+) where {T,I,N<:AbstractExpressionNode{T}}
+    self = (tree_buffers.cursor[] += one(I))
+    tree_buffers.idx_self[self] = self
+    tree_buffers.op[self] = branch.op
+    tree_buffers.degree[self] = branch.degree
+
+    return (id=self, order=one(I))
+end
+
+function link_parent_and_children!(
+    tree_buffers::TreeBuffer{T,I}, parent, children::Vararg{Any,C}
+) where {T,I,C}
+    tree_buffers.idx_l[parent.id] = children[1].id
+    if C == 2
+        tree_buffers.idx_r[parent.id] = children[2].id
+    end
+    parent_execution_order = if C == 1
+        children[1].order + one(I)
+    else
+        max(children[1].order, children[2].order) + one(I)
+    end
+
+    tree_buffers.execution_order[parent.id] = parent_execution_order
+
+    if parent_execution_order > tree_buffers.num_launches[]
+        tree_buffers.num_launches[] = parent_execution_order
+    end
+
+    return (id=parent.id, order=parent_execution_order)
 end
 
 end
