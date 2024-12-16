@@ -3,11 +3,11 @@ module DynamicExpressionsCUDAExt
 # TODO: Switch to KernelAbstractions.jl (once they hit v1.0)
 using CUDA: @cuda, CuArray, blockDim, blockIdx, threadIdx
 using DynamicExpressions: OperatorEnum, AbstractExpressionNode
-using DynamicExpressions.EvaluateEquationModule: get_nbin, get_nuna
+using DynamicExpressions.EvaluateModule: get_nbin, get_nuna
 using DynamicExpressions.AsArrayModule: as_array
 using DispatchDoctor: @stable
 
-import DynamicExpressions.EvaluateEquationModule: eval_tree_array
+import DynamicExpressions.EvaluateModule: eval_tree_array
 
 # array type for exclusively testing purposes
 struct FakeCuArray{T,N,A<:AbstractArray{T,N}} <: AbstractArray{T,N}
@@ -45,10 +45,14 @@ end
     update_buffers::Val{_update_buffers}=Val(true),
     kws...,
 ) where {T<:Number,N<:AbstractExpressionNode{T},_update_buffers}
+    local val
     if _update_buffers
         (; val, roots, buffer, num_nodes, num_launches) = as_array(Int32, trees; buffer)
     end
+    # TODO: Fix this type instability?
     num_elem = size(gcX, 2)
+
+    num_launches = num_launches isa Integer ? num_launches : num_launches[]
 
     ## The following array is our "workspace" for
     ## the GPU kernel, with size equal to the number of rows
@@ -68,14 +72,18 @@ end
     else
         copyto!(gpu_buffer, buffer)
     end
-    gdegree = @view gbuffer[1, :]
-    gfeature = @view gbuffer[2, :]
-    gop = @view gbuffer[3, :]
+
+    #! format: off
+    gdegree =          @view gbuffer[1, :]
+    gfeature =         @view gbuffer[2, :]
+    gop =              @view gbuffer[3, :]
     gexecution_order = @view gbuffer[4, :]
-    gidx_self = @view gbuffer[5, :]
-    gidx_l = @view gbuffer[6, :]
-    gidx_r = @view gbuffer[7, :]
-    gconstant = @view gbuffer[8, :]
+    gidx_self =        @view gbuffer[5, :]
+    gidx_l =           @view gbuffer[6, :]
+    gidx_r =           @view gbuffer[7, :]
+    gconstant =        @view gbuffer[8, :]
+    #! format: on
+    # TODO: This is a bit dangerous as we're assuming exact indices
 
     num_threads = 256
     num_blocks = nextpow(2, ceil(Int, num_elem * num_nodes / num_threads))
@@ -144,9 +152,7 @@ end
 #      ifs to generate at that time, so we can't simply use specialization.
 #   3. We can't use `@generated` because we can't create closures in those.
 for nuna in 0:10, nbin in 0:10
-    @eval @stable default_mode = "disable" function create_gpu_kernel(
-        operators::OperatorEnum, ::Val{$nuna}, ::Val{$nbin}
-    )
+    @eval function create_gpu_kernel(operators::OperatorEnum, ::Val{$nuna}, ::Val{$nbin})
         #! format: off
         function (
             # Storage:
