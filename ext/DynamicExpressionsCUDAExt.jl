@@ -165,7 +165,6 @@ for nuna in 0:10, nbin in 0:10
             # Override for unittesting:
             i=nothing,
         )
-            #! format: on
             i = i === nothing ? (blockIdx().x - 1) * blockDim().x + threadIdx().x : i
             if i > num_elem * num_nodes
                 return nothing
@@ -174,6 +173,8 @@ for nuna in 0:10, nbin in 0:10
             node = (i - 1) % num_nodes + 1
             elem = (i - node) ÷ num_nodes + 1
 
+            #! format: off
+            @inbounds begin
             if execution_order[node] != launch
                 return nothing
             end
@@ -212,6 +213,8 @@ for nuna in 0:10, nbin in 0:10
                     )
                 end
             end
+            end
+            #! format: on
             return nothing
         end
     end
