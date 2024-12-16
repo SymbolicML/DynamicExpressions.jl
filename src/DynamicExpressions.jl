@@ -24,6 +24,7 @@ using DispatchDoctor: @stable, @unstable
     include("ParametricExpression.jl")
     include("ReadOnlyNode.jl")
     include("StructuredExpression.jl")
+    include("AsArray.jl")
 end
 
 import Reexport: @reexport
@@ -100,6 +101,7 @@ import .ParseModule: parse_leaf
 import .ReadOnlyNodeModule: ReadOnlyNode
 @reexport import .StructuredExpressionModule: StructuredExpression
 import .StructuredExpressionModule: AbstractStructuredExpression
+@reexport import .AsArrayModule: as_array
 
 @stable default_mode = "disable" begin
     include("Interfaces.jl")
