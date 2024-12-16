@@ -4,7 +4,16 @@ module DynamicExpressionsCUDAExt
 using CUDA: @cuda, CuArray, blockDim, blockIdx, threadIdx
 using DynamicExpressions: OperatorEnum, AbstractExpressionNode
 using DynamicExpressions.EvaluateModule: get_nbin, get_nuna
-using DynamicExpressions.AsArrayModule: as_array
+using DynamicExpressions.AsArrayModule:
+    as_array,
+    IDX_DEGREE,
+    IDX_FEATURE,
+    IDX_OP,
+    IDX_EXECUTION_ORDER,
+    IDX_SELF,
+    IDX_L,
+    IDX_R,
+    IDX_CONSTANT
 using DispatchDoctor: @stable
 
 import DynamicExpressions.EvaluateModule: eval_tree_array
@@ -59,12 +68,11 @@ end
     ## in the input data by the number of nodes in the tree.
     ## It has one extra row to store the constant values.
     gworkspace = @something(gpu_workspace, similar(gcX, num_elem + 1, num_nodes))
-    gval = @view gworkspace[end, :]
     if _update_buffers
-        copyto!(gval, val)
+        copyto!(@view(gworkspace[end, :]), val)
     end
+    val_idx = size(gworkspace, 1)
 
-    ## Index arrays (much faster to have `@view` here)
     gbuffer = if !_update_buffers
         gpu_buffer
     elseif gpu_buffer === nothing
@@ -73,17 +81,8 @@ end
         copyto!(gpu_buffer, buffer)
     end
 
-    #! format: off
-    gdegree =          @view gbuffer[1, :]
-    gfeature =         @view gbuffer[2, :]
-    gop =              @view gbuffer[3, :]
-    gexecution_order = @view gbuffer[4, :]
-    gidx_self =        @view gbuffer[5, :]
-    gidx_l =           @view gbuffer[6, :]
-    gidx_r =           @view gbuffer[7, :]
-    gconstant =        @view gbuffer[8, :]
-    #! format: on
-    # TODO: This is a bit dangerous as we're assuming exact indices
+    # Removed @view definitions of gdegree, gfeature, etc.
+    # We'll index directly into gbuffer using the constants above.
 
     num_threads = 256
     num_blocks = nextpow(2, ceil(Int, num_elem * num_nodes / num_threads))
@@ -92,10 +91,9 @@ end
     _launch_gpu_kernel!(
         num_threads, num_blocks, num_launches, gworkspace,
         # Thread info:
-        num_elem, num_nodes, gexecution_order,
-        # Input data and tree
-        operators, gcX, gidx_self, gidx_l, gidx_r,
-        gdegree, gconstant, gval, gfeature, gop,
+        num_elem, num_nodes,
+        # We'll pass gbuffer directly to the kernel now:
+        operators, gcX, gbuffer, val_idx,
     )
     #! format: on
 
@@ -109,34 +107,30 @@ end
 @stable default_mode = "disable" function _launch_gpu_kernel!(
     num_threads, num_blocks, num_launches::Integer, buffer::AbstractArray{T,2},
     # Thread info:
-    num_elem::Integer, num_nodes::Integer, execution_order::AbstractArray{I},
-    # Input data and tree
-    operators::OperatorEnum, cX::AbstractArray{T,2}, idx_self::AbstractArray, idx_l::AbstractArray, idx_r::AbstractArray,
-    degree::AbstractArray, constant::AbstractArray, val::AbstractArray{T,1}, feature::AbstractArray, op::AbstractArray,
-) where {I,T}
+    num_elem::Integer, num_nodes::Integer,
+    operators::OperatorEnum, cX::AbstractArray{T,2}, gbuffer::AbstractArray{Int32,2},
+    val_idx::Integer
+) where {T}
     #! format: on
     nuna = get_nuna(typeof(operators))
     nbin = get_nbin(typeof(operators))
     (nuna > 10 || nbin > 10) &&
         error("Too many operators. Kernels are only compiled up to 10.")
     gpu_kernel! = create_gpu_kernel(operators, Val(nuna), Val(nbin))
-    for launch in one(I):I(num_launches)
+    for launch in one(Int32):Int32(num_launches)
         #! format: off
         if buffer isa CuArray
             @cuda threads=num_threads blocks=num_blocks gpu_kernel!(
                 buffer,
-                launch, num_elem, num_nodes, execution_order,
-                cX, idx_self, idx_l, idx_r,
-                degree, constant, val, feature, op
+                launch, num_elem, num_nodes,
+                cX, gbuffer, val_idx
             )
         else
             Threads.@threads for i in 1:(num_threads * num_blocks)
                 gpu_kernel!(
                     buffer,
-                    launch, num_elem, num_nodes, execution_order,
-                    cX, idx_self, idx_l, idx_r,
-                    degree, constant, val, feature, op,
-                    i
+                    launch, num_elem, num_nodes,
+                    cX, gbuffer, val_idx, i
                 )
             end
         end
@@ -155,17 +149,13 @@ for nuna in 0:10, nbin in 0:10
     @eval function create_gpu_kernel(operators::OperatorEnum, ::Val{$nuna}, ::Val{$nbin})
         #! format: off
         function (
-            # Storage:
             buffer,
-            # Thread info:
-            launch::Integer, num_elem::Integer, num_nodes::Integer, execution_order::AbstractArray,
-            # Input data and tree
-            cX::AbstractArray, idx_self::AbstractArray, idx_l::AbstractArray, idx_r::AbstractArray,
-            degree::AbstractArray, constant::AbstractArray, val::AbstractArray, feature::AbstractArray, op::AbstractArray,
-            # Override for unittesting:
+            launch::Integer, num_elem::Integer, num_nodes::Integer,
+            cX::AbstractArray, gbuffer::AbstractArray{Int32,2},
+            val_idx::Integer,
             i=nothing,
         )
-            i = i === nothing ? (blockIdx().x - 1) * blockDim().x + threadIdx().x : i
+            i = @something(i, (blockIdx().x - 1) * blockDim().x + threadIdx().x)
             if i > num_elem * num_nodes
                 return nothing
             end
@@ -173,26 +163,28 @@ for nuna in 0:10, nbin in 0:10
             node = (i - 1) % num_nodes + 1
             elem = (i - node) ÷ num_nodes + 1
 
-            #! format: off
+
             @inbounds begin
-            if execution_order[node] != launch
+            if gbuffer[IDX_EXECUTION_ORDER, node] != launch
                 return nothing
             end
 
-            cur_degree = degree[node]
-            cur_idx = idx_self[node]
+            # Use constants to index gbuffer:
+            cur_degree = gbuffer[IDX_DEGREE, node]
+            cur_idx = gbuffer[IDX_SELF, node]
+
             if cur_degree == 0
-                if constant[node] == 1
-                    cur_val = val[node]
+                if gbuffer[IDX_CONSTANT, node] == 1
+                    cur_val = buffer[val_idx, node]
                     buffer[elem, cur_idx] = cur_val
                 else
-                    cur_feature = feature[node]
+                    cur_feature = gbuffer[IDX_FEATURE, node]
                     buffer[elem, cur_idx] = cX[cur_feature, elem]
                 end
             else
                 if cur_degree == 1 && $nuna > 0
-                    cur_op = op[node]
-                    l_idx = idx_l[node]
+                    cur_op = gbuffer[IDX_OP, node]
+                    l_idx = gbuffer[IDX_L, node]
                     Base.Cartesian.@nif(
                         $nuna,
                         i -> i == cur_op,
@@ -200,10 +192,10 @@ for nuna in 0:10, nbin in 0:10
                             buffer[elem, cur_idx] = op(buffer[elem, l_idx])
                         end
                     )
-                elseif $nbin > 0  # Note this check is to avoid type inference issues when binops is empty
-                    cur_op = op[node]
-                    l_idx = idx_l[node]
-                    r_idx = idx_r[node]
+                elseif $nbin > 0
+                    cur_op = gbuffer[IDX_OP, node]
+                    l_idx = gbuffer[IDX_L, node]
+                    r_idx = gbuffer[IDX_R, node]
                     Base.Cartesian.@nif(
                         $nbin,
                         i -> i == cur_op,
