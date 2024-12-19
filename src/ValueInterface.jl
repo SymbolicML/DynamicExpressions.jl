@@ -3,7 +3,7 @@ module ValueInterfaceModule
 using Interfaces: Interfaces, @interface, @implements, Arguments
 
 is_valid(x::T) where {T} = true
-is_valid(x::T) where {T<:Number} = isfinite(x) && !isnan(x)
+is_valid(x::T) where {T<:Number} = isfinite(x)
 
 is_valid_array(x::AbstractArray{T}) where {T} = all(is_valid, x)
 is_valid_array(x::AbstractArray{T}) where {T<:Number} = is_valid(sum(x))
