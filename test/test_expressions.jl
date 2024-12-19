@@ -413,3 +413,26 @@ end
 
     #literate_end
 end
+
+@testitem "Expression with_metadata partial updates" begin
+    using DynamicExpressions
+    using DynamicExpressions: get_operators, get_metadata, with_metadata, get_variable_names
+
+    # Create an expression with initial metadata
+    ex = @parse_expression(
+        x1 + 1.5,
+        operators = OperatorEnum(; binary_operators=[+, *]),
+        variable_names = ["x1"]
+    )
+
+    # Update only the variable_names, keeping the original operators
+    new_ex = with_metadata(ex; variable_names=["y1"])
+    @test get_variable_names(new_ex, nothing) == ["y1"]
+    @test get_operators(new_ex, nothing) == get_operators(ex, nothing)
+
+    # Update only the operators, keeping the original variable_names
+    new_operators = OperatorEnum(; binary_operators=[+])
+    new_ex2 = with_metadata(ex; operators=new_operators)
+    @test get_variable_names(new_ex2, nothing) == ["x1"]
+    @test get_operators(new_ex2, nothing) == new_operators
+end

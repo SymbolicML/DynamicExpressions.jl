@@ -31,11 +31,14 @@ import ..SimplifyModule: combine_operators, simplify_tree!
 struct Metadata{NT<:NamedTuple}
     _data::NT
 end
-_data(x::Metadata) = getfield(x, :_data)
+unpack_metadata(x) = x  # Fallback for when the user doesn't use the Metadata type
+unpack_metadata(x::Metadata) = getfield(x, :_data)
 
-Base.propertynames(x::Metadata) = propertynames(_data(x))
-@unstable @inline Base.getproperty(x::Metadata, f::Symbol) = getproperty(_data(x), f)
-Base.show(io::IO, x::Metadata) = print(io, "Metadata(", _data(x), ")")
+Base.propertynames(x::Metadata) = propertynames(unpack_metadata(x))
+@unstable @inline function Base.getproperty(x::Metadata, f::Symbol)
+    return getproperty(unpack_metadata(x), f)
+end
+Base.show(io::IO, x::Metadata) = print(io, "Metadata(", unpack_metadata(x), ")")
 @inline _copy(x) = copy(x)
 @inline _copy(x::NamedTuple) = copy_named_tuple(x)
 @inline _copy(x::Nothing) = nothing
@@ -43,10 +46,10 @@ Base.show(io::IO, x::Metadata) = print(io, "Metadata(", _data(x), ")")
     return NamedTuple{keys(nt)}(map(_copy, values(nt)))
 end
 @inline function Base.copy(metadata::Metadata)
-    return Metadata(_copy(_data(metadata)))
+    return Metadata(_copy(unpack_metadata(metadata)))
 end
-@inline Base.:(==)(x::Metadata, y::Metadata) = _data(x) == _data(y)
-@inline Base.hash(x::Metadata, h::UInt) = hash(_data(x), h)
+@inline Base.:(==)(x::Metadata, y::Metadata) = unpack_metadata(x) == unpack_metadata(y)
+@inline Base.hash(x::Metadata, h::UInt) = hash(unpack_metadata(x), h)
 
 """
     AbstractExpression{T,N}
@@ -216,7 +219,9 @@ end
 Create a new expression based on `ex` but with a different `metadata`.
 """
 function with_metadata(ex::AbstractExpression; metadata...)
-    return with_metadata(ex, Metadata((; metadata...)))
+    return with_metadata(
+        ex, Metadata((; unpack_metadata(get_metadata(ex))..., metadata...))
+    )
 end
 function with_metadata(ex::AbstractExpression, metadata::Metadata)
     return constructorof(typeof(ex))(get_contents(ex), metadata)

@@ -16,7 +16,7 @@ import ..ExpressionModule:
     with_contents,
     Metadata,
     _copy,
-    _data,
+    unpack_metadata,
     default_node_type,
     node_type,
     get_scalar_constants,
@@ -114,7 +114,7 @@ constructorof(::Type{<:StructuredExpression}) = StructuredExpression
 function Base.copy(e::AbstractStructuredExpression)
     ts = get_contents(e)
     meta = get_metadata(e)
-    meta_inner = _data(meta)
+    meta_inner = unpack_metadata(meta)
     copy_ts = NamedTuple{keys(ts)}(map(copy, values(ts)))
     keys_except_structure = filter(!=(:structure), keys(meta_inner))
     copy_metadata = (;

@@ -5,7 +5,8 @@ using ChainRulesCore: ChainRulesCore as CRC, NoTangent, @thunk
 
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
-using ..ExpressionModule: AbstractExpression, Metadata, with_contents, with_metadata
+using ..ExpressionModule:
+    AbstractExpression, Metadata, with_contents, with_metadata, unpack_metadata
 using ..ChainRulesModule: NodeTangent
 
 import ..NodeModule:
@@ -63,7 +64,6 @@ mutable struct ParametricNode{T} <: AbstractExpressionNode{T}
         return n
     end
 end
-@inline _data(x::Metadata) = getfield(x, :_data)
 
 """
     ParametricExpression{T,N<:ParametricNode{T},D<:NamedTuple} <: AbstractExpression{T,N}
@@ -79,7 +79,9 @@ struct ParametricExpression{
     metadata::Metadata{D}
 
     function ParametricExpression(tree::ParametricNode, metadata::Metadata)
-        return new{eltype(tree),typeof(tree),typeof(_data(metadata))}(tree, metadata)
+        return new{eltype(tree),typeof(tree),typeof(unpack_metadata(metadata))}(
+            tree, metadata
+        )
     end
 end
 function ParametricExpression(
