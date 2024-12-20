@@ -269,7 +269,7 @@ end
 
 @testitem "Miscellaneous expression calls" begin
     using DynamicExpressions
-    using DynamicExpressions: get_tree, get_operators
+    using DynamicExpressions: get_tree, get_operators, default_node_type
 
     ex = @parse_expression(x1 + 1.5, binary_operators = [+], variable_names = ["x1"])
     @test DynamicExpressions.ExpressionModule.node_type(ex) <: Node
@@ -278,6 +278,24 @@ end
 
     tree = get_tree(ex)
     @test_throws ArgumentError get_operators(tree, nothing)
+
+    # We can also define expressions without variable names, and it should work
+    operators = OperatorEnum(; binary_operators=[+])
+    for E in (Expression, ParametricExpression)
+        N = default_node_type(E)
+        kws = (; operators)
+        if E === ParametricExpression
+            kws = (; kws..., parameters=Matrix{Float64}(undef, 0, 0))
+        end
+        x1, x2 = (E(N(Float64; feature=i); kws...) for i in 1:2)
+        x1000 = E(N(Float64; feature=1000); kws...)
+        @test string(x1 + x2 + x1000) == "(x1 + x2) + x1000"
+        # And also with structured expressions
+        x1 = StructuredExpression(
+            (; x1, x2, x1000); operators, structure=nt -> nt.x1 + nt.x2 + nt.x1000
+        )
+        @test string(x1) == "(x1 + x2) + x1000"
+    end
 end
 
 @testitem "Expression Literate examples" begin

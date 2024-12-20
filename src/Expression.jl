@@ -41,7 +41,7 @@ end
 Base.show(io::IO, x::Metadata) = print(io, "Metadata(", unpack_metadata(x), ")")
 @inline _copy(x) = copy(x)
 @inline _copy(x::NamedTuple) = copy_named_tuple(x)
-@inline _copy(x::Nothing) = nothing
+@inline _copy(::Nothing) = nothing
 @inline function copy_named_tuple(nt::NamedTuple)
     return NamedTuple{keys(nt)}(map(_copy, values(nt)))
 end
@@ -251,7 +251,13 @@ end
 function get_variable_names(
     ex::Expression, variable_names::Union{Nothing,AbstractVector{<:AbstractString}}=nothing
 )
-    return variable_names === nothing ? ex.metadata.variable_names : variable_names
+    return if variable_names !== nothing
+        variable_names
+    elseif hasproperty(ex.metadata, :variable_names)
+        ex.metadata.variable_names
+    else
+        nothing
+    end
 end
 function get_tree(ex::Expression)
     return ex.tree

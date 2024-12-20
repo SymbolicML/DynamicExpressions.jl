@@ -87,9 +87,9 @@ end
 function ParametricExpression(
     tree::ParametricNode{T1};
     operators::Union{AbstractOperatorEnum,Nothing},
-    variable_names,
+    variable_names=nothing,
     parameters::AbstractMatrix{T2},
-    parameter_names,
+    parameter_names=nothing,
 ) where {T1,T2}
     if !isnothing(parameter_names)
         @assert size(parameters, 1) == length(parameter_names)
@@ -202,18 +202,16 @@ function get_variable_names(
     ex::ParametricExpression,
     variable_names::Union{Nothing,AbstractVector{<:AbstractString}}=nothing,
 )
-    return variable_names === nothing ? ex.metadata.variable_names : variable_names
+    return if variable_names !== nothing
+        variable_names
+    elseif hasproperty(ex.metadata, :variable_names)
+        ex.metadata.variable_names
+    else
+        nothing
+    end
 end
-@inline _copy_with_nothing(x) = copy(x)
-@inline _copy_with_nothing(::Nothing) = nothing
 function Base.copy(ex::ParametricExpression; break_sharing::Val=Val(false))
-    return ParametricExpression(
-        copy(ex.tree; break_sharing=break_sharing);
-        operators=_copy_with_nothing(ex.metadata.operators),
-        variable_names=_copy_with_nothing(ex.metadata.variable_names),
-        parameters=_copy_with_nothing(ex.metadata.parameters),
-        parameter_names=_copy_with_nothing(ex.metadata.parameter_names),
-    )
+    return ParametricExpression(copy(ex.tree; break_sharing), copy(ex.metadata))
 end
 ###############################################################################
 

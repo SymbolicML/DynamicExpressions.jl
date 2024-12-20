@@ -143,7 +143,13 @@ function get_variable_names(
     e::AbstractStructuredExpression,
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
 )
-    return variable_names === nothing ? get_metadata(e).variable_names : variable_names
+    return if variable_names !== nothing
+        variable_names
+    elseif hasproperty(get_metadata(e), :variable_names)
+        get_metadata(e).variable_names
+    else
+        nothing
+    end
 end
 function get_scalar_constants(e::AbstractStructuredExpression)
     # Get constants for each inner expression
