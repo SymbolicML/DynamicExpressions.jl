@@ -31,7 +31,6 @@ import ..SimplifyModule: combine_operators, simplify_tree!
 struct Metadata{NT<:NamedTuple}
     _data::NT
 end
-unpack_metadata(x) = x  # Fallback for when the user doesn't use the Metadata type
 unpack_metadata(x::Metadata) = getfield(x, :_data)
 
 Base.propertynames(x::Metadata) = propertynames(unpack_metadata(x))
