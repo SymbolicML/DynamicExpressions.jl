@@ -5,7 +5,8 @@ using ChainRulesCore: ChainRulesCore as CRC, NoTangent, @thunk
 
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
-using ..ExpressionModule: AbstractExpression, Metadata, with_contents, with_metadata
+using ..ExpressionModule:
+    AbstractExpression, Metadata, with_contents, with_metadata, unpack_metadata
 using ..ChainRulesModule: NodeTangent
 
 import ..NodeModule:
@@ -63,7 +64,6 @@ mutable struct ParametricNode{T} <: AbstractExpressionNode{T}
         return n
     end
 end
-@inline _data(x::Metadata) = getfield(x, :_data)
 
 """
     ParametricExpression{T,N<:ParametricNode{T},D<:NamedTuple} <: AbstractExpression{T,N}
@@ -79,15 +79,17 @@ struct ParametricExpression{
     metadata::Metadata{D}
 
     function ParametricExpression(tree::ParametricNode, metadata::Metadata)
-        return new{eltype(tree),typeof(tree),typeof(_data(metadata))}(tree, metadata)
+        return new{eltype(tree),typeof(tree),typeof(unpack_metadata(metadata))}(
+            tree, metadata
+        )
     end
 end
 function ParametricExpression(
     tree::ParametricNode{T1};
     operators::Union{AbstractOperatorEnum,Nothing},
-    variable_names,
+    variable_names=nothing,
     parameters::AbstractMatrix{T2},
-    parameter_names,
+    parameter_names=nothing,
 ) where {T1,T2}
     if !isnothing(parameter_names)
         @assert size(parameters, 1) == length(parameter_names)
@@ -200,18 +202,16 @@ function get_variable_names(
     ex::ParametricExpression,
     variable_names::Union{Nothing,AbstractVector{<:AbstractString}}=nothing,
 )
-    return variable_names === nothing ? ex.metadata.variable_names : variable_names
+    return if variable_names !== nothing
+        variable_names
+    elseif hasproperty(ex.metadata, :variable_names)
+        ex.metadata.variable_names
+    else
+        nothing
+    end
 end
-@inline _copy_with_nothing(x) = copy(x)
-@inline _copy_with_nothing(::Nothing) = nothing
 function Base.copy(ex::ParametricExpression; break_sharing::Val=Val(false))
-    return ParametricExpression(
-        copy(ex.tree; break_sharing=break_sharing);
-        operators=_copy_with_nothing(ex.metadata.operators),
-        variable_names=_copy_with_nothing(ex.metadata.variable_names),
-        parameters=_copy_with_nothing(ex.metadata.parameters),
-        parameter_names=_copy_with_nothing(ex.metadata.parameter_names),
-    )
+    return ParametricExpression(copy(ex.tree; break_sharing), copy(ex.metadata))
 end
 ###############################################################################
 

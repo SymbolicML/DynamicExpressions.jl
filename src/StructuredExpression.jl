@@ -16,7 +16,7 @@ import ..ExpressionModule:
     with_contents,
     Metadata,
     _copy,
-    _data,
+    unpack_metadata,
     default_node_type,
     node_type,
     get_scalar_constants,
@@ -114,7 +114,7 @@ constructorof(::Type{<:StructuredExpression}) = StructuredExpression
 function Base.copy(e::AbstractStructuredExpression)
     ts = get_contents(e)
     meta = get_metadata(e)
-    meta_inner = _data(meta)
+    meta_inner = unpack_metadata(meta)
     copy_ts = NamedTuple{keys(ts)}(map(copy, values(ts)))
     keys_except_structure = filter(!=(:structure), keys(meta_inner))
     copy_metadata = (;
@@ -143,7 +143,13 @@ function get_variable_names(
     e::AbstractStructuredExpression,
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
 )
-    return variable_names === nothing ? get_metadata(e).variable_names : variable_names
+    return if variable_names !== nothing
+        variable_names
+    elseif hasproperty(get_metadata(e), :variable_names)
+        get_metadata(e).variable_names
+    else
+        nothing
+    end
 end
 function get_scalar_constants(e::AbstractStructuredExpression)
     # Get constants for each inner expression

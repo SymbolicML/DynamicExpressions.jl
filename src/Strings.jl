@@ -139,7 +139,7 @@ function string_tree(
     operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     f_variable::F1=string_variable,
     f_constant::F2=string_constant,
-    variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
+    variable_names=nothing,
     pretty::Union{Bool,Nothing}=nothing, # Not used, but can be used by other types
     # Deprecated
     raw::Union{Bool,Nothing}=nothing,
@@ -190,7 +190,7 @@ for io in ((), (:(io::IO),))
         operators::Union{AbstractOperatorEnum,Nothing}=nothing;
         f_variable::F1=string_variable,
         f_constant::F2=string_constant,
-        variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
+        variable_names=nothing,
         pretty::Union{Bool,Nothing}=nothing, # Not used, but can be used by other types
         # Deprecated
         raw::Union{Bool,Nothing}=nothing,
