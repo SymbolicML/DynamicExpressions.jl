@@ -1,5 +1,6 @@
 using SymbolicUtils
 using DynamicExpressions
+using DynamicExpressions: get_operators, get_variable_names
 using Test
 include("test_params.jl")
 
@@ -28,3 +29,33 @@ eqn = node_to_symbolic(tree, operators; variable_names=["energy"], index_functio
 
 tree2 = symbolic_to_node(eqn, operators; variable_names=["energy"])
 @test string_tree(tree, operators) == string_tree(tree2, operators)
+
+# Test variable name conversion with Expression objects
+let
+    ex = parse_expression(
+        :(sin(x + y));
+        binary_operators=[+, *, -, /],
+        unary_operators=[sin],
+        variable_names=["x", "y"],
+    )
+
+    # Test conversion to symbolic form preserves variable names
+    eqn = convert(SymbolicUtils.Symbolic, ex)
+    @test string(eqn) == "sin(x + y)"
+
+    # Test with different variable names in the expression
+    ex2 = parse_expression(
+        :(sin(alpha + beta));
+        binary_operators=[+, *, -, /],
+        unary_operators=[sin],
+        variable_names=["alpha", "beta"],
+    )
+    eqn2 = convert(SymbolicUtils.Symbolic, ex2)
+    @test string(eqn2) == "sin(alpha + beta)"
+    eqn2
+
+    # Test round trip preserves structure and variable names
+    operators = OperatorEnum(; unary_operators=(sin,), binary_operators=(+, *, -, /))
+    ex2_again = convert(Expression, eqn2, operators; variable_names=["alpha", "beta"])
+    @test ex2 == ex2_again
+end
