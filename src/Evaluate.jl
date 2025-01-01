@@ -117,6 +117,17 @@ end
 @unstable @inline _to_bool_val(x::Bool) = x ? Val(true) : Val(false)
 @inline _to_bool_val(::Val{T}) where {T} = Val(T::Bool)
 
+_copy(x) = copy(x)
+_copy(::Nothing) = nothing
+function Base.copy(eval_options::EvalOptions)
+    return EvalOptions(;
+        turbo=eval_options.turbo,
+        bumper=eval_options.bumper,
+        early_exit=eval_options.early_exit,
+        buffer=_copy(eval_options.buffer),
+    )
+end
+
 @unstable function _process_deprecated_kws(eval_options, deprecated_kws)
     turbo = get(deprecated_kws, :turbo, nothing)
     bumper = get(deprecated_kws, :bumper, nothing)
