@@ -36,6 +36,10 @@ struct ArrayBuffer{A<:AbstractMatrix,R<:Base.RefValue{<:Integer}}
     index::R
 end
 
+function Base.copy(buffer::ArrayBuffer)
+    return ArrayBuffer(copy(buffer.array), Ref(buffer.index[]))
+end
+
 reset_index!(buffer::ArrayBuffer) = buffer.index[] = 0
 reset_index!(::Nothing) = nothing
 
