@@ -288,6 +288,36 @@ end
     @test_throws ArgumentError ex(randn(1, 5), OperatorEnum(); bad_arg=1)
 end
 
+@testitem "Test EvalOptions copy" begin
+    using DynamicExpressions
+    using DynamicExpressions: ArrayBuffer
+
+    # Test copying with various configurations
+    buffer = zeros(5, 10)
+    buffer_ref = Ref(0)
+    original = EvalOptions(;
+        turbo=true, bumper=false, early_exit=true, buffer=ArrayBuffer(buffer, buffer_ref)
+    )
+    copied = copy(original)
+
+    # Test that all fields are equal
+    @test copied.turbo == original.turbo
+    @test copied.bumper == original.bumper
+    @test copied.early_exit == original.early_exit
+    @test copied.buffer.array == original.buffer.array
+    @test copied.buffer.index[] == original.buffer.index[]
+
+    # Test that buffer is copied, not referenced
+    @test copied.buffer !== original.buffer
+    @test copied.buffer.array !== original.buffer.array
+    @test copied.buffer.index !== original.buffer.index
+
+    # Test without buffer
+    original_no_buffer = EvalOptions(; turbo=true, bumper=false, early_exit=true)
+    copied_no_buffer = copy(original_no_buffer)
+    @test copied_no_buffer.buffer === nothing
+end
+
 @testitem "Test Inf val" begin
     using DynamicExpressions
 
