@@ -122,6 +122,96 @@ end
         @test DynamicExpressions.EvaluateModule.deg1_l2_ll0_lr0_eval(tree, [zero(T)]', cos, (+), EvalOptions(; turbo)).x[1] ≈
             truth
 
+        # Test new optimization patterns:
+        # op(op2(x, y), z) where x, y, z are constants
+        tree = Node(1, Node(2, Node(; val=3.0f0), Node(; val=4.0f0)), Node(; val=5.0f0))
+        @test repr(tree) == "(3.0 * 4.0) + 5.0"
+        tree = convert(Node{T}, tree)
+        truth = (T(3.0f0) * T(4.0f0)) + T(5.0f0)
+        @test DynamicExpressions.EvaluateModule.deg2_l2_ll0_lr0_r0_eval(tree, [zero(T)]', (+), (*), EvalOptions(; turbo)).x[1] ≈
+            truth
+
+        # op(op2(x, y), z) where x, y are constants, z is variable
+        X = randn(T, 3, 10)
+        tree = Node(1, Node(2, Node(; val=3.0f0), Node(; val=4.0f0)), Node(; feature=1))
+        @test repr(tree) == "(3.0 * 4.0) + x1"
+        tree = convert(Node{T}, tree)
+        truth = @. (T(3.0f0) * T(4.0f0)) + X[1, :]
+        @test DynamicExpressions.EvaluateModule.deg2_l2_ll0_lr0_r0_eval(
+            tree, X, (+), (*), EvalOptions(; turbo)
+        ).x ≈ truth
+
+        # op(op2(x, y), z) where x is constant, y, z are variables
+        tree = Node(1, Node(2, Node(; val=3.0f0), Node(; feature=2)), Node(; feature=1))
+        @test repr(tree) == "(3.0 * x2) + x1"
+        tree = convert(Node{T}, tree)
+        truth = @. (T(3.0f0) * X[2, :]) + X[1, :]
+        @test DynamicExpressions.EvaluateModule.deg2_l2_ll0_lr0_r0_eval(
+            tree, X, (+), (*), EvalOptions(; turbo)
+        ).x ≈ truth
+
+        # op(op2(x, y), z) where y is constant, x, z are variables
+        tree = Node(1, Node(2, Node(; feature=2), Node(; val=4.0f0)), Node(; feature=1))
+        @test repr(tree) == "(x2 * 4.0) + x1"
+        tree = convert(Node{T}, tree)
+        truth = @. (X[2, :] * T(4.0f0)) + X[1, :]
+        @test DynamicExpressions.EvaluateModule.deg2_l2_ll0_lr0_r0_eval(
+            tree, X, (+), (*), EvalOptions(; turbo)
+        ).x ≈ truth
+
+        # op(op2(x, y), z) where all are variables
+        tree = Node(1, Node(2, Node(; feature=2), Node(; feature=3)), Node(; feature=1))
+        @test repr(tree) == "(x2 * x3) + x1"
+        tree = convert(Node{T}, tree)
+        truth = @. (X[2, :] * X[3, :]) + X[1, :]
+        @test DynamicExpressions.EvaluateModule.deg2_l2_ll0_lr0_r0_eval(
+            tree, X, (+), (*), EvalOptions(; turbo)
+        ).x ≈ truth
+
+        # op(x, op2(y, z)) where x, y, z are constants
+        tree = Node(1, Node(; val=3.0f0), Node(2, Node(; val=4.0f0), Node(; val=5.0f0)))
+        @test repr(tree) == "3.0 + (4.0 * 5.0)"
+        tree = convert(Node{T}, tree)
+        truth = T(3.0f0) + (T(4.0f0) * T(5.0f0))
+        @test DynamicExpressions.EvaluateModule.deg2_l0_r2_rl0_rr0_eval(tree, [zero(T)]', (+), (*), EvalOptions(; turbo)).x[1] ≈
+            truth
+
+        # op(x, op2(y, z)) where x is constant, y, z are variables
+        tree = Node(1, Node(; val=3.0f0), Node(2, Node(; feature=1), Node(; feature=2)))
+        @test repr(tree) == "3.0 + (x1 * x2)"
+        tree = convert(Node{T}, tree)
+        truth = @. T(3.0f0) + (X[1, :] * X[2, :])
+        @test DynamicExpressions.EvaluateModule.deg2_l0_r2_rl0_rr0_eval(
+            tree, X, (+), (*), EvalOptions(; turbo)
+        ).x ≈ truth
+
+        # op(x, op2(y, z)) where x, y are variables, z is constant
+        tree = Node(1, Node(; feature=1), Node(2, Node(; feature=2), Node(; val=5.0f0)))
+        @test repr(tree) == "x1 + (x2 * 5.0)"
+        tree = convert(Node{T}, tree)
+        truth = @. X[1, :] + (X[2, :] * T(5.0f0))
+        @test DynamicExpressions.EvaluateModule.deg2_l0_r2_rl0_rr0_eval(
+            tree, X, (+), (*), EvalOptions(; turbo)
+        ).x ≈ truth
+
+        # op(x, op2(y, z)) where y is constant, x, z are variables
+        tree = Node(1, Node(; feature=1), Node(2, Node(; val=4.0f0), Node(; feature=3)))
+        @test repr(tree) == "x1 + (4.0 * x3)"
+        tree = convert(Node{T}, tree)
+        truth = @. X[1, :] + (T(4.0f0) * X[3, :])
+        @test DynamicExpressions.EvaluateModule.deg2_l0_r2_rl0_rr0_eval(
+            tree, X, (+), (*), EvalOptions(; turbo)
+        ).x ≈ truth
+
+        # op(x, op2(y, z)) where all are variables
+        tree = Node(1, Node(; feature=1), Node(2, Node(; feature=2), Node(; feature=3)))
+        @test repr(tree) == "x1 + (x2 * x3)"
+        tree = convert(Node{T}, tree)
+        truth = @. X[1, :] + (X[2, :] * X[3, :])
+        @test DynamicExpressions.EvaluateModule.deg2_l0_r2_rl0_rr0_eval(
+            tree, X, (+), (*), EvalOptions(; turbo)
+        ).x ≈ truth
+
         # Test for presence of NaNs:
         operators = OperatorEnum(;
             binary_operators=[+, -, *, /], unary_operators=[cos, sin]

@@ -346,6 +346,24 @@ end
             i -> let op = operators.binops[i]
                 if tree.l.degree == 0 && tree.r.degree == 0
                     deg2_l0_r0_eval(tree, cX, op, eval_options)
+                elseif tree.l.degree == 2 &&
+                    tree.l.l.degree == 0 &&
+                    tree.l.r.degree == 0 &&
+                    tree.r.degree == 0
+                    # op(op2(x, y), z), where x, y, z are constants or variables.
+                    l_op_idx = tree.l.op
+                    dispatch_deg2_l2_ll0_lr0_r0_eval(
+                        tree, cX, op, l_op_idx, operators.binops, eval_options
+                    )
+                elseif tree.l.degree == 0 &&
+                    tree.r.degree == 2 &&
+                    tree.r.l.degree == 0 &&
+                    tree.r.r.degree == 0
+                    # op(x, op2(y, z)), where x, y, z are constants or variables.
+                    r_op_idx = tree.r.op
+                    dispatch_deg2_l0_r2_rl0_rr0_eval(
+                        tree, cX, op, r_op_idx, operators.binops, eval_options
+                    )
                 elseif tree.r.degree == 0
                     result_l = _eval_tree_array(tree.l, cX, operators, eval_options)
                     !result_l.ok && return result_l
@@ -636,6 +654,262 @@ function deg2_r0_eval(
             cumulator[j] = x
         end
         return ResultOk(cumulator, true)
+    end
+end
+
+function deg2_l2_ll0_lr0_r0_eval(
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    op::F,
+    op_l::F2,
+    eval_options::EvalOptions{false,false},
+) where {T,F,F2}
+    if tree.l.l.constant && tree.l.r.constant && tree.r.constant
+        val_ll = tree.l.l.val
+        val_lr = tree.l.r.val
+        val_r = tree.r.val
+        @return_on_nonfinite_val(eval_options, val_ll, cX)
+        @return_on_nonfinite_val(eval_options, val_lr, cX)
+        @return_on_nonfinite_val(eval_options, val_r, cX)
+        x_l = op_l(val_ll, val_lr)::T
+        @return_on_nonfinite_val(eval_options, x_l, cX)
+        x = op(x_l, val_r)::T
+        @return_on_nonfinite_val(eval_options, x, cX)
+        return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
+    elseif tree.l.l.constant && tree.l.r.constant
+        val_ll = tree.l.l.val
+        val_lr = tree.l.r.val
+        @return_on_nonfinite_val(eval_options, val_ll, cX)
+        @return_on_nonfinite_val(eval_options, val_lr, cX)
+        feature_r = tree.r.feature
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        @inbounds @simd for j in axes(cX, 2)
+            x_l = op_l(val_ll, val_lr)::T
+            x = is_valid(x_l) ? op(x_l, cX[feature_r, j])::T : T(Inf)
+            cumulator[j] = x
+        end
+        return ResultOk(cumulator, true)
+    elseif tree.l.l.constant && tree.r.constant
+        val_ll = tree.l.l.val
+        val_r = tree.r.val
+        @return_on_nonfinite_val(eval_options, val_ll, cX)
+        @return_on_nonfinite_val(eval_options, val_r, cX)
+        feature_lr = tree.l.r.feature
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        @inbounds @simd for j in axes(cX, 2)
+            x_l = op_l(val_ll, cX[feature_lr, j])::T
+            x = is_valid(x_l) ? op(x_l, val_r)::T : T(Inf)
+            cumulator[j] = x
+        end
+        return ResultOk(cumulator, true)
+    elseif tree.l.r.constant && tree.r.constant
+        val_lr = tree.l.r.val
+        val_r = tree.r.val
+        @return_on_nonfinite_val(eval_options, val_lr, cX)
+        @return_on_nonfinite_val(eval_options, val_r, cX)
+        feature_ll = tree.l.l.feature
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        @inbounds @simd for j in axes(cX, 2)
+            x_l = op_l(cX[feature_ll, j], val_lr)::T
+            x = is_valid(x_l) ? op(x_l, val_r)::T : T(Inf)
+            cumulator[j] = x
+        end
+        return ResultOk(cumulator, true)
+    elseif tree.l.l.constant
+        val_ll = tree.l.l.val
+        @return_on_nonfinite_val(eval_options, val_ll, cX)
+        feature_lr = tree.l.r.feature
+        feature_r = tree.r.feature
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        @inbounds @simd for j in axes(cX, 2)
+            x_l = op_l(val_ll, cX[feature_lr, j])::T
+            x = is_valid(x_l) ? op(x_l, cX[feature_r, j])::T : T(Inf)
+            cumulator[j] = x
+        end
+        return ResultOk(cumulator, true)
+    elseif tree.l.r.constant
+        val_lr = tree.l.r.val
+        @return_on_nonfinite_val(eval_options, val_lr, cX)
+        feature_ll = tree.l.l.feature
+        feature_r = tree.r.feature
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        @inbounds @simd for j in axes(cX, 2)
+            x_l = op_l(cX[feature_ll, j], val_lr)::T
+            x = is_valid(x_l) ? op(x_l, cX[feature_r, j])::T : T(Inf)
+            cumulator[j] = x
+        end
+        return ResultOk(cumulator, true)
+    elseif tree.r.constant
+        val_r = tree.r.val
+        @return_on_nonfinite_val(eval_options, val_r, cX)
+        feature_ll = tree.l.l.feature
+        feature_lr = tree.l.r.feature
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        @inbounds @simd for j in axes(cX, 2)
+            x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])::T
+            x = is_valid(x_l) ? op(x_l, val_r)::T : T(Inf)
+            cumulator[j] = x
+        end
+        return ResultOk(cumulator, true)
+    else
+        feature_ll = tree.l.l.feature
+        feature_lr = tree.l.r.feature
+        feature_r = tree.r.feature
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        @inbounds @simd for j in axes(cX, 2)
+            x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])::T
+            x = is_valid(x_l) ? op(x_l, cX[feature_r, j])::T : T(Inf)
+            cumulator[j] = x
+        end
+        return ResultOk(cumulator, true)
+    end
+end
+
+function deg2_l0_r2_rl0_rr0_eval(
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    op::F,
+    op_r::F2,
+    eval_options::EvalOptions{false,false},
+) where {T,F,F2}
+    if tree.l.constant && tree.r.l.constant && tree.r.r.constant
+        val_l = tree.l.val
+        val_rl = tree.r.l.val
+        val_rr = tree.r.r.val
+        @return_on_nonfinite_val(eval_options, val_l, cX)
+        @return_on_nonfinite_val(eval_options, val_rl, cX)
+        @return_on_nonfinite_val(eval_options, val_rr, cX)
+        x_r = op_r(val_rl, val_rr)::T
+        @return_on_nonfinite_val(eval_options, x_r, cX)
+        x = op(val_l, x_r)::T
+        @return_on_nonfinite_val(eval_options, x, cX)
+        return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
+    elseif tree.r.l.constant && tree.r.r.constant
+        val_rl = tree.r.l.val
+        val_rr = tree.r.r.val
+        @return_on_nonfinite_val(eval_options, val_rl, cX)
+        @return_on_nonfinite_val(eval_options, val_rr, cX)
+        feature_l = tree.l.feature
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        @inbounds @simd for j in axes(cX, 2)
+            x_r = op_r(val_rl, val_rr)::T
+            x = is_valid(x_r) ? op(cX[feature_l, j], x_r)::T : T(Inf)
+            cumulator[j] = x
+        end
+        return ResultOk(cumulator, true)
+    elseif tree.l.constant && tree.r.r.constant
+        val_l = tree.l.val
+        val_rr = tree.r.r.val
+        @return_on_nonfinite_val(eval_options, val_l, cX)
+        @return_on_nonfinite_val(eval_options, val_rr, cX)
+        feature_rl = tree.r.l.feature
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        @inbounds @simd for j in axes(cX, 2)
+            x_r = op_r(cX[feature_rl, j], val_rr)::T
+            x = is_valid(x_r) ? op(val_l, x_r)::T : T(Inf)
+            cumulator[j] = x
+        end
+        return ResultOk(cumulator, true)
+    elseif tree.l.constant && tree.r.l.constant
+        val_l = tree.l.val
+        val_rl = tree.r.l.val
+        @return_on_nonfinite_val(eval_options, val_l, cX)
+        @return_on_nonfinite_val(eval_options, val_rl, cX)
+        feature_rr = tree.r.r.feature
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        @inbounds @simd for j in axes(cX, 2)
+            x_r = op_r(val_rl, cX[feature_rr, j])::T
+            x = is_valid(x_r) ? op(val_l, x_r)::T : T(Inf)
+            cumulator[j] = x
+        end
+        return ResultOk(cumulator, true)
+    elseif tree.l.constant
+        val_l = tree.l.val
+        @return_on_nonfinite_val(eval_options, val_l, cX)
+        feature_rl = tree.r.l.feature
+        feature_rr = tree.r.r.feature
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        @inbounds @simd for j in axes(cX, 2)
+            x_r = op_r(cX[feature_rl, j], cX[feature_rr, j])::T
+            x = is_valid(x_r) ? op(val_l, x_r)::T : T(Inf)
+            cumulator[j] = x
+        end
+        return ResultOk(cumulator, true)
+    elseif tree.r.l.constant
+        val_rl = tree.r.l.val
+        @return_on_nonfinite_val(eval_options, val_rl, cX)
+        feature_l = tree.l.feature
+        feature_rr = tree.r.r.feature
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        @inbounds @simd for j in axes(cX, 2)
+            x_r = op_r(val_rl, cX[feature_rr, j])::T
+            x = is_valid(x_r) ? op(cX[feature_l, j], x_r)::T : T(Inf)
+            cumulator[j] = x
+        end
+        return ResultOk(cumulator, true)
+    elseif tree.r.r.constant
+        val_rr = tree.r.r.val
+        @return_on_nonfinite_val(eval_options, val_rr, cX)
+        feature_l = tree.l.feature
+        feature_rl = tree.r.l.feature
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        @inbounds @simd for j in axes(cX, 2)
+            x_r = op_r(cX[feature_rl, j], val_rr)::T
+            x = is_valid(x_r) ? op(cX[feature_l, j], x_r)::T : T(Inf)
+            cumulator[j] = x
+        end
+        return ResultOk(cumulator, true)
+    else
+        feature_l = tree.l.feature
+        feature_rl = tree.r.l.feature
+        feature_rr = tree.r.r.feature
+        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        @inbounds @simd for j in axes(cX, 2)
+            x_r = op_r(cX[feature_rl, j], cX[feature_rr, j])::T
+            x = is_valid(x_r) ? op(cX[feature_l, j], x_r)::T : T(Inf)
+            cumulator[j] = x
+        end
+        return ResultOk(cumulator, true)
+    end
+end
+
+@generated function dispatch_deg2_l2_ll0_lr0_r0_eval(
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    op::F,
+    l_op_idx::Integer,
+    binops,
+    eval_options::EvalOptions,
+) where {T,F}
+    nbin = counttuple(binops)
+    quote
+        Base.Cartesian.@nif(
+            $nbin,
+            j -> j == l_op_idx,
+            j -> let op_l = binops[j]
+                deg2_l2_ll0_lr0_r0_eval(tree, cX, op, op_l, eval_options)
+            end,
+        )
+    end
+end
+
+@generated function dispatch_deg2_l0_r2_rl0_rr0_eval(
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    op::F,
+    r_op_idx::Integer,
+    binops,
+    eval_options::EvalOptions,
+) where {T,F}
+    nbin = counttuple(binops)
+    quote
+        Base.Cartesian.@nif(
+            $nbin,
+            j -> j == r_op_idx,
+            j -> let op_r = binops[j]
+                deg2_l0_r2_rl0_rr0_eval(tree, cX, op, op_r, eval_options)
+            end,
+        )
     end
 end
 
