@@ -454,3 +454,48 @@ end
     @test get_variable_names(new_ex2, nothing) == ["x1"]
     @test get_operators(new_ex2, nothing) == new_operators
 end
+
+@testitem "New binary operators" begin
+    using DynamicExpressions
+
+    operators = OperatorEnum(;
+        binary_operators=[+, -, *, /, >, <, >=, <=, max, min, rem],
+        unary_operators=[sin, cos],
+    )
+    x1, x2 = [Node(Float64; feature=i) for i in 1:2]
+
+    # Test comparison operators string representation
+    tree = x1 > x2
+    @test string(tree) == "x1 > x2"
+
+    tree = x1 < x2
+    @test string(tree) == "x1 < x2"
+
+    tree = x1 >= x2
+    @test string(tree) == "x1 >= x2"
+
+    tree = x1 <= x2
+    @test string(tree) == "x1 <= x2"
+
+    # Test max/min operators
+    tree = max(x1, x2)
+    X = [1.0 2.0; 3.0 1.0]'  # Two points: (1,3) and (2,1)
+    @test tree(X, operators) ≈ [2.0, 3.0]
+
+    tree = min(x1, x2)
+    @test tree(X, operators) ≈ [1.0, 1.0]
+
+    # Test remainder operator
+    tree = rem(x1, x2)
+    X = [5.0 7.0; 3.0 2.0]'  # Two points: (5,7) and (3,2)
+    @test tree(X, operators) ≈ [5.0, 1.0]
+
+    # Test combinations string representation
+    tree = max(x1, 2.0) > min(x2, 3.0)
+    @test string(tree) == "max(x1, 2.0) > min(x2, 3.0)"
+
+    # Test with constants
+    tree = rem(x1, 2.0)
+    X = [5.0 7.0]  # Two points: 5 and 7
+    @test tree(X, operators) ≈ [1.0, 1.0]
+end

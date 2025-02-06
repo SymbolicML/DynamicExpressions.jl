@@ -154,7 +154,8 @@ end
 for op in (
     :*, :/, :+, :-, :^, :÷, :mod, :log,
     :atan, :atand, :copysign, :flipsign,
-    :&, :|, :⊻, ://, :\,
+    :&, :|, :⊻, ://, :\, :rem,
+    :(>), :(<), :(>=), :(<=), :max, :min,
 )
     @eval @declare_expression_operator Base.$(op) 2
 end
