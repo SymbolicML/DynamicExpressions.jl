@@ -82,7 +82,7 @@ end
 
 # Vector of chars is faster than strings, so we use that.
 function combine_op_with_inputs(op, l, r)::Vector{Char}
-    if first(op) in ('+', '-', '*', '/', '^', '.')
+    if first(op) in ('+', '-', '*', '/', '^', '.', '>', '<', '=') || op == "!="
         # "(l op r)"
         out = ['(']
         append!(out, l)
