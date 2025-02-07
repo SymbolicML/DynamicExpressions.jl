@@ -28,7 +28,7 @@ DynamicExpressionsSymbolicUtilsExt = "SymbolicUtils"
 DynamicExpressionsZygoteExt = "Zygote"
 
 [compat]
-Bumper = "0.6"
+Bumper = "0.6, 0.7"
 ChainRulesCore = "1"
 DispatchDoctor = "0.4"
 Interfaces = "0.3"
