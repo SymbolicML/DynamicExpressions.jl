@@ -47,7 +47,7 @@ tree([1 2 3; 4 5 6.], operators)
 ```
 
 This is possible because when you call `OperatorEnum`, it automatically re-defines
-`(::Node)(X)` to call the evaluation operation with the given `operators loaded.
+`(::Node)(X)` to call the evaluation operation with the given `operators` loaded.
 It also re-defines `print`, `show`, and the various operators, to work with the `Node` type.
 
 !!! warning

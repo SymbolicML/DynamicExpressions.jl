@@ -4,19 +4,24 @@ using ..UtilsModule: deprecate_varmap
 using ..OperatorEnumModule: AbstractOperatorEnum
 using ..NodeModule: AbstractExpressionNode, tree_mapreduce
 
-function dispatch_op_name(::Val{deg}, ::Nothing, idx)::Vector{Char} where {deg}
-    if deg == 1
-        return vcat(collect("unary_operator["), collect(string(idx)), [']'])
-    else
-        return vcat(collect("binary_operator["), collect(string(idx)), [']'])
-    end
+function dispatch_op_name(
+    ::Val{deg}, ::Nothing, idx, pretty::Bool
+)::Vector{Char} where {deg}
+    return vcat(
+        collect(deg == 1 ? "unary_operator[" : "binary_operator["),
+        collect(string(idx)),
+        [']'],
+    )
 end
-function dispatch_op_name(::Val{deg}, operators::AbstractOperatorEnum, idx) where {deg}
-    if deg == 1
-        return collect(get_op_name(operators.unaops[idx])::String)
+function dispatch_op_name(
+    ::Val{deg}, operators::AbstractOperatorEnum, idx, pretty::Bool
+) where {deg}
+    op = if deg == 1
+        operators.unaops[idx]
     else
-        return collect(get_op_name(operators.binops[idx])::String)
+        operators.binops[idx]
     end
+    return collect((pretty ? get_pretty_op_name(op) : get_op_name(op))::String)
 end
 
 const OP_NAME_CACHE = (; x=Dict{UInt64,String}(), lock=Threads.SpinLock())
@@ -46,6 +51,9 @@ function get_op_name(op::F) where {F}
     finally
         unlock(OP_NAME_CACHE.lock)
     end
+end
+function get_pretty_op_name(op::F) where {F}
+    return get_op_name(op)
 end
 
 @inline function strip_brackets(s::Vector{Char})::Vector{Char}
@@ -82,7 +90,7 @@ end
 
 # Vector of chars is faster than strings, so we use that.
 function combine_op_with_inputs(op, l, r)::Vector{Char}
-    if first(op) in ('+', '-', '*', '/', '^', '.')
+    if first(op) in ('+', '-', '*', '/', '^', '.', '>', '<', '=') || op == "!="
         # "(l op r)"
         out = ['(']
         append!(out, l)
@@ -145,8 +153,9 @@ function string_tree(
     raw::Union{Bool,Nothing}=nothing,
     varMap=nothing,
 )::String where {T,F1<:Function,F2<:Function}
-    !isnothing(raw) &&
+    if !isnothing(raw)
         Base.depwarn("`raw` is deprecated; use `pretty` instead", :string_tree)
+    end
     pretty = @something(pretty, _not(raw), false)
     variable_names = deprecate_varmap(variable_names, varMap, :string_tree)
     raw_output = tree_mapreduce(
@@ -162,9 +171,9 @@ function string_tree(
         end,
         let operators = operators
             (branch,) -> if branch.degree == 1
-                dispatch_op_name(Val(1), operators, branch.op)::Vector{Char}
+                dispatch_op_name(Val(1), operators, branch.op, pretty)::Vector{Char}
             else
-                dispatch_op_name(Val(2), operators, branch.op)::Vector{Char}
+                dispatch_op_name(Val(2), operators, branch.op, pretty)::Vector{Char}
             end
         end,
         combine_op_with_inputs,
