@@ -69,7 +69,7 @@ import .NodeModule:
     get_scalar_constants,
     set_scalar_constants!
 @reexport import .StringsModule: string_tree, print_tree
-import .StringsModule: get_op_name
+import .StringsModule: get_op_name, get_pretty_op_name
 @reexport import .OperatorEnumModule: AbstractOperatorEnum
 @reexport import .OperatorEnumConstructionModule:
     OperatorEnum, GenericOperatorEnum, @extend_operators, set_default_variable_names!
