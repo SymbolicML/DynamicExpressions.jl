@@ -361,15 +361,17 @@ end
             i -> let op = operators.binops[i]
                 if special_operator(op)
                     deg2_eval_special(tree, cX, op, eval_options)
-                elseif !$(special_operators) && tree.l.degree == 0 && tree.r.degree == 0
+                elseif tree.l.degree == 0 && tree.r.degree == 0
                     deg2_l0_r0_eval(tree, cX, op, eval_options)
-                elseif !$(special_operators) && tree.r.degree == 0
+                elseif tree.r.degree == 0
                     result_l = _eval_tree_array(tree.l, cX, operators, eval_options)
                     !result_l.ok && return result_l
                     @return_on_nonfinite_array(eval_options, result_l.x)
                     # op(x, y), where y is a constant or variable but x is not.
                     deg2_r0_eval(tree, result_l.x, cX, op, eval_options)
                 elseif !$(special_operators) && tree.l.degree == 0
+                    # This branch changes the execution order, so we cannot
+                    # use this branch when special operators are present.
                     result_r = _eval_tree_array(tree.r, cX, operators, eval_options)
                     !result_r.ok && return result_r
                     @return_on_nonfinite_array(eval_options, result_r.x)
