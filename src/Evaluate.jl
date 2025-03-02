@@ -11,9 +11,7 @@ import ..ExtensionInterfaceModule: bumper_eval_tree_array, _is_loopvectorization
 import ..ValueInterfaceModule: is_valid, is_valid_array
 
 # Overloaded by SpecialOperators.jl:
-function any_special_operators(_)
-    return false
-end
+function any_special_operators end
 function special_operator end
 function deg2_eval_special end
 function deg1_eval_special end
@@ -226,7 +224,7 @@ function eval_tree_array(
             "Bumper and LoopVectorization features are only compatible with numeric element types",
         )
     end
-    if any_special_operators(typeof(operators))
+    if any_special_operators(operators)
         cX = copy(cX)
         # TODO: This is dangerous if the element type is mutable
     end
@@ -338,7 +336,6 @@ end
     eval_options::EvalOptions,
 ) where {T}
     nbin = get_nbin(operators)
-    special_operators = any_special_operators(operators)
     long_compilation_time = nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     if long_compilation_time
         return quote
@@ -370,7 +367,7 @@ end
                     @return_on_nonfinite_array(eval_options, result_l.x)
                     # op(x, y), where y is a constant or variable but x is not.
                     deg2_r0_eval(tree, result_l.x, cX, op, eval_options)
-                elseif !$(special_operators) && tree.l.degree == 0
+                elseif !any_special_operators(operators) && tree.l.degree == 0
                     # This branch changes the execution order, so we cannot
                     # use this branch when special operators are present.
                     result_r = _eval_tree_array(tree.r, cX, operators, eval_options)
@@ -400,7 +397,6 @@ end
     eval_options::EvalOptions,
 ) where {T}
     nuna = get_nuna(operators)
-    special_operators = any_special_operators(operators)
     long_compilation_time = nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     if long_compilation_time
         return quote
@@ -422,7 +418,7 @@ end
             i -> let op = operators.unaops[i]
                 if special_operator(op)
                     deg1_eval_special(tree, cX, operators, op, eval_options)
-                elseif !$(special_operators) &&
+                elseif !any_special_operators(operators) &&
                     tree.l.degree == 2 &&
                     tree.l.l.degree == 0 &&
                     tree.l.r.degree == 0
@@ -431,7 +427,9 @@ end
                     dispatch_deg1_l2_ll0_lr0_eval(
                         tree, cX, op, l_op_idx, operators.binops, eval_options
                     )
-                elseif !$(special_operators) && tree.l.degree == 1 && tree.l.l.degree == 0
+                elseif !any_special_operators(operators) &&
+                    tree.l.degree == 1 &&
+                    tree.l.l.degree == 0
                     # op(op2(x)), where x is a constant or variable.
                     l_op_idx = tree.l.op
                     dispatch_deg1_l1_ll0_eval(

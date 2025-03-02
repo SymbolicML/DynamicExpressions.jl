@@ -10,15 +10,15 @@ import ..EvaluateModule:
     special_operator, deg2_eval_special, deg1_eval_special, any_special_operators
 import ..StringsModule: get_op_name
 
+# Use this to customize evaluation behavior for operators:
+@inline special_operator(::Type{F}) where {F} = false
+@inline special_operator(::F) where {F} = special_operator(F)
+
 @generated function any_special_operators(
     ::Union{O,Type{O}}
 ) where {B,U,O<:OperatorEnum{B,U}}
     return any(special_operator, B.types) || any(special_operator, U.types)
 end
-
-# Use this to customize evaluation behavior for operators:
-@inline special_operator(::Type{F}) where {F} = false
-@inline special_operator(::F) where {F} = special_operator(F)
 
 Base.@kwdef struct AssignOperator <: Function
     target_register::Int
