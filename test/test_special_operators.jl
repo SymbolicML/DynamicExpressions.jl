@@ -100,3 +100,74 @@ end
     not_simplified = simplify_tree!(simple_expr_special)
     @test string_tree(not_simplified) == "2.0 + 2.0"
 end
+
+@testitem "WhileOperator basic functionality" begin
+    using DynamicExpressions
+    using Test
+
+    # Define operators
+    while_op = WhileOperator(; max_iters=100)
+    assign_x2 = AssignOperator(; target_register=2)
+    operators = OperatorEnum(;
+        binary_operators=[+, -, *, /, while_op],  # While is binary operator
+        unary_operators=[assign_x2],
+    )
+    variable_names = ["x1", "x2", "x3"]
+
+    # Test data - x2 starts at 1.0 for all samples
+    X = zeros(Float64, 2, 3)
+    X[2, :] .= 1.0  # x2 initial value
+
+    # Build expression: while (3.0 - x2 > 0) do x2 = x2 + 1.0
+    x2 = Expression(Node(; feature=2); operators, variable_names)
+    expr = while_op(3.0 - x2, assign_x2(x2 + 1.0))
+
+    @test string_tree(expr) == "while(3.0 - x2, [x2 =](x2 + 1.0))"
+
+    result, completed = eval_tree_array(expr, X)
+    @test completed == true
+    @test all(result .≈ 3.0)  # After 2 iterations, x2 becomes 3.0
+    @test X[2, :] == [1.0, 1.0, 1.0]  # Original data unchanged
+end
+
+@testitem "Fibonacci sequence with WhileOperator" begin
+    using DynamicExpressions
+    using Test
+
+    # Define operators
+    while_op = WhileOperator(; max_iters=100)
+    assign_ops = [AssignOperator(; target_register=i) for i in 1:5]
+    operators = OperatorEnum(;
+        binary_operators=[+, -, *, /, while_op], unary_operators=assign_ops
+    )
+    variable_names = ["x1", "x2", "x3", "x4", "x5"]
+
+    # Test data - x2=5 (counter), x3=0 (F(0)), x4=1 (F(1))
+    X = zeros(Float64, 5, 4)
+    # Set different Fibonacci sequence positions to calculate
+    X[2, :] = [3.0, 5.0, 7.0, 10.0]  # Calculate F(3), F(5), F(7), F(10)
+
+    # Initialize all rows with F(0)=0, F(1)=1
+    X[3, :] .= 0.0  # x3 = 0.0 (F(0))
+    X[4, :] .= 1.0  # x4 = 1.0 (F(1))
+
+    xs = [Expression(Node(; feature=i); operators, variable_names) for i in 1:5]
+
+    # Build expression: 
+    condition = xs[2]  # WhileOperator implicitly checks if > 0
+    body =
+        assign_ops[5](xs[3]) +
+        assign_ops[3](xs[4]) +
+        assign_ops[4](xs[5] + xs[4]) +
+        assign_ops[2](xs[2] - 1.0)
+    expr = (while_op(condition, body) * 0.0) + xs[3]
+
+    @test string_tree(expr) ==
+        "(while(x2, (([x5 =](x3) + [x3 =](x4)) + [x4 =](x5 + x4)) + [x2 =](x2 - 1.0)) * 0.0) + x3"
+
+    result, completed = eval_tree_array(expr, X)
+    @test completed == true
+
+    # Test each Fibonacci number is correctly calculated
+    @test result ≈ [2.0, 5.0, 13.0, 55.0]  # F(3)=2, F(5)=5, F(7)=13, F(10)=55
+end

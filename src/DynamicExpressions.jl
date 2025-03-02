@@ -77,7 +77,7 @@ import .StringsModule: get_op_name
 @reexport import .EvaluateModule:
     eval_tree_array, differentiable_eval_tree_array, EvalOptions
 import .EvaluateModule: ArrayBuffer
-@reexport import .SpecialOperatorsModule: AssignOperator
+@reexport import .SpecialOperatorsModule: AssignOperator, WhileOperator
 @reexport import .EvaluateDerivativeModule: eval_diff_tree_array, eval_grad_tree_array
 @reexport import .ChainRulesModule: NodeTangent, extract_gradient
 @reexport import .SimplifyModule: combine_operators, simplify_tree!

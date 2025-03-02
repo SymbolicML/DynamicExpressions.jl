@@ -343,7 +343,8 @@ end
     if long_compilation_time
         return quote
             op = operators.binops[op_idx]
-            special_operator(op) && return deg2_eval_special(tree, cX, op, eval_options)
+            special_operator(op) &&
+                return deg2_eval_special(tree, cX, op, eval_options, operators)
             result_l = _eval_tree_array(tree.l, cX, operators, eval_options)
             !result_l.ok && return result_l
             @return_on_nonfinite_array(eval_options, result_l.x)
@@ -360,7 +361,7 @@ end
             i -> i == op_idx,
             i -> let op = operators.binops[i]
                 if special_operator(op)
-                    deg2_eval_special(tree, cX, op, eval_options)
+                    deg2_eval_special(tree, cX, op, eval_options, operators)
                 elseif tree.l.degree == 0 && tree.r.degree == 0
                     deg2_l0_r0_eval(tree, cX, op, eval_options)
                 elseif tree.r.degree == 0
