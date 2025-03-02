@@ -10,7 +10,9 @@ import ..EvaluateModule:
     special_operator, deg2_eval_special, deg1_eval_special, any_special_operators
 import ..StringsModule: get_op_name
 
-function any_special_operators(::Union{O,Type{O}}) where {B,U,O<:OperatorEnum{B,U}}
+@generated function any_special_operators(
+    ::Union{O,Type{O}}
+) where {B,U,O<:OperatorEnum{B,U}}
     return any(special_operator, B.types) || any(special_operator, U.types)
 end
 
