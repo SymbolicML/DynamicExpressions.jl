@@ -25,7 +25,7 @@ end
 @inline special_operator(::Type{AssignOperator}) = true
 get_op_name(o::AssignOperator) = "[{FEATURE_" * string(o.target_register) * "} =]"
 
-function deg1_eval_special(tree, cX, op::AssignOperator, eval_options, operators)
+function deg1_eval_special(tree, cX, operators, op::AssignOperator, eval_options)
     result = _eval_tree_array(tree.l, cX, operators, eval_options)
     !result.ok && return result
     @return_on_nonfinite_array(eval_options, result.x)
@@ -45,7 +45,7 @@ end
 get_op_name(o::WhileOperator) = "while"
 
 # TODO: Need to void any instance of buffer when using while loop.
-function deg2_eval_special(tree, cX, op::WhileOperator, eval_options, operators)
+function deg2_eval_special(tree, cX, operators, op::WhileOperator, eval_options)
     cond = tree.l
     body = tree.r
     mask = trues(size(cX, 2))
