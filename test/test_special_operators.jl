@@ -2,8 +2,6 @@ using TestItems: @testitem
 
 @testitem "AssignOperator basic functionality" begin
     using DynamicExpressions
-    using DynamicExpressions.SpecialOperatorsModule: AssignOperator
-    using DynamicExpressions.EvaluateModule: eval_tree_array
     using Test
     using Random
 
@@ -37,7 +35,32 @@ using TestItems: @testitem
 
     # But, with the reverse order, we get the x2 _before_ it was reassigned
     assign_expr_reverse = x2 + assign_x2(0.0 * x1 + 3.0)
+    @test string_tree(assign_expr_reverse) == "x2 + [x2 =]((0.0 * x1) + 3.0)"
     result, completed = eval_tree_array(assign_expr_reverse, X)
     @test completed == true
     @test result == [3.5, 4.5, 5.5]
+end
+
+@testitem "AssignOperator with self-assignment" begin
+    using DynamicExpressions
+    using Test
+    using Random
+
+    assign_x1 = AssignOperator(; target_register=1)
+    operators = OperatorEnum(;
+        binary_operators=[+, -, *, /], unary_operators=[sin, cos, assign_x1]
+    )
+    variable_names = ["a", "b", "c"]
+    X = rand(Float64, 2, 10)
+
+    x1 = Expression(Node(; feature=1); operators, variable_names)
+    x2 = Expression(Node(; feature=2); operators, variable_names)
+    x3 = Expression(Node(; feature=3); operators, variable_names)
+
+    expr = assign_x1(assign_x1(x1 * 2) + x1)
+    @test string_tree(expr) == "[a =]([a =](a * 2.0) + a)"
+
+    result, completed = eval_tree_array(expr, X)
+    @test completed == true
+    @test result == X[1, :] .* 4.0
 end
