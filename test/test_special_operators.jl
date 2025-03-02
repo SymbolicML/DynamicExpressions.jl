@@ -23,7 +23,7 @@ using TestItems: @testitem
     x2 = Expression(Node(; feature=2); operators, variable_names)
     assign_expr = assign_x2(0.0 * x1 + 3.0) + x2
 
-    @test string_tree(assign_expr) == "[x2 =]((0.0 * x1) + 3.0) + x2"
+    @test string_tree(assign_expr) == "(x2 ← ((0.0 * x1) + 3.0)) + x2"
 
     # We should see that x2 will become 3.0 _before_ adding
     result, completed = eval_tree_array(assign_expr, X)
@@ -35,7 +35,7 @@ using TestItems: @testitem
 
     # But, with the reverse order, we get the x2 _before_ it was reassigned
     assign_expr_reverse = x2 + assign_x2(0.0 * x1 + 3.0)
-    @test string_tree(assign_expr_reverse) == "x2 + [x2 =]((0.0 * x1) + 3.0)"
+    @test string_tree(assign_expr_reverse) == "x2 + (x2 ← ((0.0 * x1) + 3.0))"
     result, completed = eval_tree_array(assign_expr_reverse, X)
     @test completed == true
     @test result == [3.5, 4.5, 5.5]
@@ -58,7 +58,7 @@ end
     x3 = Expression(Node(; feature=3); operators, variable_names)
 
     expr = assign_x1(assign_x1(x1 * 2) + x1)
-    @test string_tree(expr) == "[a =]([a =](a * 2.0) + a)"
+    @test string_tree(expr) == "a ← ((a ← (a * 2.0)) + a)"
 
     result, completed = eval_tree_array(expr, X)
     @test completed == true
@@ -122,7 +122,7 @@ end
     x2 = Expression(Node(; feature=2); operators, variable_names)
     expr = while_op(3.0 - x2, assign_x2(x2 + 1.0))
 
-    @test string_tree(expr) == "while(3.0 - x2, [x2 =](x2 + 1.0))"
+    @test string_tree(expr) == "while(3.0 - x2, x2 ← (x2 + 1.0))"
 
     result, completed = eval_tree_array(expr, X)
     @test completed == true
@@ -163,7 +163,7 @@ end
     expr = (while_op(condition, body) * 0.0) + xs[3]
 
     @test string_tree(expr) ==
-        "(while(x2, (([x5 =](x3) + [x3 =](x4)) + [x4 =](x5 + x4)) + [x2 =](x2 - 1.0)) * 0.0) + x3"
+        "(while(x2, (((x5 ← (x3)) + (x3 ← (x4))) + (x4 ← (x5 + x4))) + (x2 ← (x2 - 1.0))) * 0.0) + x3"
 
     result, completed = eval_tree_array(expr, X)
     @test completed == true

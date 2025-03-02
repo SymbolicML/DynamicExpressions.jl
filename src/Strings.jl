@@ -116,12 +116,33 @@ function combine_op_with_inputs(op, l, r)::Vector{Char}
     end
 end
 function combine_op_with_inputs(op, l)
-    # "op(l)"
-    out = copy(op)
-    push!(out, '(')
-    append!(out, strip_brackets(l))
-    push!(out, ')')
-    return out
+    # Check if this is an assignment operator with our special prefix
+    op_str = String(op)
+    if startswith(op_str, "ASSIGN_OP:")
+        # Extract the variable name from the operator name
+        var_name = op_str[11:end]
+        # Format: (var ← expr)
+        out = ['(']
+        append!(out, collect(var_name))
+        append!(out, collect(" ← "))
+        # Ensure the expression is always wrapped in parentheses for clarity
+        if l[1] == '(' && l[end] == ')'
+            append!(out, l)
+        else
+            push!(out, '(')
+            append!(out, strip_brackets(l))
+            push!(out, ')')
+        end
+        push!(out, ')')
+        return out
+    else
+        # Regular unary operator: "op(l)"
+        out = copy(op)
+        push!(out, '(')
+        append!(out, strip_brackets(l))
+        push!(out, ')')
+        return out
+    end
 end
 
 """

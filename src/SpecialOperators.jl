@@ -23,7 +23,7 @@ Base.@kwdef struct AssignOperator <: Function
 end
 @declare_expression_operator((op::AssignOperator), 1)
 @inline special_operator(::Type{AssignOperator}) = true
-get_op_name(o::AssignOperator) = "[{FEATURE_" * string(o.target_register) * "} =]"
+get_op_name(o::AssignOperator) = "ASSIGN_OP:{FEATURE_" * string(o.target_register) * "}"
 
 function deg1_eval_special(tree, cX, operators, op::AssignOperator, eval_options)
     result = _eval_tree_array(tree.l, cX, operators, eval_options)
