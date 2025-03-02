@@ -15,8 +15,8 @@ function any_special_operators(::Union{O,Type{O}}) where {B,U,O<:OperatorEnum{B,
 end
 
 # Use this to customize evaluation behavior for operators:
-@inline special_operator(::Type) = false
-@inline special_operator(f) = special_operator(typeof(f))
+@inline special_operator(::Type{F}) where {F} = false
+@inline special_operator(::F) where {F} = special_operator(F)
 
 Base.@kwdef struct AssignOperator <: Function
     target_register::Int
