@@ -2,11 +2,14 @@ module SpecialOperatorsModule
 
 using ..OperatorEnumModule: OperatorEnum
 using ..EvaluateModule: _eval_tree_array, @return_on_nonfinite_array, deg2_eval
+using ..ExpressionModule: AbstractExpression
+using ..ExpressionAlgebraModule: @declare_expression_operator
 
 import ..EvaluateModule:
     special_operator, deg2_eval_special, deg1_eval_special, any_special_operators
+import ..StringsModule: get_op_name
 
-function any_special_operators(::Type{OperatorEnum{B,U}}) where {B,U}
+function any_special_operators(::Union{O,Type{O}}) where {B,U,O<:OperatorEnum{B,U}}
     return any(special_operator, B.types) || any(special_operator, U.types)
 end
 
@@ -14,16 +17,17 @@ end
 @inline special_operator(::Type) = false
 @inline special_operator(f) = special_operator(typeof(f))
 
-# Base.@kwdef struct WhileOperator <: Function
-#     max_iters::Int = 100
-# end
 Base.@kwdef struct AssignOperator <: Function
     target_register::Int
 end
-
-# @inline special_operator(::Type{WhileOperator}) = true
+@declare_expression_operator((op::AssignOperator), 1)
 @inline special_operator(::Type{AssignOperator}) = true
+get_op_name(o::AssignOperator) = "[{FEATURE_" * string(o.target_register) * "} =]"
 
+# Base.@kwdef struct WhileOperator <: Function
+#     max_iters::Int = 100
+# end
+# @inline special_operator(::Type{WhileOperator}) = true
 # function deg2_eval_special(tree, cX, op::WhileOperator, eval_options)
 #     cond = tree.l
 #     body = tree.r
@@ -43,7 +47,7 @@ end
 # end
 # TODO: Need to void any instance of buffer when using while loop.
 
-function deg1_eval_special(tree, cX, op::AssignOperator, eval_options)
+function deg1_eval_special(tree, cX, op::AssignOperator, eval_options, operators)
     result = _eval_tree_array(tree.l, cX, operators, eval_options)
     !result.ok && return result
     @return_on_nonfinite_array(eval_options, result.x)
@@ -54,4 +58,4 @@ function deg1_eval_special(tree, cX, op::AssignOperator, eval_options)
     return result
 end
 
-end 
+end

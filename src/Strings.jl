@@ -56,6 +56,18 @@ end
     end
 end
 
+const FEATURE_PLACEHOLDER_FIRST_HALF_LENGTH = length("{FEATURE_")
+function replace_feature_placeholders(s::String, f_variable::Function, variable_names)
+    return replace(
+        s,
+        r"\{FEATURE_(\d+)\}" =>
+            m -> f_variable(
+                parse(Int, m[(begin + FEATURE_PLACEHOLDER_FIRST_HALF_LENGTH):(end - 1)]),
+                variable_names,
+            ),
+    )
+end
+
 # Can overload these for custom behavior:
 needs_brackets(val::Real) = false
 needs_brackets(val::AbstractArray) = false
@@ -179,7 +191,9 @@ function string_tree(
             c
         end,
     )
-    return String(strip_brackets(raw_output))
+    string_output = String(strip_brackets(raw_output))
+    string_output = replace_feature_placeholders(string_output, f_variable, variable_names)
+    return string_output
 end
 
 # Print an equation

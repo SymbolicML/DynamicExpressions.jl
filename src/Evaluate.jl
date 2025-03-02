@@ -10,6 +10,14 @@ import ..NodeUtilsModule: is_constant
 import ..ExtensionInterfaceModule: bumper_eval_tree_array, _is_loopvectorization_loaded
 import ..ValueInterfaceModule: is_valid, is_valid_array
 
+# Overloaded by SpecialOperators.jl:
+function any_special_operators(_)
+    return false
+end
+function special_operator end
+function deg2_eval_special end
+function deg1_eval_special end
+
 const OPERATOR_LIMIT_BEFORE_SLOWDOWN = 15
 
 macro return_on_nonfinite_val(eval_options, val, X)
@@ -268,7 +276,7 @@ function _eval_tree_array(
     # we can just return the constant result.
     if tree.degree == 0
         return deg0_eval(tree, cX, eval_options)
-    elseif is_constant(tree)
+    elseif !any_special_operators(operators) && is_constant(tree)
         # Speed hack for constant trees.
         const_result = dispatch_constant_tree(tree, operators)::ResultOk{T}
         !const_result.ok &&
@@ -330,6 +338,7 @@ end
     eval_options::EvalOptions,
 ) where {T}
     nbin = get_nbin(operators)
+    special_operators = any_special_operators(operators)
     long_compilation_time = nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     if long_compilation_time
         return quote
@@ -352,15 +361,15 @@ end
             i -> let op = operators.binops[i]
                 if special_operator(op)
                     deg2_eval_special(tree, cX, op, eval_options)
-                elseif tree.l.degree == 0 && tree.r.degree == 0
+                elseif !$(special_operators) && tree.l.degree == 0 && tree.r.degree == 0
                     deg2_l0_r0_eval(tree, cX, op, eval_options)
-                elseif tree.r.degree == 0
+                elseif !$(special_operators) && tree.r.degree == 0
                     result_l = _eval_tree_array(tree.l, cX, operators, eval_options)
                     !result_l.ok && return result_l
                     @return_on_nonfinite_array(eval_options, result_l.x)
                     # op(x, y), where y is a constant or variable but x is not.
                     deg2_r0_eval(tree, result_l.x, cX, op, eval_options)
-                elseif tree.l.degree == 0
+                elseif !$(special_operators) && tree.l.degree == 0
                     result_r = _eval_tree_array(tree.r, cX, operators, eval_options)
                     !result_r.ok && return result_r
                     @return_on_nonfinite_array(eval_options, result_r.x)
@@ -393,7 +402,8 @@ end
     if long_compilation_time
         return quote
             op = operators.unaops[op_idx]
-            special_operator(op) && return deg1_eval_special(tree, cX, op, eval_options)
+            special_operator(op) &&
+                return deg1_eval_special(tree, cX, op, eval_options, operators)
             result = _eval_tree_array(tree.l, cX, operators, eval_options)
             !result.ok && return result
             @return_on_nonfinite_array(eval_options, result.x)
@@ -408,8 +418,8 @@ end
             i -> i == op_idx,
             i -> let op = operators.unaops[i]
                 if special_operator(op)
-                    deg1_eval_special(tree, cX, op, eval_options)
-                elseif !special_operators &&
+                    deg1_eval_special(tree, cX, op, eval_options, operators)
+                elseif !$(special_operators) &&
                     tree.l.degree == 2 &&
                     tree.l.l.degree == 0 &&
                     tree.l.r.degree == 0
@@ -418,7 +428,7 @@ end
                     dispatch_deg1_l2_ll0_lr0_eval(
                         tree, cX, op, l_op_idx, operators.binops, eval_options
                     )
-                elseif !special_operators && tree.l.degree == 1 && tree.l.l.degree == 0
+                elseif !$(special_operators) && tree.l.degree == 1 && tree.l.l.degree == 0
                     # op(op2(x)), where x is a constant or variable.
                     l_op_idx = tree.l.op
                     dispatch_deg1_l1_ll0_eval(
@@ -940,11 +950,5 @@ end
         return op.(left, right), true
     end
 end
-
-# Overloaded by SpecialOperators.jl:
-function any_special_operators end
-function special_operator end
-function deg2_eval_special end
-function deg1_eval_special end
 
 end
