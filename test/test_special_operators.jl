@@ -64,3 +64,39 @@ end
     @test completed == true
     @test result == X[1, :] .* 4.0
 end
+
+@testitem "Simplification disabled with special operators" begin
+    using DynamicExpressions
+    using Test
+
+    # Create operators with and without special operator
+    assign_op = AssignOperator(; target_register=1)
+    special_operators = OperatorEnum(;
+        binary_operators=[+, -, *, /], unary_operators=[sin, cos, assign_op]
+    )
+    normal_operators = OperatorEnum(;
+        binary_operators=[+, -, *, /], unary_operators=[sin, cos]
+    )
+
+    @test DynamicExpressions.SpecialOperatorsModule.any_special_operators(special_operators)
+    @test !DynamicExpressions.SpecialOperatorsModule.any_special_operators(normal_operators)
+
+    # Create expressions using the Expression constructor
+    const_val = 2.0
+
+    # Simple expression that should simplify: 2.0 + 2.0
+    raw_node = Node(; op=1, l=Node(; val=const_val), r=Node(; val=const_val))
+    simple_expr = Expression(copy(raw_node); operators=normal_operators)
+    simple_expr_special = Expression(copy(raw_node); operators=special_operators)
+
+    @test string_tree(simple_expr) == "2.0 + 2.0"
+    @test string_tree(simple_expr_special) == "2.0 + 2.0"
+
+    # Test normal simplification works
+    simplified = simplify_tree!(simple_expr)
+    @test string_tree(simplified) == "4.0"
+
+    # Test simplification is disabled with special operators
+    not_simplified = simplify_tree!(simple_expr_special)
+    @test string_tree(not_simplified) == "2.0 + 2.0"
+end
