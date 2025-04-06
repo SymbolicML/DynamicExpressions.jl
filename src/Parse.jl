@@ -95,13 +95,13 @@ macro parse_expression(ex, kws...)
     return esc(
         :($(parse_expression)(
             $(Meta.quot(ex));
-            operators=$(parsed_kws.operators),
+            operators=($(parsed_kws.operators)),
             binary_operators=nothing,
             unary_operators=nothing,
-            variable_names=$(parsed_kws.variable_names),
-            node_type=$(parsed_kws.node_type),
-            expression_type=$(parsed_kws.expression_type),
-            evaluate_on=$(parsed_kws.evaluate_on),
+            variable_names=($(parsed_kws.variable_names)),
+            node_type=($(parsed_kws.node_type)),
+            expression_type=($(parsed_kws.expression_type)),
+            evaluate_on=($(parsed_kws.evaluate_on)),
             $(parsed_kws.extra_metadata)...,
         )),
     )
@@ -188,8 +188,8 @@ end
             "You must specify the operators using either `operators`, or `binary_operators` and `unary_operators`"
         )
         operators = :($(OperatorEnum)(;
-            binary_operators=$(binops === nothing ? :(Function[]) : binops),
-            unary_operators=$(unaops === nothing ? :(Function[]) : unaops),
+            binary_operators=($(binops === nothing ? :(Function[]) : binops)),
+            unary_operators=($(unaops === nothing ? :(Function[]) : unaops)),
         ))
     else
         @assert (binops === nothing && unaops === nothing)

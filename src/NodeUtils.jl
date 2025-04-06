@@ -94,7 +94,7 @@ given the output of this function.
 Also return metadata that can will be used in the `set_scalar_constants!` function.
 """
 function get_scalar_constants(
-    tree::AbstractExpressionNode{T}, ::Type{BT}=get_number_type(T)
+    tree::AbstractExpressionNode{T}, (::Type{BT})=get_number_type(T)
 ) where {T,BT}
     refs = filter_map(
         is_node_constant, node -> Ref(node), tree, Base.RefValue{typeof(tree)}
@@ -160,7 +160,7 @@ end
 # as we trace over the node we are indexing on.
 preserve_sharing(::Union{Type{<:NodeIndex},NodeIndex}) = false
 
-function index_constant_nodes(tree::AbstractExpressionNode, ::Type{T}=UInt16) where {T}
+function index_constant_nodes(tree::AbstractExpressionNode, (::Type{T})=UInt16) where {T}
     # Essentially we copy the tree, replacing the values
     # with indices
     constant_index = Ref(T(0))

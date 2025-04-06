@@ -42,8 +42,9 @@ end
 
 Sample a node from a tree according to the default sampler `NodeSampler(; tree)`.
 """
-rand(rng::AbstractRNG, tree::Union{AbstractNode,AbstractExpression}) =
+function rand(rng::AbstractRNG, tree::Union{AbstractNode,AbstractExpression})
     rand(rng, NodeSampler(; tree))
+end
 
 """
     rand(rng::AbstractRNG, sampler::NodeSampler)

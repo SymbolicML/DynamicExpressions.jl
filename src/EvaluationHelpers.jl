@@ -86,7 +86,8 @@ to every constant in the expression.
 - `(evaluation, gradient, complete)::Tuple{AbstractVector{T}, AbstractMatrix{T}, Bool}`: the normal evaluation,
     the gradient, and whether the evaluation completed as normal (or encountered a nan or inf).
 """
-Base.adjoint(tree::AbstractExpressionNode) =
+function Base.adjoint(tree::AbstractExpressionNode)
     ((args...; kws...) -> _grad_evaluator(tree, args...; kws...))
+end
 
 end

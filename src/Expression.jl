@@ -520,7 +520,7 @@ end
 function copy_into!(::Nothing, src::AbstractExpression)
     return copy(src)
 end
-function allocate_container(::AbstractExpression, ::Union{Nothing,Integer}=nothing)
+function allocate_container(::AbstractExpression, (::Union{Nothing,Integer})=nothing)
     return nothing
 end
 # COV_EXCL_STOP

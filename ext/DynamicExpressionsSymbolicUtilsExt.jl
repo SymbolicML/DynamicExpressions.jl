@@ -90,7 +90,7 @@ function split_eq(
     op,
     args,
     operators::AbstractOperatorEnum,
-    ::Type{N}=Node;
+    (::Type{N})=Node;
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
     # Deprecated:
     varMap=nothing,
@@ -255,7 +255,7 @@ end
 function symbolic_to_node(
     eqn::SymbolicUtils.Symbolic,
     operators::AbstractOperatorEnum,
-    ::Type{N}=Node;
+    (::Type{N})=Node;
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
     # Deprecated:
     varMap=nothing,
