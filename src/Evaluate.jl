@@ -868,7 +868,7 @@ end
             if N == 1
                 return (cX[tree.feature]), true
             else
-                return selectdim(cX, 1, tree.feature), true
+                return copy(selectdim(cX, 1, tree.feature)), true
             end
         end
     elseif tree.degree == 1
