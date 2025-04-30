@@ -4,6 +4,7 @@ import ..NodeModule: AbstractExpressionNode, constructorof, Node, copy_node, set
 import ..NodeUtilsModule: tree_mapreduce, is_node_constant
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..ValueInterfaceModule: is_valid
+import ..EvaluateModule: any_special_operators
 
 _una_op_kernel(f::F, l::T) where {F,T} = f(l)
 _bin_op_kernel(f::F, l::T, r::T) where {F,T} = f(l, r)
@@ -19,6 +20,12 @@ combine_operators(tree::AbstractExpressionNode, ::AbstractOperatorEnum) = tree
 # This is only defined for `Node` as it is not possible for, e.g.,
 # `GraphNode`.
 function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
+    # Skip simplification if special operators are in use
+    any_special_operators(operators) && return tree
+    return _combine_operators(tree, operators)
+end
+
+function _combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
     # NOTE: (const (+*-) const) already accounted for. Call simplify_tree! before.
     # ((const + var) + const) => (const + var)
     # ((const * var) * const) => (const * var)
@@ -28,10 +35,10 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
     if tree.degree == 0
         return tree
     elseif tree.degree == 1
-        tree.l = combine_operators(tree.l, operators)
+        tree.l = _combine_operators(tree.l, operators)
     elseif tree.degree == 2
-        tree.l = combine_operators(tree.l, operators)
-        tree.r = combine_operators(tree.r, operators)
+        tree.l = _combine_operators(tree.l, operators)
+        tree.r = _combine_operators(tree.r, operators)
     end
 
     top_level_constant =
@@ -123,6 +130,11 @@ end
 
 # Simplify tree
 function simplify_tree!(tree::AbstractExpressionNode, operators::AbstractOperatorEnum)
+    # Skip simplification if special operators are in use
+    if any_special_operators(operators)
+        return tree
+    end
+
     return tree_mapreduce(
         identity, (p, c...) -> combine_children!(operators, p, c...), tree, typeof(tree);
     )
