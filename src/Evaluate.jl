@@ -2,7 +2,7 @@ module EvaluateModule
 
 using DispatchDoctor: @stable, @unstable
 
-import ..NodeModule: AbstractExpressionNode, constructorof
+import ..NodeModule: AbstractExpressionNode, constructorof, with_type_parameters
 import ..StringsModule: string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: fill_similar, counttuple, ResultOk
@@ -247,6 +247,15 @@ function eval_tree_array(
     tree = convert(constructorof(typeof(tree)){T}, tree)
     cX = Base.Fix1(convert, T).(cX)
     return eval_tree_array(tree, cX, operators; kws...)
+end
+function eval_tree_array(
+    trees::Union{Tuple{N,Vararg{N}},AbstractVector{N}},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum;
+    kws...,
+) where {T<:Number,N<:AbstractExpressionNode{T}}
+    outs = map(t -> eval_tree_array(t, cX, operators; kws...), trees)
+    return map(first, outs), map(last, outs)
 end
 
 # These are marked unstable due to issues discussed on
