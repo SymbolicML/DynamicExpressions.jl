@@ -86,6 +86,8 @@ for N in (:Node, :GraphNode)
         # TODO: Test with this disabled to spot any unintended uses
     end
 end
+# TODO: If we can't reach the same speed, we should make a Node2 type
+#       that is specialized for 2-arity nodes.
 
 #! format: off
 """
@@ -164,37 +166,45 @@ when constructing or setting properties.
 """
 GraphNode
 
-@inline function Base.getproperty(n::Union{Node,GraphNode}, k::Symbol)
-    if k == :l
-        # TODO: Should a depwarn be raised here? Or too slow?
-        return getfield(n, :children)[1][]
-    elseif k == :r
-        return getfield(n, :children)[2][]
-    else
-        return getfield(n, k)
-    end
+macro make_accessors(node_type)
+    esc(quote
+        @inline function Base.getproperty(n::$node_type, k::Symbol)
+            if k == :l
+                # TODO: Should a depwarn be raised here? Or too slow?
+                return getfield(n, :children)[1][]
+            elseif k == :r
+                return getfield(n, :children)[2][]
+            else
+                return getfield(n, k)
+            end
+        end
+        @inline function Base.setproperty!(n::$node_type, k::Symbol, v)
+            if k == :l
+                if isdefined(n, :children)
+                    getfield(n, :children)[1][] = v
+                else
+                    r = Ref(v)
+                    setfield!(n, :children, (r, Ref{typeof(n)}()))
+                    r
+                end
+            elseif k == :r
+                # TODO: Remove this assert once we know that this is safe
+                @assert isdefined(n, :children)
+                getfield(n, :children)[2][] = v
+            else
+                T = fieldtype(typeof(n), k)
+                if v isa T
+                    setfield!(n, k, v)
+                else
+                    setfield!(n, k, convert(T, v))
+                end
+            end
+        end
+    end)
 end
-@inline function Base.setproperty!(n::Union{Node,GraphNode}, k::Symbol, v)
-    if k == :l
-        getfield(n, :children)[1][] = v
-    elseif k == :r
-        getfield(n, :children)[2][] = v
-    elseif k == :degree
-        setfield!(n, :degree, convert(UInt8, v))
-    elseif k == :constant
-        setfield!(n, :constant, convert(Bool, v))
-    elseif k == :feature
-        setfield!(n, :feature, convert(UInt16, v))
-    elseif k == :op
-        setfield!(n, :op, convert(UInt8, v))
-    elseif k == :val
-        setfield!(n, :val, convert(eltype(n), v))
-    elseif k == :children
-        setfield!(n, :children, v)
-    else
-        error("Invalid property: $k")
-    end
-end
+
+@make_accessors Node
+@make_accessors GraphNode
 
 ################################################################################
 #! format: on

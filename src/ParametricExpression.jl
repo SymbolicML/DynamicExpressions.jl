@@ -18,7 +18,8 @@ import ..NodeModule:
     leaf_convert,
     leaf_hash,
     leaf_equal,
-    set_node!
+    set_node!,
+    @make_accessors
 import ..NodePreallocationModule: copy_into!, allocate_container
 import ..NodeUtilsModule:
     count_constant_nodes,
@@ -68,6 +69,8 @@ mutable struct ParametricNode{T,D} <: AbstractExpressionNode{T,D}
         return ParametricNode{_T,2}()
     end
 end
+
+@make_accessors ParametricNode
 
 """
     ParametricExpression{T,N<:ParametricNode{T},D<:NamedTuple} <: AbstractExpression{T,N}
