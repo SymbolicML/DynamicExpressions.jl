@@ -74,11 +74,18 @@ function benchmark_evaluation()
                 extra_kws...
             )
             suite[T]["evaluation$(extra_key)"] = @benchmarkable(
-                [eval_tree_array(tree, X, $operators; turbo=$turbo, $extra_kws...) for tree in trees],
+                [eval_tree_array(tree, X, $operators; kws...) for tree in trees],
                 setup=(
                     X=randn(MersenneTwister(0), $T, 5, $n);
                     treesize=20;
                     ntrees=100;
+                    kws=$(
+                        if @isdefined(EvalOptions)
+                            (; eval_options=EvalOptions(; turbo=turbo, extra_kws...))
+                        else
+                            (; turbo, extra_kws...)
+                        end
+                    );
                     trees=[gen_random_tree_fixed_size(treesize, $operators, 5, $T) for _ in 1:ntrees]
                 )
             )

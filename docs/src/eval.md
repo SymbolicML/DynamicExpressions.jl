@@ -6,14 +6,18 @@ Given an expression tree specified with a `Node` type, you may evaluate the expr
 over an array of data with the following command:
 
 ```@docs
-eval_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum) where {T<:Number}
+eval_tree_array(
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum;
+    eval_options::Union{EvalOptions,Nothing}=nothing,
+) where {T}
 ```
 
-Assuming you are only using a single `OperatorEnum`, you can also use
-the following shorthand by using the expression as a function:
+You can also use the following shorthand by using the expression as a function:
 
 ```
-    (tree::AbstractExpressionNode)(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Union{Bool,Val}=false, bumper::Union{Bool,Val}=Val(false))
+    (tree::AbstractExpressionNode)(X, operators::OperatorEnum; kws...)
 
 Evaluate a binary tree (equation) over a given input data matrix. The
 operators contain all of the operators used. This function fuses doublets
@@ -23,8 +27,7 @@ and triplets of operations for lower memory usage.
 - `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
 - `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
 - `operators::OperatorEnum`: The operators used in the tree.
-- `turbo::Union{Bool,Val}`: Use LoopVectorization.jl for faster evaluation.
-- `bumper::Union{Bool,Val}`: Use Bumper.jl for faster evaluation.
+- `kws...`: Passed to [`eval_tree_array`](@ref).
 
 # Returns
 - `output::AbstractVector{T}`: the result, which is a 1D array.
@@ -44,7 +47,7 @@ tree([1 2 3; 4 5 6.], operators)
 ```
 
 This is possible because when you call `OperatorEnum`, it automatically re-defines
-`(::Node)(X)` to call the evaluation operation with the given `operators loaded.
+`(::Node)(X)` to call the evaluation operation with the given `operators` loaded.
 It also re-defines `print`, `show`, and the various operators, to work with the `Node` type.
 
 !!! warning
@@ -52,6 +55,14 @@ It also re-defines `print`, `show`, and the various operators, to work with the 
     The `Node` type does not know about which `OperatorEnum` you used to create it.
     Thus, if you define an expression with one `OperatorEnum`, and then try to
     evaluate it or print it with a different `OperatorEnum`, you will get undefined behavior!
+
+    For safer behavior, you should use [`Expression`](@ref) objects.
+
+Evaluation options are specified using `EvalOptions`:
+
+```@docs
+EvalOptions
+```
 
 You can also work with arbitrary types, by defining a `GenericOperatorEnum` instead.
 The notation is the same for `eval_tree_array`, though it will return `nothing`

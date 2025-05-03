@@ -5,10 +5,21 @@ using ChainRulesCore: ChainRulesCore as CRC, NoTangent, @thunk
 
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
-using ..ExpressionModule: AbstractExpression, Metadata
+using ..ExpressionModule:
+    AbstractExpression, Metadata, with_contents, with_metadata, unpack_metadata
 using ..ChainRulesModule: NodeTangent
 
-import ..NodeModule: constructorof, max_degree, preserve_sharing, leaf_copy, leaf_hash, leaf_equal
+import ..NodeModule:
+    constructorof,
+    with_type_parameters,
+    max_degree,
+    preserve_sharing,
+    leaf_copy,
+    leaf_convert,
+    leaf_hash,
+    leaf_equal,
+    set_node!
+import ..NodePreallocationModule: copy_into!, allocate_container
 import ..NodeUtilsModule:
     count_constant_nodes,
     index_constant_nodes,
@@ -53,7 +64,6 @@ mutable struct ParametricNode{T,D} <: AbstractExpressionNode{T,D}
         return n
     end
 end
-@inline _data(x::Metadata) = getfield(x, :_data)
 
 """
     ParametricExpression{T,N<:ParametricNode{T},D<:NamedTuple} <: AbstractExpression{T,N}
@@ -69,15 +79,17 @@ struct ParametricExpression{
     metadata::Metadata{D}
 
     function ParametricExpression(tree::ParametricNode, metadata::Metadata)
-        return new{eltype(tree),typeof(tree),typeof(_data(metadata))}(tree, metadata)
+        return new{eltype(tree),typeof(tree),typeof(unpack_metadata(metadata))}(
+            tree, metadata
+        )
     end
 end
 function ParametricExpression(
     tree::ParametricNode{T1};
     operators::Union{AbstractOperatorEnum,Nothing},
-    variable_names,
+    variable_names=nothing,
     parameters::AbstractMatrix{T2},
-    parameter_names,
+    parameter_names=nothing,
 ) where {T1,T2}
     if !isnothing(parameter_names)
         @assert size(parameters, 1) == length(parameter_names)
@@ -96,33 +108,70 @@ end
 ###############################################################################
 # Abstract expression node interface ##########################################
 ###############################################################################
-@unstable constructorof(::Type{N}) where {N<:ParametricNode} = ParametricNode{T,max_degree(N)} where {T}
+@unstable constructorof(::Type{N}) where {N<:ParametricNode} =
+    ParametricNode{T,max_degree(N)} where {T}
 @unstable constructorof(::Type{<:ParametricExpression}) = ParametricExpression
 @unstable default_node_type(::Type{<:ParametricExpression}) = ParametricNode{T,2} where {T}
 default_node_type(::Type{<:ParametricExpression{T}}) where {T} = ParametricNode{T,2}
 preserve_sharing(::Union{Type{<:ParametricNode},ParametricNode}) = false # TODO: Change this?
 function leaf_copy(t::ParametricNode{T}) where {T}
-    out = if t.constant
-        constructorof(typeof(t))(; val=t.val)
+    if t.constant
+        return constructorof(typeof(t))(; val=t.val)
     elseif !t.is_parameter
-        constructorof(typeof(t))(T; feature=t.feature)
+        return constructorof(typeof(t))(T; feature=t.feature)
     else
         n = constructorof(typeof(t))(; val=zero(T))
         n.constant = false
         n.is_parameter = true
         n.parameter = t.parameter
-        n
+        return n
     end
-    return out
+end
+function set_node!(tree::ParametricNode, new_tree::ParametricNode)
+    tree.degree = new_tree.degree
+    if new_tree.degree == 0
+        if new_tree.constant
+            tree.constant = true
+            tree.val = new_tree.val
+        elseif !new_tree.is_parameter
+            tree.constant = false
+            tree.is_parameter = false
+            tree.feature = new_tree.feature
+        else
+            tree.constant = false
+            tree.is_parameter = true
+            tree.parameter = new_tree.parameter
+        end
+    else
+        tree.op = new_tree.op
+        tree.l = new_tree.l
+        if new_tree.degree == 2
+            tree.r = new_tree.r
+        end
+    end
+    return nothing
+end
+function leaf_convert(::Type{N}, t::ParametricNode) where {T,N<:ParametricNode{T}}
+    if t.constant
+        return constructorof(N)(T; val=convert(T, t.val))
+    elseif t.is_parameter
+        n = constructorof(N)(T; val=zero(T))
+        n.constant = false
+        n.is_parameter = true
+        n.parameter = t.parameter
+        return n
+    else
+        return constructorof(N)(T; feature=t.feature)
+    end
 end
 function leaf_hash(h::UInt, t::ParametricNode)
     if t.constant
-        hash((:constant, t.val), h)
+        return hash((:constant, t.val), h)
     else
         if t.is_parameter
-            hash((:parameter, t.parameter), h)
+            return hash((:parameter, t.parameter), h)
         else
-            hash((:feature, t.feature), h)
+            return hash((:feature, t.feature), h)
         end
     end
 end
@@ -154,18 +203,16 @@ function get_variable_names(
     ex::ParametricExpression,
     variable_names::Union{Nothing,AbstractVector{<:AbstractString}}=nothing,
 )
-    return variable_names === nothing ? ex.metadata.variable_names : variable_names
+    return if variable_names !== nothing
+        variable_names
+    elseif hasproperty(ex.metadata, :variable_names)
+        ex.metadata.variable_names
+    else
+        nothing
+    end
 end
-@inline _copy_with_nothing(x) = copy(x)
-@inline _copy_with_nothing(::Nothing) = nothing
 function Base.copy(ex::ParametricExpression; break_sharing::Val=Val(false))
-    return ParametricExpression(
-        copy(ex.tree; break_sharing=break_sharing);
-        operators=_copy_with_nothing(ex.metadata.operators),
-        variable_names=_copy_with_nothing(ex.metadata.variable_names),
-        parameters=_copy_with_nothing(ex.metadata.parameters),
-        parameter_names=_copy_with_nothing(ex.metadata.parameter_names),
-    )
+    return ParametricExpression(copy(ex.tree; break_sharing), copy(ex.metadata))
 end
 ###############################################################################
 
@@ -340,7 +387,6 @@ function string_tree(
     display_variable_names=nothing,
     X_sym_units=nothing,
     y_sym_units=nothing,
-    raw=false,
     kws...,
 )
     # TODO: HACK we ignore display_variable_names and others
@@ -406,6 +452,28 @@ end
     else
         return node_type(; val=ex)
     end
+end
+function allocate_container(
+    prototype::ParametricExpression, n::Union{Nothing,Integer}=nothing
+)
+    return (;
+        tree=allocate_container(get_contents(prototype), n),
+        parameters=similar(get_metadata(prototype).parameters),
+    )
+end
+function copy_into!(dest::NamedTuple, src::ParametricExpression)
+    new_tree = copy_into!(dest.tree, get_contents(src))
+    metadata = get_metadata(src)
+    new_parameters = dest.parameters
+    new_parameters .= metadata.parameters
+    new_metadata = Metadata((;
+        operators=metadata.operators,
+        variable_names=metadata.variable_names,
+        parameters=new_parameters,
+        parameter_names=metadata.parameter_names,
+    ))
+    # TODO: Better interface for this^
+    return with_metadata(with_contents(src, new_tree), new_metadata)
 end
 ###############################################################################
 

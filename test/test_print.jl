@@ -1,6 +1,6 @@
 using Test
 using DynamicExpressions
-import Compat: Returns
+import DynamicExpressions as DE
 
 include("test_params.jl")
 
@@ -32,8 +32,10 @@ for unaop in [safe_log, safe_log2, safe_log10, safe_log1p, safe_sqrt, safe_acosh
     @test string_tree(minitree, opts) == replace(string(unaop), "safe_" => "") * "(x1)"
 end
 
-!(@isdefined safe_pow) &&
-    @eval safe_pow(x::T, y::T) where {T<:Number} = (x < 0 && y != round(y)) ? T(NaN) : x^y
+@isdefined(safe_pow) || @eval begin
+    safe_pow(x::T, y::T) where {T<:Number} = (x < 0 && y != round(y)) ? T(NaN) : x^y
+    DE.get_op_name(::typeof(safe_pow)) = "^"
+end
 for binop in [safe_pow, ^]
     opts = OperatorEnum(;
         default_params..., binary_operators=(+, *, /, -, binop), unary_operators=(cos,)
@@ -114,4 +116,62 @@ end
     set_default_variable_names!(["k1"])
     @test string(tree) == "(k1 * x2) + x3"
     empty!(DynamicExpressions.OperatorEnumConstructionModule.LATEST_VARIABLE_NAMES.x)
+end
+
+@testset "Test pretty format for operators" begin
+    # Define a custom operator with different pretty representation
+    @eval begin
+        my_pretty_op(x, y) = x + y
+        DE.get_op_name(::typeof(my_pretty_op)) = "my_pretty_op"
+        DE.get_pretty_op_name(::typeof(my_pretty_op)) = "pretty_op_two"
+    end
+
+    operators = OperatorEnum(;
+        default_params...,
+        binary_operators=(+, *, /, -, my_pretty_op),
+        unary_operators=(cos, sin),
+    )
+    @extend_operators operators
+
+    x1, x2 = [Node(; feature=i) for i in 1:2]
+
+    # Test default format (not pretty)
+    tree = my_pretty_op(x1, x2)
+    @test string_tree(tree, operators) == "my_pretty_op(x1, x2)"
+
+    # Test pretty format
+    @test string_tree(tree, operators; pretty=true) == "pretty_op_two(x1, x2)"
+
+    # Test with nested expressions
+    tree = sin(my_pretty_op(x1, x2))
+    @test string_tree(tree, operators) == "sin(my_pretty_op(x1, x2))"
+    @test string_tree(tree, operators; pretty=true) == "sin(pretty_op_two(x1, x2))"
+
+    # Test with constants
+    tree = my_pretty_op(x1, Node(; val=3.14))
+    @test string_tree(tree, operators) == "my_pretty_op(x1, 3.14)"
+    @test string_tree(tree, operators; pretty=true) == "pretty_op_two(x1, 3.14)"
+
+    # Test that the default implementation of get_pretty_op_name falls back to get_op_name
+    tree = sin(x1)
+    @test string_tree(tree, operators) == "sin(x1)"
+    @test string_tree(tree, operators; pretty=true) == "sin(x1)"
+
+    # Test with a unary operator that has a different pretty name
+    @eval begin
+        my_unary_op(x) = sin(x)
+        DE.get_op_name(::typeof(my_unary_op)) = "my_unary_op"
+        DE.get_pretty_op_name(::typeof(my_unary_op)) = "sine"
+    end
+
+    operators_with_unary = OperatorEnum(;
+        default_params...,
+        binary_operators=(+, *, /, -),
+        unary_operators=(cos, sin, my_unary_op),
+    )
+    @extend_operators operators_with_unary
+
+    tree = my_unary_op(x1)
+    @test string_tree(tree, operators_with_unary) == "my_unary_op(x1)"
+    @test string_tree(tree, operators_with_unary; pretty=true) == "sine(x1)"
 end

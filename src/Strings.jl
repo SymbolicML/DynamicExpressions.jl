@@ -4,54 +4,56 @@ using ..UtilsModule: deprecate_varmap
 using ..OperatorEnumModule: AbstractOperatorEnum
 using ..NodeModule: AbstractExpressionNode, tree_mapreduce
 
-const OP_NAMES = Base.ImmutableDict(
-    "safe_log" => "log",
-    "safe_log2" => "log2",
-    "safe_log10" => "log10",
-    "safe_log1p" => "log1p",
-    "safe_acosh" => "acosh",
-    "safe_sqrt" => "sqrt",
-    "safe_pow" => "^",
-)
-
-function dispatch_op_name(::Val{deg}, ::Nothing, idx)::Vector{Char} where {deg}
-    if deg == 1
-        return vcat(collect("unary_operator["), collect(string(idx)), [']'])
-    else
-        return vcat(collect("binary_operator["), collect(string(idx)), [']'])
-    end
+function dispatch_op_name(
+    ::Val{deg}, ::Nothing, idx, pretty::Bool
+)::Vector{Char} where {deg}
+    return vcat(
+        collect(deg == 1 ? "unary_operator[" : "binary_operator["),
+        collect(string(idx)),
+        [']'],
+    )
 end
-function dispatch_op_name(::Val{deg}, operators::AbstractOperatorEnum, idx) where {deg}
-    if deg == 1
-        return get_op_name(operators.unaops[idx])::Vector{Char}
+function dispatch_op_name(
+    ::Val{deg}, operators::AbstractOperatorEnum, idx, pretty::Bool
+) where {deg}
+    op = if deg == 1
+        operators.unaops[idx]
     else
-        return get_op_name(operators.binops[idx])::Vector{Char}
+        operators.binops[idx]
     end
+    return collect((pretty ? get_pretty_op_name(op) : get_op_name(op))::String)
 end
 
-@generated function get_op_name(op::F)::Vector{Char} where {F}
+const OP_NAME_CACHE = (; x=Dict{UInt64,String}(), lock=Threads.SpinLock())
+
+function get_op_name(op::F) where {F}
+    h = hash(op)
+    lock(OP_NAME_CACHE.lock)
     try
-        # Bit faster to just cache the name of the operator:
-        op_s = if F <: Broadcast.BroadcastFunction
-            string(F.parameters[1].instance) * '.'
+        cache = OP_NAME_CACHE.x
+        if haskey(cache, h)
+            return cache[h]
+        end
+        op_s = if op isa Broadcast.BroadcastFunction
+            base_op_s = string(op.f)
+            if length(base_op_s) == 1 && first(base_op_s) in ('+', '-', '*', '/', '^')
+                # Like `.+`
+                string('.', base_op_s)
+            else
+                # Like `cos.`
+                string(base_op_s, '.')
+            end
         else
-            string(F.instance)
+            string(op)
         end
-        if length(op_s) == 2 && op_s[1] in ('+', '-', '*', '/', '^') && op_s[2] == '.'
-            op_s = '.' * op_s[1]
-        end
-        out = collect(get(OP_NAMES, op_s, op_s))
-        return :($out)
-    catch
+        cache[h] = op_s
+        return op_s
+    finally
+        unlock(OP_NAME_CACHE.lock)
     end
-    return quote
-        op_s = typeof(op) <: Broadcast.BroadcastFunction ? string(op.f) * '.' : string(op)
-        if length(op_s) == 2 && op_s[1] in ('+', '-', '*', '/', '^') && op_s[2] == '.'
-            op_s = '.' * op_s[1]
-        end
-        out = collect(get(OP_NAMES, op_s, op_s))
-        return out
-    end
+end
+function get_pretty_op_name(op::F) where {F}
+    return get_op_name(op)
 end
 
 @inline function strip_brackets(s::Vector{Char})::Vector{Char}
@@ -88,7 +90,7 @@ end
 
 # Vector of chars is faster than strings, so we use that.
 function combine_op_with_inputs(op, l, r)::Vector{Char}
-    if first(op) in ('+', '-', '*', '/', '^', '.')
+    if first(op) in ('+', '-', '*', '/', '^', '.', '>', '<', '=') || op == "!="
         # "(l op r)"
         out = ['(']
         append!(out, l)
@@ -145,10 +147,16 @@ function string_tree(
     operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     f_variable::F1=string_variable,
     f_constant::F2=string_constant,
-    variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
+    variable_names=nothing,
+    pretty::Union{Bool,Nothing}=nothing, # Not used, but can be used by other types
     # Deprecated
+    raw::Union{Bool,Nothing}=nothing,
     varMap=nothing,
 )::String where {T,F1<:Function,F2<:Function}
+    if !isnothing(raw)
+        Base.depwarn("`raw` is deprecated; use `pretty` instead", :string_tree)
+    end
+    pretty = @something(pretty, _not(raw), false)
     variable_names = deprecate_varmap(variable_names, varMap, :string_tree)
     raw_output = tree_mapreduce(
         let f_constant = f_constant,
@@ -163,9 +171,9 @@ function string_tree(
         end,
         let operators = operators
             (branch,) -> if branch.degree == 1
-                dispatch_op_name(Val(1), operators, branch.op)::Vector{Char}
+                dispatch_op_name(Val(1), operators, branch.op, pretty)::Vector{Char}
             else
-                dispatch_op_name(Val(2), operators, branch.op)::Vector{Char}
+                dispatch_op_name(Val(2), operators, branch.op, pretty)::Vector{Char}
             end
         end,
         combine_op_with_inputs,
@@ -191,15 +199,23 @@ for io in ((), (:(io::IO),))
         operators::Union{AbstractOperatorEnum,Nothing}=nothing;
         f_variable::F1=string_variable,
         f_constant::F2=string_constant,
-        variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
+        variable_names=nothing,
+        pretty::Union{Bool,Nothing}=nothing, # Not used, but can be used by other types
         # Deprecated
+        raw::Union{Bool,Nothing}=nothing,
         varMap=nothing,
     ) where {F1<:Function,F2<:Function}
+        !isnothing(raw) &&
+            Base.depwarn("`raw` is deprecated; use `pretty` instead", :print_tree)
+        pretty = @something(pretty, _not(raw), false)
         variable_names = deprecate_varmap(variable_names, varMap, :print_tree)
         return println(
-            $(io...), string_tree(tree, operators; f_variable, f_constant, variable_names)
+            $(io...),
+            string_tree(tree, operators; f_variable, f_constant, variable_names, pretty),
         )
     end
 end
+_not(::Nothing) = nothing
+_not(x) = !x
 
 end

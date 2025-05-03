@@ -19,6 +19,7 @@ import ..NodeUtilsModule:
     count_scalar_constants,
     get_scalar_constants,
     set_scalar_constants!
+import ..NodePreallocationModule: copy_into!, allocate_container
 import ..EvaluateModule: eval_tree_array, differentiable_eval_tree_array
 import ..EvaluateDerivativeModule: eval_grad_tree_array
 import ..EvaluationHelpersModule: _grad_evaluator
@@ -30,20 +31,24 @@ import ..SimplifyModule: combine_operators, simplify_tree!
 struct Metadata{NT<:NamedTuple}
     _data::NT
 end
-_data(x::Metadata) = getfield(x, :_data)
+unpack_metadata(x::Metadata) = getfield(x, :_data)
 
-Base.propertynames(x::Metadata) = propertynames(_data(x))
-@unstable @inline Base.getproperty(x::Metadata, f::Symbol) = getproperty(_data(x), f)
-Base.show(io::IO, x::Metadata) = print(io, "Metadata(", _data(x), ")")
-@inline _copy(x) = copy(x)
-@inline _copy(x::Nothing) = nothing
-@inline function Base.copy(metadata::Metadata)
-    nt = _data(metadata)
-    copied_nt = NamedTuple{keys(nt)}(map(_copy, values(nt)))
-    return Metadata(copied_nt)
+Base.propertynames(x::Metadata) = propertynames(unpack_metadata(x))
+@unstable @inline function Base.getproperty(x::Metadata, f::Symbol)
+    return getproperty(unpack_metadata(x), f)
 end
-@inline Base.:(==)(x::Metadata, y::Metadata) = _data(x) == _data(y)
-@inline Base.hash(x::Metadata, h::UInt) = hash(_data(x), h)
+Base.show(io::IO, x::Metadata) = print(io, "Metadata(", unpack_metadata(x), ")")
+@inline _copy(x) = copy(x)
+@inline _copy(x::NamedTuple) = copy_named_tuple(x)
+@inline _copy(::Nothing) = nothing
+@inline function copy_named_tuple(nt::NamedTuple)
+    return NamedTuple{keys(nt)}(map(_copy, values(nt)))
+end
+@inline function Base.copy(metadata::Metadata)
+    return Metadata(_copy(unpack_metadata(metadata)))
+end
+@inline Base.:(==)(x::Metadata, y::Metadata) = unpack_metadata(x) == unpack_metadata(y)
+@inline Base.hash(x::Metadata, h::UInt) = hash(unpack_metadata(x), h)
 
 """
     AbstractExpression{T,N}
@@ -101,26 +106,11 @@ default_node_type(::Type{<:AbstractExpression{T}}) where {T} = Node{T}
 ########################################################
 # Abstract interface ###################################
 ########################################################
-"""
-    get_operators(ex::AbstractExpression, operators::Union{Nothing,Any})
-
-which will return the operators to be passed to internal functions
-such as `eval_tree_array` or `string_tree`, either from the expression itself,
-or `cur_operators` if it is not `nothing`. If left as default,
-it requires `cur_operators` to not be `nothing`.
-`cur_operators` would typically be an `OperatorEnum`.
-"""
 function get_operators(
     ex::AbstractExpression, operators::Union{AbstractOperatorEnum,Nothing}=nothing
 )
     return error("`get_operators` function must be implemented for $(typeof(ex)) types.")
 end
-
-"""
-    get_variable_names(ex::AbstractExpression, variable_names::Union{Nothing,AbstractVector{<:AbstractString}})
-
-The same as `operators`, but for variable names.
-"""
 function get_variable_names(
     ex::AbstractExpression,
     variable_names::Union{Nothing,AbstractVector{<:AbstractString}}=nothing,
@@ -130,12 +120,6 @@ function get_variable_names(
     )
 end
 
-"""
-    get_tree(ex::AbstractExpression)
-
-A method that extracts the expression tree from `AbstractExpression`
-and should return an `AbstractExpressionNode`.
-"""
 function get_tree(ex::AbstractExpression)
     return error("`get_tree` function must be implemented for $(typeof(ex)) types.")
 end
@@ -168,6 +152,50 @@ end
 ########################################################
 
 """
+    get_operators(ex::AbstractExpression, operators::Union{Nothing,Any})
+
+which will return the operators to be passed to internal functions
+such as `eval_tree_array` or `string_tree`, either from the expression itself,
+or `cur_operators` if it is not `nothing`. If left as default,
+it requires `cur_operators` to not be `nothing`.
+`cur_operators` would typically be an `OperatorEnum`.
+"""
+get_operators
+
+"""
+    get_variable_names(ex::AbstractExpression, variable_names::Union{Nothing,AbstractVector{<:AbstractString}})
+
+The same as `operators`, but for variable names.
+"""
+get_variable_names
+
+"""
+    get_tree(ex::AbstractExpression)
+
+A method that extracts the expression tree from `AbstractExpression`
+and should return an `AbstractExpressionNode`.
+"""
+get_tree
+
+"""
+    get_contents(ex::AbstractExpression)
+
+Get the contents of the expression, which might be a plain
+`AbstractExpressionNode`, or some combination of them, or other data.
+This should include everything other than that returned by [`get_metadata`](@ref).
+"""
+get_contents
+
+"""
+    get_metadata(ex::AbstractExpression)
+
+Get the metadata of the expression, which might be a plain
+`NamedTuple`, or some combination of them, or other data.
+This should include everything other than that returned by [`get_contents`](@ref).
+"""
+get_metadata
+
+"""
     with_contents(ex::AbstractExpression, tree::AbstractExpressionNode)
     with_contents(ex::AbstractExpression, tree::AbstractExpression)
 
@@ -190,7 +218,9 @@ end
 Create a new expression based on `ex` but with a different `metadata`.
 """
 function with_metadata(ex::AbstractExpression; metadata...)
-    return with_metadata(ex, Metadata((; metadata...)))
+    return with_metadata(
+        ex, Metadata((; unpack_metadata(get_metadata(ex))..., metadata...))
+    )
 end
 function with_metadata(ex::AbstractExpression, metadata::Metadata)
     return constructorof(typeof(ex))(get_contents(ex), metadata)
@@ -220,7 +250,13 @@ end
 function get_variable_names(
     ex::Expression, variable_names::Union{Nothing,AbstractVector{<:AbstractString}}=nothing
 )
-    return variable_names === nothing ? ex.metadata.variable_names : variable_names
+    return if variable_names !== nothing
+        variable_names
+    elseif hasproperty(ex.metadata, :variable_names)
+        ex.metadata.variable_names
+    else
+        nothing
+    end
 end
 function get_tree(ex::Expression)
     return ex.tree
@@ -249,23 +285,23 @@ copy_node(ex::AbstractExpression; kws...) = copy(ex)
 count_nodes(ex::AbstractExpression; kws...) = count_nodes(get_tree(ex); kws...)
 
 function tree_mapreduce(
-    f::Function,
-    op::Function,
+    f::F,
+    op::G,
     ex::AbstractExpression,
-    result_type::Type=Undefined;
+    result_type::Type{RT}=Undefined;
     kws...,
-)
-    return tree_mapreduce(f, op, get_tree(ex), result_type; kws...)
+) where {F<:Function,G<:Function,RT}
+    return tree_mapreduce(f, op, get_tree(ex), RT; kws...)
 end
 function tree_mapreduce(
-    f_leaf::Function,
-    f_branch::Function,
-    op::Function,
+    f_leaf::F,
+    f_branch::G,
+    op::H,
     ex::AbstractExpression,
-    result_type::Type=Undefined;
+    result_type::Type{RT}=Undefined;
     kws...,
-)
-    return tree_mapreduce(f_leaf, f_branch, op, get_tree(ex), result_type; kws...)
+) where {F<:Function,G<:Function,H<:Function,RT}
+    return tree_mapreduce(f_leaf, f_branch, op, get_tree(ex), RT; kws...)
 end
 
 count_constant_nodes(ex::AbstractExpression) = count_constant_nodes(get_tree(ex))
@@ -292,6 +328,30 @@ function extract_gradient(
     return extract_gradient(gradient.tree, get_tree(ex))
 end
 
+"""
+    string_tree(
+        ex::AbstractExpression,
+        operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+        variable_names=nothing,
+        kws...
+    )
+
+Convert an expression to a string representation.
+
+This method unpacks the operators and variable names from the expression and calls [`string_tree`](@ref StringsModule.string_tree) for `AbstractExpressionNode`.
+
+# Arguments
+
+- `ex`: The expression to convert to a string.
+- `operators`: (Optional) Operators to use. If `nothing`, operators are obtained from the expression.
+- `variable_names`: (Optional) Variable names to use in the string representation. If `nothing`, variable names are obtained from the expression.
+- `kws...`: Additional keyword arguments.
+
+# Returns
+
+- A string representation of the expression.
+
+"""
 function string_tree(
     ex::AbstractExpression,
     operators::Union{AbstractOperatorEnum,Nothing}=nothing;
@@ -317,7 +377,7 @@ for io in ((), (:(io::IO),))
     end
 end
 
-function Base.show(io::IO, ::MIME"text/plain", ex::AbstractExpression)
+function Base.show(io::IO, ex::AbstractExpression)
     return print(io, string_tree(ex))
 end
 
@@ -342,6 +402,30 @@ function _validate_input(
     return nothing
 end
 
+"""
+    eval_tree_array(
+        ex::AbstractExpression,
+        cX::AbstractMatrix,
+        operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+        kws...
+    )
+
+Evaluate an expression over a given input data matrix.
+
+This method unpacks the operators from the expression and calls [`eval_tree_array`](@ref EvaluateModule.eval_tree_array) for `AbstractExpressionNode`.
+
+# Arguments
+
+- `ex`: The expression to evaluate.
+- `cX`: The input data matrix.
+- `operators`: (Optional) Operators to use. If `nothing`, operators are obtained from the expression.
+- `kws...`: Additional keyword arguments.
+
+# Returns
+
+- A tuple `(output, complete)` indicating the result and success of the evaluation.
+
+"""
 function eval_tree_array(
     ex::AbstractExpression,
     cX::AbstractMatrix,
@@ -356,6 +440,30 @@ end
 #  - eval_diff_tree_array
 #  - differentiable_eval_tree_array
 
+"""
+    eval_grad_tree_array(
+        ex::AbstractExpression,
+        cX::AbstractMatrix,
+        operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+        kws...
+    )
+
+Compute the forward-mode derivative of an expression.
+
+This method unpacks the operators from the expression and calls [`eval_grad_tree_array`](@ref EvaluateDerivativeModule.eval_grad_tree_array) for `AbstractExpressionNode`.
+
+# Arguments
+
+- `ex`: The expression to evaluate.
+- `cX`: The data matrix.
+- `operators`: (Optional) Operators to use. If `nothing`, operators are obtained from the expression.
+- `kws...`: Additional keyword arguments.
+
+# Returns
+
+- A tuple `(output, gradient, complete)` indicating the result, gradient, and success of the evaluation.
+
+"""
 function eval_grad_tree_array(
     ex::AbstractExpression,
     cX::AbstractMatrix,
@@ -379,11 +487,49 @@ function _grad_evaluator(
     _validate_input(ex, cX, operators)
     return _grad_evaluator(get_tree(ex), cX, get_operators(ex, operators); variable, kws...)
 end
+
+"""
+    (ex::AbstractExpression)(X, operators::Union{AbstractOperatorEnum,Nothing}=nothing; kws...)
+
+Evaluate the expression `ex` over the input data `X`.
+
+This method unpacks the operators from the expression and calls the corresponding method for `AbstractExpressionNode`.
+
+# Arguments
+
+- `X`: The input data to evaluate the expression on.
+- `operators`: (Optional) Operators to use. If `nothing`, operators are obtained from the expression.
+- `kws...`: Additional keyword arguments.
+
+# Returns
+
+- The result of evaluating the expression over the input data `X`.
+
+"""
 function (ex::AbstractExpression)(
     X, operators::Union{AbstractOperatorEnum,Nothing}=nothing; kws...
 )
     _validate_input(ex, X, operators)
     return get_tree(ex)(X, get_operators(ex, operators); kws...)
+end
+
+# We don't require users to overload this, as it's not part of the required interface.
+# Also, there's no way to generally do this from the required interface, so for backwards
+# compatibility, we just return nothing.
+# COV_EXCL_START
+function copy_into!(::Nothing, src::AbstractExpression)
+    return copy(src)
+end
+function allocate_container(::AbstractExpression, ::Union{Nothing,Integer}=nothing)
+    return nothing
+end
+# COV_EXCL_STOP
+function allocate_container(prototype::Expression, n::Union{Nothing,Integer}=nothing)
+    return (; tree=allocate_container(get_contents(prototype), n))
+end
+function copy_into!(dest::NamedTuple, src::Expression)
+    tree = copy_into!(dest.tree, get_contents(src))
+    return with_contents(src, tree)
 end
 
 end

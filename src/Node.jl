@@ -54,22 +54,18 @@ this additionally must have fields for:
 See [`NodeInterface`](@ref DynamicExpressions.InterfacesModule.NodeInterface) for a full description
 of the interface implementation, as well as tests to verify correctness.
 
-You *must* define `CustomNode{_T} where {_T} = new{_T}()` for each custom node type.
+You *must* define `CustomNode{_T,_D}() where {_T,_D} = new{_T,_D}()` for each custom node type,
+as well as `constructorof` and `with_type_parameters`.
 
 In addition, you *may* choose to define the following functions, to override
 the defaults behavior, in particular if you wish to add additional fields
 to your type.
 
 - `leaf_copy` and `branch_copy`
+- `leaf_convert` and `branch_convert`
 - `leaf_equal` and `branch_equal`
 - `leaf_hash` and `branch_hash`
 - `preserve_sharing`
-
-You likely do not need to, but you could choose to override the following:
-
-- `constructorof`
-- `with_type_parameters`
-
 """
 abstract type AbstractExpressionNode{T,D} <: AbstractNode{D} end
 
@@ -246,10 +242,7 @@ include("base.jl")
     return node_factory(N, T1, val, feature, op, _children, allocator)
 end
 function validate_not_all_defaults(::Type{N}, val, feature, op, children) where {N<:AbstractExpressionNode}
-    return nothing
-end
-function validate_not_all_defaults(::Type{N}, val, feature, op, children) where {T,N<:AbstractExpressionNode{T}}
-    if val === nothing && feature === nothing && op === nothing && children === nothing
+    if all(isnothing, (val, feature, op, children))
         error(
             "Encountered the call for $N() inside the generic constructor. "
             * "Did you forget to define `$(Base.typename(N).wrapper){T,D}() where {T,D} = new{T,D}()`?"
@@ -341,23 +334,12 @@ function Base.promote_rule(::Type{GraphNode{T1,D}}, ::Type{GraphNode{T2,D}}) whe
     return GraphNode{promote_type(T1, T2),D}
 end
 
-# TODO: Verify using this helps with garbage collection
-create_dummy_node(::Type{N}) where {N<:AbstractExpressionNode} = N()
-
 """
     set_node!(tree::AbstractExpressionNode{T}, new_tree::AbstractExpressionNode{T}) where {T}
 
 Set every field of `tree` equal to the corresponding field of `new_tree`.
 """
 function set_node!(tree::AbstractExpressionNode, new_tree::AbstractExpressionNode)
-    # First, ensure we free some memory:
-    if new_tree.degree < 2 && tree.degree == 2
-        tree.r = create_dummy_node(typeof(tree))
-    end
-    if new_tree.degree < 1 && tree.degree >= 1
-        tree.l = create_dummy_node(typeof(tree))
-    end
-
     tree.degree = new_tree.degree
     if new_tree.degree == 0
         tree.constant = new_tree.constant

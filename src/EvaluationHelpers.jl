@@ -8,7 +8,7 @@ import ..EvaluateDerivativeModule: eval_grad_tree_array
 
 # Evaluation:
 """
-    (tree::AbstractExpressionNode)(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Union{Bool,Val}=false, bumper::Union{Bool,Val}=Val(false))
+    (tree::AbstractExpressionNode)(X, operators::OperatorEnum; kws...)
 
 Evaluate a binary tree (equation) over a given input data matrix. The
 operators contain all of the operators used. This function fuses doublets
@@ -16,10 +16,9 @@ and triplets of operations for lower memory usage.
 
 # Arguments
 - `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
-- `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
+- `X::AbstractMatrix{T}`: The input data to evaluate the tree on, with shape `[num_features, num_rows]`.
 - `operators::OperatorEnum`: The operators used in the tree.
-- `turbo::Union{Bool,Val}`: Use LoopVectorization.jl for faster evaluation.
-- `bumper::Union{Bool,Val}`: Use Bumper.jl for faster evaluation.
+- `kws...`: Passed to `eval_tree_array`.
 
 # Returns
 - `output::AbstractVector{T}`: the result, which is a 1D array.
@@ -32,18 +31,12 @@ function (tree::AbstractExpressionNode)(X, operators::OperatorEnum; kws...)
     return out
 end
 """
-    (tree::AbstractExpressionNode)(X::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)
+    (tree::AbstractExpressionNode)(X, operators::GenericOperatorEnum; kws...)
 
 # Arguments
 - `X::AbstractArray`: The input data to evaluate the tree on.
 - `operators::GenericOperatorEnum`: The operators used in the tree.
-- `throw_errors::Bool=true`: Whether to throw errors
-    if they occur during evaluation. Otherwise,
-    MethodErrors will be caught before they happen and
-    evaluation will return `nothing`,
-    rather than throwing an error. This is useful in cases
-    where you are unsure if a particular tree is valid or not,
-    and would prefer to work with `nothing` as an output.
+- `kws...`: Passed to `eval_tree_array`.
 
 # Returns
 - `output`: the result of the evaluation.

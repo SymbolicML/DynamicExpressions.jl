@@ -7,7 +7,6 @@ collection of its nodes.
 
 ```@docs
 copy(tree::AbstractExpressionNode; break_sharing::Val=Val(false))
-collect(tree::AbstractNode; break_sharing::Val=Val(false))
 filter(f::Function, tree::AbstractNode; break_sharing::Val=Val(false))
 count(f::Function, tree::AbstractNode; init=0, break_sharing::Val=Val(false))
 foreach(f::Function, tree::AbstractNode; break_sharing::Val=Val(false))

@@ -170,6 +170,8 @@ end
 end
 
 @testset "Test many operators" begin
+    using DispatchDoctor
+
     # Since we use `@nif` in evaluating expressions,
     # we can see if there are any issues with LARGE numbers of operators.
     num_ops = 100
@@ -198,7 +200,9 @@ end
         tree = gen_random_tree_fixed_size(20, only_basic_ops_operator, n_features, Float64)
         X = randn(Float64, n_features, 10)
         basic_eval = tree'(X, only_basic_ops_operator)
-        many_ops_eval = tree'(X, many_ops_operators)
+        many_ops_eval = allow_unstable() do
+            tree'(X, many_ops_operators)
+        end
         @test (all(isnan, basic_eval) && all(isnan, many_ops_eval)) ||
             basic_eval ≈ many_ops_eval
     end

@@ -1,6 +1,5 @@
 module NodeUtilsModule
 
-import Compat: Returns
 import ..NodeModule:
     AbstractNode,
     AbstractExpressionNode,

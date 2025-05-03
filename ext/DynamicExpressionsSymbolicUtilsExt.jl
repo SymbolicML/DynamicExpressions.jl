@@ -1,16 +1,25 @@
 module DynamicExpressionsSymbolicUtilsExt
 
-using SymbolicUtils
-import DynamicExpressions.NodeModule:
+using DynamicExpressions:
+    AbstractExpression, get_tree, get_operators, get_variable_names, default_node_type
+using DynamicExpressions.NodeModule:
     AbstractExpressionNode, Node, constructorof, DEFAULT_NODE_TYPE
-import DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
-import DynamicExpressions.ValueInterfaceModule: is_valid
-import DynamicExpressions.UtilsModule: deprecate_varmap
+using DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
+using DynamicExpressions.UtilsModule: deprecate_varmap
+
+using SymbolicUtils
+
 import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
-import DynamicExpressions: AbstractExpression, get_tree, get_operators
+import DynamicExpressions.ValueInterfaceModule: is_valid
 
 const SYMBOLIC_UTILS_TYPES = Union{<:Number,SymbolicUtils.Symbolic{<:Number}}
 const SUPPORTED_OPS = (cos, sin, exp, cot, tan, csc, sec, +, -, *, /)
+
+@static if isdefined(SymbolicUtils, :iscall)
+    iscall(x) = SymbolicUtils.iscall(x)
+else
+    iscall(x) = SymbolicUtils.istree(x)
+end
 
 macro return_on_false(flag, retval)
     :(
@@ -21,7 +30,7 @@ macro return_on_false(flag, retval)
 end
 
 function is_valid(x::SymbolicUtils.Symbolic)
-    return if SymbolicUtils.istree(x)
+    return if iscall(x)
         all(is_valid.([SymbolicUtils.operation(x); SymbolicUtils.arguments(x)]))
     else
         true
@@ -82,7 +91,7 @@ function split_eq(
     args,
     operators::AbstractOperatorEnum,
     ::Type{N}=Node;
-    variable_names::Union{Array{String,1},Nothing}=nothing,
+    variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
     # Deprecated:
     varMap=nothing,
 ) where {N<:AbstractExpressionNode}
@@ -97,8 +106,8 @@ function split_eq(
     end
     return constructorof(N)(;
         op=ind,
-        l=convert(N, args[1], operators; variable_names=variable_names),
-        r=convert(N, op(args[2:end]...), operators; variable_names=variable_names),
+        l=convert(N, args[1], operators; variable_names),
+        r=convert(N, op(args[2:end]...), operators; variable_names),
     )
 end
 
@@ -113,17 +122,14 @@ function Base.convert(
     ::typeof(SymbolicUtils.Symbolic),
     tree::Union{AbstractExpression,AbstractExpressionNode},
     operators::Union{AbstractOperatorEnum,Nothing}=nothing;
-    variable_names::Union{Array{String,1},Nothing}=nothing,
+    variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
     index_functions::Bool=false,
     # Deprecated:
     varMap=nothing,
 )
     variable_names = deprecate_varmap(variable_names, varMap, :convert)
     return node_to_symbolic(
-        tree,
-        get_operators(tree, operators);
-        variable_names=variable_names,
-        index_functions=index_functions,
+        tree, get_operators(tree, operators); variable_names, index_functions
     )
 end
 
@@ -137,11 +143,19 @@ function Base.convert(
     ::Type{N},
     expr::SymbolicUtils.Symbolic,
     operators::AbstractOperatorEnum;
-    variable_names::Union{Array{String,1},Nothing}=nothing,
+    variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
 ) where {N<:AbstractExpressionNode}
     variable_names = deprecate_varmap(variable_names, nothing, :convert)
-    if !SymbolicUtils.istree(expr)
-        variable_names === nothing && return constructorof(N)(String(expr.name))
+    if !iscall(expr)
+        if variable_names === nothing
+            s = String(expr.name)
+            # Verify it is of the format "x{num}":
+            @assert(
+                occursin(r"^x\d+$", s),
+                "Variable name $s is not of the format x{num}. Please provide the `variable_names` explicitly."
+            )
+            return constructorof(N)(s)
+        end
         return constructorof(N)(String(expr.name), variable_names)
     end
 
@@ -154,8 +168,7 @@ function Base.convert(
     op = convert_to_function(SymbolicUtils.operation(expr), operators)
     args = SymbolicUtils.arguments(expr)
 
-    length(args) > 2 &&
-        return split_eq(op, args, operators, N; variable_names=variable_names)
+    length(args) > 2 && return split_eq(op, args, operators, N; variable_names)
     ind = if length(args) == 2
         findoperation(op, operators.binops)
     else
@@ -163,14 +176,28 @@ function Base.convert(
     end
 
     return constructorof(N)(;
-        op=ind,
-        children=map(x -> convert(N, x, operators; variable_names=variable_names), args),
+        op=ind, children=map(x -> convert(N, x, operators; variable_names), args)
     )
+end
+
+_node_type(::Type{<:AbstractExpression{T,N}}) where {T,N<:AbstractExpressionNode} = N
+_node_type(::Type{E}) where {E<:AbstractExpression} = default_node_type(E)
+
+function Base.convert(
+    ::Type{E},
+    x::Union{SymbolicUtils.Symbolic,Number},
+    operators::AbstractOperatorEnum;
+    variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
+    kws...,
+) where {E<:AbstractExpression}
+    N = _node_type(E)
+    tree = convert(N, x, operators; variable_names)
+    return constructorof(E)(tree; operators, variable_names, kws...)
 end
 
 """
     node_to_symbolic(tree::AbstractExpressionNode, operators::AbstractOperatorEnum;
-                variable_names::Union{Array{String, 1}, Nothing}=nothing,
+                variable_names::Union{AbstractVector{<:AbstractString}, Nothing}=nothing,
                 index_functions::Bool=false)
 
 The interface to SymbolicUtils.jl. Passing a tree to this function
@@ -180,7 +207,7 @@ will generate a symbolic equation in SymbolicUtils.jl format.
 
 - `tree::AbstractExpressionNode`: The equation to convert.
 - `operators::AbstractOperatorEnum`: OperatorEnum, which contains the operators used in the equation.
-- `variable_names::Union{Array{String, 1}, Nothing}=nothing`: What variable names to use for
+- `variable_names::Union{AbstractVector{<:AbstractString}, Nothing}=nothing`: What variable names to use for
     each feature. Default is [x1, x2, x3, ...].
 - `index_functions::Bool=false`: Whether to generate special names for the
     operators, which then allows one to convert back to a `AbstractExpressionNode` format
@@ -190,7 +217,7 @@ will generate a symbolic equation in SymbolicUtils.jl format.
 function node_to_symbolic(
     tree::AbstractExpressionNode,
     operators::AbstractOperatorEnum;
-    variable_names::Union{Array{String,1},Nothing}=nothing,
+    variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
     index_functions::Bool=false,
     # Deprecated:
     varMap=nothing,
@@ -212,16 +239,24 @@ function node_to_symbolic(
     return substitute(expr, subs)
 end
 function node_to_symbolic(
-    tree::AbstractExpression, operators::Union{AbstractOperatorEnum,Nothing}=nothing; kws...
+    tree::AbstractExpression,
+    operators::Union{AbstractOperatorEnum,Nothing}=nothing;
+    variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
+    kws...,
 )
-    return node_to_symbolic(get_tree(tree), get_operators(tree, operators); kws...)
+    return node_to_symbolic(
+        get_tree(tree),
+        get_operators(tree, operators);
+        variable_names=get_variable_names(tree, variable_names),
+        kws...,
+    )
 end
 
 function symbolic_to_node(
     eqn::SymbolicUtils.Symbolic,
     operators::AbstractOperatorEnum,
     ::Type{N}=Node;
-    variable_names::Union{Array{String,1},Nothing}=nothing,
+    variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
     # Deprecated:
     varMap=nothing,
 ) where {N<:AbstractExpressionNode}
@@ -234,7 +269,7 @@ function multiply_powers(eqn::Number)::Tuple{SYMBOLIC_UTILS_TYPES,Bool}
 end
 
 function multiply_powers(eqn::SymbolicUtils.Symbolic)::Tuple{SYMBOLIC_UTILS_TYPES,Bool}
-    if !SymbolicUtils.istree(eqn)
+    if !iscall(eqn)
         return eqn, true
     end
     op = SymbolicUtils.operation(eqn)
