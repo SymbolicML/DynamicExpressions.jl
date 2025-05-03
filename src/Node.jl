@@ -82,6 +82,8 @@ for N in (:Node, :GraphNode)
         ## Constructors:
         #################
         $N{_T,_D}() where {_T,_D} = new{_T,_D::Int}()
+        $N{_T}() where {_T} = $N{_T,2}()
+        # TODO: Test with this disabled to spot any unintended uses
     end
 end
 
@@ -207,13 +209,12 @@ max_degree(::Type{<:AbstractNode{D}}) where {D} = D
 @unstable constructorof(::Type{N}) where {N<:GraphNode} =
     GraphNode{T,max_degree(N)} where {T}
 
-with_type_parameters(::Type{N}, ::Type{T}) where {N<:Node,T} = Node{T,max_degree(N)}
+function with_type_parameters(::Type{N}, ::Type{T}) where {N<:Node,T}
+    return Node{T,max_degree(N)}
+end
 function with_type_parameters(::Type{N}, ::Type{T}) where {N<:GraphNode,T}
     return GraphNode{T,max_degree(N)}
 end
-
-# with_degree(::Type{N}, ::Val{D}) where {T,N<:Node{T},D} = Node{T,D}
-# with_degree(::Type{N}, ::Val{D}) where {T,N<:GraphNode{T},D} = GraphNode{T,D}
 
 function default_allocator(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNode,T}
     return with_type_parameters(N, T)()

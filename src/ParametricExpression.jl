@@ -63,6 +63,10 @@ mutable struct ParametricNode{T,D} <: AbstractExpressionNode{T,D}
         n.parameter = UInt16(0)
         return n
     end
+    # TODO: Test with this disabled to spot any unintended uses
+    function ParametricNode{_T}() where {_T}
+        return ParametricNode{_T,2}()
+    end
 end
 
 """
@@ -111,6 +115,9 @@ end
 @unstable constructorof(::Type{N}) where {N<:ParametricNode} =
     ParametricNode{T,max_degree(N)} where {T}
 @unstable constructorof(::Type{<:ParametricExpression}) = ParametricExpression
+function with_type_parameters(::Type{N}, ::Type{T}) where {N<:ParametricNode,T}
+    return ParametricNode{T,max_degree(N)}
+end
 @unstable default_node_type(::Type{<:ParametricExpression}) = ParametricNode{T,2} where {T}
 default_node_type(::Type{<:ParametricExpression{T}}) where {T} = ParametricNode{T,2}
 preserve_sharing(::Union{Type{<:ParametricNode},ParametricNode}) = false # TODO: Change this?
