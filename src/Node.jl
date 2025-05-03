@@ -299,16 +299,18 @@ end
 end
 
 @inline function node_factory_type(::Type{N}, ::Type{T1}, ::Type{T2}) where {N,T1,T2}
-    if T1 === Undefined && N isa UnionAll
+    if T1 === Undefined && !defines_eltype(N)
         T2
     elseif T1 === Undefined
         eltype(N)
-    elseif N isa UnionAll
+    elseif !defines_eltype(N)
         T1
     else
         eltype(N)
     end
 end
+defines_eltype(::Type{<:AbstractExpressionNode}) = false
+defines_eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = true
 #! format: on
 
 function (::Type{N})(
