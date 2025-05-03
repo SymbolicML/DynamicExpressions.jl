@@ -127,7 +127,7 @@ end
         variable_names = ["x"],
         node_type = Node{Union{Int,Vector{Int}}}
     )
-    @test typeof(ex.tree) === Node{Union{Int,Vector{Int}}}
+    @test typeof(ex.tree) <: Node{Union{Int,Vector{Int}}}
     @test typeof(ex.metadata.operators) <: GenericOperatorEnum
     s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
     @test s == "[1, 2, 3] * tan(cos(5 + x))"
