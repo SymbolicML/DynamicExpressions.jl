@@ -126,7 +126,7 @@ end
         x = N{BigFloat}(; feature=1)
         @test_throws AssertionError N{Float32}(1, x)
         @test N{BigFloat}(1, x) == N(1, x)
-        @test typeof(N(1, x, N{Float32}(; val=1))) === N{BigFloat}
-        @test typeof(N(1, N{Float32}(; val=1), x)) === N{BigFloat}
+        @test typeof(N(1, x, N{Float32}(; val=1))) <: N{BigFloat}
+        @test typeof(N(1, N{Float32}(; val=1), x)) <: N{BigFloat}
     end
 end

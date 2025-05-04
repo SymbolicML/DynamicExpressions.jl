@@ -120,28 +120,38 @@ struct TreeMapreducer{
     f_on_shared::H
 end
 
-function call_mapreducer(mapreducer::TreeMapreducer{2,ID}, tree::AbstractNode) where {ID}
-    key = ID <: Dict ? objectid(tree) : nothing
-    if ID <: Dict && haskey(mapreducer.id_map, key)
-        result = @inbounds(mapreducer.id_map[key])
-        return mapreducer.f_on_shared(result, true)
-    else
-        result = if tree.degree == 0
-            mapreducer.f_leaf(tree)
-        elseif tree.degree == 1
-            mapreducer.op(mapreducer.f_branch(tree), call_mapreducer(mapreducer, tree.l))
+@generated function call_mapreducer(
+    mapreducer::TreeMapreducer{D,ID}, tree::AbstractNode
+) where {D,ID}
+    quote
+        key = ID <: Dict ? objectid(tree) : nothing
+        if ID <: Dict && haskey(mapreducer.id_map, key)
+            result = @inbounds(mapreducer.id_map[key])
+            return mapreducer.f_on_shared(result, true)
         else
-            mapreducer.op(
-                mapreducer.f_branch(tree),
-                call_mapreducer(mapreducer, tree.l),
-                call_mapreducer(mapreducer, tree.r),
-            )
-        end
-        if ID <: Dict
-            mapreducer.id_map[key] = result
-            return mapreducer.f_on_shared(result, false)
-        else
-            return result
+            d = tree.degree
+            result = if d == 0
+                mapreducer.f_leaf(tree)
+            else
+                Base.Cartesian.@nif(
+                    $D,
+                    i -> i == d,
+                    i -> let cs = children(tree, Val(i))
+                        mapreducer.op(
+                            mapreducer.f_branch(tree),
+                            Base.Cartesian.@ntuple(
+                                i, j -> call_mapreducer(mapreducer, cs[j])
+                            )...,
+                        )
+                    end
+                )
+            end
+            if ID <: Dict
+                mapreducer.id_map[key] = result
+                return mapreducer.f_on_shared(result, false)
+            else
+                return result
+            end
         end
     end
 end
