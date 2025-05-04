@@ -292,7 +292,8 @@ end
 @inline function node_factory(
     ::Type{N}, ::Type, ::Nothing, ::Nothing, op::Integer, children::Union{Tuple,AbstractVector}, allocator::F,
 ) where {N<:AbstractExpressionNode,F}
-    T = promote_type(map(eltype, children)...)  # Always prefer existing nodes, so we don't mess up references from conversion
+    T = defines_eltype(N) ? eltype(N) : promote_type(map(eltype, children)...)
+    defines_eltype(N) && @assert T === promote_type(T, map(eltype, children)...)
     D2 = length(children)
     @assert D2 <= max_degree(N)
     NT = with_type_parameters(N, T)
