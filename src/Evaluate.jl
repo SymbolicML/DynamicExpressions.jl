@@ -251,8 +251,14 @@ end
 
 # These are marked unstable due to issues discussed on
 # https://github.com/JuliaLang/julia/issues/55147
-@unstable get_nuna(::Type{<:OperatorEnum{B,U}}) where {B,U} = counttuple(U)
-@unstable get_nbin(::Type{<:OperatorEnum{B}}) where {B} = counttuple(B)
+@unstable function get_nuna(::Type{<:OperatorEnum{OPS}}) where {OPS}
+    ts = OPS.types
+    return isempty(ts) ? 0 : counttuple(ts[1])
+end
+@unstable function get_nbin(::Type{<:OperatorEnum{OPS}}) where {OPS}
+    ts = OPS.types
+    return length(ts) == 1 ? 0 : counttuple(ts[2])
+end
 
 function _eval_tree_array(
     tree::AbstractExpressionNode{T},
