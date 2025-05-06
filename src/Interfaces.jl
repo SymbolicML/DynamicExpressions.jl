@@ -145,9 +145,11 @@ end
 function _check_constructorof(ex::AbstractExpression)
     return constructorof(typeof(ex)) isa Base.Callable
 end
-function _check_tree_mapreduce(ex::AbstractExpression{T,N}) where {T,N}
+function _check_tree_mapreduce(
+    ex::AbstractExpression{T,N}
+) where {T,D,N<:AbstractExpressionNode{T,D}}
     return tree_mapreduce(node -> [node], vcat, ex) isa
-           (Vector{N2} where {N2<:Union{N,AbstractReadOnlyNode{T,N}}})
+           (Vector{N2} where {N2<:Union{N,AbstractReadOnlyNode{T,D,N}}})
 end
 
 #! format: off
