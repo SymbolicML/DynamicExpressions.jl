@@ -1,7 +1,7 @@
 module ReadOnlyNodeModule
 
 using ..NodeModule: AbstractExpressionNode, Node
-import ..NodeModule: default_allocator, with_type_parameters, constructorof
+import ..NodeModule: default_allocator, with_type_parameters, constructorof, children
 
 abstract type AbstractReadOnlyNode{T,D,N<:AbstractExpressionNode{T,D}} <:
               AbstractExpressionNode{T,D} end
@@ -16,10 +16,13 @@ constructorof(::Type{<:ReadOnlyNode}) = ReadOnlyNode
 @inline function Base.getproperty(n::AbstractReadOnlyNode, s::Symbol)
     out = getproperty(getfield(n, :_inner), s)
     if out isa AbstractExpressionNode
-        return constructorof(typeof(n))(out)
+        return ReadOnlyNode(out)
     else
         return out
     end
+end
+@inline function children(node::AbstractReadOnlyNode)
+    return map(ReadOnlyNode, children(node))
 end
 function Base.setproperty!(::AbstractReadOnlyNode, ::Symbol, v)
     return error("Cannot set properties on a ReadOnlyNode")

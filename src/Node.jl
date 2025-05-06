@@ -206,8 +206,9 @@ end
 @make_accessors Node
 @make_accessors GraphNode
 
+@inline children(node::AbstractNode) = node.children
 @inline function children(node::AbstractNode, ::Val{n}) where {n}
-    cs = node.children
+    cs = children(node)
     return ntuple(i -> cs[i][], Val(n))
 end
 

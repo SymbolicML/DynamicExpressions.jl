@@ -70,7 +70,9 @@ function _check_get_metadata(ex::AbstractExpression)
     new_ex = with_metadata(ex, get_metadata(ex))
     return new_ex == ex && new_ex isa typeof(ex)
 end
-function _check_get_tree(ex::AbstractExpression{T,N}) where {T,D,N<:AbstractExpressionNode{T,D}}
+function _check_get_tree(
+    ex::AbstractExpression{T,N}
+) where {T,D,N<:AbstractExpressionNode{T,D}}
     return get_tree(ex) isa N || get_tree(ex) isa AbstractReadOnlyNode{T,D,N}
 end
 function _check_get_operators(ex::AbstractExpression)
