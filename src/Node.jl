@@ -220,6 +220,7 @@ Base.eltype(::AbstractExpressionNode{T}) where {T} = T
 
 max_degree(::Type{<:AbstractNode}) = 2  # Default
 max_degree(::Type{<:AbstractNode{D}}) where {D} = D
+max_degree(node::AbstractNode) = max_degree(typeof(node))
 
 @unstable constructorof(::Type{N}) where {N<:Node} = Node{T,max_degree(N)} where {T}
 @unstable constructorof(::Type{N}) where {N<:GraphNode} =

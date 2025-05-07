@@ -2,7 +2,7 @@ module EvaluateModule
 
 using DispatchDoctor: @stable, @unstable
 
-import ..NodeModule: AbstractExpressionNode, constructorof
+import ..NodeModule: AbstractExpressionNode, constructorof, max_degree, children
 import ..StringsModule: string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: fill_similar, counttuple, ResultOk
@@ -281,11 +281,27 @@ function _eval_tree_array(
     elseif tree.degree == 1
         op_idx = tree.op
         return dispatch_deg1_eval(tree, cX, op_idx, operators, eval_options)
-    else
+    elseif max_degree(tree) == 2 || tree.degree == 2
         # TODO - add op(op2(x, y), z) and op(x, op2(y, z))
         # op(x, y), where x, y are constants or variables.
         op_idx = tree.op
         return dispatch_deg2_eval(tree, cX, op_idx, operators, eval_options)
+    else
+        op_idx = tree.op
+        return dispatch_degn_eval(tree, cX, op_idx, operators, eval_options)
+    end
+end
+
+@generated function degn_eval(
+    cumulators::NTuple{N,<:AbstractVector{T}}, op::F, ::EvalOptions{false}
+)::ResultOk where {N,T,F}
+    # Fast general implementation of `cumulators[1] .= op.(cumulators[1], cumulators[2], ...)`
+    quote
+        Base.Cartesian.@nexprs($N, i -> cumulator_i = cumulators[i])
+        @inbounds @simd for j in eachindex(cumulator_1)
+            cumulator_1[j] = Base.Cartesian.@ncall($N, op, i -> cumulator_i[j])::T
+        end
+        return ResultOk(cumulator_1, true)
     end
 end
 
@@ -293,23 +309,15 @@ function deg2_eval(
     cumulator_l::AbstractVector{T},
     cumulator_r::AbstractVector{T},
     op::F,
-    ::EvalOptions{false},
+    eval_options::EvalOptions{false},
 )::ResultOk where {T,F}
-    @inbounds @simd for j in eachindex(cumulator_l)
-        x = op(cumulator_l[j], cumulator_r[j])::T
-        cumulator_l[j] = x
-    end
-    return ResultOk(cumulator_l, true)
+    return degn_eval((cumulator_l, cumulator_r), op, eval_options)
 end
 
 function deg1_eval(
-    cumulator::AbstractVector{T}, op::F, ::EvalOptions{false}
+    cumulator::AbstractVector{T}, op::F, eval_options::EvalOptions{false}
 )::ResultOk where {T,F}
-    @inbounds @simd for j in eachindex(cumulator)
-        x = op(cumulator[j])::T
-        cumulator[j] = x
-    end
-    return ResultOk(cumulator, true)
+    return degn_eval((cumulator,), op, eval_options)
 end
 
 function deg0_eval(
@@ -324,6 +332,52 @@ function deg0_eval(
     end
 end
 
+@generated function inner_dispatch_degn_eval(
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    op_idx::Integer,
+    ::Val{degree},
+    operators::OperatorEnum{OPS},
+    eval_options::EvalOptions,
+) where {T,degree,OPS}
+    nops = length(OPS.types[degree].types)
+    return quote
+        cs = children(tree, Val($degree))
+        Base.Cartesian.@nexprs(
+            $degree,
+            i -> begin
+                result_i = _eval_tree_array(cs[i], cX, operators, eval_options)
+                !result_i.ok && return result_i
+                @return_on_nonfinite_array(eval_options, result_i.x)
+            end
+        )
+        cumulators = Base.Cartesian.@ntuple($degree, i -> result_i.x)
+        Base.Cartesian.@nif(
+            $nops,
+            i -> i == op_idx,
+            i -> degn_eval(cumulators, operators[$degree][i], eval_options),
+        )
+    end
+end
+@generated function dispatch_degn_eval(
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    op_idx::Integer,
+    operators::OperatorEnum,
+    eval_options::EvalOptions,
+) where {T}
+    D = max_degree(tree)
+    return quote
+        # If statement over degrees
+        degree = tree.degree
+        return Base.Cartesian.@nif(
+            $D,
+            d -> d == degree,
+            d ->
+                inner_dispatch_degn_eval(tree, cX, op_idx, Val(d), operators, eval_options)
+        )
+    end
+end
 @generated function dispatch_deg2_eval(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
