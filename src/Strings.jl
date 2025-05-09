@@ -24,7 +24,7 @@ function dispatch_op_name(
     return collect((pretty ? get_pretty_op_name(op) : get_op_name(op))::String)
 end
 
-struct OpNameDispatcher{D,O<:AbstractOperatorEnum} <: Function
+struct OpNameDispatcher{D,O<:Union{AbstractOperatorEnum,Nothing}} <: Function
     operators::O
     pretty::Bool
 end

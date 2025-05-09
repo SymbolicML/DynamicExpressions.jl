@@ -1,5 +1,7 @@
 module OperatorEnumModule
 
+using DispatchDoctor: @unstable
+
 abstract type AbstractOperatorEnum end
 
 """
@@ -37,7 +39,7 @@ end
 Base.copy(op::AbstractOperatorEnum) = op
 # TODO: Is this safe? What if a vector is passed here?
 
-@inline function Base.getindex(op::AbstractOperatorEnum, i::Int)
+@unstable @inline function Base.getindex(op::AbstractOperatorEnum, i::Int)
     return getfield(op, :ops)[i]
 end
 @inline function Base.getproperty(op::AbstractOperatorEnum, k::Symbol)
