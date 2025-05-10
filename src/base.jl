@@ -133,15 +133,16 @@ end
             result = if d == 0
                 mapreducer.f_leaf(tree)
             else
+                branch = mapreducer.f_branch(tree)
                 Base.Cartesian.@nif(
                     $D,
                     i -> i == d,
                     i -> let cs = children(tree, Val(i))
-                        mapreducer.op(
-                            mapreducer.f_branch(tree),
-                            Base.Cartesian.@ntuple(
-                                i, j -> call_mapreducer(mapreducer, cs[j])
-                            )...,
+                        Base.Cartesian.@ncall(
+                            i,
+                            mapreducer.op,
+                            branch,
+                            j -> call_mapreducer(mapreducer, cs[j])
                         )
                     end
                 )
