@@ -8,6 +8,7 @@ using DynamicExpressions.EvaluateModule:
 import DynamicExpressions.EvaluateModule:
     deg1_eval,
     deg2_eval,
+    degn_eval,
     deg1_l2_ll0_lr0_eval,
     deg1_l1_ll0_eval,
     deg2_l0_r0_eval,
@@ -18,27 +19,17 @@ import DynamicExpressions.ExtensionInterfaceModule:
 
 _is_loopvectorization_loaded(::Int) = true
 
-function deg2_eval(
-    cumulator_l::AbstractVector{T},
-    cumulator_r::AbstractVector{T},
-    op::F,
-    ::EvalOptions{true},
-)::ResultOk where {T<:Number,F}
-    @turbo for j in eachindex(cumulator_l)
-        x = op(cumulator_l[j], cumulator_r[j])
-        cumulator_l[j] = x
+@generated function degn_eval(
+    cumulators::NTuple{N,<:AbstractVector{T}}, op::F, ::EvalOptions{true}
+)::ResultOk where {N,T,F}
+    # Fast general implementation of `cumulators[1] .= op.(cumulators[1], cumulators[2], ...)`
+    quote
+        Base.Cartesian.@nexprs($N, i -> cumulator_i = cumulators[i])
+        @turbo for j in eachindex(cumulator_1)
+            cumulator_1[j] = Base.Cartesian.@ncall($N, op, i -> cumulator_i[j])
+        end
+        return ResultOk(cumulator_1, true)
     end
-    return ResultOk(cumulator_l, true)
-end
-
-function deg1_eval(
-    cumulator::AbstractVector{T}, op::F, ::EvalOptions{true}
-)::ResultOk where {T<:Number,F}
-    @turbo for j in eachindex(cumulator)
-        x = op(cumulator[j])
-        cumulator[j] = x
-    end
-    return ResultOk(cumulator, true)
 end
 
 function deg1_l2_ll0_lr0_eval(

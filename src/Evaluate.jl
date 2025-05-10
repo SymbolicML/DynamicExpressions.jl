@@ -310,13 +310,13 @@ function deg2_eval(
     cumulator_l::AbstractVector{T},
     cumulator_r::AbstractVector{T},
     op::F,
-    eval_options::EvalOptions{false},
+    eval_options::EvalOptions,
 )::ResultOk where {T,F}
     return degn_eval((cumulator_l, cumulator_r), op, eval_options)
 end
 
 function deg1_eval(
-    cumulator::AbstractVector{T}, op::F, eval_options::EvalOptions{false}
+    cumulator::AbstractVector{T}, op::F, eval_options::EvalOptions
 )::ResultOk where {T,F}
     return degn_eval((cumulator,), op, eval_options)
 end
