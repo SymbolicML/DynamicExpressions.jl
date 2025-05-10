@@ -218,13 +218,20 @@ end
 Base.eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = T
 Base.eltype(::AbstractExpressionNode{T}) where {T} = T
 
-max_degree(::Type{<:AbstractNode}) = 2  # Default
+const DEFAULT_MAX_DEGREE = 2
+max_degree(::Type{<:AbstractNode}) = DEFAULT_MAX_DEGREE
 max_degree(::Type{<:AbstractNode{D}}) where {D} = D
 max_degree(node::AbstractNode) = max_degree(typeof(node))
 
-@unstable constructorof(::Type{N}) where {N<:Node} = Node{T,max_degree(N)} where {T}
-@unstable constructorof(::Type{N}) where {N<:GraphNode} =
-    GraphNode{T,max_degree(N)} where {T}
+has_max_degree(::Type{<:AbstractNode}) = false
+has_max_degree(::Type{<:AbstractNode{D}}) where {D} = true
+
+@unstable function constructorof(::Type{N}) where {N<:Node}
+    return Node{T,max_degree(N)} where {T}
+end
+@unstable function constructorof(::Type{N}) where {N<:GraphNode}
+    return GraphNode{T,max_degree(N)} where {T}
+end
 
 function with_type_parameters(::Type{N}, ::Type{T}) where {N<:Node,T}
     return Node{T,max_degree(N)}
@@ -232,6 +239,9 @@ end
 function with_type_parameters(::Type{N}, ::Type{T}) where {N<:GraphNode,T}
     return GraphNode{T,max_degree(N)}
 end
+
+with_max_degree(::Type{N}, ::Val{D}) where {T,N<:Node{T},D} = Node{T,D}
+with_max_degree(::Type{N}, ::Val{D}) where {T,N<:GraphNode{T},D} = GraphNode{T,D}
 
 function default_allocator(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNode,T}
     return with_type_parameters(N, T)()
