@@ -708,45 +708,52 @@ gives better performance, as we do not need to perform computation
 over an entire array when the values are all the same.
 """
 @generated function dispatch_constant_tree(
-    tree::AbstractExpressionNode{T}, operators::OperatorEnum
-) where {T}
-    nuna = get_nuna(operators)
-    nbin = get_nbin(operators)
-    deg1_branch = if nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
-        quote
-            deg1_eval_constant(tree, operators.unaops[op_idx], operators)::ResultOk{T}
+    tree::AbstractExpressionNode{T,D}, operators::OperatorEnum
+) where {T,D}
+    quote
+        deg = tree.degree
+        deg == 0 && return deg0_eval_constant(tree)
+        Base.Cartesian.@nif(
+            $D,
+            i -> i == deg,
+            i -> inner_dispatch_degn_eval_constant(tree, Val(i), operators)
+        )
+    end
+end
+
+# Now that we have the degree, we can get the operator
+@generated function inner_dispatch_degn_eval_constant(
+    tree::AbstractExpressionNode{T}, ::Val{degree}, operators::OperatorEnum{OPS}
+) where {T,degree,OPS}
+    nops = length(OPS.types[degree].types)
+    get_inputs = quote
+        cs = children(tree, Val($degree))
+        Base.Cartesian.@nexprs(
+            $degree,
+            i -> begin
+                input_i = let result = dispatch_constant_tree(cs[i], operators)
+                    !result.ok && return result
+                    result.x
+                end
+            end
+        )
+        inputs = Base.Cartesian.@ntuple($degree, i -> input_i)
+    end
+    if nops > OPERATOR_LIMIT_BEFORE_SLOWDOWN
+        return quote
+            $get_inputs
+            op_idx = tree.op
+            degn_eval_constant(inputs, operators[$degree][op_idx])::ResultOk{T}
         end
     else
-        quote
-            Base.Cartesian.@nif(
-                $nuna,
-                i -> i == op_idx,
-                i -> deg1_eval_constant(tree, operators.unaops[i], operators)::ResultOk{T}
-            )
-        end
-    end
-    deg2_branch = if nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
-        quote
-            deg2_eval_constant(tree, operators.binops[op_idx], operators)::ResultOk{T}
-        end
-    else
-        quote
-            Base.Cartesian.@nif(
-                $nbin,
-                i -> i == op_idx,
-                i -> deg2_eval_constant(tree, operators.binops[i], operators)::ResultOk{T}
-            )
-        end
-    end
-    return quote
-        if tree.degree == 0
-            return deg0_eval_constant(tree)::ResultOk{T}
-        elseif tree.degree == 1
+        return quote
+            $get_inputs
             op_idx = tree.op
-            return $deg1_branch
-        else
-            op_idx = tree.op
-            return $deg2_branch
+            Base.Cartesian.@nif(
+                $nops,
+                i -> i == op_idx,
+                i -> degn_eval_constant(inputs, operators[$degree][i])::ResultOk{T}
+            )
         end
     end
 end
@@ -756,23 +763,8 @@ end
     return ResultOk(output, is_valid(output))::ResultOk{T}
 end
 
-function deg1_eval_constant(
-    tree::AbstractExpressionNode{T}, op::F, operators::OperatorEnum
-) where {T,F}
-    result = dispatch_constant_tree(tree.l, operators)
-    !result.ok && return result
-    output = op(result.x)::T
-    return ResultOk(output, is_valid(output))::ResultOk{T}
-end
-
-function deg2_eval_constant(
-    tree::AbstractExpressionNode{T}, op::F, operators::OperatorEnum
-) where {T,F}
-    cumulator = dispatch_constant_tree(tree.l, operators)
-    !cumulator.ok && return cumulator
-    result_r = dispatch_constant_tree(tree.r, operators)
-    !result_r.ok && return result_r
-    output = op(cumulator.x, result_r.x)::T
+function degn_eval_constant(inputs::Tuple{T,Vararg{T}}, op::F) where {T,F}
+    output = op(inputs...)::T
     return ResultOk(output, is_valid(output))::ResultOk{T}
 end
 
