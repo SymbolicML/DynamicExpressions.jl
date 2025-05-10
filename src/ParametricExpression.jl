@@ -122,7 +122,9 @@ function with_type_parameters(::Type{N}, ::Type{T}) where {N<:ParametricNode,T}
     return ParametricNode{T,max_degree(N)}
 end
 @unstable default_node_type(::Type{<:ParametricExpression}) = ParametricNode{T,2} where {T}
-default_node_type(::Type{<:ParametricExpression{T}}) where {T} = ParametricNode{T,2}
+function default_node_type(::Type{N}) where {T,N<:ParametricExpression{T}}
+    return ParametricNode{T,max_degree(N)}
+end
 preserve_sharing(::Union{Type{<:ParametricNode},ParametricNode}) = false # TODO: Change this?
 function leaf_copy(t::ParametricNode{T}) where {T}
     if t.constant

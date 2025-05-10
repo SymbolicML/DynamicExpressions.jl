@@ -54,6 +54,10 @@ of the expression.
 """
 declare_operator_alias(op::F, _) where {F<:Function} = op
 
+allow_chaining(@nospecialize(op)) = false
+allow_chaining(::typeof(+)) = true
+allow_chaining(::typeof(*)) = true
+
 function apply_operator(op::F, args::Vararg{Any,D}) where {F<:Function,D}
     idx = findfirst(e -> e isa AbstractExpression, args)::Int
     example_expr = args[idx]
@@ -61,12 +65,22 @@ function apply_operator(op::F, args::Vararg{Any,D}) where {F<:Function,D}
     @assert all(e -> !(e isa AbstractExpression) || typeof(e) === E, args)
     operators = get_operators(example_expr, nothing)
 
-    op_idx = findfirst(==(op), map(Base.Fix2(declare_operator_alias, Val(D)), operators[D]))
+    op_idx = if length(operators) >= D
+        findfirst(==(op), map(Base.Fix2(declare_operator_alias, Val(D)), operators[D]))
+    else
+        nothing
+    end
     if isnothing(op_idx)
+        if allow_chaining(op) && D > 2
+            # These operators might get chained by Julia, so we check
+            # downward for any matching arity.
+            inner = apply_operator(op, args[1:(end - 1)]...)
+            return apply_operator(op, inner, args[end])
+        end
         throw(
             MissingOperatorError(
                 "Operator $op not found in operators for expression type " *
-                "$(typeof(l)) with $(D)-degree operators $(operators[D])",
+                "$(E) with $(D)-degree operators $(operators[D])",
             ),
         )
     end
@@ -115,7 +129,6 @@ macro declare_expression_operator(op, arity)
         ))
             continue
         end
-
 
         arglist = [Expr(:(::), syms[i], types[i]) for i in 1:arity]
         signature = Expr(:call, op, arglist...)

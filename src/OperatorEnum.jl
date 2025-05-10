@@ -42,6 +42,9 @@ Base.copy(op::AbstractOperatorEnum) = op
 @unstable @inline function Base.getindex(op::AbstractOperatorEnum, i::Int)
     return getfield(op, :ops)[i]
 end
+@inline function Base.length(op::AbstractOperatorEnum)
+    return length(getfield(op, :ops))
+end
 @inline function Base.getproperty(op::AbstractOperatorEnum, k::Symbol)
     if k == :unaops
         return getfield(op, :ops)[1]
