@@ -76,7 +76,7 @@ for N in (:Node, :GraphNode)
         val::T  # If is a constant, this stores the actual value
         feature::UInt16  # (Possibly undefined) If is a variable (e.g., x in cos(x)), this stores the feature index.
         op::UInt8  # (Possibly undefined) If operator, this is the index of the operator in the degree-specific operator enum
-        children::NTuple{D,Base.RefValue{$N{T,D}}}  # Children nodes
+        children::NTuple{D,$N{T,D}}
 
         #################
         ## Constructors:
@@ -113,7 +113,7 @@ nodes, you can evaluate or print a given expression.
     operator in `operators.binops`. In other words, this is an enum
     of the operators, and is dependent on the specific `OperatorEnum`
     object. Only defined if `degree >= 1`
-- `children::NTuple{D,Base.RefValue{Node{T,D}}}`: Children of the node. Only defined up to `degree`
+- `children::NTuple{D,Node{T,D}}`: Children of the node. Only defined up to `degree`
 
 # Constructors
 
@@ -166,14 +166,24 @@ when constructing or setting properties.
 """
 GraphNode
 
+function get_poison(n::AbstractNode)
+    # We don't want to use `nothing` because the type instability
+    # hits memory hard.
+    # Setting itself as the right child is the best thing,
+    # because it (1) doesn't allocate, and (2) will trigger
+    # infinite recursion errors if someone is mistakenly trying
+    # to access the right child when `.degree == 1`.
+    return n
+end
+
 macro make_accessors(node_type)
     esc(quote
         @inline function Base.getproperty(n::$node_type, k::Symbol)
             if k == :l
                 # TODO: Should a depwarn be raised here? Or too slow?
-                return getfield(n, :children)[1][]
+                return getfield(n, :children)[1]
             elseif k == :r
-                return getfield(n, :children)[2][]
+                return getfield(n, :children)[2]
             else
                 return getfield(n, k)
             end
@@ -181,16 +191,19 @@ macro make_accessors(node_type)
         @inline function Base.setproperty!(n::$node_type, k::Symbol, v)
             if k == :l
                 if isdefined(n, :children)
-                    getfield(n, :children)[1][] = v
+                    old = getfield(n, :children)
+                    setfield!(n, :children, (v, old[2]))
+                    v
                 else
-                    r = Ref(v)
-                    setfield!(n, :children, (r, Ref{typeof(n)}()))
-                    r
+                    poison = $(get_poison)(n)
+                    setfield!(n, :children, (v, poison))
+                    v
                 end
             elseif k == :r
                 # TODO: Remove this assert once we know that this is safe
-                @assert isdefined(n, :children)
-                getfield(n, :children)[2][] = v
+                old = getfield(n, :children)
+                setfield!(n, :children, (old[1], v))
+                v
             else
                 T = fieldtype(typeof(n), k)
                 if v isa T
@@ -203,13 +216,13 @@ macro make_accessors(node_type)
     end)
 end
 
-@make_accessors Node
-@make_accessors GraphNode
+@make_accessors Node{T,2} where {T}
+@make_accessors GraphNode{T,2} where {T}
 
 @inline children(node::AbstractNode) = node.children
 @inline function children(node::AbstractNode, ::Val{n}) where {n}
     cs = children(node)
-    return ntuple(i -> cs[i][], Val(n))
+    return ntuple(i -> cs[i], Val(n))
 end
 
 ################################################################################
@@ -312,7 +325,8 @@ end
     n = allocator(N, T)
     n.degree = D2
     n.op = op
-    n.children = ntuple(i -> i <= D2 ? Ref(convert(NT, children[i])) : Ref{NT}(), Val(max_degree(N)))
+    poison = get_poison(n)
+    n.children = ntuple(i -> i <= D2 ? convert(NT, children[i]) : poison, Val(max_degree(N)))
     return n
 end
 

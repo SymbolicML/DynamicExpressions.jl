@@ -99,5 +99,5 @@ ex = parse_expression(
 
 @test string_tree(ex) == "x + sin(y + 2.1)"
 @test ex.tree.frozen == false
-@test ex.tree.children[2][].frozen == true
-@test ex.tree.children[2][].children[1][].frozen == false
+@test ex.tree.children[2].frozen == true
+@test ex.tree.children[2].children[1].frozen == false

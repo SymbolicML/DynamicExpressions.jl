@@ -57,7 +57,7 @@ mutable struct ParametricNode{T,D} <: AbstractExpressionNode{T,D}
     parameter::UInt16  # Stores index of per-class parameter
 
     op::UInt8
-    children::NTuple{D,Base.RefValue{ParametricNode{T,D}}}  # Children nodes
+    children::NTuple{D,ParametricNode{T,D}}  # Children nodes
 
     function ParametricNode{_T,_D}() where {_T,_D}
         n = new{_T,_D}()
