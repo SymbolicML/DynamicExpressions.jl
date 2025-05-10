@@ -2,7 +2,8 @@ module EvaluateModule
 
 using DispatchDoctor: @stable, @unstable
 
-import ..NodeModule: AbstractExpressionNode, constructorof, max_degree, children
+import ..NodeModule:
+    AbstractExpressionNode, constructorof, max_degree, children, with_type_parameters
 import ..StringsModule: string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: fill_similar, counttuple, ResultOk
@@ -244,7 +245,7 @@ function eval_tree_array(
     kws...,
 ) where {T1,T2}
     T = promote_type(T1, T2)
-    tree = convert(constructorof(typeof(tree)){T}, tree)
+    tree = convert(with_type_parameters(typeof(tree), T), tree)
     cX = Base.Fix1(convert, T).(cX)
     return eval_tree_array(tree, cX, operators; kws...)
 end

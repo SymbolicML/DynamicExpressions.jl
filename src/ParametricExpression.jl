@@ -12,6 +12,7 @@ using ..ChainRulesModule: NodeTangent
 import ..NodeModule:
     constructorof,
     with_type_parameters,
+    with_max_degree,
     max_degree,
     preserve_sharing,
     leaf_copy,
@@ -120,6 +121,9 @@ end
 @unstable constructorof(::Type{<:ParametricExpression}) = ParametricExpression
 function with_type_parameters(::Type{N}, ::Type{T}) where {N<:ParametricNode,T}
     return ParametricNode{T,max_degree(N)}
+end
+function with_max_degree(::Type{N}, ::Val{D}) where {T,N<:ParametricNode{T},D}
+    return ParametricNode{T,D}
 end
 @unstable default_node_type(::Type{<:ParametricExpression}) = ParametricNode{T,2} where {T}
 function default_node_type(::Type{N}) where {T,N<:ParametricExpression{T}}
