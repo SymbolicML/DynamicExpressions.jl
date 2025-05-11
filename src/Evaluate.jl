@@ -781,53 +781,59 @@ function differentiable_eval_tree_array(
 end
 
 @generated function _differentiable_eval_tree_array(
-    tree::AbstractExpressionNode{T1}, cX::AbstractMatrix{T}, operators::OperatorEnum
-)::ResultOk where {T<:Number,T1}
-    nuna = get_nuna(operators)
-    nbin = get_nbin(operators)
+    tree::AbstractExpressionNode{T1,D}, cX::AbstractMatrix{T}, operators::OperatorEnum
+)::ResultOk where {T<:Number,T1,D}
     quote
-        if tree.degree == 0
-            if tree.constant
-                ResultOk(fill_similar(one(T), cX, axes(cX, 2)) .* tree.val, true)
-            else
-                ResultOk(cX[tree.feature, :], true)
-            end
-        elseif tree.degree == 1
-            op_idx = tree.op
-            Base.Cartesian.@nif(
-                $nuna,
-                i -> i == op_idx,
-                i -> deg1_diff_eval(tree, cX, operators.unaops[i], operators)
-            )
-        else
-            op_idx = tree.op
-            Base.Cartesian.@nif(
-                $nbin,
-                i -> i == op_idx,
-                i -> deg2_diff_eval(tree, cX, operators.binops[i], operators)
-            )
-        end
+        tree.degree == 0 && return deg0_diff_eval(tree, cX, operators)
+        op_idx = tree.op
+        deg = tree.degree
+        Base.Cartesian.@nif(
+            $D,
+            i -> i == deg,
+            i -> dispatch_degn_diff_eval(tree, cX, op_idx, Val(i), operators)
+        )
     end
 end
 
-function deg1_diff_eval(
-    tree::AbstractExpressionNode{T1}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum
-)::ResultOk where {T<:Number,F,T1}
-    left = _differentiable_eval_tree_array(tree.l, cX, operators)
-    !left.ok && return left
-    out = op.(left.x)
+
+function deg0_diff_eval(
+    tree::AbstractExpressionNode{T1}, cX::AbstractMatrix{T}, operators::OperatorEnum
+)::ResultOk where {T<:Number,T1}
+    if tree.constant
+        ResultOk(fill_similar(one(T), cX, axes(cX, 2)) .* tree.val, true)
+    else
+        ResultOk(cX[tree.feature, :], true)
+    end
+end
+
+function degn_diff_eval(cumulators::C, op::F) where {C<:Tuple,F}
+    out = op.(cumulators...)
     return ResultOk(out, all(isfinite, out))
 end
 
-function deg2_diff_eval(
-    tree::AbstractExpressionNode{T1}, cX::AbstractMatrix{T}, op::F, operators::OperatorEnum
-)::ResultOk where {T<:Number,F,T1}
-    left = _differentiable_eval_tree_array(tree.l, cX, operators)
-    !left.ok && return left
-    right = _differentiable_eval_tree_array(tree.r, cX, operators)
-    !right.ok && return right
-    out = op.(left.x, right.x)
-    return ResultOk(out, all(isfinite, out))
+@generated function dispatch_degn_diff_eval(
+    tree::AbstractExpressionNode{T1,D},
+    cX::AbstractMatrix{T},
+    op_idx::Integer,
+    ::Val{degree},
+    operators::OperatorEnum{OPS}
+) where {T<:Number,T1,D,degree,OPS}
+    nops = length(OPS.types[degree].types)
+    quote
+        cs = get_children(tree, Val($degree))
+        Base.Cartesian.@nexprs($degree, i -> begin
+            cumulator_i = let result = _differentiable_eval_tree_array(cs[i], cX, operators)
+                !result.ok && return result
+                result.x
+            end
+        end)
+        cumulators = Base.Cartesian.@ntuple($degree, i -> cumulator_i)
+        Base.Cartesian.@nif(
+            $nops,
+            i -> i == op_idx,
+            i -> degn_diff_eval(cumulators, operators[$degree][i])
+        )
+    end
 end
 
 """
