@@ -25,7 +25,7 @@ end
 
     # Test unary gradient
     f(x) = x^2
-    @test (_zygote_gradient(f, Val(1)))(x) == 4.0
+    @test (_zygote_gradient(f, Val(1)))(x) == (4.0,)
 
     # Test binary gradient (both partials)
     g(x, y) = x * y
