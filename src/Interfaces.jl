@@ -12,6 +12,7 @@ using ..NodeModule:
     constructorof,
     default_allocator,
     with_type_parameters,
+    children,
     leaf_copy,
     leaf_convert,
     leaf_hash,
@@ -248,8 +249,8 @@ function _check_eltype(tree::AbstractExpressionNode{T}) where {T}
 end
 function _check_with_type_parameters(tree::AbstractExpressionNode{T}) where {T}
     N = typeof(tree)
-    NT = with_type_parameters(Base.typename(N).wrapper, eltype(tree))
-    return NT == typeof(tree)
+    Nf16 = with_type_parameters(N, Float16)
+    return Nf16 <: AbstractExpressionNode{Float16}
 end
 function _check_default_allocator(tree::AbstractExpressionNode)
     N = Base.typename(typeof(tree)).wrapper
@@ -299,35 +300,21 @@ function _check_leaf_equal(tree::AbstractExpressionNode)
     return leaf_equal(tree, copy(tree))
 end
 function _check_branch_copy(tree::AbstractExpressionNode)
-    if tree.degree == 0
-        return true
-    elseif tree.degree == 1
-        return branch_copy(tree, tree.l) isa typeof(tree)
-    else
-        return branch_copy(tree, tree.l, tree.r) isa typeof(tree)
-    end
+    tree.degree == 0 && return true
+    return branch_copy(tree, children(tree, Val(tree.degree))...) isa typeof(tree)
 end
 function _check_branch_copy_into!(tree::AbstractExpressionNode{T}) where {T}
-    if tree.degree == 0
-        return true
-    end
+    tree.degree == 0 && return true
     new_branch = constructorof(typeof(tree))(; val=zero(T))
-    if tree.degree == 1
-        ret = branch_copy_into!(new_branch, tree, copy(tree.l))
-        return new_branch == tree && ret === new_branch
-    else
-        ret = branch_copy_into!(new_branch, tree, copy(tree.l), copy(tree.r))
-        return new_branch == tree && ret === new_branch
-    end
+    ret = branch_copy_into!(
+        new_branch, tree, map(copy, children(tree, Val(tree.degree)))...
+    )
+    return new_branch == tree && ret === new_branch
 end
 function _check_branch_convert(tree::AbstractExpressionNode)
-    if tree.degree == 0
-        return true
-    elseif tree.degree == 1
-        return branch_convert(typeof(tree), tree, tree.l) isa typeof(tree)
-    else
-        return branch_convert(typeof(tree), tree, tree.l, tree.r) isa typeof(tree)
-    end
+    tree.degree == 0 && return true
+    return branch_convert(typeof(tree), tree, children(tree, Val(tree.degree))...) isa
+           typeof(tree)
 end
 function _check_branch_hash(tree::AbstractExpressionNode)
     tree.degree == 0 && return true

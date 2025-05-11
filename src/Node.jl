@@ -225,7 +225,7 @@ end
 @inline children(node::AbstractNode) = node.children
 @inline function children(node::AbstractNode, ::Val{n}) where {n}
     cs = children(node)
-    return ntuple(i -> cs[i], Val(n))
+    return ntuple(i -> cs[i], Val(Int(n)))
 end
 
 ################################################################################
