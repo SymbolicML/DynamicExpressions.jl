@@ -158,6 +158,7 @@ mutable struct NodeIndex{T,D} <: AbstractNode{D}
         node = NodeIndex(_T, Val(_D))
         poison = get_poison(node)
         children = (child, childs...)
+        node.degree = _D2 + 1
         node.children = ntuple(i -> i <= _D2 + 1 ? children[i] : poison, Val(_D))
         return node
     end

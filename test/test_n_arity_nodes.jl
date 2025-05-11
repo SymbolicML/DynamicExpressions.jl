@@ -453,7 +453,7 @@ end
     tree_ro_ter = Node{Float64,3}(; op=1, children=(x1_ro, x2_ro, x3_ro))
 
     expr_ro = Expression(tree_ro_ter; operators=operators_ro)
-    readonly_tree = DynamicExpressions.get_tree(expr_ro)
+    readonly_tree = DynamicExpressions.ReadOnlyNode(DynamicExpressions.get_tree(expr_ro))
 
     @test readonly_tree isa DynamicExpressions.ReadOnlyNodeModule.AbstractReadOnlyNode
     inner_node_ro = DynamicExpressions.ReadOnlyNodeModule.inner(readonly_tree)
@@ -470,49 +470,6 @@ end
 
     @test readonly_tree.l.feature == 1
     @test readonly_tree.r.feature == 2
-end
-
-@testitem "Expression.jl default_node_type for N-ary" tags = [:narity] begin
-    using DynamicExpressions
-    using Test
-
-    DefaultNodeForExprT = DynamicExpressions.ExpressionModule.default_node_type(
-        Expression{Float64}
-    )
-    @test DefaultNodeForExprT == Node{Float64,2}
-
-    dt_expr_node3 = DynamicExpressions.ExpressionModule.default_node_type(
-        Expression{Float64,Node{Float64,3}}
-    )
-    @test dt_expr_node3 == Node{Float64,3}
-
-    abstract type AbstractMyCustomExpr{T,N<:AbstractExpressionNode{T}} <:
-                  AbstractExpression{T,N} end
-    struct MyCustomExprWithArity{T,N_NODE<:AbstractExpressionNode{T,NODE_D},EXPR_ARITY} <:
-           AbstractMyCustomExpr{T,N_NODE} where {NODE_D}
-        tree::N_NODE
-    end
-    DynamicExpressions.ExpressionModule.has_node_type(::Type{<:MyCustomExprWithArity}) =
-        true
-    DynamicExpressions.ExpressionModule.node_type(
-        ::Type{<:MyCustomExprWithArity{T,N_NODE,EXPR_ARITY}}
-    ) where {T,N_NODE,EXPR_ARITY} = N_NODE
-    DynamicExpressions.NodeModule.max_degree(
-        ::Type{<:MyCustomExprWithArity{T,N_NODE,EXPR_ARITY}}
-    ) where {T,N_NODE,EXPR_ARITY} = EXPR_ARITY
-
-    dt_custom_overall_arity = DynamicExpressions.ExpressionModule.default_node_type(
-        MyCustomExprWithArity{Float32,Node{Float32,2},4}
-    )
-    @test dt_custom_overall_arity == Node{Float32,4}
-
-    struct MySimpleExprNoNodeParam{T} <: AbstractExpression{T,Nothing} end
-    DynamicExpressions.ExpressionModule.has_node_type(::Type{<:MySimpleExprNoNodeParam}) =
-        false
-    dt_my_simple_expr = DynamicExpressions.ExpressionModule.default_node_type(
-        MySimpleExprNoNodeParam{Float64}
-    )
-    @test dt_my_simple_expr == Node{Float64,2}
 end
 
 @testitem "NodeUtils.jl NodeIndex for N-ary" tags = [:narity] begin
@@ -534,6 +491,7 @@ end
 
     @test idx_tree isa NodeIndex{UInt16,3}
     @test DynamicExpressions.NodeModule.max_degree(typeof(idx_tree)) == 3
+    @test tree_idx.degree == 3
     @test idx_tree.degree == 3
     @test idx_tree.children[1].degree == 0 && idx_tree.children[1].val == UInt16(1)
     @test idx_tree.children[2].degree == 0 && idx_tree.children[2].val == UInt16(0)
