@@ -1,6 +1,6 @@
 module EvaluateDerivativeModule
 
-import ..NodeModule: AbstractExpressionNode, constructorof
+import ..NodeModule: AbstractExpressionNode, constructorof, get_children
 import ..OperatorEnumModule: OperatorEnum
 import ..UtilsModule: fill_similar, ResultOk2
 import ..ValueInterfaceModule: is_valid_array
@@ -66,54 +66,18 @@ function eval_diff_tree_array(
 end
 
 @generated function _eval_diff_tree_array(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNode{T,D},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     direction::Integer,
-)::ResultOk2 where {T<:Number}
-    nuna = get_nuna(operators)
-    nbin = get_nbin(operators)
-    deg1_branch = if nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
-        quote
-            diff_deg1_eval(tree, cX, operators.unaops[op_idx], operators, direction)
-        end
-    else
-        quote
-            Base.Cartesian.@nif(
-                $nuna,
-                i -> i == op_idx,
-                i ->
-                    diff_deg1_eval(tree, cX, operators.unaops[i], operators, direction)
-            )
-        end
-    end
-    deg2_branch = if nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
-        quote
-            diff_deg2_eval(tree, cX, operators.binops[op_idx], operators, direction)
-        end
-    else
-        quote
-            Base.Cartesian.@nif(
-                $nbin,
-                i -> i == op_idx,
-                i ->
-                    diff_deg2_eval(tree, cX, operators.binops[i], operators, direction)
-            )
-        end
-    end
+)::ResultOk2 where {T<:Number,D}
     quote
-        result = if tree.degree == 0
-            diff_deg0_eval(tree, cX, direction)
-        elseif tree.degree == 1
-            op_idx = tree.op
-            $deg1_branch
-        else
-            op_idx = tree.op
-            $deg2_branch
-        end
-        !result.ok && return result
-        return ResultOk2(
-            result.x, result.dx, is_valid_array(result.x) && is_valid_array(result.dx)
+        deg = tree.degree
+        deg == 0 && return diff_deg0_eval(tree, cX, direction)
+        Base.Cartesian.@nif(
+            $D,
+            i -> i == deg,
+            i -> dispatch_diff_degn_eval(tree, cX, Val(i), operators, direction)
         )
     end
 end
@@ -130,58 +94,71 @@ function diff_deg0_eval(
     return ResultOk2(const_part, derivative_part, true)
 end
 
-function diff_deg1_eval(
-    tree::AbstractExpressionNode{T},
-    cX::AbstractMatrix{T},
-    op::F,
-    operators::OperatorEnum,
-    direction::Integer,
-) where {T<:Number,F}
-    result = _eval_diff_tree_array(tree.l, cX, operators, direction)
-    !result.ok && return result
-
-    # TODO - add type assertions to get better speed:
-    cumulator = result.x
-    dcumulator = result.dx
-    diff_op = _zygote_gradient(op, Val(1))
-    @inbounds @simd for j in eachindex(cumulator)
-        x = op(cumulator[j])::T
-        dx = diff_op(cumulator[j])::T * dcumulator[j]
-
-        cumulator[j] = x
-        dcumulator[j] = dx
+@generated function diff_degn_eval(
+    x_cumulators::NTuple{N}, dx_cumulators::NTuple{N}, op::F, direction::Integer
+) where {N,F}
+    quote
+        Base.Cartesian.@nexprs($N, i -> begin
+            x_cumulator_i = x_cumulators[i]
+            dx_cumulator_i = dx_cumulators[i]
+        end)
+        diff_op = _zygote_gradient(op, Val(N))
+        @inbounds @simd for j in eachindex(x_cumulator_1)
+            x = Base.Cartesian.@ncall($N, op, i -> x_cumulator_i[j])
+            Base.Cartesian.@ntuple($N, i -> grad_i) = Base.Cartesian.@ncall(
+                $N, diff_op, i -> x_cumulator_i[j]
+            )
+            dx = Base.Cartesian.@ncall($N, +, i -> grad_i * dx_cumulator_i[j])
+            x_cumulator_1[j] = x
+            dx_cumulator_1[j] = dx
+        end
+        return ResultOk2(x_cumulator_1, dx_cumulator_1, true)
     end
-    return result
 end
 
-function diff_deg2_eval(
-    tree::AbstractExpressionNode{T},
+@generated function dispatch_diff_degn_eval(
+    tree::AbstractExpressionNode{T,D},
     cX::AbstractMatrix{T},
-    op::F,
-    operators::OperatorEnum,
+    ::Val{degree},
+    operators::OperatorEnum{OPS},
     direction::Integer,
-) where {T<:Number,F}
-    result_l = _eval_diff_tree_array(tree.l, cX, operators, direction)
-    !result_l.ok && return result_l
-    result_r = _eval_diff_tree_array(tree.r, cX, operators, direction)
-    !result_r.ok && return result_r
+) where {T<:Number,D,degree,OPS}
+    nops = length(OPS.types[degree].types)
 
-    ar_l = result_l.x
-    d_ar_l = result_l.dx
-    ar_r = result_r.x
-    d_ar_r = result_r.dx
-    diff_op = _zygote_gradient(op, Val(2))
-
-    @inbounds @simd for j in eachindex(ar_l)
-        x = op(ar_l[j], ar_r[j])::T
-
-        first, second = diff_op(ar_l[j], ar_r[j])::Tuple{T,T}
-        dx = first * d_ar_l[j] + second * d_ar_r[j]
-
-        ar_l[j] = x
-        d_ar_l[j] = dx
+    setup = quote
+        cs = get_children(tree, Val($degree))
+        Base.Cartesian.@nexprs(
+            $degree,
+            i -> begin
+                result_i = _eval_diff_tree_array(cs[i], cX, operators, direction)
+                !result_i.ok && return result_i
+            end
+        )
+        x_cumulators = Base.Cartesian.@ntuple($degree, i -> result_i.x)
+        dx_cumulators = Base.Cartesian.@ntuple($degree, i -> result_i.dx)
+        op_idx = tree.op
     end
-    return result_l
+
+    if nops > OPERATOR_LIMIT_BEFORE_SLOWDOWN
+        quote
+            $setup
+            diff_degn_eval(
+                x_cumulators, dx_cumulators, operators[$degree][op_idx], direction
+            )
+        end
+    else
+        quote
+            $setup
+            Base.Cartesian.@nif(
+                $nops,
+                i -> i == op_idx,
+                i -> diff_degn_eval(
+                    x_cumulators, dx_cumulators, operators[$degree][i], direction
+                )
+            )
+        end
+    end
+    # TODO: Need to add the case for many operators
 end
 
 """

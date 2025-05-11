@@ -6,15 +6,15 @@ import ..OperatorEnumModule: AbstractOperatorEnum
 import ..UtilsModule: deprecate_varmap, Undefined
 
 const DEFAULT_NODE_TYPE = Float32
+const DEFAULT_MAX_DEGREE = 2
 
 """
     AbstractNode{D}
 
 Abstract type for D-arity trees. Must have the following fields:
 
-- `degree::Integer`: Degree of the node. Either 0, 1, or 2. If 1,
-    then `l` needs to be defined as the left child. If 2,
-    then `r` also needs to be defined as the right child.
+- `degree::UInt8`: Degree of the node. This should be a value
+    between 0 and `DEFAULT_MAX_DEGREE`.
 - `children`: A collection of D references to children nodes.
 
 # Deprecated fields
@@ -25,7 +25,7 @@ Abstract type for D-arity trees. Must have the following fields:
     Don't use `nothing` to represent an undefined value
     as it will incur a large performance penalty.
 - `r::AbstractNode{D}`: Right child of the current node. Should only
-    be defined if `degree == 2`.
+    be defined if `degree >= 2`.
 """
 abstract type AbstractNode{D} end
 
@@ -82,7 +82,7 @@ for N in (:Node, :GraphNode)
         ## Constructors:
         #################
         $N{_T,_D}() where {_T,_D} = new{_T,_D::Int}()
-        $N{_T}() where {_T} = $N{_T,2}()
+        $N{_T}() where {_T} = $N{_T,DEFAULT_MAX_DEGREE}()
         # TODO: Test with this disabled to spot any unintended uses
     end
 end
@@ -250,7 +250,6 @@ end
 Base.eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = T
 Base.eltype(::AbstractExpressionNode{T}) where {T} = T
 
-const DEFAULT_MAX_DEGREE = 2
 max_degree(::Type{<:AbstractNode}) = DEFAULT_MAX_DEGREE
 max_degree(::Type{<:AbstractNode{D}}) where {D} = D
 max_degree(node::AbstractNode) = max_degree(typeof(node))
