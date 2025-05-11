@@ -226,6 +226,13 @@ function _check_create_node(tree::AbstractExpressionNode)
     NT = with_type_parameters(N, Float16)
     return NT() isa NT
 end
+function _check_children(tree::AbstractExpressionNode{T,D}) where {T,D}
+    tree.degree == 0 && return true
+    return children(tree) isa Tuple{typeof(tree),Vararg{typeof(tree)}} &&
+               children(tree, Val(D)) isa Tuple &&
+               length(children(tree, Val(D))) == D &&
+               length(children(tree, Val(1))) == 1
+end
 function _check_copy(tree::AbstractExpressionNode)
     return copy(tree) isa typeof(tree)
 end
@@ -360,6 +367,7 @@ end
 ni_components = (
     mandatory = (
         create_node = "creates a new instance of the node type" => _check_create_node,
+        children = "returns the children of the node" => _check_children,
         copy = "returns a copy of the tree" => _check_copy,
         hash = "returns the hash of the tree" => _check_hash,
         any = "checks if any element of the tree satisfies a condition" => _check_any,
