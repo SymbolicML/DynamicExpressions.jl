@@ -288,8 +288,7 @@ function _eval_tree_array(
         op_idx = tree.op
         return dispatch_deg2_eval(tree, cX, op_idx, operators, eval_options)
     else
-        op_idx = tree.op
-        return dispatch_degn_eval(tree, cX, op_idx, operators, eval_options)
+        return dispatch_degn_eval(tree, cX, operators, eval_options)
     end
 end
 
@@ -336,7 +335,6 @@ end
 @generated function inner_dispatch_degn_eval(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
-    op_idx::Integer,
     ::Val{degree},
     operators::OperatorEnum{OPS},
     eval_options::EvalOptions,
@@ -352,6 +350,7 @@ end
                 @return_on_nonfinite_array(eval_options, result_i.x)
             end
         )
+        op_idx = tree.op
         cumulators = Base.Cartesian.@ntuple($degree, i -> result_i.x)
         Base.Cartesian.@nif(
             $nops,
@@ -363,7 +362,6 @@ end
 @generated function dispatch_degn_eval(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
-    op_idx::Integer,
     operators::OperatorEnum,
     eval_options::EvalOptions,
 ) where {T}
@@ -374,8 +372,7 @@ end
         return Base.Cartesian.@nif(
             $D,
             d -> d == degree,
-            d ->
-                inner_dispatch_degn_eval(tree, cX, op_idx, Val(d), operators, eval_options)
+            d -> inner_dispatch_degn_eval(tree, cX, Val(d), operators, eval_options)
         )
     end
 end
