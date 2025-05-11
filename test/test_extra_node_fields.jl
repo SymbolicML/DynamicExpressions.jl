@@ -11,7 +11,7 @@ mutable struct FrozenNode{T,D} <: AbstractExpressionNode{T,D}
     frozen::Bool  # Extra field!
     feature::UInt16
     op::UInt8
-    children::NTuple{D,Base.RefValue{FrozenNode{T,D}}}
+    children::NTuple{D,FrozenNode{T,D}}
 
     function FrozenNode{_T,_D}() where {_T,_D}
         n = new{_T,_D}()

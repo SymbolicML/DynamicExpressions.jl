@@ -174,13 +174,19 @@ end
 Reduce a flag function over a tree, returning `true` if the function returns `true` for any node.
 By using this instead of tree_mapreduce, we can take advantage of early exits.
 """
-function any(f::F, tree::AbstractNode) where {F<:Function}
-    if tree.degree == 0
-        return @inline(f(tree))::Bool
-    elseif tree.degree == 1
-        return @inline(f(tree))::Bool || any(f, tree.l)
-    else
-        return @inline(f(tree))::Bool || any(f, tree.l) || any(f, tree.r)
+@generated function any(f::F, tree::AbstractNode{D}) where {F<:Function,D}
+    quote
+        deg = tree.degree
+
+        deg == 0 && return @inline(f(tree))
+
+        return (
+            @inline(f(tree)) || Base.Cartesian.@nif(
+                $D, i -> deg == i, i -> let cs = children(tree, Val(i))
+                    Base.Cartesian.@nany(i, j -> any(f, cs[j]))
+                end
+            )
+        )
     end
 end
 
@@ -189,49 +195,49 @@ function Base.:(==)(a::AbstractExpressionNode, b::AbstractExpressionNode)
 end
 function Base.:(==)(a::N, b::N)::Bool where {N<:AbstractExpressionNode}
     if preserve_sharing(N)
-        return inner_is_equal_shared(a, b, Dict{UInt,Nothing}(), Dict{UInt,Nothing}())
+        return inner_is_equal(a, b, (; a=Dict{UInt,Nothing}(), b=Dict{UInt,Nothing}()))
     else
-        return inner_is_equal(a, b)
+        return inner_is_equal(a, b, nothing)
     end
 end
-function inner_is_equal(a, b)
-    (degree = a.degree) != b.degree && return false
-    if degree == 0
-        return leaf_equal(a, b)
-    elseif degree == 1
-        return branch_equal(a, b) && inner_is_equal(a.l, b.l)
-    else
-        return branch_equal(a, b) && inner_is_equal(a.l, b.l) && inner_is_equal(a.r, b.r)
+@generated function inner_is_equal(
+    a::AbstractNode{D}, b::AbstractNode{D}, id_maps::Union{Nothing,NamedTuple}
+) where {D}
+    quote
+        ids = !isnothing(id_maps) ? (; a=objectid(a), b=objectid(b)) : nothing
+
+        if !isnothing(id_maps)
+            has_a = haskey(id_maps.a, ids.a)
+            has_b = haskey(id_maps.b, ids.b)
+            if has_a && has_b
+                return true
+            elseif has_a ⊻ has_b
+                return false
+            end
+        end
+
+        deg = a.degree
+        result = if deg != b.degree
+            false
+        elseif deg == 0
+            leaf_equal(a, b)
+        else
+            (
+                branch_equal(a, b) && Base.Cartesian.@nif(
+                    $D,
+                    i -> deg == i,
+                    i -> let cs_a = children(a, Val(i)), cs_b = children(b, Val(i))
+                        Base.Cartesian.@nall(i, j -> inner_is_equal(cs_a[j], cs_b[j], id_maps))
+                    end
+                )
+            )
+        end
+        if !isnothing(ids)
+            id_maps.a[ids.a] = nothing
+            id_maps.b[ids.b] = nothing
+        end
+        return result
     end
-end
-function inner_is_equal_shared(a, b, id_map_a, id_map_b)
-    id_a = objectid(a)
-    id_b = objectid(b)
-    has_a = haskey(id_map_a, id_a)
-    has_b = haskey(id_map_b, id_b)
-
-    if has_a && has_b
-        return true
-    elseif has_a ⊻ has_b
-        return false
-    end
-
-    (degree = a.degree) != b.degree && return false
-
-    result = if degree == 0
-        leaf_equal(a, b)
-    elseif degree == 1
-        branch_equal(a, b) && inner_is_equal_shared(a.l, b.l, id_map_a, id_map_b)
-    else
-        branch_equal(a, b) &&
-            inner_is_equal_shared(a.l, b.l, id_map_a, id_map_b) &&
-            inner_is_equal_shared(a.r, b.r, id_map_a, id_map_b)
-    end
-
-    id_map_a[id_a] = nothing
-    id_map_b[id_b] = nothing
-
-    return result
 end
 
 @inline function branch_equal(a::AbstractExpressionNode, b::AbstractExpressionNode)
@@ -240,7 +246,8 @@ end
 @inline function leaf_equal(
     a::AbstractExpressionNode{T1}, b::AbstractExpressionNode{T2}
 ) where {T1,T2}
-    (constant = a.constant) != b.constant && return false
+    constant = a.constant
+    constant != b.constant && return false
     if constant
         return a.val::T1 == b.val::T2
     else
@@ -521,11 +528,10 @@ using `convert(T1, tree.val)` at constant nodes.
 """
 function convert(
     ::Type{N1}, tree::N2
-) where {T1,T2,D1,D2,N1<:AbstractExpressionNode{T1,D1},N2<:AbstractExpressionNode{T2,D2}}
+) where {T1,T2,N1<:AbstractExpressionNode{T1},N2<:AbstractExpressionNode{T2}}
     if N1 === N2
         return tree
     end
-    @assert max_degree(N1) == max_degree(N2)
     return tree_mapreduce(
         Base.Fix1(leaf_convert, N1),
         identity,
@@ -534,11 +540,6 @@ function convert(
         N1,
     )
     # TODO: Need to allow user to overload this!
-end
-function convert(
-    ::Type{N1}, tree::N2
-) where {T1,T2,D2,N1<:AbstractExpressionNode{T1},N2<:AbstractExpressionNode{T2,D2}}
-    return convert(with_max_degree(N1, Val(D2)), tree)
 end
 function convert(
     ::Type{N1}, tree::N2

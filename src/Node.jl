@@ -216,8 +216,11 @@ macro make_accessors(node_type)
     end)
 end
 
-@make_accessors Node{T,2} where {T}
-@make_accessors GraphNode{T,2} where {T}
+# @make_accessors Node{T,2} where {T}
+# @make_accessors GraphNode{T,2} where {T}
+@make_accessors Node
+@make_accessors GraphNode
+# TODO: Disable the `.l` accessors eventually, once the codebase is fully generic
 
 @inline children(node::AbstractNode) = node.children
 @inline function children(node::AbstractNode, ::Val{n}) where {n}

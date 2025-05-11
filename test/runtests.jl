@@ -4,7 +4,7 @@ using TestItemRunner
 # Check if SR_ENZYME_TEST is set in env
 test_name = split(get(ENV, "SR_TEST", "main"), ",")
 
-unknown_tests = filter(Base.Fix2(∉, ["enzyme", "jet", "main"]), test_name)
+unknown_tests = filter(Base.Fix2(∉, ["enzyme", "jet", "main", "narity"]), test_name)
 
 if !isempty(unknown_tests)
     error("Unknown test names: $unknown_tests")
@@ -48,4 +48,8 @@ end
 if "main" in test_name
     include("unittest.jl")
     @run_package_tests
+end
+if "narity" in test_name
+    include("test_n_arity_nodes.jl")
+    @run_package_tests filter = ti -> (:narity in ti.tags)
 end
