@@ -313,18 +313,23 @@ end
 
 function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
     num_params = UInt16(size(ex.metadata.parameters, 1))
+    tree = get_tree(ex)
+    _NT = typeof(tree)
+    D = max_degree(_NT)
+    NT = with_max_degree(with_type_parameters(Node, T), Val(D))
+
     return tree_mapreduce(
         leaf -> if leaf.constant
-            Node(; val=leaf.val)
+            NT(; val=leaf.val)
         elseif leaf.is_parameter
-            Node(T; feature=leaf.parameter)
+            NT(T; feature=leaf.parameter)
         else
-            Node(T; feature=leaf.feature + num_params)
+            NT(T; feature=leaf.feature + num_params)
         end,
         branch -> branch.op,
-        (op, children...) -> Node(; op, children),
-        get_tree(ex),
-        Node{T},
+        (op, children...) -> NT(; op, children),
+        tree,
+        NT,
     )
 end
 function CRC.rrule(::typeof(convert), ::Type{Node}, ex::ParametricExpression{T}) where {T}
