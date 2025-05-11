@@ -332,6 +332,7 @@ function deg0_eval(
     end
 end
 
+# This basically forms an if statement over the operators for the degree.
 @generated function inner_dispatch_degn_eval(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
@@ -359,6 +360,8 @@ end
         )
     end
 end
+
+# This forms an if statement over the degree of a given node.
 @generated function dispatch_degn_eval(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},

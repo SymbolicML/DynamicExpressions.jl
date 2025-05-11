@@ -5,8 +5,7 @@ import ..NodeUtilsModule: tree_mapreduce, is_node_constant
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..ValueInterfaceModule: is_valid
 
-_una_op_kernel(f::F, l::T) where {F,T} = f(l)
-_bin_op_kernel(f::F, l::T, r::T) where {F,T} = f(l, r)
+_op_kernel(f::F, l::T, ls::T...) where {F,T} = f(l, ls...)
 
 is_commutative(::typeof(*)) = true
 is_commutative(::typeof(+)) = true
@@ -17,8 +16,8 @@ is_subtraction(_) = false
 
 combine_operators(tree::AbstractExpressionNode, ::AbstractOperatorEnum) = tree
 # This is only defined for `Node` as it is not possible for, e.g.,
-# `GraphNode`.
-function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where {T}
+# `GraphNode`, and n-arity nodes.
+function combine_operators(tree::Node{T,2}, operators::AbstractOperatorEnum) where {T}
     # NOTE: (const (+*-) const) already accounted for. Call simplify_tree! before.
     # ((const + var) + const) => (const + var)
     # ((const * var) * const) => (const * var)
@@ -51,10 +50,10 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
         if below.degree == 2 && below.op == op
             if is_node_constant(below.l)
                 tree = below
-                tree.l.val = _bin_op_kernel(operators.binops[op], tree.l.val, topconstant)
+                tree.l.val = _op_kernel(operators.binops[op], tree.l.val, topconstant)
             elseif is_node_constant(below.r)
                 tree = below
-                tree.r.val = _bin_op_kernel(operators.binops[op], tree.r.val, topconstant)
+                tree.r.val = _op_kernel(operators.binops[op], tree.r.val, topconstant)
             end
         end
     end
@@ -106,15 +105,13 @@ function combine_operators(tree::Node{T}, operators::AbstractOperatorEnum) where
     return tree
 end
 
-function combine_children!(operators, p::N, c::N...) where {T,N<:AbstractExpressionNode{T}}
+function combine_children!(
+    operators, p::N, c::Vararg{N,degree}
+) where {T,N<:AbstractExpressionNode{T},degree}
     all(is_node_constant, c) || return p
     vals = map(n -> n.val, c)
     all(is_valid, vals) || return p
-    out = if length(c) == 1
-        _una_op_kernel(operators.unaops[p.op], vals...)
-    else
-        _bin_op_kernel(operators.binops[p.op], vals...)
-    end
+    out = _op_kernel(operators[degree][p.op], vals...)
     is_valid(out) || return p
     new_node = constructorof(N)(T; val=convert(T, out))
     set_node!(p, new_node)
