@@ -3,7 +3,7 @@ module ReadOnlyNodeModule
 using DispatchDoctor: @unstable
 
 using ..NodeModule: AbstractExpressionNode, Node
-import ..NodeModule: default_allocator, with_type_parameters, constructorof, children
+import ..NodeModule: default_allocator, with_type_parameters, constructorof, get_children
 
 abstract type AbstractReadOnlyNode{T,D,N<:AbstractExpressionNode{T,D},IS_REF} <:
               AbstractExpressionNode{T,D} end
@@ -38,8 +38,8 @@ Base.getindex(n::AbstractReadOnlyNode{T,D,N,true} where {T,D,N}) = n
         return out
     end
 end
-@inline function children(node::AbstractReadOnlyNode, ::Val{n}) where {n}
-    return map(ReadOnlyNode, children(inner(node), Val(n)))
+@inline function get_children(node::AbstractReadOnlyNode)
+    return map(ReadOnlyNode, get_children(inner(node)))
 end
 function Base.setproperty!(::AbstractReadOnlyNode, ::Symbol, v)
     return error("Cannot set properties on a ReadOnlyNode")

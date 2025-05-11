@@ -12,7 +12,7 @@ using ..NodeModule:
     constructorof,
     default_allocator,
     with_type_parameters,
-    children,
+    get_children,
     leaf_copy,
     leaf_convert,
     leaf_hash,
@@ -226,12 +226,12 @@ function _check_create_node(tree::AbstractExpressionNode)
     NT = with_type_parameters(N, Float16)
     return NT() isa NT
 end
-function _check_children(tree::AbstractExpressionNode{T,D}) where {T,D}
+function _check_get_children(tree::AbstractExpressionNode{T,D}) where {T,D}
     tree.degree == 0 && return true
-    return children(tree) isa Tuple{typeof(tree),Vararg{typeof(tree)}} &&
-               children(tree, Val(D)) isa Tuple &&
-               length(children(tree, Val(D))) == D &&
-               length(children(tree, Val(1))) == 1
+    return get_children(tree) isa Tuple{typeof(tree),Vararg{typeof(tree)}} &&
+           get_children(tree, Val(D)) isa Tuple &&
+           length(get_children(tree, Val(D))) == D &&
+           length(get_children(tree, Val(1))) == 1
 end
 function _check_copy(tree::AbstractExpressionNode)
     return copy(tree) isa typeof(tree)
@@ -308,19 +308,19 @@ function _check_leaf_equal(tree::AbstractExpressionNode)
 end
 function _check_branch_copy(tree::AbstractExpressionNode)
     tree.degree == 0 && return true
-    return branch_copy(tree, children(tree, Val(tree.degree))...) isa typeof(tree)
+    return branch_copy(tree, get_children(tree, Val(tree.degree))...) isa typeof(tree)
 end
 function _check_branch_copy_into!(tree::AbstractExpressionNode{T}) where {T}
     tree.degree == 0 && return true
     new_branch = constructorof(typeof(tree))(; val=zero(T))
     ret = branch_copy_into!(
-        new_branch, tree, map(copy, children(tree, Val(tree.degree)))...
+        new_branch, tree, map(copy, get_children(tree, Val(tree.degree)))...
     )
     return new_branch == tree && ret === new_branch
 end
 function _check_branch_convert(tree::AbstractExpressionNode)
     tree.degree == 0 && return true
-    return branch_convert(typeof(tree), tree, children(tree, Val(tree.degree))...) isa
+    return branch_convert(typeof(tree), tree, get_children(tree, Val(tree.degree))...) isa
            typeof(tree)
 end
 function _check_branch_hash(tree::AbstractExpressionNode)
@@ -367,7 +367,7 @@ end
 ni_components = (
     mandatory = (
         create_node = "creates a new instance of the node type" => _check_create_node,
-        children = "returns the children of the node" => _check_children,
+        get_children = "returns the children of the node" => _check_get_children,
         copy = "returns a copy of the tree" => _check_copy,
         hash = "returns the hash of the tree" => _check_hash,
         any = "checks if any element of the tree satisfies a condition" => _check_any,

@@ -3,7 +3,7 @@ module EvaluateModule
 using DispatchDoctor: @stable, @unstable
 
 import ..NodeModule:
-    AbstractExpressionNode, constructorof, max_degree, children, with_type_parameters
+    AbstractExpressionNode, constructorof, max_degree, get_children, with_type_parameters
 import ..StringsModule: string_tree
 import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: fill_similar, counttuple, ResultOk
@@ -343,7 +343,7 @@ end
 ) where {T,degree,OPS}
     nops = length(OPS.types[degree].types)
     return quote
-        cs = children(tree, Val($degree))
+        cs = get_children(tree, Val($degree))
         Base.Cartesian.@nexprs(
             $degree,
             i -> begin
@@ -727,7 +727,7 @@ end
 ) where {T,degree,OPS}
     nops = length(OPS.types[degree].types)
     get_inputs = quote
-        cs = children(tree, Val($degree))
+        cs = get_children(tree, Val($degree))
         Base.Cartesian.@nexprs(
             $degree,
             i -> begin

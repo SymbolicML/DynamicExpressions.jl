@@ -6,7 +6,7 @@ import ..NodeModule:
     Node,
     preserve_sharing,
     constructorof,
-    get_poison,
+    set_children!,
     copy_node,
     count_nodes,
     tree_mapreduce,
@@ -156,10 +156,9 @@ mutable struct NodeIndex{T,D} <: AbstractNode{D}
         ::Type{_T}, ::Val{_D}, child::NodeIndex{_T,_D}, childs::Vararg{NodeIndex{_T,_D},_D2}
     ) where {_T,_D,_D2}
         node = NodeIndex(_T, Val(_D))
-        poison = get_poison(node)
         children = (child, childs...)
         node.degree = _D2 + 1
-        node.children = ntuple(i -> i <= _D2 + 1 ? children[i] : poison, Val(_D))
+        set_children!(node, children)
         return node
     end
 end

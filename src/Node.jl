@@ -176,14 +176,42 @@ function get_poison(n::AbstractNode)
     return n
 end
 
+@inline function get_children(node::AbstractNode)
+    return getfield(node, :children)
+end
+@inline function get_children(node::AbstractNode, ::Val{n}) where {n}
+    cs = get_children(node)
+    return ntuple(i -> cs[i], Val(Int(n)))
+end
+@inline function get_child(n::AbstractNode{D}, i::Int) where {D}
+    return get_children(n)[i]
+end
+@inline function set_child!(n::AbstractNode{D}, child::AbstractNode{D}, i::Int) where {D}
+    set_children!(n, Base.setindex(get_children(n), child, i))
+    return child
+end
+@inline function set_children!(n::AbstractNode{D}, children::NTuple{D2,AbstractNode{D}}) where {D,D2}
+    if D === D2
+        n.children = children
+    else
+        poison = get_poison(n)
+        # We insert poison at the end of the tuple so that
+        # errors will appear loudly if accessed.
+        # This poison should be efficient to insert. So
+        # for simplicity, we can just use poison == n, which
+        # will trigger infinite recursion errors if accessed.
+        n.children = ntuple(i -> i <= D2 ? children[i] : poison, Val(D))
+    end
+end
+
 macro make_accessors(node_type)
     esc(quote
         @inline function Base.getproperty(n::$node_type, k::Symbol)
             if k == :l
                 # TODO: Should a depwarn be raised here? Or too slow?
-                return getfield(n, :children)[1]
+                return $(get_child)(n, 1)
             elseif k == :r
-                return getfield(n, :children)[2]
+                return $(get_child)(n, 2)
             else
                 return getfield(n, k)
             end
@@ -191,19 +219,13 @@ macro make_accessors(node_type)
         @inline function Base.setproperty!(n::$node_type, k::Symbol, v)
             if k == :l
                 if isdefined(n, :children)
-                    old = getfield(n, :children)
-                    setfield!(n, :children, (v, old[2]))
-                    v
+                    $(set_child!)(n, v, 1)
                 else
-                    poison = $(get_poison)(n)
-                    setfield!(n, :children, (v, poison))
+                    $(set_children!)(n, (v,))
                     v
                 end
             elseif k == :r
-                # TODO: Remove this assert once we know that this is safe
-                old = getfield(n, :children)
-                setfield!(n, :children, (old[1], v))
-                v
+                $(set_child!)(n, v, 2)
             else
                 T = fieldtype(typeof(n), k)
                 if v isa T
@@ -221,12 +243,6 @@ end
 @make_accessors Node
 @make_accessors GraphNode
 # TODO: Disable the `.l` accessors eventually, once the codebase is fully generic
-
-@inline children(node::AbstractNode) = node.children
-@inline function children(node::AbstractNode, ::Val{n}) where {n}
-    cs = children(node)
-    return ntuple(i -> cs[i], Val(Int(n)))
-end
 
 ################################################################################
 #! format: on
@@ -273,11 +289,11 @@ include("base.jl")
 @inline function (::Type{N})(
     ::Type{T1}=Undefined; val=nothing, feature=nothing, op=nothing, l=nothing, r=nothing, children=nothing, allocator::F=default_allocator,
 ) where {T1,N<:AbstractExpressionNode{T} where T,F}
-    _children = if l !== nothing && r === nothing
-        @assert children === nothing
+    _children = if !isnothing(l) && isnothing(r)
+        @assert isnothing(children)
         (l,)
-    elseif l !== nothing && r !== nothing
-        @assert children === nothing
+    elseif !isnothing(l) && !isnothing(r)
+        @assert isnothing(children)
         (l, r)
     else
         children
@@ -328,8 +344,7 @@ end
     n = allocator(N, T)
     n.degree = D2
     n.op = op
-    poison = get_poison(n)
-    n.children = ntuple(i -> i <= D2 ? convert(NT, children[i]) : poison, Val(max_degree(N)))
+    set_children!(n, children)
     return n
 end
 
@@ -398,7 +413,7 @@ function set_node!(tree::AbstractExpressionNode, new_tree::AbstractExpressionNod
         end
     else
         tree.op = new_tree.op
-        tree.children = new_tree.children
+        set_children!(tree, get_children(new_tree))
     end
     return nothing
 end

@@ -7,7 +7,7 @@ using ..NodeModule:
     leaf_copy,
     branch_copy,
     set_node!,
-    get_poison
+    set_children!
 
 """
     allocate_container(prototype::AbstractExpressionNode, n=nothing)
@@ -60,8 +60,7 @@ function branch_copy_into!(
 ) where {T,D,N<:AbstractExpressionNode{T,D},M}
     dest.degree = M
     dest.op = src.op
-    poison = get_poison(dest)
-    dest.children = ntuple(i -> i <= M ? children[i] : poison, D)
+    set_children!(dest, children)
     return dest
 end
 

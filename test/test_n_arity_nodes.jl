@@ -32,7 +32,7 @@
     @test n_bin.children[1] === n_bin_leaf1
     @test n_bin.children[2] === n_bin_leaf2
     @test n_bin.children[3] === n_bin # Poison
-    @test DynamicExpressions.NodeModule.children(n_bin, Val(2)) ==
+    @test DynamicExpressions.NodeModule.get_children(n_bin, Val(2)) ==
         (n_bin_leaf1, n_bin_leaf2)
     # .l and .r should work for Node{T,3} due to general @make_accessors Node
     @test n_bin.l === n_bin_leaf1
@@ -49,7 +49,7 @@
     @test n_ter.children[1] === n_ter_leaf1
     @test n_ter.children[2] === n_ter_leaf2
     @test n_ter.children[3] === n_ter_leaf3
-    @test DynamicExpressions.NodeModule.children(n_ter, Val(3)) ==
+    @test DynamicExpressions.NodeModule.get_children(n_ter, Val(3)) ==
         (n_ter_leaf1, n_ter_leaf2, n_ter_leaf3)
     @test n_ter.l === n_ter_leaf1
     @test n_ter.r === n_ter_leaf2
@@ -461,7 +461,7 @@ end
     @test readonly_tree.degree == 3
     @test readonly_tree.op == 1
 
-    ro_children = DynamicExpressions.NodeModule.children(readonly_tree, Val(3))
+    ro_children = DynamicExpressions.NodeModule.get_children(readonly_tree, Val(3))
     @test length(ro_children) == 3
     @test ro_children[1] isa DynamicExpressions.ReadOnlyNodeModule.AbstractReadOnlyNode
     @test ro_children[1].feature == 1
