@@ -6,7 +6,8 @@ using ..NodeModule:
     tree_mapreduce,
     leaf_copy,
     branch_copy,
-    set_node!
+    set_node!,
+    get_poison
 
 """
     allocate_container(prototype::AbstractExpressionNode, n=nothing)
@@ -56,13 +57,11 @@ end
 # COV_EXCL_STOP
 function branch_copy_into!(
     dest::N, src::N, children::Vararg{N,M}
-) where {N<:AbstractExpressionNode,M}
+) where {T,D,N<:AbstractExpressionNode{T,D},M}
     dest.degree = M
     dest.op = src.op
-    dest.l = children[1]
-    if M == 2
-        dest.r = children[2]
-    end
+    poison = get_poison(dest)
+    dest.children = ntuple(i -> i <= M ? children[i] : poison, D)
     return dest
 end
 
