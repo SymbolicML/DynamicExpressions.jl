@@ -398,10 +398,7 @@ function set_node!(tree::AbstractExpressionNode, new_tree::AbstractExpressionNod
         end
     else
         tree.op = new_tree.op
-        tree.l = new_tree.l
-        if new_tree.degree == 2
-            tree.r = new_tree.r
-        end
+        tree.children = new_tree.children
     end
     return nothing
 end
