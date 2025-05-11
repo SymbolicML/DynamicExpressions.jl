@@ -795,7 +795,6 @@ end
     end
 end
 
-
 function deg0_diff_eval(
     tree::AbstractExpressionNode{T1}, cX::AbstractMatrix{T}, operators::OperatorEnum
 )::ResultOk where {T<:Number,T1}
@@ -816,22 +815,24 @@ end
     cX::AbstractMatrix{T},
     op_idx::Integer,
     ::Val{degree},
-    operators::OperatorEnum{OPS}
+    operators::OperatorEnum{OPS},
 ) where {T<:Number,T1,D,degree,OPS}
     nops = length(OPS.types[degree].types)
     quote
         cs = get_children(tree, Val($degree))
-        Base.Cartesian.@nexprs($degree, i -> begin
-            cumulator_i = let result = _differentiable_eval_tree_array(cs[i], cX, operators)
-                !result.ok && return result
-                result.x
+        Base.Cartesian.@nexprs(
+            $degree,
+            i -> begin
+                cumulator_i =
+                    let result = _differentiable_eval_tree_array(cs[i], cX, operators)
+                        !result.ok && return result
+                        result.x
+                    end
             end
-        end)
+        )
         cumulators = Base.Cartesian.@ntuple($degree, i -> cumulator_i)
         Base.Cartesian.@nif(
-            $nops,
-            i -> i == op_idx,
-            i -> degn_diff_eval(cumulators, operators[$degree][i])
+            $nops, i -> i == op_idx, i -> degn_diff_eval(cumulators, operators[$degree][i])
         )
     end
 end
@@ -910,77 +911,89 @@ function eval(current_node)
     end
 end
 
-@unstable function _eval_tree_array_generic(
-    tree::AbstractExpressionNode{T1},
+@generated function _eval_tree_array_generic(
+    tree::AbstractExpressionNode{T1,D},
     cX::AbstractArray{T2,N},
     operators::GenericOperatorEnum,
     ::Val{throw_errors},
-) where {T1,T2,N,throw_errors}
-    if tree.degree == 0
-        if tree.constant
-            if N == 1
-                return (tree.val::T1), true
-            else
-                return fill(tree.val::T1, size(cX)[2:N]), true
-            end
+) where {T1,D,T2,N,throw_errors}
+    quote
+        tree.degree == 0 && return deg0_eval_generic(tree, cX)
+        op_idx = tree.op
+        deg = tree.degree
+        Base.Cartesian.@nif(
+            $D,
+            i -> i == deg,
+            i -> dispatch_degn_eval_generic(
+                tree, cX, op_idx, Val(i), operators, Val(throw_errors)
+            )
+        )
+    end
+end
+
+@unstable function deg0_eval_generic(
+    tree::AbstractExpressionNode{T1}, cX::AbstractArray{T2,N}
+) where {T1,T2,N}
+    if tree.constant
+        if N == 1
+            return (tree.val::T1), true
         else
-            if N == 1
-                return (cX[tree.feature]), true
-            else
-                return copy(selectdim(cX, 1, tree.feature)), true
-            end
+            return fill(tree.val::T1, size(cX)[2:N]), true
         end
-    elseif tree.degree == 1
-        return deg1_eval_generic(
-            tree, cX, operators.unaops[tree.op], operators, Val(throw_errors)
-        )
     else
-        return deg2_eval_generic(
-            tree, cX, operators.binops[tree.op], operators, Val(throw_errors)
-        )
+        if N == 1
+            return (cX[tree.feature]), true
+        else
+            return copy(selectdim(cX, 1, tree.feature)), true
+        end
     end
 end
 
-@unstable function deg1_eval_generic(
-    tree::AbstractExpressionNode{T1},
-    cX::AbstractArray{T2,N},
-    op::F,
-    operators::GenericOperatorEnum,
-    ::Val{throw_errors},
-) where {F,T1,T2,N,throw_errors}
-    left, complete = _eval_tree_array_generic(tree.l, cX, operators, Val(throw_errors))
-    !throw_errors && !complete && return nothing, false
-    !throw_errors &&
-        !hasmethod(op, N == 1 ? Tuple{typeof(left)} : Tuple{eltype(left)}) &&
-        return nothing, false
+@unstable function degn_eval_generic(
+    cumulators::C, op::F, ::Val{N}, ::Val{throw_errors}
+) where {C<:Tuple,F,N,throw_errors}
+    if !throw_errors
+        input_type = N == 1 ? C : Tuple{map(eltype, cumulators)...}
+        !hasmethod(op, input_type) && return nothing, false
+    end
     if N == 1
-        return op(left), true
+        return op(cumulators...), true
     else
-        return op.(left), true
+        return op.(cumulators...), true
     end
 end
 
-@unstable function deg2_eval_generic(
+@generated function dispatch_degn_eval_generic(
     tree::AbstractExpressionNode{T1},
     cX::AbstractArray{T2,N},
-    op::F,
-    operators::GenericOperatorEnum,
+    op_idx::Integer,
+    ::Val{degree},
+    operators::GenericOperatorEnum{OPS},
     ::Val{throw_errors},
-) where {F,T1,T2,N,throw_errors}
-    left, complete = _eval_tree_array_generic(tree.l, cX, operators, Val(throw_errors))
-    !throw_errors && !complete && return nothing, false
-    right, complete = _eval_tree_array_generic(tree.r, cX, operators, Val(throw_errors))
-    !throw_errors && !complete && return nothing, false
-    !throw_errors &&
-        !hasmethod(
-            op,
-            N == 1 ? Tuple{typeof(left),typeof(right)} : Tuple{eltype(left),eltype(right)},
-        ) &&
-        return nothing, false
-    if N == 1
-        return op(left, right), true
-    else
-        return op.(left, right), true
+) where {T1,T2,N,degree,throw_errors,OPS}
+    nops = length(OPS.types[degree].types)
+    quote
+        cs = get_children(tree, Val($degree))
+        Base.Cartesian.@nexprs(
+            $degree,
+            i -> begin
+                cumulator_i =
+                    let (x, complete) = _eval_tree_array_generic(
+                            cs[i], cX, operators, Val(throw_errors)
+                        )
+                        !throw_errors && !complete && return nothing, false
+                        x
+                    end
+            end
+        )
+        cumulators = Base.Cartesian.@ntuple($degree, i -> cumulator_i)
+        Base.Cartesian.@nif(
+            $nops,
+            i -> i == op_idx,
+            i -> degn_eval_generic(
+                cumulators, operators[$degree][i], Val(N), Val(throw_errors)
+            )
+        )
     end
 end
 
