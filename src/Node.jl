@@ -11,11 +11,14 @@ const DEFAULT_MAX_DEGREE = 2
 """
     AbstractNode{D}
 
-Abstract type for D-arity trees. Must have the following fields:
+Abstract type for trees which can have up to `D` children per node.
+Must have the following fields:
 
 - `degree::UInt8`: Degree of the node. This should be a value
-    between 0 and `DEFAULT_MAX_DEGREE`.
-- `children`: A collection of D references to children nodes.
+    between 0 and `D`, inclusive.
+- `children`: A collection of up to `D` children nodes. The number
+    of children which are _active_ is given by the `degree` field,
+    but for type stability reasons, you can have inactive children.
 
 # Deprecated fields
 
@@ -250,12 +253,14 @@ end
 Base.eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = T
 Base.eltype(::AbstractExpressionNode{T}) where {T} = T
 
+# COV_EXCL_START
 max_degree(::Type{<:AbstractNode}) = DEFAULT_MAX_DEGREE
 max_degree(::Type{<:AbstractNode{D}}) where {D} = D
 max_degree(node::AbstractNode) = max_degree(typeof(node))
 
 has_max_degree(::Type{<:AbstractNode}) = false
 has_max_degree(::Type{<:AbstractNode{D}}) where {D} = true
+# COV_EXCL_STOP
 
 @unstable function constructorof(::Type{N}) where {N<:Node}
     return Node{T,max_degree(N)} where {T}
@@ -358,8 +363,8 @@ end
         eltype(N)
     end
 end
-defines_eltype(::Type{<:AbstractExpressionNode}) = false
-defines_eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = true
+defines_eltype(::Type{<:AbstractExpressionNode}) = false  # COV_EXCL_LINE
+defines_eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = true  # COV_EXCL_LINE
 #! format: on
 
 function (::Type{N})(

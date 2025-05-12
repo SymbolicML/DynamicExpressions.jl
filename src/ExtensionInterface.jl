@@ -27,6 +27,6 @@ function bumper_eval_tree_array(args...)
 end
 function bumper_kern! end
 
-_is_loopvectorization_loaded(_) = false
+_is_loopvectorization_loaded(_) = false  # COV_EXCL_LINE
 
 end
