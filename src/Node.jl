@@ -169,7 +169,14 @@ when constructing or setting properties.
 """
 GraphNode
 
-function get_poison(n::AbstractNode)
+"""
+    poison_node(n::AbstractNode)
+
+Return a placeholder for unused child slots, ensuring type stability.
+Accessing this node should trigger some kind of noticable error
+(e.g., default returns itself, which causes infinite recursion).
+"""
+function poison_node(n::AbstractNode)
     # We don't want to use `nothing` because the type instability
     # hits memory hard.
     # Setting itself as the right child is the best thing,
@@ -197,7 +204,7 @@ end
     if D === D2
         n.children = children
     else
-        poison = get_poison(n)
+        poison = poison_node(n)
         # We insert poison at the end of the tuple so that
         # errors will appear loudly if accessed.
         # This poison should be efficient to insert. So
