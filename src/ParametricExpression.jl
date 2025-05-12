@@ -311,6 +311,24 @@ function extract_gradient(
     return vcat(d_constants, d_params)  # Same shape as `get_scalar_constants`
 end
 
+struct BranchConverter{NT<:Node} <: Function end
+struct LeafConverter{NT<:Node} <: Function
+    num_params::UInt16
+end
+function (bc::BranchConverter{NT})(
+    branch::ParametricNode, children::Vararg{Any,M}
+) where {NT,M}
+    return NT(; branch.op, children)
+end
+function (lc::LeafConverter{NT})(leaf::ParametricNode) where {NT}
+    if leaf.constant
+        return NT(; val=leaf.val)
+    elseif leaf.is_parameter
+        return NT(; feature=leaf.parameter)
+    else
+        return NT(; feature=leaf.feature + lc.num_params)
+    end
+end
 function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
     num_params = UInt16(size(ex.metadata.parameters, 1))
     tree = get_tree(ex)
@@ -319,17 +337,7 @@ function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
     NT = with_max_degree(with_type_parameters(Node, T), Val(D))
 
     return tree_mapreduce(
-        leaf -> if leaf.constant
-            NT(; val=leaf.val)
-        elseif leaf.is_parameter
-            NT(T; feature=leaf.parameter)
-        else
-            NT(T; feature=leaf.feature + num_params)
-        end,
-        branch -> branch.op,
-        (op, children...) -> NT(; op, children),
-        tree,
-        NT,
+        LeafConverter{NT}(num_params), branch -> branch.op, BranchConverter{NT}(), tree, NT
     )
 end
 function CRC.rrule(::typeof(convert), ::Type{Node}, ex::ParametricExpression{T}) where {T}
