@@ -190,7 +190,7 @@ end
     set_children!(n, Base.setindex(get_children(n), child, i))
     return child
 end
-@inline function set_children!(n::AbstractNode{D}, children::NTuple{D2,AbstractNode{D}}) where {D,D2}
+@inline function set_children!(n::AbstractNode{D}, children::Tuple{Vararg{AbstractNode{D},D2}}) where {D,D2}
     if D === D2
         n.children = children
     else
