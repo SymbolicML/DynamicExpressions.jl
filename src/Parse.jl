@@ -282,50 +282,46 @@ end
     evaluate_on::Union{Nothing,AbstractVector};
     kws...,
 )::N where {F<:Function,N<:AbstractExpressionNode,E<:AbstractExpression}
-    if length(args) == 2 && func ∈ operators.unaops
-        # Regular unary operator
-        op = findfirst(==(func), operators.unaops)::Int
+    degree = length(args) - 1
+    if degree <= length(operators.ops) && func ∈ operators[degree]
+        op_idx = findfirst(==(func), operators[degree])
         return N(;
-            op=op::Int,
-            l=_parse_expression(
-                args[2], operators, variable_names, N, E, evaluate_on; kws...
+            op=op_idx::Int,
+            children=map(
+                arg -> _parse_expression(
+                    arg, operators, variable_names, N, E, evaluate_on; kws...
+                ),
+                (args[2:end]...,),
             ),
         )
-    elseif length(args) == 3 && func ∈ operators.binops
-        # Regular binary operator
-        op = findfirst(==(func), operators.binops)::Int
-        return N(;
-            op=op::Int,
-            l=_parse_expression(
-                args[2], operators, variable_names, N, E, evaluate_on; kws...
-            ),
-            r=_parse_expression(
-                args[3], operators, variable_names, N, E, evaluate_on; kws...
-            ),
-        )
-    elseif length(args) > 3 && func in (+, -, *) && func ∈ operators.binops
-        # Either + or - but used with more than two arguments
-        op = findfirst(==(func), operators.binops)::Int
+    elseif degree > 2 && func ∈ (+, -, *) && func ∈ operators[2]
+        op_idx = findfirst(==(func), operators[2])::Int
         inner = N(;
-            op=op::Int,
-            l=_parse_expression(
-                args[2], operators, variable_names, N, E, evaluate_on; kws...
-            ),
-            r=_parse_expression(
-                args[3], operators, variable_names, N, E, evaluate_on; kws...
+            op=op_idx::Int,
+            children=(
+                _parse_expression(
+                    args[2], operators, variable_names, N, E, evaluate_on; kws...
+                ),
+                _parse_expression(
+                    args[3], operators, variable_names, N, E, evaluate_on; kws...
+                ),
             ),
         )
         for arg in args[4:end]
             inner = N(;
-                op=op::Int,
-                l=inner,
-                r=_parse_expression(
-                    arg, operators, variable_names, N, E, evaluate_on; kws...
+                op=op_idx::Int,
+                children=(
+                    inner,
+                    _parse_expression(
+                        arg, operators, variable_names, N, E, evaluate_on; kws...
+                    ),
                 ),
             )
         end
         return inner
-    elseif evaluate_on !== nothing && func in evaluate_on
+    end
+
+    if evaluate_on !== nothing && func in evaluate_on
         # External function
         func(
             map(
@@ -337,10 +333,8 @@ end
         )
     else
         matching_s = let
-            s = if length(args) == 2
-                "`" * string(operators.unaops) * "`"
-            elseif length(args) == 3
-                "`" * string(operators.binops) * "`"
+            s = if degree <= length(operators.ops)
+                join(('`', operators[degree], '`'))
             else
                 ""
             end

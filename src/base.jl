@@ -177,9 +177,7 @@ By using this instead of tree_mapreduce, we can take advantage of early exits.
 @generated function any(f::F, tree::AbstractNode{D}) where {F<:Function,D}
     quote
         deg = tree.degree
-
         deg == 0 && return @inline(f(tree))
-
         return (
             @inline(f(tree)) || Base.Cartesian.@nif(
                 $D, i -> deg == i, i -> let cs = get_children(tree, Val(i))
