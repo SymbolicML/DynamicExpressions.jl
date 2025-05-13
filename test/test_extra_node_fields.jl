@@ -27,6 +27,9 @@ function DynamicExpressions.with_type_parameters(
 ) where {T,N<:FrozenNode}
     return FrozenNode{T,max_degree(N)}
 end
+function DynamicExpressions.with_max_degree(::Type{N}, ::Val{D}) where {T,N<:FrozenNode{T}}
+    return FrozenNode{T,D}
+end
 function DynamicExpressions.leaf_copy(t::FrozenNode{T}) where {T}
     out = if t.constant
         constructorof(typeof(t))(; val=t.val)
