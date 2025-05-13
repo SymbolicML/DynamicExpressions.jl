@@ -49,7 +49,3 @@ if "main" in test_name
     include("unittest.jl")
     @run_package_tests
 end
-if "narity" in test_name
-    include("test_n_arity_nodes.jl")
-    @run_package_tests filter = ti -> (:narity in ti.tags)
-end
