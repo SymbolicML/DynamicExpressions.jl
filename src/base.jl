@@ -529,9 +529,14 @@ using `convert(T1, tree.val)` at constant nodes.
 """
 function convert(
     ::Type{N1}, tree::N2
-) where {T1,T2,N1<:AbstractExpressionNode{T1},N2<:AbstractExpressionNode{T2}}
+) where {T1,T2,D1,D2,N1<:AbstractExpressionNode{T1,D1},N2<:AbstractExpressionNode{T2,D2}}
     if N1 === N2
         return tree
+    end
+    if D1 !== D2
+        throw(
+            ArgumentError("Cannot convert $N2 to $N1 because they have different degrees.")
+        )
     end
     return tree_mapreduce(
         Base.Fix1(leaf_convert, N1),
@@ -541,6 +546,11 @@ function convert(
         N1,
     )
     # TODO: Need to allow user to overload this!
+end
+function convert(
+    ::Type{N1}, tree::N2
+) where {T1,T2,D,N1<:AbstractExpressionNode{T1},N2<:AbstractExpressionNode{T2,D}}
+    return convert(with_max_degree(N1, Val(D)), tree)
 end
 function convert(
     ::Type{N1}, tree::N2
