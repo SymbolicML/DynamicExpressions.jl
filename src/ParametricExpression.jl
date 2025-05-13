@@ -315,10 +315,8 @@ struct BranchConverter{NT<:Node} <: Function end
 struct LeafConverter{NT<:Node} <: Function
     num_params::UInt16
 end
-function (bc::BranchConverter{NT})(
-    branch::ParametricNode, children::Vararg{Any,M}
-) where {NT,M}
-    return NT(; branch.op, children)
+function (bc::BranchConverter{NT})(op::Integer, children::Vararg{Any,M}) where {NT,M}
+    return NT(; op, children)
 end
 function (lc::LeafConverter{NT})(leaf::ParametricNode) where {NT}
     if leaf.constant

@@ -6,7 +6,7 @@ import ..UtilsModule: fill_similar, ResultOk2
 import ..ValueInterfaceModule: is_valid_array
 import ..NodeUtilsModule: count_constant_nodes, index_constant_nodes, NodeIndex
 import ..EvaluateModule:
-    deg0_eval, get_nuna, get_nbin, OPERATOR_LIMIT_BEFORE_SLOWDOWN, EvalOptions
+    deg0_eval, get_op, get_nops, OPERATOR_LIMIT_BEFORE_SLOWDOWN, EvalOptions
 import ..ExtensionInterfaceModule: _zygote_gradient
 
 """
@@ -120,10 +120,10 @@ end
     tree::AbstractExpressionNode{T,D},
     cX::AbstractMatrix{T},
     ::Val{degree},
-    operators::OperatorEnum{OPS},
+    operators::OperatorEnum,
     direction::Integer,
-) where {T<:Number,D,degree,OPS}
-    nops = length(OPS.types[degree].types)
+) where {T<:Number,D,degree}
+    nops = get_nops(operators, Val(degree))
 
     setup = quote
         cs = get_children(tree, Val($degree))
@@ -153,7 +153,10 @@ end
                 $nops,
                 i -> i == op_idx,
                 i -> diff_degn_eval(
-                    x_cumulators, dx_cumulators, operators[$degree][i], direction
+                    x_cumulators,
+                    dx_cumulators,
+                    get_op(operators, Val($degree), Val(i)),
+                    direction,
                 )
             )
         end
@@ -280,9 +283,9 @@ end
     index_tree::Union{NodeIndex,Nothing},
     cX::AbstractMatrix{T},
     ::Val{degree},
-    operators::OperatorEnum{OPS},
+    operators::OperatorEnum,
     ::Val{mode},
-) where {T<:Number,degree,OPS,mode}
+) where {T<:Number,degree,mode}
     setup = quote
         cs = get_children(tree, Val($degree))
         index_cs =
@@ -305,7 +308,7 @@ end
         d_cumulators = Base.Cartesian.@ntuple($degree, i -> result_i.dx)
         op_idx = tree.op
     end
-    nops = length(OPS.types[degree].types)
+    nops = get_nops(operators, Val(degree))
     if nops > OPERATOR_LIMIT_BEFORE_SLOWDOWN
         quote
             $setup
@@ -317,7 +320,9 @@ end
             Base.Cartesian.@nif(
                 $nops,
                 i -> i == op_idx,
-                i -> grad_degn_eval(x_cumulators, d_cumulators, operators[$degree][i])
+                i -> grad_degn_eval(
+                    x_cumulators, d_cumulators, get_op(operators, Val($degree), Val(i))
+                )
             )
         end
     end

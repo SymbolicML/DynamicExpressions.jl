@@ -113,12 +113,20 @@ end
     @test operators_full[2] == (my_binary_op,)
     @test operators_full[3] == (my_ternary_op,)
 
-    @test DynamicExpressions.EvaluateModule.get_nuna(typeof(operators_full)) == 1
-    @test DynamicExpressions.EvaluateModule.get_nbin(typeof(operators_full)) == 1
-    @test DynamicExpressions.EvaluateModule.get_nuna(typeof(operators_unary_only)) == 1
-    @test DynamicExpressions.EvaluateModule.get_nbin(typeof(operators_unary_only)) == 0
-    @test DynamicExpressions.EvaluateModule.get_nuna(typeof(operators_binary_only)) == 0
-    @test DynamicExpressions.EvaluateModule.get_nbin(typeof(operators_binary_only)) == 1
+    @test DynamicExpressions.EvaluateModule.get_nops(typeof(operators_full), Val(1)) == 1
+    @test DynamicExpressions.EvaluateModule.get_nops(typeof(operators_full), Val(2)) == 1
+    @test DynamicExpressions.EvaluateModule.get_nops(
+        typeof(operators_unary_only), Val(1)
+    ) == 1
+    @test DynamicExpressions.EvaluateModule.get_nops(
+        typeof(operators_unary_only), Val(2)
+    ) == 0
+    @test DynamicExpressions.EvaluateModule.get_nops(
+        typeof(operators_binary_only), Val(1)
+    ) == 0
+    @test DynamicExpressions.EvaluateModule.get_nops(
+        typeof(operators_binary_only), Val(2)
+    ) == 1
 end
 
 @testitem "N-ary Evaluation (targeting dispatch_degn_eval)" tags = [:narity] begin

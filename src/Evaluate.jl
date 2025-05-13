@@ -5,7 +5,7 @@ using DispatchDoctor: @stable, @unstable
 import ..NodeModule:
     AbstractExpressionNode, constructorof, max_degree, get_children, with_type_parameters
 import ..StringsModule: string_tree
-import ..OperatorEnumModule: OperatorEnum, GenericOperatorEnum
+import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: fill_similar, counttuple, ResultOk
 import ..NodeUtilsModule: is_constant
 import ..ExtensionInterfaceModule: bumper_eval_tree_array, _is_loopvectorization_loaded
@@ -252,13 +252,11 @@ end
 
 # These are marked unstable due to issues discussed on
 # https://github.com/JuliaLang/julia/issues/55147
-@unstable function get_nuna(::Type{<:OperatorEnum{OPS}}) where {OPS}
-    ts = OPS.types
-    return isempty(ts) ? 0 : counttuple(ts[1])
-end
-@unstable function get_nbin(::Type{<:OperatorEnum{OPS}}) where {OPS}
-    ts = OPS.types
-    return length(ts) == 1 ? 0 : counttuple(ts[2])
+@unstable function get_nops(
+    ::Type{O}, ::Val{degree}
+) where {OPS,O<:Union{OperatorEnum{OPS},GenericOperatorEnum{OPS}},degree}
+    max_degree = counttuple(OPS)
+    return degree > max_degree ? 0 : counttuple(OPS.types[degree])
 end
 
 function _eval_tree_array(
@@ -332,15 +330,30 @@ function deg0_eval(
     end
 end
 
+# This is used for type stability, since Julia will fail inference
+# when the operator list is empty, even if that node type never appears
+@inline function get_op(
+    operators::AbstractOperatorEnum, ::Val{degree}, ::Val{i}
+) where {degree,i}
+    ops = operators[degree]
+    if isempty(ops)
+        error(
+            lazy"Invalid access: a node has degree $degree, but no operators were passed for this degree.",
+        )
+    else
+        return ops[i]
+    end
+end
+
 # This basically forms an if statement over the operators for the degree.
 @generated function inner_dispatch_degn_eval(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     ::Val{degree},
-    operators::OperatorEnum{OPS},
+    operators::O,
     eval_options::EvalOptions,
-) where {T,degree,OPS}
-    nops = length(OPS.types[degree].types)
+) where {T,degree,O<:OperatorEnum}
+    nops = get_nops(O, Val(degree))
     return quote
         cs = get_children(tree, Val($degree))
         Base.Cartesian.@nexprs(
@@ -356,7 +369,9 @@ end
         Base.Cartesian.@nif(
             $nops,
             i -> i == op_idx,
-            i -> degn_eval(cumulators, operators[$degree][i], eval_options),
+            i -> degn_eval(
+                cumulators, get_op(operators, Val($degree), Val(i)), eval_options
+            ),
         )
     end
 end
@@ -386,7 +401,7 @@ end
     operators::OperatorEnum,
     eval_options::EvalOptions,
 ) where {T}
-    nbin = get_nbin(operators)
+    nbin = get_nops(operators, Val(2))
     long_compilation_time = nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     if long_compilation_time
         return quote
@@ -440,7 +455,7 @@ end
     operators::OperatorEnum,
     eval_options::EvalOptions,
 ) where {T}
-    nuna = get_nuna(operators)
+    nuna = get_nops(operators, Val(1))
     long_compilation_time = nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     if long_compilation_time
         return quote
@@ -723,9 +738,9 @@ end
 
 # Now that we have the degree, we can get the operator
 @generated function inner_dispatch_degn_eval_constant(
-    tree::AbstractExpressionNode{T}, ::Val{degree}, operators::OperatorEnum{OPS}
-) where {T,degree,OPS}
-    nops = length(OPS.types[degree].types)
+    tree::AbstractExpressionNode{T}, ::Val{degree}, operators::OperatorEnum
+) where {T,degree}
+    nops = get_nops(operators, Val(degree))
     get_inputs = quote
         cs = get_children(tree, Val($degree))
         Base.Cartesian.@nexprs(
@@ -752,7 +767,9 @@ end
             Base.Cartesian.@nif(
                 $nops,
                 i -> i == op_idx,
-                i -> degn_eval_constant(inputs, operators[$degree][i])::ResultOk{T}
+                i -> degn_eval_constant(
+                    inputs, get_op(operators, Val($degree), Val(i))
+                )::ResultOk{T}
             )
         end
     end
@@ -815,9 +832,9 @@ end
     cX::AbstractMatrix{T},
     op_idx::Integer,
     ::Val{degree},
-    operators::OperatorEnum{OPS},
-) where {T<:Number,T1,D,degree,OPS}
-    nops = length(OPS.types[degree].types)
+    operators::OperatorEnum,
+) where {T<:Number,T1,D,degree}
+    nops = get_nops(operators, Val(degree))
     quote
         cs = get_children(tree, Val($degree))
         Base.Cartesian.@nexprs(
@@ -832,7 +849,9 @@ end
         )
         cumulators = Base.Cartesian.@ntuple($degree, i -> cumulator_i)
         Base.Cartesian.@nif(
-            $nops, i -> i == op_idx, i -> degn_diff_eval(cumulators, operators[$degree][i])
+            $nops,
+            i -> i == op_idx,
+            i -> degn_diff_eval(cumulators, get_op(operators, Val($degree), Val(i)))
         )
     end
 end
@@ -968,10 +987,10 @@ end
     cX::AbstractArray{T2,N},
     op_idx::Integer,
     ::Val{degree},
-    operators::GenericOperatorEnum{OPS},
+    operators::GenericOperatorEnum,
     ::Val{throw_errors},
-) where {T1,T2,N,degree,throw_errors,OPS}
-    nops = length(OPS.types[degree].types)
+) where {T1,T2,N,degree,throw_errors}
+    nops = get_nops(operators, Val(degree))
     quote
         cs = get_children(tree, Val($degree))
         Base.Cartesian.@nexprs(
@@ -991,7 +1010,10 @@ end
             $nops,
             i -> i == op_idx,
             i -> degn_eval_generic(
-                cumulators, operators[$degree][i], Val(N), Val(throw_errors)
+                cumulators,
+                get_op(operators, Val($degree), Val(i)),
+                Val(N),
+                Val(throw_errors),
             )
         )
     end
