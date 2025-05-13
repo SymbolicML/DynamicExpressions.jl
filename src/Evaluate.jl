@@ -255,8 +255,7 @@ end
 @unstable function get_nops(
     ::Type{O}, ::Val{degree}
 ) where {OPS,O<:Union{OperatorEnum{OPS},GenericOperatorEnum{OPS}},degree}
-    max_degree = counttuple(OPS)
-    return degree > max_degree ? 0 : counttuple(OPS.types[degree])
+    return degree > counttuple(OPS) ? 0 : counttuple(OPS.types[degree])
 end
 
 function _eval_tree_array(
@@ -345,8 +344,26 @@ end
     end
 end
 
+# TODO: Hack to fix type instability in some branches that can't be inferred.
+# It does this using the other branches, which _can_ be inferred.
+function _get_return_type(tree, cX, operators, eval_options)
+    # public Julia API version of `Core.Compiler.return_type(_eval_tree_array, typeof((tree, cX, operators, eval_options)))`
+    return eltype([_eval_tree_array(tree, cX, operators, eval_options) for _ in 1:0])
+end
+
 # This basically forms an if statement over the operators for the degree.
-@generated function inner_dispatch_degn_eval(
+function inner_dispatch_degn_eval(
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    ::Val{degree},
+    operators::OperatorEnum,
+    eval_options::EvalOptions,
+) where {T,degree}
+    return _inner_dispatch_degn_eval(
+        tree, cX, Val(degree), operators, eval_options
+    )::(_get_return_type(tree, cX, operators, eval_options))
+end
+@generated function _inner_dispatch_degn_eval(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     ::Val{degree},
@@ -371,7 +388,7 @@ end
             i -> i == op_idx,
             i -> degn_eval(
                 cumulators, get_op(operators, Val($degree), Val(i)), eval_options
-            ),
+            )
         )
     end
 end

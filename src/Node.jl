@@ -2,7 +2,6 @@ module NodeModule
 
 using DispatchDoctor: @unstable
 
-import ..OperatorEnumModule: AbstractOperatorEnum
 import ..UtilsModule: deprecate_varmap, Undefined
 
 const DEFAULT_NODE_TYPE = Float32
@@ -260,14 +259,18 @@ end
 Base.eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = T
 Base.eltype(::AbstractExpressionNode{T}) where {T} = T
 
+#! format: off
 # COV_EXCL_START
-max_degree(::Type{<:AbstractNode}) = DEFAULT_MAX_DEGREE
-max_degree(::Type{<:AbstractNode{D}}) where {D} = D
-max_degree(node::AbstractNode) = max_degree(typeof(node))
+# These are marked unstable due to issues discussed on
+# https://github.com/JuliaLang/julia/issues/55147
+@unstable max_degree(::Type{<:AbstractNode}) = DEFAULT_MAX_DEGREE
+@unstable max_degree(::Type{<:AbstractNode{D}}) where {D} = D
+@unstable max_degree(node::AbstractNode) = max_degree(typeof(node))
 
 has_max_degree(::Type{<:AbstractNode}) = false
 has_max_degree(::Type{<:AbstractNode{D}}) where {D} = true
 # COV_EXCL_STOP
+#! format: on
 
 @unstable function constructorof(::Type{N}) where {N<:Node}
     return Node{T,max_degree(N)} where {T}

@@ -28,6 +28,8 @@ function deprecate_varmap(variable_names, varMap, func_name)
     return variable_names
 end
 
+# These are marked unstable due to issues discussed on
+# https://github.com/JuliaLang/julia/issues/55147
 @unstable counttuple(::Type{<:NTuple{N,Any}}) where {N} = N
 
 """
