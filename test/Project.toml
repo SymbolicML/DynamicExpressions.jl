@@ -27,3 +27,7 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
 Aqua = "0.7"
+
+[preferences.DynamicExpressions]
+dispatch_doctor_mode = "error"
+dispatch_doctor_codegen_level = "min"
