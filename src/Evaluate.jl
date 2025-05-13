@@ -346,7 +346,7 @@ end
 
 # TODO: Hack to fix type instability in some branches that can't be inferred.
 # It does this using the other branches, which _can_ be inferred.
-function _get_return_type(tree, cX, operators, eval_options)
+@unstable function _get_return_type(tree, cX, operators, eval_options)
     # public Julia API version of `Core.Compiler.return_type(_eval_tree_array, typeof((tree, cX, operators, eval_options)))`
     return eltype([_eval_tree_array(tree, cX, operators, eval_options) for _ in 1:0])
 end
