@@ -12,6 +12,8 @@ using ..NodeModule:
     constructorof,
     default_allocator,
     with_type_parameters,
+    with_max_degree,
+    max_degree,
     get_children,
     leaf_copy,
     leaf_convert,
@@ -259,6 +261,12 @@ function _check_with_type_parameters(tree::AbstractExpressionNode{T}) where {T}
     Nf16 = with_type_parameters(N, Float16)
     return Nf16 <: AbstractExpressionNode{Float16}
 end
+function _check_with_max_degree(tree::AbstractExpressionNode)
+    N = typeof(tree)
+    new_D = max_degree(N) + 1
+    N2 = with_max_degree(N, Val(new_D))
+    return N2 <: AbstractExpressionNode && max_degree(N2) == new_D
+end
 function _check_default_allocator(tree::AbstractExpressionNode)
     N = Base.typename(typeof(tree)).wrapper
     return default_allocator(N, Float64) isa with_type_parameters(N, Float64)
@@ -376,6 +384,7 @@ ni_components = (
         constructorof = "gets the constructor function for a node type" => _check_constructorof,
         eltype = "gets the element type of the node" => _check_eltype,
         with_type_parameters = "applies type parameters to the node type" => _check_with_type_parameters,
+        with_max_degree = "changes the maximum degree of a node type" => _check_with_max_degree,
         default_allocator = "gets the default allocator for the node type" => _check_default_allocator,
         set_node! = "sets the node's value" => _check_set_node!,
         count_nodes = "counts the number of nodes in the tree" => _check_count_nodes,
