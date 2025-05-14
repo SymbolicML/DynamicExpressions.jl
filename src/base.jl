@@ -121,8 +121,8 @@ struct TreeMapreducer{
 end
 
 @generated function call_mapreducer(
-    mapreducer::TreeMapreducer{D,ID}, tree::AbstractNode
-) where {D,ID}
+    mapreducer::TreeMapreducer{D,ID,F1,F2,G,H}, tree::AbstractNode
+) where {D,ID,F1,F2,G,H}
     quote
         key = ID <: Dict ? objectid(tree) : nothing
         if ID <: Dict && haskey(mapreducer.id_map, key)
@@ -353,7 +353,7 @@ end
 Collect all nodes in a tree into a flat array in depth-first order.
 """
 function collect(tree::AbstractNode; break_sharing::Val{BS}=Val(false)) where {BS}
-    return filter(Returns(true), tree; break_sharing=Val(BS))
+    return filter(_ -> true, tree; break_sharing=Val(BS))
 end
 Base.IteratorSize(::Type{<:AbstractNode}) = Base.HasLength()
 
