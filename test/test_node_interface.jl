@@ -53,7 +53,7 @@ end
                 idx_max = 1
                 tree = Node{Float64,D}(; op=idx_max, children=(tree, x[1], x[2], x[3]))  # max
             end
-            @test Interfaces.test(NodeInterface, Node, tree)
+            @test Interfaces.test(NodeInterface, Node, [tree])
         end
     end
 end

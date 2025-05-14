@@ -121,8 +121,8 @@ struct TreeMapreducer{
 end
 
 @generated function call_mapreducer(
-    mapreducer::TreeMapreducer{D,ID,F1,F2,G,H}, tree::AbstractNode
-) where {D,ID,F1,F2,G,H}
+    mapreducer::TreeMapreducer{D,ID}, tree::AbstractNode
+) where {D,ID}
     quote
         key = ID <: Dict ? objectid(tree) : nothing
         if ID <: Dict && haskey(mapreducer.id_map, key)
@@ -369,11 +369,13 @@ function map(
     result_type::Type{RT}=Nothing;
     break_sharing::Val{BS}=Val(false),
 ) where {F<:Function,RT,BS}
-    if RT == Nothing
-        return map(f, collect(tree; break_sharing=Val(BS)))
-    else
-        return filter_map(Returns(true), f, tree, result_type; break_sharing=Val(BS))
-    end
+    return _map(f, tree, result_type, Val(BS))
+end
+function _map(f::F, tree::AbstractNode, ::Type{Nothing}, ::Val{BS}) where {F<:Function,BS}
+    return map(f, collect(tree; break_sharing=Val(BS)))
+end
+function _map(f::F, tree::AbstractNode, ::Type{RT}, ::Val{BS}) where {F<:Function,RT,BS}
+    return filter_map(Returns(true), f, tree, RT; break_sharing=Val(BS))
 end
 
 """
