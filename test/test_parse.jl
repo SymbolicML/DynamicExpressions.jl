@@ -112,7 +112,7 @@ end
         )
     end
 
-    @test typeof(ex.tree) === Node{Any}
+    @test typeof(ex.tree) <: Node{Any}
     @test typeof(ex.metadata.operators) <: GenericOperatorEnum
     s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
     @test s == "[1, 2, 3] * tan(cos(5.0 + x))"
@@ -127,7 +127,7 @@ end
         variable_names = ["x"],
         node_type = Node{Union{Int,Vector{Int}}}
     )
-    @test typeof(ex.tree) === Node{Union{Int,Vector{Int}}}
+    @test typeof(ex.tree) <: Node{Union{Int,Vector{Int}}}
     @test typeof(ex.metadata.operators) <: GenericOperatorEnum
     s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
     @test s == "[1, 2, 3] * tan(cos(5 + x))"
@@ -188,7 +188,7 @@ end
         s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
         @test s == "(x * 2.5) - cos(y)"
     end
-    @test contains(logged_out, "Node{Float32}")
+    @test contains(logged_out, "Node{Float32")
 end
 
 @testitem "Helpful errors for missing operator" begin

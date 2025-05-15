@@ -12,12 +12,15 @@ using ..ChainRulesModule: NodeTangent
 import ..NodeModule:
     constructorof,
     with_type_parameters,
+    with_max_degree,
+    max_degree,
     preserve_sharing,
     leaf_copy,
     leaf_convert,
     leaf_hash,
     leaf_equal,
-    set_node!
+    set_node!,
+    @make_accessors
 import ..NodePreallocationModule: copy_into!, allocate_container
 import ..NodeUtilsModule:
     count_constant_nodes,
@@ -44,7 +47,7 @@ import ..ValueInterfaceModule:
     count_scalar_constants, pack_scalar_constants!, unpack_scalar_constants
 
 """A type of expression node that also stores a parameter index"""
-mutable struct ParametricNode{T} <: AbstractExpressionNode{T}
+mutable struct ParametricNode{T,D} <: AbstractExpressionNode{T,D}
     degree::UInt8
     constant::Bool  # if true => constant; if false, then check `is_parameter`
     val::T
@@ -54,16 +57,21 @@ mutable struct ParametricNode{T} <: AbstractExpressionNode{T}
     parameter::UInt16  # Stores index of per-class parameter
 
     op::UInt8
-    l::ParametricNode{T}
-    r::ParametricNode{T}
+    children::NTuple{D,ParametricNode{T,D}}  # Children nodes
 
-    function ParametricNode{_T}() where {_T}
-        n = new{_T}()
+    function ParametricNode{_T,_D}() where {_T,_D}
+        n = new{_T,_D}()
         n.is_parameter = false
         n.parameter = UInt16(0)
         return n
     end
+    # TODO: Test with this disabled to spot any unintended uses
+    function ParametricNode{_T}() where {_T}
+        return ParametricNode{_T,2}()
+    end
 end
+
+@make_accessors ParametricNode
 
 """
     ParametricExpression{T,N<:ParametricNode{T},D<:NamedTuple} <: AbstractExpression{T,N}
@@ -108,10 +116,19 @@ end
 ###############################################################################
 # Abstract expression node interface ##########################################
 ###############################################################################
-@unstable constructorof(::Type{<:ParametricNode}) = ParametricNode
+@unstable constructorof(::Type{N}) where {N<:ParametricNode} =
+    ParametricNode{T,max_degree(N)} where {T}
 @unstable constructorof(::Type{<:ParametricExpression}) = ParametricExpression
-@unstable default_node_type(::Type{<:ParametricExpression}) = ParametricNode
-default_node_type(::Type{<:ParametricExpression{T}}) where {T} = ParametricNode{T}
+function with_type_parameters(::Type{N}, ::Type{T}) where {N<:ParametricNode,T}
+    return ParametricNode{T,max_degree(N)}
+end
+function with_max_degree(::Type{N}, ::Val{D}) where {T,N<:ParametricNode{T},D}
+    return ParametricNode{T,D}
+end
+@unstable default_node_type(::Type{<:ParametricExpression}) = ParametricNode{T,2} where {T}
+function default_node_type(::Type{N}) where {T,N<:ParametricExpression{T}}
+    return ParametricNode{T,max_degree(N)}
+end
 preserve_sharing(::Union{Type{<:ParametricNode},ParametricNode}) = false # TODO: Change this?
 function leaf_copy(t::ParametricNode{T}) where {T}
     if t.constant
@@ -294,20 +311,31 @@ function extract_gradient(
     return vcat(d_constants, d_params)  # Same shape as `get_scalar_constants`
 end
 
+struct BranchConverter{NT<:Node} <: Function end
+struct LeafConverter{NT<:Node} <: Function
+    num_params::UInt16
+end
+function (bc::BranchConverter{NT})(op::Integer, children::Vararg{Any,M}) where {NT,M}
+    return NT(; op, children)
+end
+function (lc::LeafConverter{NT})(leaf::ParametricNode) where {NT}
+    if leaf.constant
+        return NT(; val=leaf.val)
+    elseif leaf.is_parameter
+        return NT(; feature=leaf.parameter)
+    else
+        return NT(; feature=leaf.feature + lc.num_params)
+    end
+end
 function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
     num_params = UInt16(size(ex.metadata.parameters, 1))
+    tree = get_tree(ex)
+    _NT = typeof(tree)
+    D = max_degree(_NT)
+    NT = with_max_degree(with_type_parameters(Node, T), Val(D))
+
     return tree_mapreduce(
-        leaf -> if leaf.constant
-            Node(; val=leaf.val)
-        elseif leaf.is_parameter
-            Node(T; feature=leaf.parameter)
-        else
-            Node(T; feature=leaf.feature + num_params)
-        end,
-        branch -> branch.op,
-        (op, children...) -> Node(; op, children),
-        get_tree(ex),
-        Node{T},
+        LeafConverter{NT}(num_params), branch -> branch.op, BranchConverter{NT}(), tree, NT
     )
 end
 function CRC.rrule(::typeof(convert), ::Type{Node}, ex::ParametricExpression{T}) where {T}

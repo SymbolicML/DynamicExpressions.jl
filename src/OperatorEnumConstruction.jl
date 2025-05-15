@@ -167,7 +167,7 @@ function _extend_unary_operator(
                     $_constructorof(N)(T; val=$($f_inside)(l.val))
                 else
                     latest_op_idx = $($lookup_op)($($f_inside), Val(1))
-                    $_constructorof(N)(; op=latest_op_idx, l)
+                    $_constructorof(N)(; op=latest_op_idx, children=(l,))
                 end
             end
         end
@@ -196,7 +196,7 @@ function _extend_binary_operator(
                     $_constructorof(N)(T; val=$($f_inside)(l.val, r.val))
                 else
                     latest_op_idx = $($lookup_op)($($f_inside), Val(2))
-                    $_constructorof(N)(; op=latest_op_idx, l, r)
+                    $_constructorof(N)(; op=latest_op_idx, children=(l, r))
                 end
             end
             function $($f_outside)(
@@ -207,7 +207,7 @@ function _extend_binary_operator(
                 else
                     latest_op_idx = $($lookup_op)($($f_inside), Val(2))
                     $_constructorof(N)(;
-                        op=latest_op_idx, l, r=$_constructorof(N)(T; val=r)
+                        op=latest_op_idx, children=(l, $_constructorof(N)(T; val=r))
                     )
                 end
             end
@@ -219,7 +219,7 @@ function _extend_binary_operator(
                 else
                     latest_op_idx = $($lookup_op)($($f_inside), Val(2))
                     $_constructorof(N)(;
-                        op=latest_op_idx, l=$_constructorof(N)(T; val=l), r
+                        op=latest_op_idx, children=($_constructorof(N)(T; val=l), r)
                     )
                 end
             end

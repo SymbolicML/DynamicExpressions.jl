@@ -272,7 +272,7 @@ end
         x = GraphNode(Float32; feature=1)
         tree = x + 1.0
         @test tree.l === x
-        @test typeof(tree) === GraphNode{Float32}
+        @test typeof(tree) <: GraphNode{Float32}
 
         # Detect error from Float32(1im)
         @test_throws InexactError x + 1im

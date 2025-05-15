@@ -12,6 +12,7 @@
     using DynamicExpressions, Random
 
     x = Node{Float64}(; feature=1)
+    @test x isa Node{Float64}
 
     # We can also create values, using `val`:
     const_1 = Node{Float64}(; val=1.0)

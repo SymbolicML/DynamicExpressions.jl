@@ -175,9 +175,13 @@ function Base.convert(
         findoperation(op, operators.unaops)
     end
 
-    return constructorof(N)(;
-        op=ind, children=map(x -> convert(N, x, operators; variable_names), args)
-    )
+    if length(args) == 2
+        children = map(x -> convert(N, x, operators; variable_names), (args[1], args[2]))
+        return constructorof(N)(; op=ind, children)
+    else
+        children = map(x -> convert(N, x, operators; variable_names), (only(args),))
+        return constructorof(N)(; op=ind, children)
+    end
 end
 
 _node_type(::Type{<:AbstractExpression{T,N}}) where {T,N<:AbstractExpressionNode} = N

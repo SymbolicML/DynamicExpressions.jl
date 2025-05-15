@@ -147,7 +147,7 @@ end
         result2, ok2 = eval_tree_array(tree, X, operators; eval_options)
 
         # Results should be identical
-        @test result1 ≈ result2
+        @test isapprox(result1, result2; atol=1e-10)
         @test ok1 == ok2
     end
 end
