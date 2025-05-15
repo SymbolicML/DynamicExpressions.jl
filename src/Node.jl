@@ -199,7 +199,8 @@ end
     set_children!(n, Base.setindex(get_children(n), child, i))
     return child
 end
-@inline function set_children!(n::AbstractNode{D}, children::Tuple{Vararg{AbstractNode{D},D2}}) where {D,D2}
+@inline function set_children!(n::AbstractNode{D}, children::Union{Tuple,AbstractVector{<:AbstractNode{D}}}) where {D}
+    D2 = length(children)
     if D === D2
         n.children = children
     else
@@ -209,7 +210,7 @@ end
         # This poison should be efficient to insert. So
         # for simplicity, we can just use poison == n, which
         # will trigger infinite recursion errors if accessed.
-        n.children = ntuple(i -> i <= D2 ? children[i] : poison, Val(D))
+        n.children = ntuple(i -> i <= D2 ? @inbounds(children[i]) : poison, Val(D))
     end
 end
 
