@@ -66,10 +66,10 @@ function (e::EvalPullback)((dY, _))
     dconstants_dY = @view dX_constants_dY[(nfeatures + 1):end, :]
 
     dtree = NodeTangent(
-        e.tree, sum(j -> dconstants_dY[:, j] * dY[j], eachindex(dY, axes(dconstants_dY, 2)))
+        e.tree, sum(j -> dconstants_dY[:, j] * dY[j], eachindex(axes(dconstants_dY, 2)))
     )
 
-    dX = dX_dY .* reshape(dY, 1, length(dY))
+    dX = dX_dY .* reshape(dY, 1, size(dconstants_dY, 2))
 
     return (NoTangent(), dtree, dX, NoTangent())
 end
