@@ -7,6 +7,7 @@ using ChainRulesCore:
     ZeroTangent,
     Tangent,
     @thunk,
+    unthunk,
     canonicalize
 using ..OperatorEnumModule: OperatorEnum
 using ..NodeModule: AbstractExpressionNode, with_type_parameters, tree_mapreduce
@@ -52,7 +53,8 @@ struct EvalPullback{N,A,O} <: Function
 end
 
 # TODO: Preferable to use the primal in the pullback somehow
-function (e::EvalPullback)((dY, _))
+function (e::EvalPullback)((thunked_dY, _))
+    dY = unthunk(thunked_dY)
     _, dX_constants_dY, complete = eval_grad_tree_array(
         e.tree, e.X, e.operators; variable=Val(:both)
     )
@@ -66,10 +68,10 @@ function (e::EvalPullback)((dY, _))
     dconstants_dY = @view dX_constants_dY[(nfeatures + 1):end, :]
 
     dtree = NodeTangent(
-        e.tree, sum(j -> dconstants_dY[:, j] * dY[j], eachindex(axes(dconstants_dY, 2)))
+        e.tree, sum(j -> dconstants_dY[:, j] * dY[j], eachindex(dY, axes(dconstants_dY, 2)))
     )
 
-    dX = dX_dY .* reshape(dY, 1, size(dconstants_dY, 2))
+    dX = dX_dY .* reshape(dY, 1, length(dY))
 
     return (NoTangent(), dtree, dX, NoTangent())
 end
