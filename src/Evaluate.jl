@@ -93,12 +93,17 @@ This holds options for expression evaluation, such as evaluation backend.
 - `buffer::Union{ArrayBuffer,Nothing}`: If not `nothing`, use this buffer for evaluation.
     This should be an instance of `ArrayBuffer` which has an `array` field and an
     `index` field used to iterate which buffer slot to use.
+- `use_fused::Val{U}=Val(true)`: If `Val{true}`, use fused kernels for faster
+    evaluation. Setting this to `Val{false}` will skip the fused kernels, meaning that
+    you would only need to overload `deg0_eval`, `deg1_eval` and `deg2_eval` for custom
+    evaluation.
 """
-struct EvalOptions{T,B,E,BUF<:Union{ArrayBuffer,Nothing}}
+struct EvalOptions{T,B,E,BUF<:Union{ArrayBuffer,Nothing},U}
     turbo::Val{T}
     bumper::Val{B}
     early_exit::Val{E}
     buffer::BUF
+    use_fused::Val{U}
 end
 
 @unstable function EvalOptions(;
@@ -106,20 +111,24 @@ end
     bumper::Union{Bool,Val}=Val(false),
     early_exit::Union{Bool,Val}=Val(true),
     buffer::Union{ArrayBuffer,Nothing}=nothing,
+    use_fused::Union{Bool,Val}=Val(true),
 )
     v_turbo = _to_bool_val(turbo)
     v_bumper = _to_bool_val(bumper)
     v_early_exit = _to_bool_val(early_exit)
+    v_use_fused = _to_bool_val(use_fused)
 
     if v_bumper isa Val{true}
         @assert buffer === nothing
     end
 
-    return EvalOptions(v_turbo, v_bumper, v_early_exit, buffer)
+    return EvalOptions(v_turbo, v_bumper, v_early_exit, buffer, v_use_fused)
 end
 
 @unstable @inline _to_bool_val(x::Bool) = x ? Val(true) : Val(false)
 @inline _to_bool_val(::Val{T}) where {T} = Val(T::Bool)
+
+@inline use_fused(eval_options::EvalOptions) = eval_options.use_fused isa Val{true}
 
 _copy(x) = copy(x)
 _copy(::Nothing) = nothing
@@ -129,6 +138,7 @@ function Base.copy(eval_options::EvalOptions)
         bumper=eval_options.bumper,
         early_exit=eval_options.early_exit,
         buffer=_copy(eval_options.buffer),
+        use_fused=eval_options.use_fused,
     )
 end
 
@@ -340,19 +350,20 @@ end
         end
     end
     return quote
+        fused = use_fused(eval_options)
         return Base.Cartesian.@nif(
             $nbin,
             i -> i == op_idx,
             i -> let op = operators.binops[i]
-                if tree.l.degree == 0 && tree.r.degree == 0
+                if fused && tree.l.degree == 0 && tree.r.degree == 0
                     deg2_l0_r0_eval(tree, cX, op, eval_options)
-                elseif tree.r.degree == 0
+                elseif fused && tree.r.degree == 0
                     result_l = _eval_tree_array(tree.l, cX, operators, eval_options)
                     !result_l.ok && return result_l
                     @return_on_nonfinite_array(eval_options, result_l.x)
                     # op(x, y), where y is a constant or variable but x is not.
                     deg2_r0_eval(tree, result_l.x, cX, op, eval_options)
-                elseif tree.l.degree == 0
+                elseif fused && tree.l.degree == 0
                     result_r = _eval_tree_array(tree.r, cX, operators, eval_options)
                     !result_r.ok && return result_r
                     @return_on_nonfinite_array(eval_options, result_r.x)
@@ -392,17 +403,18 @@ end
     # This @nif lets us generate an if statement over choice of operator,
     # which means the compiler will be able to completely avoid type inference on operators.
     return quote
+        fused = use_fused(eval_options)
         Base.Cartesian.@nif(
             $nuna,
             i -> i == op_idx,
             i -> let op = operators.unaops[i]
-                if tree.l.degree == 2 && tree.l.l.degree == 0 && tree.l.r.degree == 0
+                if fused && tree.l.degree == 2 && tree.l.l.degree == 0 && tree.l.r.degree == 0
                     # op(op2(x, y)), where x, y, z are constants or variables.
                     l_op_idx = tree.l.op
                     dispatch_deg1_l2_ll0_lr0_eval(
                         tree, cX, op, l_op_idx, operators.binops, eval_options
                     )
-                elseif tree.l.degree == 1 && tree.l.l.degree == 0
+                elseif fused && tree.l.degree == 1 && tree.l.l.degree == 0
                     # op(op2(x)), where x is a constant or variable.
                     l_op_idx = tree.l.op
                     dispatch_deg1_l1_ll0_eval(
