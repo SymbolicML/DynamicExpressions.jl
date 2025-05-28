@@ -5,6 +5,7 @@ version = "1.10.2"
 
 [deps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 DispatchDoctor = "8d63f2c5-f18a-4cf2-ba9d-b3f60fc568c8"
 Interfaces = "85a1e053-f937-4924-92a5-1367d23b7b87"
 MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
@@ -15,6 +16,7 @@ TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [weakdeps]
 Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
@@ -22,6 +24,7 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [extensions]
 DynamicExpressionsBumperExt = "Bumper"
+DynamicExpressionsCUDAExt = "CUDA"
 DynamicExpressionsLoopVectorizationExt = "LoopVectorization"
 DynamicExpressionsOptimExt = "Optim"
 DynamicExpressionsSymbolicUtilsExt = "SymbolicUtils"
@@ -29,7 +32,9 @@ DynamicExpressionsZygoteExt = "Zygote"
 
 [compat]
 Bumper = "0.6"
+CUDA = "4, 5"
 ChainRulesCore = "1"
+Compat = "4.16"
 DispatchDoctor = "0.4"
 Interfaces = "0.3"
 LoopVectorization = "0.12"
@@ -43,6 +48,7 @@ julia = "1.10"
 
 [extras]
 Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
