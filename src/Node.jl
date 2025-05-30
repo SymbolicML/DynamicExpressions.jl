@@ -31,7 +31,6 @@ Must have the following fields:
 """
 abstract type AbstractNNode{D} end
 
-
 """
     AbstractExpressionNNode{T,D} <: AbstractNNode{D}
 
@@ -409,7 +408,9 @@ end
 function Base.promote_rule(::Type{GraphNNode{T1,D}}, ::Type{NNode{T2,D}}) where {T1,T2,D}
     return GraphNNode{promote_type(T1, T2),D}
 end
-function Base.promote_rule(::Type{GraphNNode{T1,D}}, ::Type{GraphNNode{T2,D}}) where {T1,T2,D}
+function Base.promote_rule(
+    ::Type{GraphNNode{T1,D}}, ::Type{GraphNNode{T2,D}}
+) where {T1,T2,D}
     return GraphNNode{promote_type(T1, T2),D}
 end
 

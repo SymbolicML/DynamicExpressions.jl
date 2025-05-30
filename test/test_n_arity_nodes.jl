@@ -163,7 +163,9 @@ end
 
     unary_child = NNode{Float64,3}(; op=1, children=(x1,))
     binary_child_for_nest = NNode{Float64,3}(; op=1, children=(x3, c1_node))
-    tree_nested = NNode{Float64,3}(; op=1, children=(unary_child, x2, binary_child_for_nest))
+    tree_nested = NNode{Float64,3}(;
+        op=1, children=(unary_child, x2, binary_child_for_nest)
+    )
     expected_nested =
         my_eval_ternary_op.(
             my_eval_unary_op.(X[1, :]), X[2, :], my_eval_binary_op.(X[3, :], 0.5)
@@ -323,7 +325,9 @@ end
 
     unary_child_tmr = NNode{Float64,3}(; op=1, children=(x1_tmr,))
     binary_child_tmr = NNode{Float64,3}(; op=1, children=(x3_tmr, c1_tmr_node))
-    tree_tmr = NNode{Float64,3}(; op=1, children=(unary_child_tmr, x2_tmr, binary_child_tmr))
+    tree_tmr = NNode{Float64,3}(;
+        op=1, children=(unary_child_tmr, x2_tmr, binary_child_tmr)
+    )
 
     num_nodes = tree_mapreduce(_ -> 1, (p, c...) -> p + sum(c), tree_tmr, Int)
     @test num_nodes == 7

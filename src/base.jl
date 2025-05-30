@@ -502,7 +502,9 @@ function leaf_copy(t::N) where {T,N<:AbstractExpressionNNode{T}}
         return constructorof(N)(T; feature=t.feature)
     end
 end
-function branch_copy(t::N, children::Vararg{Any,M}) where {T,N<:AbstractExpressionNNode{T},M}
+function branch_copy(
+    t::N, children::Vararg{Any,M}
+) where {T,N<:AbstractExpressionNNode{T},M}
     return constructorof(N)(T; op=t.op, children)
 end
 

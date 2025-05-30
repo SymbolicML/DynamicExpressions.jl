@@ -80,7 +80,9 @@ Base.@deprecate_binding SimplifyEquationModule SimplifyModule
     count_constant_nodes(tree)
 )
 @deprecate(
-    index_constants(tree::Union{AbstractExpression,AbstractExpressionNNode}, T::Type=UInt16),
+    index_constants(
+        tree::Union{AbstractExpression,AbstractExpressionNNode}, T::Type=UInt16
+    ),
     index_constant_nodes(tree, T)
 )
 @deprecate(
@@ -88,7 +90,9 @@ Base.@deprecate_binding SimplifyEquationModule SimplifyModule
     get_scalar_constants(tree)
 )
 @deprecate(
-    set_constants!(tree::Union{AbstractExpression,AbstractExpressionNNode}, constants, refs),
+    set_constants!(
+        tree::Union{AbstractExpression,AbstractExpressionNNode}, constants, refs
+    ),
     set_scalar_constants!(tree, constants, refs)
 )
 

@@ -104,7 +104,8 @@ tree = NNode(1, NNode(; val=NaN))
 
 # the same as above, but inside a binary tree.
 tree =
-    NNode(1, NNode(1, NNode(; val=0.1), NNode(; val=0.2)) + NNode(; val=0.2)) + NNode(; val=2.0)
+    NNode(1, NNode(1, NNode(; val=0.1), NNode(; val=0.2)) + NNode(; val=0.2)) +
+    NNode(; val=2.0)
 @test repr(tree) ≈ "(cos((0.1 + 0.2) + 0.2) + 2.0)"
 @test repr(combine_operators(tree, operators)) ≈ "(cos(0.4 + 0.1) + 2.0)"
 
