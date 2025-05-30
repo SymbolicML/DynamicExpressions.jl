@@ -9,7 +9,7 @@ scalar_add(x::T, y::T) where {T<:Real} = x + y
 
 operators = GenericOperatorEnum(; binary_operators=[scalar_add])
 
-x1, x2, x3 = [Node(T; feature=i) for i in 1:3]
+x1, x2, x3 = [NNode(T; feature=i) for i in 1:3]
 
 @extend_operators operators
 tree = scalar_add(x1, x2)

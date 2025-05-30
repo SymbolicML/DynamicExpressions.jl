@@ -4,7 +4,7 @@ using Test
 
 operators = OperatorEnum(; binary_operators=(+, *, -, /, ^), unary_operators=(exp, sin))
 
-x1, x2, x3 = Node("x1"), Node("x2"), Node("x3")
+x1, x2, x3 = NNode("x1"), NNode("x2"), NNode("x3")
 
 # Depth:
 
@@ -19,19 +19,19 @@ x1, x2, x3 = Node("x1"), Node("x2"), Node("x3")
 @test has_constants(x1) == false
 @test has_constants(x1 + 1) == true
 @test has_constants(sin(x1)) == false
-@test has_constants(sin(Node(; val=0.0))) == true
+@test has_constants(sin(NNode(; val=0.0))) == true
 
 # Has operators
 @test has_operators(x1) == false
 @test has_operators(x1 + 1) == true
 @test has_operators(sin(x1)) == true
-@test has_operators(Node(; val=0.0)) == false
+@test has_operators(NNode(; val=0.0)) == false
 
 # Set constants:
-tree = Node(; val=0.0)
+tree = NNode(; val=0.0)
 set_scalar_constants!(tree, [1.0], [Ref(tree)])
 @test repr(tree) == "1.0"
-tree = x1 + Node(; val=0.0) - sin(x2 - Node(; val=0.5))
+tree = x1 + NNode(; val=0.0) - sin(x2 - NNode(; val=0.5))
 @test get_scalar_constants(tree)[1] == [0.0, 0.5]
 set_scalar_constants!(tree, [1.0, 2.0], [Ref(tree.l.r), Ref(tree.r.l.r)])
 @test repr(tree) == "(x1 + 1.0) - sin(x2 - 2.0)"

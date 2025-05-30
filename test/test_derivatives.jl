@@ -27,9 +27,9 @@ function equation3(x1, x2, x3)
     )
 end
 
-nx1 = Node("x1")
-nx2 = Node("x2")
-nx3 = Node("x3")
+nx1 = NNode("x1")
+nx2 = NNode("x2")
+nx3 = NNode("x3")
 
 # Equations to test gradients on:
 
@@ -63,7 +63,7 @@ for type in [Float16, Float32, Float64], turbo in [Val(true), Val(false)]
         end
 
         local tree
-        tree = convert(Node{type}, equation(nx1, nx2, nx3))
+        tree = convert(NNode{type}, equation(nx1, nx2, nx3))
         predicted_output = eval_tree_array(tree, X, operators)[1]
         true_output = equation.([X[i, :] for i in 1:nfeatures]...)
         true_output = convert(AbstractArray{type}, true_output)
@@ -110,7 +110,7 @@ for type in [Float16, Float32, Float64], turbo in [Val(true), Val(false)]
     # The gradient should be: (C * x1) => x1 is gradient with respect to C.
     local tree
     tree = equation4(nx1, nx2, nx3)
-    tree = convert(Node{type}, tree)
+    tree = convert(NNode{type}, tree)
     predicted_grad = eval_grad_tree_array(tree, X, operators; variable=false, turbo=turbo)[2]
     @test array_test(predicted_grad[1, :], X[1, :])
 
@@ -126,7 +126,7 @@ for type in [Float16, Float32, Float64], turbo in [Val(true), Val(false)]
     end
 
     tree = equation5(nx1, nx2, nx3)
-    tree = convert(Node{type}, tree)
+    tree = convert(NNode{type}, tree)
 
     # Use zygote to explicitly find the gradient:
     true_grad = gradient(
@@ -154,7 +154,7 @@ end
 
     # Check whether the ordering of constant_list is the same as the ordering of node_index.
     @eval function check_tree(
-        tree::Node, node_index::NodeIndex, constant_list::AbstractVector
+        tree::NNode, node_index::NodeIndex, constant_list::AbstractVector
     )
         if tree.degree == 0
             (!tree.constant) || tree.val == constant_list[node_index.val::UInt16]

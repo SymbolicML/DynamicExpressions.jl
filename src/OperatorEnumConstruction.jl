@@ -3,7 +3,7 @@ module OperatorEnumConstructionModule
 using DispatchDoctor: @unstable
 
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
-import ..NodeModule: Node, GraphNode, AbstractExpressionNode, constructorof
+import ..NodeModule: NNode, GraphNNode, AbstractExpressionNNode, constructorof
 import ..StringsModule: string_tree
 import ..EvaluateModule: eval_tree_array, OPERATOR_LIMIT_BEFORE_SLOWDOWN
 import ..EvaluateDerivativeModule: eval_grad_tree_array, _zygote_gradient
@@ -17,13 +17,13 @@ import ..EvaluationHelpersModule: _grad_evaluator
 end
 
 # These constants are purely for convenience. Internal code
-# should make use of `Node`, `string_tree`, `eval_tree_array`,
+# should make use of `NNode`, `string_tree`, `eval_tree_array`,
 # and `eval_grad_tree_array` directly.
 
 const LATEST_OPERATORS = Ref{Union{Nothing,AbstractOperatorEnum}}(nothing)
 const LATEST_OPERATORS_TYPE = Ref{AvailableOperatorTypes}(IsNothing)
-const LATEST_UNARY_OPERATOR_MAPPING = Dict{Function,fieldtype(Node{Float64}, :op)}()
-const LATEST_BINARY_OPERATOR_MAPPING = Dict{Function,fieldtype(Node{Float64}, :op)}()
+const LATEST_UNARY_OPERATOR_MAPPING = Dict{Function,fieldtype(NNode{Float64}, :op)}()
+const LATEST_BINARY_OPERATOR_MAPPING = Dict{Function,fieldtype(NNode{Float64}, :op)}()
 const ALREADY_DEFINED_UNARY_OPERATORS = (;
     operator_enum=Dict{DataType,Dict{Function,Bool}}(),
     generic_operator_enum=Dict{DataType,Dict{Function,Bool}}(),
@@ -35,7 +35,7 @@ const ALREADY_DEFINED_BINARY_OPERATORS = (;
 const LATEST_VARIABLE_NAMES = Ref{Vector{String}}(String[])
 const LATEST_LOCK = Threads.SpinLock()
 
-function Base.show(io::IO, tree::AbstractExpressionNode)
+function Base.show(io::IO, tree::AbstractExpressionNNode)
     latest_operators_type = LATEST_OPERATORS_TYPE.x
     kwargs = (variable_names=LATEST_VARIABLE_NAMES.x,)
     if latest_operators_type == IsNothing
@@ -48,10 +48,10 @@ function Base.show(io::IO, tree::AbstractExpressionNode)
         return print(io, string_tree(tree, latest_operators; kwargs...))
     end
 end
-@unstable function (tree::AbstractExpressionNode)(X; kws...)
+@unstable function (tree::AbstractExpressionNNode)(X; kws...)
     Base.depwarn(
         "The `tree(X; kws...)` syntax is deprecated. Use `tree(X, operators; kws...)` instead.",
-        :AbstractExpressionNode,
+        :AbstractExpressionNNode,
     )
     latest_operators_type = LATEST_OPERATORS_TYPE.x
 
@@ -67,10 +67,10 @@ end
     end
 end
 
-@unstable function _grad_evaluator(tree::AbstractExpressionNode, X; kws...)
+@unstable function _grad_evaluator(tree::AbstractExpressionNNode, X; kws...)
     Base.depwarn(
         "The `tree'(X; kws...)` syntax is deprecated. Use `tree'(X, operators; kws...)` instead.",
-        :AbstractExpressionNode,
+        :AbstractExpressionNNode,
     )
     latest_operators_type = LATEST_OPERATORS_TYPE.x
     # return _grad_evaluator(tree, X, $operators; kws...)
@@ -153,11 +153,11 @@ function _extend_unary_operator(
         quote
             if $$internal
                 import ..NodeModule.constructorof as $_constructorof
-                import ..NodeModule.AbstractExpressionNode as $_AbstractExpressionNode
+                import ..NodeModule.AbstractExpressionNNode as $_AbstractExpressionNode
             else
                 using DynamicExpressions:
                     constructorof as $_constructorof,
-                    AbstractExpressionNode as $_AbstractExpressionNode
+                    AbstractExpressionNNode as $_AbstractExpressionNode
             end
 
             function $($f_outside)(
@@ -167,7 +167,7 @@ function _extend_unary_operator(
                     $_constructorof(N)(T; val=$($f_inside)(l.val))
                 else
                     latest_op_idx = $($lookup_op)($($f_inside), Val(1))
-                    $_constructorof(N)(; op=latest_op_idx, l)
+                    $_constructorof(N)(; op=latest_op_idx, children=(l,))
                 end
             end
         end
@@ -182,11 +182,11 @@ function _extend_binary_operator(
         quote
             if $$internal
                 import ..NodeModule.constructorof as $_constructorof
-                import ..NodeModule.AbstractExpressionNode as $_AbstractExpressionNode
+                import ..NodeModule.AbstractExpressionNNode as $_AbstractExpressionNode
             else
                 using DynamicExpressions:
                     constructorof as $_constructorof,
-                    AbstractExpressionNode as $_AbstractExpressionNode
+                    AbstractExpressionNNode as $_AbstractExpressionNode
             end
 
             function $($f_outside)(
@@ -196,7 +196,7 @@ function _extend_binary_operator(
                     $_constructorof(N)(T; val=$($f_inside)(l.val, r.val))
                 else
                     latest_op_idx = $($lookup_op)($($f_inside), Val(2))
-                    $_constructorof(N)(; op=latest_op_idx, l, r)
+                    $_constructorof(N)(; op=latest_op_idx, children=(l, r))
                 end
             end
             function $($f_outside)(
@@ -207,7 +207,7 @@ function _extend_binary_operator(
                 else
                     latest_op_idx = $($lookup_op)($($f_inside), Val(2))
                     $_constructorof(N)(;
-                        op=latest_op_idx, l, r=$_constructorof(N)(T; val=r)
+                        op=latest_op_idx, children=(l, $_constructorof(N)(T; val=r))
                     )
                 end
             end
@@ -219,7 +219,7 @@ function _extend_binary_operator(
                 else
                     latest_op_idx = $($lookup_op)($($f_inside), Val(2))
                     $_constructorof(N)(;
-                        op=latest_op_idx, l=$_constructorof(N)(T; val=l), r
+                        op=latest_op_idx, children=($_constructorof(N)(T; val=l), r)
                     )
                 end
             end
@@ -228,9 +228,9 @@ function _extend_binary_operator(
                 function $($f_outside)(
                     l::$_AbstractExpressionNode{T1}, r::$_AbstractExpressionNode{T2}
                 ) where {T1<:$($type_requirements),T2<:$($type_requirements)}
-                    if l isa GraphNode || r isa GraphNode
+                    if l isa GraphNNode || r isa GraphNNode
                         error(
-                            "Refusing to promote `GraphNode` as it would break the graph structure. " *
+                            "Refusing to promote `GraphNNode` as it would break the graph structure. " *
                             "Please convert to a common type first.",
                         )
                     end
@@ -369,7 +369,7 @@ end
     @extend_operators operators [kws...]
 
 Extends all operators defined in this operator enum to work on the
-`Node` type. While by default this is already done for operators defined
+`NNode` type. While by default this is already done for operators defined
 in `Base` when you create an enum and pass `define_helper_functions=true`,
 this does not apply to the user-defined operators. Thus, to do so, you must
 apply this macro to the operator enum in the same module you have the operators
@@ -415,8 +415,8 @@ end
                    empty_old_operators::Bool=true)
 
 Construct an `OperatorEnum` object, defining the possible expressions. This will also
-redefine operators for `AbstractExpressionNode` types, as well as `show`, `print`, and
-`(::AbstractExpressionNode)(X)`. It will automatically compute derivatives with `Zygote.jl`.
+redefine operators for `AbstractExpressionNNode` types, as well as `show`, `print`, and
+`(::AbstractExpressionNNode)(X)`. It will automatically compute derivatives with `Zygote.jl`.
 
 # Arguments
 - `binary_operators::Vector{Function}`: A vector of functions, each of which is a binary
@@ -477,8 +477,8 @@ end
 
 Construct a `GenericOperatorEnum` object, defining possible expressions.
 Unlike `OperatorEnum`, this enum one will work arbitrary operators and data types.
-This will also redefine operators for `AbstractExpressionNode` types, as well as `show`, `print`,
-and `(::AbstractExpressionNode)(X)`.
+This will also redefine operators for `AbstractExpressionNNode` types, as well as `show`, `print`,
+and `(::AbstractExpressionNNode)(X)`.
 
 # Arguments
 - `binary_operators::Vector{Function}`: A vector of functions, each of which is a binary

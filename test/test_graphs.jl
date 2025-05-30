@@ -7,7 +7,7 @@ include("test_params.jl")
     operators = OperatorEnum(;
         binary_operators=(+, -, *, ^, /, greater), unary_operators=(cos, exp, sin)
     )
-    x1, x2, x3 = [GraphNode(Float64; feature=i) for i in 1:3]
+    x1, x2, x3 = [GraphNNode(Float64; feature=i) for i in 1:3]
 
     base_tree = cos(x1 - 3.2 * x2) - x1^3.2
     tree = sin(base_tree) + base_tree
@@ -53,7 +53,7 @@ include("test_params.jl")
     # The node type here should be Float64.
     @test typeof(tree).parameters[1] == Float64
     # Let's convert to Float32:
-    float32_tree = convert(GraphNode{Float32}, tree)
+    float32_tree = convert(GraphNNode{Float32}, tree)
     @test typeof(float32_tree).parameters[1] == Float32
     # The linkage should be kept:
     @test float32_tree.l.l === float32_tree.r
@@ -105,8 +105,8 @@ end
     @testset "Macro testing utils" begin
         # First, assert this test actually works:
         @test !expr_eql(
-            :(_convert(Node{T1}, tree)),
-            :(_convert(Node{T1}, tree, IdDict{Node{T2},Node{T1}}())),
+            :(_convert(NNode{T1}, tree)),
+            :(_convert(NNode{T1}, tree, IdDict{NNode{T2},NNode{T1}}())),
         )
     end
 end
@@ -116,27 +116,27 @@ end
         binary_operators=(+, -, *, ^, /), unary_operators=(cos, exp, sin)
     )
     function make_tree()
-        x1, x2 = GraphNode(Float64; feature=1), GraphNode(Float64; feature=2)
+        x1, x2 = GraphNNode(Float64; feature=1), GraphNNode(Float64; feature=2)
         base_tree =
             cos(x1 - 3.2 * x2) - x1^3.5 +
-            GraphNode(3, GraphNode(; val=0.3), GraphNode(; val=0.9))
+            GraphNNode(3, GraphNNode(; val=0.3), GraphNNode(; val=0.9))
         tree = sin(base_tree) + base_tree
         return base_tree, tree
     end
 
     @testset "Strings" begin
-        x1 = GraphNode(Float64; feature=1)
+        x1 = GraphNNode(Float64; feature=1)
         n = x1 + x1
         @test string_tree(copy_node(n; break_sharing=Val(true)), operators) == "x1 + x1"
         @test string_tree(n, operators) == "x1 + {x1}"
 
         # Copying the node explicitly changes the behavior:
-        x1 = GraphNode(Float64; feature=1)
+        x1 = GraphNNode(Float64; feature=1)
         n = x1 + copy(x1)
         @test string_tree(n, operators) == "x1 + x1"
 
         # But, note that if we do a type conversion, the connection is also lost:
-        x1 = GraphNode(Float64; feature=1)
+        x1 = GraphNNode(Float64; feature=1)
         n = x1 + 3.5 * x1
         @test string_tree(n, operators) == "x1 + (3.5 * {x1})"
         @test string_tree(copy_node(n; break_sharing=Val(true)), operators) ==
@@ -179,15 +179,15 @@ end
     end
 
     @testset "Hashing" begin
-        x = GraphNode(; feature=1)
-        x2 = GraphNode(; feature=1)
-        tree = GraphNode(1, x, x)
-        tree2 = GraphNode(1, x2, x2)
+        x = GraphNNode(; feature=1)
+        x2 = GraphNNode(; feature=1)
+        tree = GraphNNode(1, x, x)
+        tree2 = GraphNNode(1, x2, x2)
         @test hash(tree) == hash(tree2)
         @test hash(tree) != hash(copy_node(tree; break_sharing=Val(true)))
         @test hash(copy_node(tree; break_sharing=Val(true))) ==
             hash(copy_node(tree; break_sharing=Val(true)))
-        @test hash(Node(tree)) == hash(copy_node(tree; break_sharing=Val(true)))
+        @test hash(NNode(tree)) == hash(copy_node(tree; break_sharing=Val(true)))
     end
 
     @testset "Constants" begin
@@ -208,9 +208,9 @@ end
             [4.4, 4.7, 1.5, 2.1, 4.4, 4.7, 1.5, 2.1]
 
         # What about a single constant?
-        f1 = GraphNode(; val=1.0)
+        f1 = GraphNNode(; val=1.0)
         @test get_scalar_constants(f1)[1] == [1.0]
-        f2 = GraphNode(1, f1, f1)
+        f2 = GraphNNode(1, f1, f1)
         @test get_scalar_constants(f2)[1] == [1.0]
         @test string_tree(f2, operators) == "1.0 + {1.0}"
 
@@ -224,13 +224,13 @@ end
         # as this would be redundant (since we are already
         # tracing the original expression when using a node index):
         @test get_indices(node_index) == [1, 2, 3, 4, 1, 2, 3, 4]
-        @test tree.r.l.l.l.r.l == GraphNode(Float64; val=3.2)
+        @test tree.r.l.l.l.r.l == GraphNNode(Float64; val=3.2)
         @test node_index.r.l.l.l.r.l.val == 1
     end
 
     @testset "Various base utils" begin
-        x = GraphNode(; feature=1)
-        tree = GraphNode(1, x, x)
+        x = GraphNNode(; feature=1)
+        tree = GraphNNode(1, x, x)
         @test collect(tree) == [tree, x]
         @test collect(tree; break_sharing=Val(true)) == [tree, x, x]
         @test filter(node -> node.degree == 0, tree) == [x]
@@ -269,21 +269,21 @@ end
 
     @testset "(lack of) automatic conversion" begin
         operators = OperatorEnum(; binary_operators=[+, -, *], unary_operators=[cos, exp])
-        x = GraphNode(Float32; feature=1)
+        x = GraphNNode(Float32; feature=1)
         tree = x + 1.0
         @test tree.l === x
-        @test typeof(tree) === GraphNode{Float32}
+        @test typeof(tree) <: GraphNNode{Float32}
 
         # Detect error from Float32(1im)
         @test_throws InexactError x + 1im
-        @test x + 0im isa GraphNode{Float32}
+        @test x + 0im isa GraphNNode{Float32}
 
         # Detect error from Int(1.5)
-        x = GraphNode(Int; feature=1)
+        x = GraphNNode(Int; feature=1)
         @test_throws InexactError x + 1.5
 
-        x = GraphNode(ComplexF64; feature=1)
-        @test hash(x + 1) == hash(GraphNode(1, x, GraphNode(; val=1.0 + 0.0im)))
+        x = GraphNNode(ComplexF64; feature=1)
+        @test hash(x + 1) == hash(GraphNNode(1, x, GraphNNode(; val=1.0 + 0.0im)))
         @test (x + 1).l === x
     end
 end
@@ -292,24 +292,24 @@ end
     operators = OperatorEnum(;
         binary_operators=(+, -, *, ^, /), unary_operators=(cos, exp, sin)
     )
-    x = GraphNode(Float64; feature=1)
-    y = Node(Float64; feature=1)
+    x = GraphNNode(Float64; feature=1)
+    y = NNode(Float64; feature=1)
 
     @test x == y
 
     @test promote(x, y) isa Tuple{typeof(x),typeof(x)}
 
-    # Node with GraphNode - will convert both
+    # NNode with GraphNNode - will convert both
     tree1 = sin(x) * x
     tree2 = sin(y) * y
     @test tree1 != tree2
 
-    # GraphNode against GraphNode
+    # GraphNNode against GraphNNode
     tree1 = sin(x) * x
     tree2 = sin(x) * x
     @test tree1 == tree2
 
     # Is aware of different shared structure
-    tree2 = sin(x) * GraphNode(Float64; feature=1)
+    tree2 = sin(x) * GraphNNode(Float64; feature=1)
     @test tree1 != tree2
 end

@@ -5,7 +5,7 @@
     using Interfaces: Interfaces, test, @implements, Arguments
 
     struct MultiScalarExpression{
-        T,N<:AbstractExpressionNode{T},TREES<:NamedTuple,D<:NamedTuple
+        T,N<:AbstractExpressionNNode{T},TREES<:NamedTuple,D<:NamedTuple
     } <: AbstractExpression{T,N}
         trees::TREES
         metadata::Metadata{D}

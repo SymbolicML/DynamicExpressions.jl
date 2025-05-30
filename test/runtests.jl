@@ -4,7 +4,7 @@ using TestItemRunner
 # Check if SR_ENZYME_TEST is set in env
 test_name = split(get(ENV, "SR_TEST", "main"), ",")
 
-unknown_tests = filter(Base.Fix2(∉, ["enzyme", "jet", "main"]), test_name)
+unknown_tests = filter(Base.Fix2(∉, ["enzyme", "jet", "main", "narity"]), test_name)
 
 if !isempty(unknown_tests)
     error("Unknown test names: $unknown_tests")
@@ -18,7 +18,9 @@ end
 if "jet" in test_name
     @safetestset "JET" begin
         using Preferences
-        set_preferences!("DynamicExpressions", "instability_check" => "disable"; force=true)
+        set_preferences!(
+            "DynamicExpressions", "dispatch_doctor_mode" => "disable"; force=true
+        )
         using JET
         using DynamicExpressions
         struct MyIgnoredModule

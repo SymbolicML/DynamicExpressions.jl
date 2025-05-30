@@ -37,10 +37,10 @@ import .ValueInterfaceModule:
     unpack_scalar_constants,
     ValueInterface
 @reexport import .NodeModule:
-    AbstractNode,
-    AbstractExpressionNode,
-    GraphNode,
-    Node,
+    AbstractNNode,
+    AbstractExpressionNNode,
+    GraphNNode,
+    NNode,
     copy_node,
     set_node!,
     tree_mapreduce,
@@ -51,6 +51,8 @@ import .NodeModule:
     constructorof,
     with_type_parameters,
     preserve_sharing,
+    max_degree,
+    with_max_degree,
     leaf_copy,
     branch_copy,
     leaf_hash,
@@ -96,7 +98,7 @@ import .ExpressionModule:
 import .ExpressionAlgebraModule: declare_operator_alias
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
-@reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode
+@reexport import .ParametricExpressionModule: ParametricExpression, ParametricNNode
 import .ReadOnlyNodeModule: ReadOnlyNode
 @reexport import .StructuredExpressionModule: StructuredExpression
 import .StructuredExpressionModule: AbstractStructuredExpression
@@ -111,6 +113,8 @@ import .InterfacesModule:
     ExpressionInterface, NodeInterface, all_ei_methods_except, all_ni_methods_except
 
 include("deprecated.jl")
+
+export AbstractNode, AbstractExpressionNode, Node, GraphNode, ParametricNode
 
 import TOML: parsefile
 

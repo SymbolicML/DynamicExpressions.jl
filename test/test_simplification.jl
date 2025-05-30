@@ -24,7 +24,7 @@ index_of_mult = [i for (i, op) in enumerate(binary_operators) if op == *][1]
 
 operators = OperatorEnum(; binary_operators=binary_operators)
 
-tree = Node("x1") + Node("x1")
+tree = NNode("x1") + NNode("x1")
 
 # Should simplify to 2*x1:
 eqn = convert(Symbolic, tree, operators)
@@ -35,7 +35,7 @@ eqn2 = simplify(eqn)
 
 # Let's convert back the simplified version.
 # This should remove the ^ operator:
-tree = convert(Node, eqn2, operators)
+tree = convert(NNode, eqn2, operators)
 # Make sure one of the nodes is now 2.0:
 @test (tree.l.constant ? tree.l : tree.r).val == 2
 # Make sure the other node is x1:
@@ -43,16 +43,16 @@ tree = convert(Node, eqn2, operators)
 
 # Finally, let's try converting a product, and ensure
 # that SymbolicUtils does not convert it to a power:
-tree = Node("x1") * Node("x1")
+tree = NNode("x1") * NNode("x1")
 eqn = convert(Symbolic, tree, operators)
 @test repr(eqn) ≈ "x1*x1"
 # Test converting back:
-tree_copy = convert(Node, eqn, operators)
+tree_copy = convert(NNode, eqn, operators)
 @test repr(tree_copy) ≈ "(x1*x1)"
 
 # Let's test a much more complex function,
 # with custom operators, and unary operators:
-x1, x2, x3 = Node("x1"), Node("x2"), Node("x3")
+x1, x2, x3 = NNode("x1"), NNode("x2"), NNode("x3")
 pow_abs2(x, y) = abs(x)^y
 
 operators = OperatorEnum(;
@@ -72,8 +72,8 @@ tree = (
 # We use `index_functions` to avoid converting the custom operators into the primitives.
 eqn = convert(Symbolic, tree, operators; index_functions=true)
 
-tree_copy = convert(Node, eqn, operators)
-tree_copy2 = convert(Node, simplify(eqn), operators)
+tree_copy = convert(NNode, eqn, operators)
+tree_copy2 = convert(NNode, simplify(eqn), operators)
 # Too difficult to check the representation, so we check by evaluation:
 N = 100
 X = rand(MersenneTwister(0), 3, N) .+ 0.1
@@ -90,41 +90,42 @@ output3, flag3 = eval_tree_array(tree_copy2, X, operators)
 ## Hit other parts of `simplify_tree!` and `combine_operators` to increase
 ## code coverage:
 operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(cos, sin))
-x1, x2, x3 = [Node(; feature=i) for i in 1:3]
+x1, x2, x3 = [NNode(; feature=i) for i in 1:3]
 
 # unary operator applied to constant => constant:
-tree = Node(1, Node(; val=0.0))
+tree = NNode(1, NNode(; val=0.0))
 @test repr(tree) ≈ "cos(0.0)"
 @test repr(simplify_tree!(tree, operators)) ≈ "1.0"
 
 # except when the result is a NaN, then we don't change it:
-tree = Node(1, Node(; val=NaN))
+tree = NNode(1, NNode(; val=NaN))
 @test repr(tree) ≈ "cos(NaN)"
 @test repr(simplify_tree!(tree, operators)) ≈ "cos(NaN)"
 
 # the same as above, but inside a binary tree.
 tree =
-    Node(1, Node(1, Node(; val=0.1), Node(; val=0.2)) + Node(; val=0.2)) + Node(; val=2.0)
+    NNode(1, NNode(1, NNode(; val=0.1), NNode(; val=0.2)) + NNode(; val=0.2)) +
+    NNode(; val=2.0)
 @test repr(tree) ≈ "(cos((0.1 + 0.2) + 0.2) + 2.0)"
 @test repr(combine_operators(tree, operators)) ≈ "(cos(0.4 + 0.1) + 2.0)"
 
 # left is constant:
-tree = Node(; val=0.5) + (Node(; val=0.2) + x1)
+tree = NNode(; val=0.5) + (NNode(; val=0.2) + x1)
 @test repr(tree) ≈ "(0.5 + (0.2 + x1))"
 @test repr(combine_operators(tree, operators)) ≈ "(x1 + 0.7)"
 
 # (const - (const - var)) => (var - const)
-tree = Node(2, Node(; val=0.5), Node(; val=0.2) - x1)
+tree = NNode(2, NNode(; val=0.5), NNode(; val=0.2) - x1)
 @test repr(tree) ≈ "(0.5 - (0.2 - x1))"
 @test repr(combine_operators(tree, operators)) ≈ "(x1 - -0.3)"
 
 # ((const - var) - const) => (const - var)
-tree = Node(2, Node(; val=0.5) - x1, Node(; val=0.2))
+tree = NNode(2, NNode(; val=0.5) - x1, NNode(; val=0.2))
 @test repr(tree) ≈ "((0.5 - x1) - 0.2)"
 @test repr(combine_operators(tree, operators)) ≈ "(0.3 - x1)"
 
 # (const - (var - const)) => (const - var)
-tree = Node(2, Node(; val=0.5), x1 - Node(; val=0.2))
+tree = NNode(2, NNode(; val=0.5), x1 - NNode(; val=0.2))
 @test repr(tree) ≈ "(0.5 - (x1 - 0.2))"
 @test repr(combine_operators(tree, operators)) ≈ "(0.7 - x1)"
 

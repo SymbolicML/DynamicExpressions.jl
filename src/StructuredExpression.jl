@@ -1,7 +1,7 @@
 module StructuredExpressionModule
 
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
-using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
+using ..NodeModule: AbstractExpressionNNode, NNode, tree_mapreduce
 using ..ExpressionModule: AbstractExpression, Metadata, node_type
 using ..ChainRulesModule: NodeTangent
 
@@ -24,7 +24,7 @@ import ..ExpressionModule:
 import ..ReadOnlyNodeModule: ReadOnlyNode
 
 abstract type AbstractStructuredExpression{
-    T,F<:Function,N<:AbstractExpressionNode{T},E<:AbstractExpression{T,N},D<:NamedTuple
+    T,F<:Function,N<:AbstractExpressionNNode{T},E<:AbstractExpression{T,N},D<:NamedTuple
 } <: AbstractExpression{T,N} end
 
 """
@@ -77,7 +77,7 @@ which will create a new method particular to this expression type defined on tha
 struct StructuredExpression{
     T,
     F<:Function,
-    N<:AbstractExpressionNode{T},
+    N<:AbstractExpressionNNode{T},
     E<:AbstractExpression{T,N},
     TS<:NamedTuple{<:Any,<:NTuple{<:Any,E}},
     D<:@NamedTuple{structure::F, operators::O, variable_names::V} where {O,V},

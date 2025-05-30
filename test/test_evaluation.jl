@@ -11,7 +11,7 @@ functions = [
     (x1, x2, x3) -> x1 * x2,
     (x1, x2, x3) -> x1 * 3.0,
     (x1, x2, x3) -> 3.0 * x2,
-    (((x1, x2, x3) -> 3.0 * 6.0), ((x1, x2, x3) -> Node(; val=3.0) * 6.0)),
+    (((x1, x2, x3) -> 3.0 * 6.0), ((x1, x2, x3) -> NNode(; val=3.0) * 6.0)),
 
     # deg2_l0_eval
     (x1, x2, x3) -> x1 * sin(x2),
@@ -27,12 +27,12 @@ functions = [
     (x1, x2, x3) -> cos(3.0 * x2),
     (
         ((x1, x2, x3) -> cos(3.0 * -0.5)),
-        ((x1, x2, x3) -> cos(Node(2, Node(; val=3.0), Node(; val=-0.5)))),
+        ((x1, x2, x3) -> cos(NNode(2, NNode(; val=3.0), NNode(; val=-0.5)))),
     ),
 
     # deg1_l1_ll0_eval
     (x1, x2, x3) -> cos(sin(x1)),
-    (((x1, x2, x3) -> cos(sin(3.0))), ((x1, x2, x3) -> cos(sin(Node(; val=3.0))))),
+    (((x1, x2, x3) -> cos(sin(3.0))), ((x1, x2, x3) -> cos(sin(NNode(; val=3.0))))),
 
     # everything else:
     (x1, x2, x3) -> (sin(cos(sin(cos(x1) * x3) * 3.0) * -0.5) + 2.0) * 5.0,
@@ -58,8 +58,8 @@ for turbo in [Val(false), Val(true)],
             operators = OperatorEnum(;
                 default_params..., binary_operators=(+, *, /, -), unary_operators=(cos, sin)
             )
-            tree = nodefnc(Node("x1"), Node("x2"), Node("x3"))
-            tree = convert(Node{T}, tree)
+            tree = nodefnc(NNode("x1"), NNode("x2"), NNode("x3"))
+            tree = convert(NNode{T}, tree)
 
             N = 100
             nfeatures = 3
@@ -99,25 +99,25 @@ end
         operators = OperatorEnum(;
             default_params..., binary_operators=(+, *, /, -), unary_operators=(cos, sin)
         )
-        tree = Node(1, Node(1, Node(; val=3.0f0)))
+        tree = NNode(1, NNode(1, NNode(; val=3.0f0)))
         @test repr(tree) == "cos(cos(3.0))"
-        tree = convert(Node{T}, tree)
+        tree = convert(NNode{T}, tree)
         truth = cos(cos(T(3.0f0)))
         @test DynamicExpressions.EvaluateModule.deg1_l1_ll0_eval(tree, [zero(T)]', cos, cos, EvalOptions(; turbo)).x[1] ≈
             truth
 
         # op(<constant>, <constant>)
-        tree = Node(1, Node(; val=3.0f0), Node(; val=4.0f0))
+        tree = NNode(1, NNode(; val=3.0f0), NNode(; val=4.0f0))
         @test repr(tree) == "3.0 + 4.0"
-        tree = convert(Node{T}, tree)
+        tree = convert(NNode{T}, tree)
         truth = T(3.0f0) + T(4.0f0)
         @test DynamicExpressions.EvaluateModule.deg2_l0_r0_eval(tree, [zero(T)]', (+), EvalOptions(; turbo)).x[1] ≈
             truth
 
         # op(op(<constant>, <constant>))
-        tree = Node(1, Node(1, Node(; val=3.0f0), Node(; val=4.0f0)))
+        tree = NNode(1, NNode(1, NNode(; val=3.0f0), NNode(; val=4.0f0)))
         @test repr(tree) == "cos(3.0 + 4.0)"
-        tree = convert(Node{T}, tree)
+        tree = convert(NNode{T}, tree)
         truth = cos(T(3.0f0) + T(4.0f0))
         @test DynamicExpressions.EvaluateModule.deg1_l2_ll0_lr0_eval(tree, [zero(T)]', cos, (+), EvalOptions(; turbo)).x[1] ≈
             truth
@@ -126,7 +126,7 @@ end
         operators = OperatorEnum(;
             binary_operators=[+, -, *, /], unary_operators=[cos, sin]
         )
-        x1 = Node(T; feature=1)
+        x1 = NNode(T; feature=1)
         tree = sin(x1 / 0.0)
         X = randn(Float32, 3, 10)
         @test isnan(tree(X, operators; turbo=turbo)[1])
@@ -144,7 +144,7 @@ end
             binary_operators=[+, -, *, /], unary_operators=[cos, sin, my_fnc]
         )
         @extend_operators operators
-        x1 = Node(Float64; feature=1)
+        x1 = NNode(Float64; feature=1)
         tree = sin(x1 / 0.0)
         X = randn(Float32, 10)
         let
@@ -200,7 +200,7 @@ end
     else
         OperatorEnum(; binary_operators, unary_operators)
     end
-    tree = Node(1, Node(num_ops ÷ 2, Node(; val=3.0), Node(; feature=2)))
+    tree = NNode(1, NNode(num_ops ÷ 2, NNode(; val=3.0), NNode(; feature=2)))
     # = (3.0 + x2)^2
     X = randn(Float64, 2, 10)
     truth = @. (3.0 + X[2, :])^2
@@ -246,7 +246,7 @@ end
     let
         T = Float16
         ex = @parse_expression(
-            2 * x, binary_operators = [*], variable_names = ["x"], node_type = Node{T}
+            2 * x, binary_operators = [*], variable_names = ["x"], node_type = NNode{T}
         )
         X = T[1.0 floatmax(T)]
         @test all(isnan.(ex(X)))
@@ -262,7 +262,7 @@ end
             binary_operators = [-, *, /, ^],
             unary_operators = [-, sqrt],
             variable_names = ["a", "b", "c"],
-            node_type = Node{T}
+            node_type = NNode{T}
         )
         X = T[
             -1 -1
@@ -284,7 +284,7 @@ end
     @test EvalOptions(; turbo=false) isa EvalOptions{false}
     @test EvalOptions(; turbo=Val(false)) isa EvalOptions{false}
 
-    ex = Expression(Node{Float64}(; feature=1))
+    ex = Expression(NNode{Float64}(; feature=1))
     @test_throws ArgumentError ex(randn(1, 5), OperatorEnum(); bad_arg=1)
 end
 

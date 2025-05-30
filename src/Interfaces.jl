@@ -5,13 +5,16 @@ using Interfaces: Interfaces, @interface, @implements, Arguments
 using DispatchDoctor: @unstable
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..NodeModule:
-    Node,
-    GraphNode,
-    AbstractExpressionNode,
+    NNode,
+    GraphNNode,
+    AbstractExpressionNNode,
     preserve_sharing,
     constructorof,
     default_allocator,
     with_type_parameters,
+    with_max_degree,
+    max_degree,
+    get_children,
     leaf_copy,
     leaf_convert,
     leaf_hash,
@@ -53,7 +56,7 @@ using ..ExpressionModule:
     with_contents,
     with_metadata,
     default_node_type
-using ..ParametricExpressionModule: ParametricExpression, ParametricNode
+using ..ParametricExpressionModule: ParametricExpression, ParametricNNode
 using ..ReadOnlyNodeModule: AbstractReadOnlyNode
 using ..StructuredExpressionModule: StructuredExpression
 
@@ -70,8 +73,10 @@ function _check_get_metadata(ex::AbstractExpression)
     new_ex = with_metadata(ex, get_metadata(ex))
     return new_ex == ex && new_ex isa typeof(ex)
 end
-function _check_get_tree(ex::AbstractExpression{T,N}) where {T,N}
-    return get_tree(ex) isa N || get_tree(ex) isa AbstractReadOnlyNode{T,N}
+function _check_get_tree(
+    ex::AbstractExpression{T,N}
+) where {T,D,N<:AbstractExpressionNNode{T,D}}
+    return get_tree(ex) isa N || get_tree(ex) isa AbstractReadOnlyNode{T,D,N}
 end
 function _check_get_operators(ex::AbstractExpression)
     return get_operators(ex) isa AbstractOperatorEnum
@@ -137,15 +142,17 @@ end
 function _check_default_node(ex::AbstractExpression{T}) where {T}
     ET = typeof(ex)
     E = Base.typename(ET).wrapper
-    return default_node_type(E) <: AbstractExpressionNode &&
-           default_node_type(ET) <: AbstractExpressionNode{T}
+    return default_node_type(E) <: AbstractExpressionNNode &&
+           default_node_type(ET) <: AbstractExpressionNNode{T}
 end
 function _check_constructorof(ex::AbstractExpression)
     return constructorof(typeof(ex)) isa Base.Callable
 end
-function _check_tree_mapreduce(ex::AbstractExpression{T,N}) where {T,N}
+function _check_tree_mapreduce(
+    ex::AbstractExpression{T,N}
+) where {T,D,N<:AbstractExpressionNNode{T,D}}
     return tree_mapreduce(node -> [node], vcat, ex) isa
-           (Vector{N2} where {N2<:Union{N,AbstractReadOnlyNode{T,N}}})
+           (Vector{N2} where {N2<:Union{N,AbstractReadOnlyNode{T,D,N}}})
 end
 
 #! format: off
@@ -216,152 +223,151 @@ ei_description = (
 ###############################################################################
 
 ## mandatory
-function _check_create_node(tree::AbstractExpressionNode)
+function _check_create_node(tree::AbstractExpressionNNode)
     N = typeof(tree)
     NT = with_type_parameters(N, Float16)
     return NT() isa NT
 end
-function _check_copy(tree::AbstractExpressionNode)
+function _check_get_children(tree::AbstractExpressionNNode{T,D}) where {T,D}
+    tree.degree == 0 && return true
+    return get_children(tree) isa Tuple{typeof(tree),Vararg{typeof(tree)}} &&
+           get_children(tree, Val(D)) isa Tuple &&
+           length(get_children(tree, Val(D))) == D &&
+           length(get_children(tree, Val(1))) == 1
+end
+function _check_copy(tree::AbstractExpressionNNode)
     return copy(tree) isa typeof(tree)
 end
-function _check_hash(tree::AbstractExpressionNode)
+function _check_hash(tree::AbstractExpressionNNode)
     return hash(tree) isa UInt64
 end
-function _check_any(tree::AbstractExpressionNode)
+function _check_any(tree::AbstractExpressionNNode)
     return any(_ -> false, tree) isa Bool && any(_ -> true, tree)
 end
-function _check_equality(tree::AbstractExpressionNode)
+function _check_equality(tree::AbstractExpressionNNode)
     return (tree == copy(tree)) && (tree == tree)
 end
-function _check_preserve_sharing(tree::AbstractExpressionNode)
+function _check_preserve_sharing(tree::AbstractExpressionNNode)
     return preserve_sharing(tree) isa Bool
 end
-function _check_constructorof(tree::AbstractExpressionNode)
+function _check_constructorof(tree::AbstractExpressionNNode)
     return constructorof(typeof(tree)) isa Base.Callable
 end
-function _check_eltype(tree::AbstractExpressionNode{T}) where {T}
+function _check_eltype(tree::AbstractExpressionNNode{T}) where {T}
     return eltype(typeof(tree)) == eltype(tree) == T
 end
-function _check_with_type_parameters(tree::AbstractExpressionNode{T}) where {T}
+function _check_with_type_parameters(tree::AbstractExpressionNNode{T}) where {T}
     N = typeof(tree)
-    NT = with_type_parameters(Base.typename(N).wrapper, eltype(tree))
-    return NT == typeof(tree)
+    Nf16 = with_type_parameters(N, Float16)
+    return Nf16 <: AbstractExpressionNNode{Float16}
 end
-function _check_default_allocator(tree::AbstractExpressionNode)
+function _check_with_max_degree(tree::AbstractExpressionNNode)
+    N = typeof(tree)
+    new_D = max_degree(N) + 1
+    N2 = with_max_degree(N, Val(new_D))
+    return N2 <: AbstractExpressionNNode && max_degree(N2) == new_D
+end
+function _check_default_allocator(tree::AbstractExpressionNNode)
     N = Base.typename(typeof(tree)).wrapper
     return default_allocator(N, Float64) isa with_type_parameters(N, Float64)
 end
-function _check_set_node!(tree::AbstractExpressionNode)
+function _check_set_node!(tree::AbstractExpressionNNode)
     new_tree = copy(tree)
     set_node!(tree, new_tree)
     return tree == new_tree
 end
-function _check_count_nodes(tree::AbstractExpressionNode)
+function _check_count_nodes(tree::AbstractExpressionNNode)
     return count_nodes(tree) isa Int64
 end
-function _check_tree_mapreduce(tree::AbstractExpressionNode)
+function _check_tree_mapreduce(tree::AbstractExpressionNNode)
     return tree_mapreduce(_ -> 1, +, tree, Int64) ==
            tree_mapreduce(_ -> 1, _ -> 1, +, tree, Int64) ==
            count_nodes(tree)
 end
 
 ## optional
-function _check_copy_into!(tree::AbstractExpressionNode)
+function _check_copy_into!(tree::AbstractExpressionNNode)
     container = allocate_container(tree)
     prealloc_tree = copy_into!(container, tree)
     return container !== nothing && prealloc_tree == tree && prealloc_tree !== container
 end
-function _check_leaf_copy(tree::AbstractExpressionNode)
+function _check_leaf_copy(tree::AbstractExpressionNNode)
     tree.degree != 0 && return true
     return leaf_copy(tree) isa typeof(tree)
 end
-function _check_leaf_copy_into!(tree::AbstractExpressionNode{T}) where {T}
+function _check_leaf_copy_into!(tree::AbstractExpressionNNode{T}) where {T}
     tree.degree != 0 && return true
     new_leaf = constructorof(typeof(tree))(; val=zero(T))
     ret = leaf_copy_into!(new_leaf, tree)
     return new_leaf == tree && ret === new_leaf
 end
-function _check_leaf_convert(tree::AbstractExpressionNode)
+function _check_leaf_convert(tree::AbstractExpressionNNode)
     tree.degree != 0 && return true
     return leaf_convert(typeof(tree), tree) isa typeof(tree) &&
            leaf_convert(typeof(tree), tree) == tree
 end
-function _check_leaf_hash(tree::AbstractExpressionNode)
+function _check_leaf_hash(tree::AbstractExpressionNNode)
     tree.degree != 0 && return true
     return leaf_hash(UInt(0), tree) isa UInt64
 end
-function _check_leaf_equal(tree::AbstractExpressionNode)
+function _check_leaf_equal(tree::AbstractExpressionNNode)
     tree.degree != 0 && return true
     return leaf_equal(tree, copy(tree))
 end
-function _check_branch_copy(tree::AbstractExpressionNode)
-    if tree.degree == 0
-        return true
-    elseif tree.degree == 1
-        return branch_copy(tree, tree.l) isa typeof(tree)
-    else
-        return branch_copy(tree, tree.l, tree.r) isa typeof(tree)
-    end
+function _check_branch_copy(tree::AbstractExpressionNNode)
+    tree.degree == 0 && return true
+    return branch_copy(tree, get_children(tree, Val(tree.degree))...) isa typeof(tree)
 end
-function _check_branch_copy_into!(tree::AbstractExpressionNode{T}) where {T}
-    if tree.degree == 0
-        return true
-    end
+function _check_branch_copy_into!(tree::AbstractExpressionNNode{T}) where {T}
+    tree.degree == 0 && return true
     new_branch = constructorof(typeof(tree))(; val=zero(T))
-    if tree.degree == 1
-        ret = branch_copy_into!(new_branch, tree, copy(tree.l))
-        return new_branch == tree && ret === new_branch
-    else
-        ret = branch_copy_into!(new_branch, tree, copy(tree.l), copy(tree.r))
-        return new_branch == tree && ret === new_branch
-    end
+    ret = branch_copy_into!(
+        new_branch, tree, map(copy, get_children(tree, Val(tree.degree)))...
+    )
+    return new_branch == tree && ret === new_branch
 end
-function _check_branch_convert(tree::AbstractExpressionNode)
-    if tree.degree == 0
-        return true
-    elseif tree.degree == 1
-        return branch_convert(typeof(tree), tree, tree.l) isa typeof(tree)
-    else
-        return branch_convert(typeof(tree), tree, tree.l, tree.r) isa typeof(tree)
-    end
+function _check_branch_convert(tree::AbstractExpressionNNode)
+    tree.degree == 0 && return true
+    return branch_convert(typeof(tree), tree, get_children(tree, Val(tree.degree))...) isa
+           typeof(tree)
 end
-function _check_branch_hash(tree::AbstractExpressionNode)
+function _check_branch_hash(tree::AbstractExpressionNNode)
     tree.degree == 0 && return true
     return branch_hash(UInt64(0), tree) isa UInt64
 end
-function _check_branch_equal(tree::AbstractExpressionNode)
+function _check_branch_equal(tree::AbstractExpressionNNode)
     tree.degree == 0 && return true
     return branch_equal(tree, copy(tree))
 end
-function _check_count_depth(tree::AbstractExpressionNode)
+function _check_count_depth(tree::AbstractExpressionNNode)
     return count_depth(tree) isa Int64
 end
-function _check_is_node_constant(tree::AbstractExpressionNode)
+function _check_is_node_constant(tree::AbstractExpressionNNode)
     return is_node_constant(tree) isa Bool
 end
-function _check_count_constant_nodes(tree::AbstractExpressionNode)
+function _check_count_constant_nodes(tree::AbstractExpressionNNode)
     return count_constant_nodes(tree) isa Int64
 end
-function _check_filter_map(tree::AbstractExpressionNode)
+function _check_filter_map(tree::AbstractExpressionNNode)
     return filter_map(_ -> true, identity, tree, typeof(tree)) isa Vector{typeof(tree)}
 end
-function _check_has_constants(tree::AbstractExpressionNode)
+function _check_has_constants(tree::AbstractExpressionNNode)
     return has_constants(tree) isa Bool
 end
-function _check_get_constants(tree::AbstractExpressionNode{T}) where {T}
+function _check_get_constants(tree::AbstractExpressionNNode{T}) where {T}
     output = get_scalar_constants(tree)
     return first(output) isa AbstractVector{T} && length(output) == 2
 end
-function _check_set_constants!(tree::AbstractExpressionNode)
+function _check_set_constants!(tree::AbstractExpressionNNode)
     constants, refs = get_scalar_constants(tree)
     new_constants = map(x -> x * 2, constants)
     set_scalar_constants!(tree, new_constants, refs)
     return get_scalar_constants(tree)[1] == new_constants
 end
-function _check_index_constant_nodes(tree::AbstractExpressionNode)
+function _check_index_constant_nodes(tree::AbstractExpressionNNode)
     return index_constant_nodes(tree) isa NodeIndex{UInt16}
 end
-function _check_has_operators(tree::AbstractExpressionNode)
+function _check_has_operators(tree::AbstractExpressionNNode)
     return has_operators(tree) isa Bool
 end
 
@@ -369,6 +375,7 @@ end
 ni_components = (
     mandatory = (
         create_node = "creates a new instance of the node type" => _check_create_node,
+        get_children = "returns the children of the node" => _check_get_children,
         copy = "returns a copy of the tree" => _check_copy,
         hash = "returns the hash of the tree" => _check_hash,
         any = "checks if any element of the tree satisfies a condition" => _check_any,
@@ -377,6 +384,7 @@ ni_components = (
         constructorof = "gets the constructor function for a node type" => _check_constructorof,
         eltype = "gets the element type of the node" => _check_eltype,
         with_type_parameters = "applies type parameters to the node type" => _check_with_type_parameters,
+        with_max_degree = "changes the maximum degree of a node type" => _check_with_max_degree,
         default_allocator = "gets the default allocator for the node type" => _check_default_allocator,
         set_node! = "sets the node's value" => _check_set_node!,
         count_nodes = "counts the number of nodes in the tree" => _check_count_nodes,
@@ -411,7 +419,7 @@ ni_components = (
 )
 
 ni_description = (
-    "Defines the interface for [`AbstractExpressionNode`](@ref) "
+    "Defines the interface for [`AbstractExpressionNNode`](@ref) "
     * "which can include various operations such as copying, hashing, and checking equality, "
     * "as well as tree-specific operations like map-reduce and node manipulation."
 )
@@ -420,24 +428,24 @@ ni_description = (
 
 @interface(
     NodeInterface,
-    AbstractExpressionNode,
+    AbstractExpressionNNode,
     ni_components,
     ni_description
 )
 
 @implements(
     NodeInterface{all_ni_methods_except(())},
-    Node,
+    NNode,
     [Arguments()]
 )
 @implements(
     NodeInterface{all_ni_methods_except(())},
-    GraphNode,
+    GraphNNode,
     [Arguments()]
 )
 @implements(
     NodeInterface{all_ni_methods_except(())},
-    ParametricNode,
+    ParametricNNode,
     [Arguments()]
 )
 

@@ -1,7 +1,7 @@
 using DynamicExpressions:
-    AbstractExpressionNode,
-    AbstractNode,
-    Node,
+    AbstractExpressionNNode,
+    AbstractNNode,
+    NNode,
     NodeSampler,
     constructorof,
     set_node!,
@@ -9,13 +9,13 @@ using DynamicExpressions:
 using Random: AbstractRNG, default_rng
 
 """
-    random_node(tree::AbstractNode; filter::F=Returns(true))
+    random_node(tree::AbstractNNode; filter::F=Returns(true))
 
 Return a random node from the tree. You may optionally
 filter the nodes matching some condition before sampling.
 """
 function random_node(
-    tree::AbstractNode, rng::AbstractRNG=default_rng(); filter::F=Returns(true)
+    tree::AbstractNNode, rng::AbstractRNG=default_rng(); filter::F=Returns(true)
 ) where {F<:Function}
     Base.depwarn(
         "Instead of `random_node(tree, filter)`, use `rand(NodeSampler(; tree, filter))`",
@@ -26,7 +26,7 @@ end
 
 function make_random_leaf(
     nfeatures::Int, ::Type{T}, ::Type{N}, rng::AbstractRNG=default_rng()
-) where {T,N<:AbstractExpressionNode}
+) where {T,N<:AbstractExpressionNNode}
     if rand(rng, Bool)
         return constructorof(N)(; val=randn(rng, T))
     else
@@ -36,7 +36,7 @@ end
 
 """Add a random unary/binary operation to the end of a tree"""
 function append_random_op(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     operators,
     nfeatures::Int,
     rng::AbstractRNG=default_rng();
@@ -73,7 +73,7 @@ function gen_random_tree_fixed_size(
     operators,
     nfeatures::Int,
     ::Type{T},
-    node_type=Node,
+    node_type=NNode,
     rng::AbstractRNG=default_rng(),
 ) where {T}
     tree = make_random_leaf(nfeatures, T, node_type, rng)

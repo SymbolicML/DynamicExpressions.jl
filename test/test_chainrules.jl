@@ -12,7 +12,7 @@ let
     rng = MersenneTwister(0)
     n_features = 5
     operators = OperatorEnum(; binary_operators=(+, *, -), unary_operators=(sin,))
-    tree = gen_random_tree_fixed_size(20, operators, n_features, Float64, Node, rng)
+    tree = gen_random_tree_fixed_size(20, operators, n_features, Float64, NNode, rng)
     X = rand(rng, Float64, n_features, 100)
 
     function f(X)
@@ -30,7 +30,7 @@ mean(x) = sum(x) / length(x)
 
 let
     operators = OperatorEnum(; binary_operators=(+, *, -), unary_operators=(sin,))
-    x1, x2, x3 = [Node{Float64}(; feature=i) for i in 1:3]
+    x1, x2, x3 = [NNode{Float64}(; feature=i) for i in 1:3]
     tree = sin(x1 * 3.2 - 0.9) + 0.2 * x2 - x3
     X = [
         1.0 2.0 3.0
@@ -100,7 +100,7 @@ let
         unary_operators=(sin, bad_op, bad_grad_op, undefined_grad_op),
     )
     @extend_operators operators
-    x1 = Node(Float64; feature=1)
+    x1 = NNode(Float64; feature=1)
 
     nan_forward = bad_op(x1 + 0.5)
     undefined_grad = undefined_grad_op(x1 + 0.5)

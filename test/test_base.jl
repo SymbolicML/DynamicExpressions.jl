@@ -4,7 +4,7 @@ using Test
 using Zygote
 
 operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[cos, sin]);
-x1, x2, x3 = (i -> Node(Float64; feature=i)).(1:3)
+x1, x2, x3 = (i -> NNode(Float64; feature=i)).(1:3)
 tree = cos(x1 * 3.2 - 5.8) * 0.2 - 0.5 * x2 * x3 * x3 + 0.9 / (x1 * x1 + 1);
 
 @testset "all" begin
@@ -32,11 +32,11 @@ end
 
 @testset "collect" begin
     ctree = copy(tree)
-    @test typeof(first(collect(ctree))) == Node{Float64}
+    @test typeof(first(collect(ctree))) <: NNode{Float64}
     @test objectid(first(collect(ctree))) == objectid(ctree)
     @test objectid(first(collect(ctree))) == objectid(ctree)
     @test objectid(first(collect(ctree))) == objectid(ctree)
-    @test typeof(collect(ctree)) == Vector{Node{Float64}}
+    @test typeof(collect(ctree)) <: Vector{<:NNode{Float64}}
     @test length(collect(ctree)) == 24
     @test sum((t -> (t.degree == 0 && t.constant) ? t.val : 0.0).(collect(ctree))) ≈ 11.6
 end
@@ -119,16 +119,16 @@ end
 @testset "in" begin
     ctree = copy(tree)
     @test x1 in ctree
-    @test Node(Float64; val=1.0) ∈ ctree
-    @test Node(Float32; val=1.0) ∈ ctree
-    @test Node(Float64; val=1.1) ∉ ctree
+    @test NNode(Float64; val=1.0) ∈ ctree
+    @test NNode(Float32; val=1.0) ∈ ctree
+    @test NNode(Float64; val=1.1) ∉ ctree
     @test ctree.l ∈ ctree
     @test ctree.l * 2 ∉ ctree
 end
 
 @testset "isempty" begin
     @test !isempty(tree)
-    @test !isempty(Node(Float32; val=1))
+    @test !isempty(NNode(Float32; val=1))
 end
 
 @testset "length" begin

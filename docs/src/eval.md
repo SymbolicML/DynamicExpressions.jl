@@ -2,12 +2,12 @@
 
 ## Evaluation
 
-Given an expression tree specified with a `Node` type, you may evaluate the expression
+Given an expression tree specified with a `NNode` type, you may evaluate the expression
 over an array of data with the following command:
 
 ```@docs
 eval_tree_array(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
     eval_options::Union{EvalOptions,Nothing}=nothing,
@@ -17,14 +17,14 @@ eval_tree_array(
 You can also use the following shorthand by using the expression as a function:
 
 ```
-    (tree::AbstractExpressionNode)(X, operators::OperatorEnum; kws...)
+    (tree::AbstractExpressionNNode)(X, operators::OperatorEnum; kws...)
 
 Evaluate a binary tree (equation) over a given input data matrix. The
 operators contain all of the operators used. This function fuses doublets
 and triplets of operations for lower memory usage.
 
 # Arguments
-- `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
+- `tree::AbstractExpressionNNode`: The root node of the tree to evaluate.
 - `cX::AbstractMatrix{T}`: The input data to evaluate the tree on.
 - `operators::OperatorEnum`: The operators used in the tree.
 - `kws...`: Passed to [`eval_tree_array`](@ref).
@@ -41,18 +41,18 @@ For example,
 using DynamicExpressions
 
 operators = OperatorEnum(; binary_operators=[+, -, *], unary_operators=[cos])
-tree = Node(; feature=1) * cos(Node(; feature=2) - 3.2)
+tree = NNode(; feature=1) * cos(NNode(; feature=2) - 3.2)
 
 tree([1 2 3; 4 5 6.], operators)
 ```
 
 This is possible because when you call `OperatorEnum`, it automatically re-defines
-`(::Node)(X)` to call the evaluation operation with the given `operators` loaded.
-It also re-defines `print`, `show`, and the various operators, to work with the `Node` type.
+`(::NNode)(X)` to call the evaluation operation with the given `operators` loaded.
+It also re-defines `print`, `show`, and the various operators, to work with the `NNode` type.
 
 !!! warning
 
-    The `Node` type does not know about which `OperatorEnum` you used to create it.
+    The `NNode` type does not know about which `OperatorEnum` you used to create it.
     Thus, if you define an expression with one `OperatorEnum`, and then try to
     evaluate it or print it with a different `OperatorEnum`, you will get undefined behavior!
 
@@ -69,13 +69,13 @@ The notation is the same for `eval_tree_array`, though it will return `nothing`
 when it can't find a method, and not do any NaN checks:
 
 ```@docs
-eval_tree_array(tree::Node, cX::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)
+eval_tree_array(tree::NNode, cX::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)
 ```
 
 Likewise for the shorthand notation:
 
 ```
-    (tree::Node)(X::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)
+    (tree::NNode)(X::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)
 
 # Arguments
 - `X::AbstractArray`: The input data to evaluate the tree on.
@@ -106,15 +106,15 @@ all variables (or, all constants). Both use forward-mode automatic, but use
 `Zygote.jl` to compute derivatives of each operator, so this is very efficient.
 
 ```@docs
-eval_diff_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Integer) where {T<:Number}
-eval_grad_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum) where {T<:Number}
+eval_diff_tree_array(tree::NNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum, direction::Integer) where {T<:Number}
+eval_grad_tree_array(tree::NNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum) where {T<:Number}
 ```
 
 You can compute gradients this with shorthand notation as well (which by default computes
 gradients with respect to input matrix, rather than constants).
 
 ```
-    (tree::Node{T})'(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Bool=false, variable::Bool=true)
+    (tree::NNode{T})'(X::AbstractMatrix{T}, operators::OperatorEnum; turbo::Bool=false, variable::Bool=true)
 
 Compute the forward-mode derivative of an expression, using a similar
 structure and optimization to eval_tree_array. `variable` specifies whether
@@ -138,7 +138,7 @@ Alternatively, you can compute higher-order derivatives by using `ForwardDiff` o
 the function `differentiable_eval_tree_array`, although this will be slower.
 
 ```@docs
-differentiable_eval_tree_array(tree::Node{T}, cX::AbstractMatrix{T}, operators::OperatorEnum) where {T<:Number}
+differentiable_eval_tree_array(tree::NNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum) where {T<:Number}
 ```
 
 ### Enzyme
@@ -157,8 +157,8 @@ using DynamicExpressions
 
 operators = OperatorEnum(binary_operators=(+, -, *, /), unary_operators=(cos, sin))
 
-x1 = Node{Float64}(feature=1)
-x2 = Node{Float64}(feature=2)
+x1 = NNode{Float64}(feature=1)
+x2 = NNode{Float64}(feature=2)
 
 tree = 0.5 * x1 + cos(x2 - 0.2)
 ```

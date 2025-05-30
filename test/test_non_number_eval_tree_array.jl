@@ -3,7 +3,7 @@ using Base.Cartesian: @nif
 using DynamicExpressions:
     DynamicExpressions as DE,
     ValueInterface,
-    Node,
+    NNode,
     @extend_operators,
     OperatorEnum,
     get_scalar_constants,
@@ -165,13 +165,17 @@ Base.invokelatest(
     () -> begin
 
         # test operator extended operators
-        @test hasmethod(q, Tuple{Node{Max2Tensor{Float64}}})
-        @test hasmethod(a, Tuple{Max2Tensor{Float64},Node{Max2Tensor{Float64}}})
-        @test hasmethod(a, Tuple{Node{Max2Tensor{Float64}},Node{Max2Tensor{Float64}}})
-        @test !hasmethod(a, Tuple{Float64,Node{Float64}})
-        @test !hasmethod(a, Tuple{Node{Max2Tensor{Float32}},Node{Max2Tensor{Float32}}})
+        @test hasmethod(q, Tuple{NNode{Max2Tensor{Float64},2}})
+        @test hasmethod(a, Tuple{Max2Tensor{Float64},NNode{Max2Tensor{Float64},2}})
+        @test hasmethod(
+            a, Tuple{NNode{Max2Tensor{Float64},2},NNode{Max2Tensor{Float64},2}}
+        )
+        @test !hasmethod(a, Tuple{Float64,NNode{Float64,2}})
+        @test !hasmethod(
+            a, Tuple{NNode{Max2Tensor{Float32},2},NNode{Max2Tensor{Float32},2}}
+        )
 
-        tree = a(Node{Max2Tensor{Float64}}(; feature=1), Max2Tensor{Float64}(3.0))
+        tree = a(NNode{Max2Tensor{Float64}}(; feature=1), Max2Tensor{Float64}(3.0))
         results = tree(
             [Max2Tensor{Float64}(1.0) Max2Tensor{Float64}(2.0) Max2Tensor{Float64}(3.0)],
             operators,
@@ -179,18 +183,18 @@ Base.invokelatest(
         @test results ==
             [Max2Tensor{Float64}(4), Max2Tensor{Float64}(5), Max2Tensor{Float64}(6)]
 
-        c1 = Node(Max2Tensor{Float64}; val=Max2Tensor{Float64}([1, 2, 3]))
-        c2 = Node(Max2Tensor{Float64}; val=Max2Tensor{Float64}(4))
-        c3 = Node(Max2Tensor{Float64}; val=Max2Tensor{Float64}(5))
-        c4 = Node(Max2Tensor{Float64}; val=Max2Tensor{Float64}([6 7 8; 9 10 11; 12 13 14]))
-        c5 = Node(Max2Tensor{Float64}; val=Max2Tensor{Float64}(15))
-        c6 = Node(Max2Tensor{Float64}; val=Max2Tensor{Float64}([16, 17, 18]))
-        x1 = Node(Max2Tensor{Float64}; feature=1)
-        x2 = Node(Max2Tensor{Float64}; feature=2)
-        x3 = Node(Max2Tensor{Float64}; feature=3)
-        x4 = Node(Max2Tensor{Float64}; feature=4)
-        x5 = Node(Max2Tensor{Float64}; feature=5)
-        x6 = Node(Max2Tensor{Float64}; feature=6)
+        c1 = NNode(Max2Tensor{Float64}; val=Max2Tensor{Float64}([1, 2, 3]))
+        c2 = NNode(Max2Tensor{Float64}; val=Max2Tensor{Float64}(4))
+        c3 = NNode(Max2Tensor{Float64}; val=Max2Tensor{Float64}(5))
+        c4 = NNode(Max2Tensor{Float64}; val=Max2Tensor{Float64}([6 7 8; 9 10 11; 12 13 14]))
+        c5 = NNode(Max2Tensor{Float64}; val=Max2Tensor{Float64}(15))
+        c6 = NNode(Max2Tensor{Float64}; val=Max2Tensor{Float64}([16, 17, 18]))
+        x1 = NNode(Max2Tensor{Float64}; feature=1)
+        x2 = NNode(Max2Tensor{Float64}; feature=2)
+        x3 = NNode(Max2Tensor{Float64}; feature=3)
+        x4 = NNode(Max2Tensor{Float64}; feature=4)
+        x5 = NNode(Max2Tensor{Float64}; feature=5)
+        x6 = NNode(Max2Tensor{Float64}; feature=6)
         tree = a(
             a(a(a(x1, c1), q(a(x2, c2))), q(a(x3, c3))),
             q(a(a(q(a(x4, c4)), a(x5, c5)), q(a(x6, c6)))),

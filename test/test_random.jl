@@ -3,7 +3,7 @@ using Random
 using Test
 
 operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[cos, sin])
-x = GraphNode(Float64; feature=1)
+x = GraphNNode(Float64; feature=1)
 tree = cos(x) + x
 
 num_samples = 10_000

@@ -15,7 +15,7 @@ tree =
             binary_operators=(+, *, ^, /, greater),
             unary_operators=(_inv,),
         )
-        Node(5, (Node(; val=3.0) * Node(1, Node("x1")))^2.0, Node(; val=-1.2))
+        NNode(5, (NNode(; val=3.0) * NNode(1, NNode("x1")))^2.0, NNode(; val=-1.2))
     end
 
 operators = OperatorEnum(;

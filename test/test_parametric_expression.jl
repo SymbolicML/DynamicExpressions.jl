@@ -1,7 +1,7 @@
 @testitem "Conversion should not change metadata" begin
     using DynamicExpressions
 
-    p1 = ParametricNode{Float64}()
+    p1 = ParametricNNode{Float64}()
     p1.degree = 0
     p1.constant = false
     p1.is_parameter = true
@@ -16,9 +16,9 @@
     @test copy(p1).parameter == 2
 
     # Converting eltype shouldn't change this
-    @test convert(ParametricNode{Float32}, p1).degree == 0
-    @test convert(ParametricNode{Float32}, p1).constant == false
-    @test convert(ParametricNode{Float32}, p1).is_parameter == true
+    @test convert(ParametricNNode{Float32}, p1).degree == 0
+    @test convert(ParametricNNode{Float32}, p1).constant == false
+    @test convert(ParametricNNode{Float32}, p1).is_parameter == true
 end
 @testitem "Interface for parametric expressions" begin
     using DynamicExpressions
@@ -29,25 +29,25 @@ end
         x + y + p1 * p2 + 1.5,
         binary_operators = [+, -, *, /],
         variable_names = ["x", "y"],
-        node_type = ParametricNode,
+        node_type = ParametricNNode,
         expression_type = ParametricExpression,
         extra_metadata = (; parameters=ones(2, 5), parameter_names=["p1", "p2"]),
     )
     @test test(ExpressionInterface, ParametricExpression, [ex])
 
-    x1 = ParametricNode{Float64}(; feature=1)
-    x2 = ParametricNode{Float64}(; feature=2)
+    x1 = ParametricNNode{Float64}(; feature=1)
+    x2 = ParametricNNode{Float64}(; feature=2)
 
     operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
 
     tree_branch_deg2 = x1 + sin(x2 * 3.5)
     tree_branch_deg1 = sin(x1)
     tree_leaf_feature = x1
-    tree_leaf_constant = ParametricNode{Float64}(; val=1.0)
+    tree_leaf_constant = ParametricNNode{Float64}(; val=1.0)
 
     @test test(
         NodeInterface,
-        ParametricNode,
+        ParametricNNode,
         [
             ex.tree,
             tree_branch_deg2,
@@ -65,14 +65,14 @@ end
         sin(x) + p,
         operators = OperatorEnum(; binary_operators=(+, -), unary_operators=(sin,)),
         variable_names = ["x"],
-        node_type = ParametricNode,
+        node_type = ParametricNNode,
         expression_type = ParametricExpression,
         extra_metadata = (; parameters, parameter_names=["p"]),
     )
     X = [0.0 π / 2 π 3π / 2 2π]
 
     @test ex isa ParametricExpression{Float64}
-    @test ex.tree isa ParametricNode{Float64}
+    @test ex.tree isa ParametricNNode{Float64}
     @test string_tree(ex) == "sin(x) + p"
 
     # Evaluate on X with classes [1]
@@ -98,7 +98,7 @@ end
         sin(x) + y + p1 * p2,
         operators = OperatorEnum(; binary_operators=(+, -, *), unary_operators=(sin,)),
         variable_names = ["x", "y"],
-        node_type = ParametricNode,
+        node_type = ParametricNNode,
         expression_type = ParametricExpression,
         extra_metadata = (; parameters, parameter_names=["p1", "p2"]),
     )
@@ -190,9 +190,9 @@ end
 end
 
 @testitem "Allowed empty operators in parametric expression" begin
-    using DynamicExpressions: ParametricExpression, ParametricNode
+    using DynamicExpressions: ParametricExpression, ParametricNNode
 
-    tree = ParametricNode{Float64}()
+    tree = ParametricNNode{Float64}()
     tree.degree = 0
     tree.constant = true
     tree.val = 0.0
@@ -213,7 +213,7 @@ end
 @testitem "Passing node within ParametricExpression parsing" begin
     using DynamicExpressions
 
-    tree = ParametricNode{Float32}()
+    tree = ParametricNNode{Float32}()
     tree.degree = 0
     tree.constant = true
     tree.val = 1.5
@@ -240,9 +240,9 @@ end
         x1 + 1.5f0, binary_operators = [+, -, *], variable_names = ["x1"],
     )
 
-    @test pex.tree isa ParametricNode{Float32}
-    tree = convert(Node, pex)
-    @test tree isa Node{Float32}
+    @test pex.tree isa ParametricNNode{Float32}
+    tree = convert(NNode, pex)
+    @test tree isa NNode{Float32}
     @test DynamicExpressions.get_tree(ex) == tree
 end
 
@@ -349,7 +349,7 @@ end
     @test val isa Float64
     @test grad isa NamedTuple
     @test grad.tree isa DynamicExpressions.ChainRulesModule.NodeTangent{
-        Float64,ParametricNode{Float64},Vector{Float64}
+        Float64,<:ParametricNNode{Float64},Vector{Float64}
     }
     @test grad.metadata._data.parameters isa Matrix{Float64}
 

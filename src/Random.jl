@@ -1,7 +1,7 @@
 module RandomModule
 
 using Random: AbstractRNG
-using ..NodeModule: AbstractNode, tree_mapreduce, filter_map
+using ..NodeModule: AbstractNNode, tree_mapreduce, filter_map
 using ..ExpressionModule: AbstractExpression, get_tree
 
 import Base: rand
@@ -13,8 +13,8 @@ Defines a sampler of nodes in a tree.
 
 # Arguments
 
-- `tree`: The tree to sample nodes from. For a regular `Node`,
-  nodes are sampled uniformly. For a `GraphNode`, nodes are also
+- `tree`: The tree to sample nodes from. For a regular `NNode`,
+  nodes are sampled uniformly. For a `GraphNNode`, nodes are also
   sampled uniformly (e.g., in `sin(x) + {x}`, the `x` has equal
   probability of being sampled from the `sin` or the `+` node, because
   it is shared), unless `break_sharing` is set to `Val(true)`.
@@ -29,7 +29,7 @@ Defines a sampler of nodes in a tree.
   from the tree.
 """
 Base.@kwdef struct NodeSampler{
-    N<:Union{AbstractNode,AbstractExpression},F<:Function,W<:Union{Nothing,Function},B<:Val
+    N<:Union{AbstractNNode,AbstractExpression},F<:Function,W<:Union{Nothing,Function},B<:Val
 }
     tree::N
     weighting::W = nothing
@@ -38,11 +38,11 @@ Base.@kwdef struct NodeSampler{
 end
 
 """
-    rand(rng::AbstractRNG, tree::AbstractNode)
+    rand(rng::AbstractRNG, tree::AbstractNNode)
 
 Sample a node from a tree according to the default sampler `NodeSampler(; tree)`.
 """
-rand(rng::AbstractRNG, tree::Union{AbstractNode,AbstractExpression}) =
+rand(rng::AbstractRNG, tree::Union{AbstractNNode,AbstractExpression}) =
     rand(rng, NodeSampler(; tree))
 
 """
