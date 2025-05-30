@@ -271,9 +271,19 @@ _field_sym(i::Int) =
 _field_sym(::Type{Val{F}}) where {F} = _field_sym(F)
 _field_sym(::Val{F}) where {F} = _field_sym(F)
 
+struct Pullback{T,field_sym,n_args}
+    pt::T
+end
+function (pb::Pullback{T,field_sym,n_args})(Δy_rdata) where {T,field_sym,n_args}
+    if field_sym === :val && !(Δy_rdata isa Mooncake.NoRData)
+        pb.pt.val = Mooncake.increment_rdata!!(pb.pt.val, Δy_rdata)
+    end
+    return ntuple(_ -> Mooncake.NoRData(), Val(n_args))
+end
+
 function _rrule_getfield_common(
-    obj_cd::Mooncake.CoDual{N,TangentExprNode{Tv}}, field_sym::Symbol, n_args::Int
-) where {T,N<:AbstractExpressionNode{T},Tv}
+    obj_cd::Mooncake.CoDual{N,TangentExprNode{Tv}}, ::Val{field_sym}, ::Val{n_args}
+) where {T,N<:AbstractExpressionNode{T},Tv,field_sym,n_args}
     p = Mooncake.primal(obj_cd)
     pt = Mooncake.tangent(obj_cd)
 
@@ -296,14 +306,7 @@ function _rrule_getfield_common(
         Mooncake.fdata(tangent_for_field)
     end
     y_cd = Mooncake.CoDual(value_primal, fdata_for_output)
-
-    function pb(Δy_rdata)
-        if field_sym === :val && !(Δy_rdata isa Mooncake.NoRData)
-            pt.val = Mooncake.increment_rdata!!(pt.val, Δy_rdata)
-        end
-        return ntuple(_ -> Mooncake.NoRData(), n_args)
-    end
-    return y_cd, pb
+    return y_cd, Pullback{typeof(pt),field_sym,n_args}(pt)
 end
 
 # lgetfield(AEN, Val{field})
@@ -313,7 +316,7 @@ function Mooncake.rrule!!(
     obj_cd::Mooncake.CoDual{N,TangentExprNode{Tv}},
     vfield_cd::Mooncake.CoDual{Val{F},Mooncake.NoFData},
 ) where {T,N<:AbstractExpressionNode{T},Tv,F}
-    return _rrule_getfield_common(obj_cd, _field_sym(F), 3)
+    return _rrule_getfield_common(obj_cd, Val(_field_sym(F)), Val(3))
 end
 
 # getfield by Symbol
@@ -323,7 +326,7 @@ function Mooncake.rrule!!(
     obj_cd::Mooncake.CoDual{N,TangentExprNode{Tv}},
     sym_cd::Mooncake.CoDual{Symbol,Mooncake.NoFData},
 ) where {T,N<:AbstractExpressionNode{T},Tv}
-    return _rrule_getfield_common(obj_cd, Mooncake.primal(sym_cd), 3)
+    return _rrule_getfield_common(obj_cd, Val(Mooncake.primal(sym_cd)), Val(3))
 end
 
 # getfield by Int
