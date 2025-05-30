@@ -15,6 +15,8 @@ import ..NodeModule:
     with_max_degree,
     max_degree,
     preserve_sharing,
+    get_children,
+    set_children!,
     leaf_copy,
     leaf_convert,
     leaf_hash,
@@ -144,8 +146,8 @@ function leaf_copy(t::ParametricNode{T}) where {T}
     end
 end
 function set_node!(tree::ParametricNode, new_tree::ParametricNode)
-    tree.degree = new_tree.degree
-    if new_tree.degree == 0
+    tree.degree = (deg = new_tree.degree)
+    if deg == 0
         if new_tree.constant
             tree.constant = true
             tree.val = new_tree.val
@@ -160,10 +162,7 @@ function set_node!(tree::ParametricNode, new_tree::ParametricNode)
         end
     else
         tree.op = new_tree.op
-        tree.l = new_tree.l
-        if new_tree.degree == 2
-            tree.r = new_tree.r
-        end
+        set_children!(tree, get_children(new_tree))
     end
     return nothing
 end
