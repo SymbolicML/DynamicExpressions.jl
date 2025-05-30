@@ -2,20 +2,20 @@
     #literate_begin file="src/examples/base_operations.md"
 
     #=
-    # Node and Tree Operations
+    # NNode and Tree Operations
 
     This example demonstrates how to create and manipulate expression trees
-    using the [`Node`](@ref) type.
+    using the [`NNode`](@ref) type.
 
     First, let's create a node to reference `feature=1` of our dataset:
     =#
     using DynamicExpressions, Random
 
-    x = Node{Float64}(; feature=1)
-    @test x isa Node{Float64}
+    x = NNode{Float64}(; feature=1)
+    @test x isa NNode{Float64}
 
     # We can also create values, using `val`:
-    const_1 = Node{Float64}(; val=1.0)
+    const_1 = NNode{Float64}(; val=1.0)
 
     #=
     Now, let's declare some operators to use in our expression tree.
@@ -29,7 +29,7 @@
     operators = OperatorEnum(; unary_operators=(sin, exp), binary_operators=(+, -, *, /))
 
     # Now, let's create another variable
-    y = Node{Float64}(; feature=2)
+    y = NNode{Float64}(; feature=2)
 
     # And we can now create expression trees:
     tree = (x + y) * const_1 - sin(x)
@@ -82,13 +82,13 @@
     This counts the number of leaf nodes in the tree. For `tree`,
     this was `x`, `y`, `const_1`, and `x`.
 
-    You can access fields of the [`Node`](@ref) type here to create more
+    You can access fields of the [`NNode`](@ref) type here to create more
     complex operations, just be careful to not access undefined fields (be sure
     to read the API specification).
 
     Most operators can be built with this simple pattern, even including
     evaluation of the tree, and printing of expressions. (It also allows
-    for graph-like expressions like [`GraphNode`](@ref) via a `f_on_shared` keyword.)
+    for graph-like expressions like [`GraphNNode`](@ref) via a `f_on_shared` keyword.)
 
     As a more complex example, let's compute the depth of a tree. Here, we need
     to use a more complicated reduction operation – the `max`:

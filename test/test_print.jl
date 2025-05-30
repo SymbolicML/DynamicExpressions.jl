@@ -11,7 +11,7 @@ operators = OperatorEnum(;
 
 f = (x1, x2, x3) -> (sin(cos(sin(cos(x1) * x3) * 3.0) * -0.5) + 2.0) * 5.0
 
-tree = f(Node("x1"), Node("x2"), Node("x3"))
+tree = f(NNode("x1"), NNode("x2"), NNode("x3"))
 
 s = repr(tree)
 true_s = "(sin(cos(sin(cos(x1) * x3) * 3.0) * -0.5) + 2.0) * 5.0"
@@ -28,7 +28,7 @@ for unaop in [safe_log, safe_log2, safe_log10, safe_log1p, safe_sqrt, safe_acosh
     opts = OperatorEnum(;
         default_params..., binary_operators=(+, *, /, -), unary_operators=(unaop,)
     )
-    minitree = Node(1, Node("x1"))
+    minitree = NNode(1, NNode("x1"))
     @test string_tree(minitree, opts) == replace(string(unaop), "safe_" => "") * "(x1)"
 end
 
@@ -40,7 +40,7 @@ for binop in [safe_pow, ^]
     opts = OperatorEnum(;
         default_params..., binary_operators=(+, *, /, -, binop), unary_operators=(cos,)
     )
-    minitree = Node(5, Node("x1"), Node("x2"))
+    minitree = NNode(5, NNode("x1"), NNode("x2"))
     @test string_tree(minitree, opts) == "x1 ^ x2"
 end
 
@@ -49,7 +49,7 @@ end
         operators = OperatorEnum(;
             binary_operators=(+, *, /, -), unary_operators=(cos, sin)
         )
-        x1, x2, x3 = [Node(Float64; feature=i) for i in 1:3]
+        x1, x2, x3 = [NNode(Float64; feature=i) for i in 1:3]
         tree = x1 * x1 + 0.5
         # Capture stdout to variable:
         pipe = Pipe()
@@ -70,10 +70,10 @@ end
         unary_operators=(cos, sin),
     )
     @extend_operators operators
-    x1, x2, x3 = [Node(; feature=i) for i in 1:3]
+    x1, x2, x3 = [NNode(; feature=i) for i in 1:3]
     tree = sin(x1 * 1.0)
     @test string_tree(tree, operators) == "sin(x1 * 1.0)"
-    x1 = convert(Node{ComplexF64}, x1)
+    x1 = convert(NNode{ComplexF64}, x1)
     tree = sin(x1 * (1.0 + 2.0im))
     @test string_tree(tree, operators) == "sin(x1 * (1.0 + 2.0im))"
     tree = my_custom_op(x1, 1.0 + 2.0im)
@@ -85,7 +85,7 @@ end
         default_params..., binary_operators=(+, *, /, -), unary_operators=(cos, sin)
     )
     @extend_operators operators
-    x1, x2, x3 = [Node(Float64; feature=i) for i in 1:3]
+    x1, x2, x3 = [NNode(Float64; feature=i) for i in 1:3]
     tree = x1 * x1 + 0.5
     @test string_tree(tree, operators; f_constant=Returns("TEST")) == "(x1 * x1) + TEST"
     @test string_tree(tree, operators; f_variable=Returns("TEST")) == "(TEST * TEST) + 0.5"
@@ -104,7 +104,7 @@ end
 @testset "Test variable names" begin
     operators = OperatorEnum(; binary_operators=[+, *, /, -], unary_operators=[cos, sin])
     @extend_operators operators
-    x1, x2, x3 = [Node(Float64; feature=i) for i in 1:3]
+    x1, x2, x3 = [NNode(Float64; feature=i) for i in 1:3]
     DynamicExpressions.OperatorEnumConstructionModule.LATEST_VARIABLE_NAMES.x = [
         "k1", "k2", "k3"
     ]
@@ -133,7 +133,7 @@ end
     )
     @extend_operators operators
 
-    x1, x2 = [Node(; feature=i) for i in 1:2]
+    x1, x2 = [NNode(; feature=i) for i in 1:2]
 
     # Test default format (not pretty)
     tree = my_pretty_op(x1, x2)
@@ -148,7 +148,7 @@ end
     @test string_tree(tree, operators; pretty=true) == "sin(pretty_op_two(x1, x2))"
 
     # Test with constants
-    tree = my_pretty_op(x1, Node(; val=3.14))
+    tree = my_pretty_op(x1, NNode(; val=3.14))
     @test string_tree(tree, operators) == "my_pretty_op(x1, 3.14)"
     @test string_tree(tree, operators; pretty=true) == "pretty_op_two(x1, 3.14)"
 

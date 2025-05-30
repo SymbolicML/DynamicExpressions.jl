@@ -6,7 +6,7 @@
     using Supposition: @check, Data
     using DynamicExpressions
     using DynamicExpressions:
-        string_tree, parse_expression, eval_tree_array, Node, get_operators, get_tree
+        string_tree, parse_expression, eval_tree_array, NNode, get_operators, get_tree
 
     # bring the generator into scope
     include("supposition_utils.jl")
@@ -26,7 +26,7 @@
             Meta.parse(tree_str);
             operators=get_operators(ex),
             variable_names=["x$i" for i in 1:n_features],
-            node_type=Node{Float64,3},
+            node_type=NNode{Float64,3},
         )
         return ex == ex_parsed
     end

@@ -1,7 +1,7 @@
 module NodePreallocationModule
 
 using ..NodeModule:
-    AbstractExpressionNode,
+    AbstractExpressionNNode,
     with_type_parameters,
     tree_mapreduce,
     leaf_copy,
@@ -10,7 +10,7 @@ using ..NodeModule:
     set_children!
 
 """
-    allocate_container(prototype::AbstractExpressionNode, n=nothing)
+    allocate_container(prototype::AbstractExpressionNNode, n=nothing)
 
 Preallocate an array of `n` empty nodes matching the type of `prototype`.
 If `n` is not provided, it will be computed from `length(prototype)`.
@@ -20,20 +20,20 @@ so it should be compatible.
 """
 function allocate_container(
     prototype::N, n::Union{Nothing,Integer}=nothing
-) where {T,N<:AbstractExpressionNode{T}}
+) where {T,N<:AbstractExpressionNNode{T}}
     num_nodes = @something(n, length(prototype))
     return N[with_type_parameters(N, T)() for _ in 1:num_nodes]
 end
 
 """
-    copy_into!(dest::AbstractArray{N}, src::N) where {N<:AbstractExpressionNode}
+    copy_into!(dest::AbstractArray{N}, src::N) where {N<:AbstractExpressionNNode}
 
 Copy a node, recursively copying all children nodes, in-place to a preallocated container.
 This should result in no extra allocations.
 """
 function copy_into!(
     dest::AbstractArray{N}, src::N; ref::Union{Nothing,Base.RefValue{<:Integer}}=nothing
-) where {N<:AbstractExpressionNode}
+) where {N<:AbstractExpressionNNode}
     _ref = if ref === nothing
         Ref(0)
     else
@@ -50,14 +50,14 @@ function copy_into!(
     )
 end
 # COV_EXCL_START
-function leaf_copy_into!(dest::N, src::N) where {N<:AbstractExpressionNode}
+function leaf_copy_into!(dest::N, src::N) where {N<:AbstractExpressionNNode}
     set_node!(dest, src)
     return dest
 end
 # COV_EXCL_STOP
 function branch_copy_into!(
     dest::N, src::N, children::Vararg{N,M}
-) where {T,D,N<:AbstractExpressionNode{T,D},M}
+) where {T,D,N<:AbstractExpressionNNode{T,D},M}
     dest.degree = M
     dest.op = src.op
     set_children!(dest, children)

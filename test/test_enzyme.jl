@@ -6,9 +6,9 @@ using DynamicExpressions
 operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(cos, sin))
 # TODO: More operators will trigger a segfault in Enzyme
 
-x1, x2, x3 = (i -> Node(Float64; feature=i)).(1:3)
+x1, x2, x3 = (i -> NNode(Float64; feature=i)).(1:3)
 
-tree = Node(1, x1, Node(1, x2))  # == x1 + cos(x2)
+tree = NNode(1, x1, NNode(1, x2))  # == x1 + cos(x2)
 
 X = randn(3, 100);
 dX = zero(X)

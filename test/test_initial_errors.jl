@@ -5,7 +5,7 @@ using Test
 
 # Before defining OperatorEnum, calling the implicit (deprecated)
 # syntax should fail:
-tree = Node{Float64}(; feature=1)
+tree = NNode{Float64}(; feature=1)
 
 if VERSION >= v"1.8"
     @test_throws ErrorException allow_unstable(() -> tree([1.0; 2.0;;]))
@@ -16,12 +16,12 @@ end
 
 # Initial strings are still somewhat useful
 @test string(tree) == "x1"
-@test string(Node(1, tree)) == "unary_operator[1](x1)"
-@test string(Node(1, tree, tree)) == "binary_operator[1](x1, x1)"
+@test string(NNode(1, tree)) == "unary_operator[1](x1)"
+@test string(NNode(1, tree, tree)) == "binary_operator[1](x1, x1)"
 
 # Before loading extensions, should fail with helpful message:
 operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[cos, sin])
-x1, x2 = Node{Float64}(; feature=1), Node{Float64}(; feature=2)
+x1, x2 = NNode{Float64}(; feature=1), NNode{Float64}(; feature=2)
 tree = cos(2.1 * x1) + sin(x2)
 
 if VERSION >= v"1.9"

@@ -1,7 +1,7 @@
 module DynamicExpressionsLoopVectorizationExt
 
 using LoopVectorization: @turbo
-using DynamicExpressions: AbstractExpressionNode
+using DynamicExpressions: AbstractExpressionNNode
 using DynamicExpressions.UtilsModule: ResultOk
 using DynamicExpressions.EvaluateModule:
     @return_on_nonfinite_val, EvalOptions, get_array, get_feature_array, get_filled_array
@@ -33,7 +33,7 @@ _is_loopvectorization_loaded(::Int) = true
 end
 
 function deg1_l2_ll0_lr0_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cX::AbstractMatrix{T},
     op::F,
     op_l::F2,
@@ -85,7 +85,7 @@ function deg1_l2_ll0_lr0_eval(
 end
 
 function deg1_l1_ll0_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cX::AbstractMatrix{T},
     op::F,
     op_l::F2,
@@ -112,7 +112,7 @@ function deg1_l1_ll0_eval(
 end
 
 function deg2_l0_r0_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cX::AbstractMatrix{T},
     op::F,
     eval_options::EvalOptions{true},
@@ -159,7 +159,7 @@ end
 
 # op(x, y) for x variable/constant, y arbitrary
 function deg2_l0_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
@@ -184,7 +184,7 @@ function deg2_l0_eval(
 end
 
 function deg2_r0_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,

@@ -92,7 +92,7 @@ end
         :(x + y + $z);
         binary_operators=[+, *],
         variable_names=["x", "y"],
-        node_type=Node{typeof(z)},
+        node_type=NNode{typeof(z)},
     )
     shower(ex) = sprint((io, e) -> show(io, MIME"text/plain"(), e), ex)
     @test typeof(ex) <: Expression{typeof(z)}

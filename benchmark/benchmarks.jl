@@ -4,9 +4,9 @@ using DynamicExpressions, BenchmarkTools, Random
 using LoopVectorization, Bumper, StrideArrays, Zygote
 
 if PACKAGE_VERSION < v"0.14.0"
-    @eval using DynamicExpressions: Node as GraphNode
+    @eval using DynamicExpressions: NNode as GraphNNode
 else
-    @eval using DynamicExpressions: GraphNode
+    @eval using DynamicExpressions: GraphNNode
 end
 
 if PACKAGE_VERSION < v"0.17.0"
@@ -48,7 +48,7 @@ function benchmark_evaluation()
             (turbo || bumper) && !(T in (Float32, Float64)) && continue
             if bumper
                 try
-                    eval_tree_array(Node{T}(val=1.0), ones(T, 5, n), operators; turbo, bumper)
+                    eval_tree_array(NNode{T}(val=1.0), ones(T, 5, n), operators; turbo, bumper)
                 catch e
                     isa(e, MethodError) || rethrow(e)
                     @warn "Skipping bumper tests"
@@ -192,7 +192,7 @@ function benchmark_utilities()
                 end
             )
                 preprocess = if k == :preserve_sharing && PACKAGE_VERSION >= v"0.14.0"
-                    tree -> GraphNode(tree)
+                    tree -> GraphNNode(tree)
                 else
                     identity
                 end
@@ -201,7 +201,7 @@ function benchmark_utilities()
                     tree -> _copy_node(tree; preserve_sharing=(k == :preserve_sharing))
                 elseif func_k == :convert
                     tree -> _convert(
-                        Node{Float64},
+                        NNode{Float64},
                         tree;
                         preserve_sharing=(k == :preserve_sharing),
                     )
@@ -221,7 +221,7 @@ function benchmark_utilities()
                         ntrees=100;
                         n=20;
                         rng=Random.MersenneTwister(0);
-                        trees=[$preprocess(gen_random_tree_fixed_size(n, $operators, 5, Float32, Node, rng)) for _ in 1:ntrees]
+                        trees=[$preprocess(gen_random_tree_fixed_size(n, $operators, 5, Float32, NNode, rng)) for _ in 1:ntrees]
                     )
                 )
                 #! format: on
@@ -245,7 +245,7 @@ function benchmark_utilities()
                 rng = Random.MersenneTwister(0);
                 exs = [
                     let tree = gen_random_tree_fixed_size(
-                            n, operators, n_features, Float32, ParametricNode, rng
+                            n, operators, n_features, Float32, ParametricNNode, rng
                         )
                         ex = ParametricExpression(
                             tree;

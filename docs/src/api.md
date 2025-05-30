@@ -24,8 +24,8 @@ GenericOperatorEnum(; binary_operators=[], unary_operators=[], define_helper_fun
 ```
 
 By default, these operators will define helper functions for constructing trees,
-so that you can write `Node(;feature=1) + Node(;feature=2)` instead of
-`Node(1, Node(;feature=1), Node(;feature=2))` (assuming `+` is the first operator).
+so that you can write `NNode(;feature=1) + NNode(;feature=2)` instead of
+`NNode(1, NNode(;feature=1), NNode(;feature=2))` (assuming `+` is the first operator).
 You can turn this off with `define_helper_functions=false`.
 
 For other operators *not* found in `Base`, including user-defined functions, you may
@@ -35,32 +35,32 @@ use the `@extend_operators` macro:
 @extend_operators operators
 ```
 
-This will extend the operators you have passed to work with `Node` types, so that
+This will extend the operators you have passed to work with `NNode` types, so that
 it is easier to construct expression trees.
 
-Note that you are free to use the `Node` constructors directly.
+Note that you are free to use the `NNode` constructors directly.
 This is a more robust approach, and should be used when creating libraries
 which use `DynamicExpressions.jl`.
 
 ## Nodes
 
-Equations are specified as binary trees with the `Node` type, defined
+Equations are specified as binary trees with the `NNode` type, defined
 as follows:
 
 ```@docs
-Node
+NNode
 ```
 
 When you create an `Options` object, the operators
-passed are also re-defined for `Node` types.
-This allows you use, e.g., `t=Node(; feature=1) * 3f0` to create a tree, so long as
+passed are also re-defined for `NNode` types.
+This allows you use, e.g., `t=NNode(; feature=1) * 3f0` to create a tree, so long as
 `*` was specified as a binary operator.
 
 When using these node constructors, types will automatically be promoted.
 You can convert the type of a node using `convert`:
 
 ```@docs
-convert(::Type{AbstractExpressionNode{T1}}, tree::AbstractExpressionNode{T2}) where {T1, T2}
+convert(::Type{AbstractExpressionNNode{T1}}, tree::AbstractExpressionNNode{T2}) where {T1, T2}
 ```
 
 You can set a `tree` (in-place) with `set_node!`:
@@ -78,10 +78,10 @@ copy_node
 ## Graph Nodes
 
 You can describe an equation as a *graph* rather than a tree
-by using the `GraphNode` type:
+by using the `GraphNNode` type:
 
 ```@docs
-GraphNode{T}
+GraphNNode{T}
 ```
 
 This makes it so you can have multiple parents for a given node,
@@ -92,7 +92,7 @@ julia> operators = OperatorEnum(;
            binary_operators=[+, -, *], unary_operators=[cos, sin, exp]
        );
 
-julia> x1, x2 = GraphNode(feature=1), GraphNode(feature=2)
+julia> x1, x2 = GraphNNode(feature=1), GraphNNode(feature=2)
 (x1, x2)
 
 julia> y = sin(x1) + 1.5
@@ -122,27 +122,27 @@ This also means there are fewer nodes to describe an expression:
 julia> length(z)
 6
 
-julia> length(convert(Node, z))
+julia> length(convert(NNode, z))
 10
 ```
 
-where we have converted the `GraphNode` to a `Node` type,
+where we have converted the `GraphNNode` to a `NNode` type,
 which breaks shared connections into separate nodes.
 
 ## Abstract Types
 
-Both the `Node` and `GraphNode` types are subtypes of the abstract type:
+Both the `NNode` and `GraphNNode` types are subtypes of the abstract type:
 
 ```@docs
-AbstractExpressionNode{T}
+AbstractExpressionNNode{T}
 ```
 
 which can be used to create additional expression-like types.
-The supertype of this abstract type is the `AbstractNode` type,
+The supertype of this abstract type is the `AbstractNNode` type,
 which is more generic but does not have all of the same methods:
 
 ```@docs
-AbstractNode{T}
+AbstractNNode{T}
 ```
 
 ## Expressions
@@ -163,7 +163,7 @@ which can be used for defining custom types, such as the `ParametricExpression`:
 
 ```@docs
 ParametricExpression
-ParametricNode
+ParametricNNode
 ```
 
 Another example is the `StructuredExpression` type, for defining rigid
@@ -195,7 +195,7 @@ To declare a new operator for expressions, you may use:
 
 ## Interfaces
 
-The interfaces for `AbstractExpression` and `AbstractExpressionNode` are
+The interfaces for `AbstractExpression` and `AbstractExpressionNNode` are
 tested using Interfaces.jl. You can see the interfaces with:
 
 ```@docs

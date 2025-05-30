@@ -2,7 +2,7 @@ module DynamicExpressionsOptimExt
 
 using DynamicExpressions:
     AbstractExpression,
-    AbstractExpressionNode,
+    AbstractExpressionNNode,
     filter_map,
     eval_tree_array,
     get_scalar_constants,
@@ -13,12 +13,12 @@ import Optim: Optim, OptimizationResults, NLSolversBase
 
 #! format: off
 """
-    ExpressionOptimizationResults{R,N<:AbstractExpressionNode}
+    ExpressionOptimizationResults{R,N<:AbstractExpressionNNode}
 
 Optimization results for an expression, which wraps the base optimization results
 on a vector of constants.
 """
-struct ExpressionOptimizationResults{R<:OptimizationResults,N<:Union{AbstractExpressionNode,AbstractExpression}} <: OptimizationResults
+struct ExpressionOptimizationResults{R<:OptimizationResults,N<:Union{AbstractExpressionNNode,AbstractExpression}} <: OptimizationResults
     _results::R # The raw results from Optim.
     tree::N # The final expression tree
 end
@@ -40,7 +40,7 @@ end
 """Wrap function or objective with insertion of values of the constant nodes."""
 function wrap_func(
     f::F, tree::N, refs
-) where {F<:Function,T,N<:Union{AbstractExpressionNode{T},AbstractExpression{T}}}
+) where {F<:Function,T,N<:Union{AbstractExpressionNNode{T},AbstractExpression{T}}}
     function wrapped_f(args::Vararg{Any,M}) where {M}
         first_args = args[begin:(end - 1)]
         x = args[end]
@@ -56,12 +56,12 @@ function wrap_func(
 end
 function wrap_func(
     ::Nothing, tree::N, refs
-) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
+) where {N<:Union{AbstractExpressionNNode,AbstractExpression}}
     return nothing
 end
 function wrap_func(
     f::NLSolversBase.InplaceObjective, tree::N, refs
-) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
+) where {N<:Union{AbstractExpressionNNode,AbstractExpression}}
     # Some objectives, like `Optim.only_fg!(fg!)`, are not functions but instead
     # `InplaceObjective`. These contain multiple functions, each of which needs to be
     # wrapped. Some functions are `nothing`; those can be left as-is.
@@ -84,12 +84,12 @@ optimization results on a vector of constants. You may use `res.minimizer`
 to view the optimized expression tree.
 """
 function Optim.optimize(
-    f::F, tree::Union{AbstractExpressionNode,AbstractExpression}, args...; kwargs...
+    f::F, tree::Union{AbstractExpressionNNode,AbstractExpression}, args...; kwargs...
 ) where {F}
     return Optim.optimize(f, nothing, tree, args...; kwargs...)
 end
 function Optim.optimize(
-    f::F, g!::G, tree::Union{AbstractExpressionNode,AbstractExpression}, args...; kwargs...
+    f::F, g!::G, tree::Union{AbstractExpressionNNode,AbstractExpression}, args...; kwargs...
 ) where {F,G}
     return Optim.optimize(f, g!, nothing, tree, args...; kwargs...)
 end
@@ -97,7 +97,7 @@ function Optim.optimize(
     f::F,
     g!::G,
     h!::H,
-    tree::Union{AbstractExpressionNode{T},AbstractExpression{T}},
+    tree::Union{AbstractExpressionNNode{T},AbstractExpression{T}},
     args...;
     make_copy=true,
     kwargs...,
@@ -110,7 +110,7 @@ function Optim.optimize(
     if !isnothing(h!)
         throw(
             ArgumentError(
-                "Optim.optimize does not yet support Hessians on `AbstractExpressionNode`. " *
+                "Optim.optimize does not yet support Hessians on `AbstractExpressionNNode`. " *
                 "Please raise an issue at github.com/SymbolicML/DynamicExpressions.jl.",
             ),
         )

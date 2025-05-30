@@ -5,7 +5,7 @@
 
     operators = OperatorEnum(; binary_operators=[+, *, /], unary_operators=[sin, cos])
 
-    for size in [1, 2, 5, 10, 20], _ in 1:10, N in (Node, ParametricNode)
+    for size in [1, 2, 5, 10, 20], _ in 1:10, N in (NNode, ParametricNNode)
         tree = gen_random_tree_fixed_size(size, operators, 5, Float64, N)
         n_nodes = count_nodes(tree)
         @test n_nodes == size  # Verify gen_random_tree_fixed_size worked
@@ -39,11 +39,11 @@ end
     using DynamicExpressions
     using DynamicExpressions: copy_into!
 
-    leaf_constant = Node{Float64}(; val=1.0)
-    leaf_feature = Node{Float64}(; feature=1)
+    leaf_constant = NNode{Float64}(; val=1.0)
+    leaf_feature = NNode{Float64}(; feature=1)
 
     for leaf in [leaf_constant, leaf_feature]
-        dest_array = [Node{Float64}() for _ in 1:1]
+        dest_array = [NNode{Float64}() for _ in 1:1]
         ref = Ref(0)
         result = copy_into!(dest_array, leaf; ref=ref)
         @test ref[] == 1

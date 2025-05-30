@@ -1,13 +1,13 @@
 # supposition_utils.jl
 #
 # Helper that builds a Supposition generator returning fully-random
-# DynamicExpressions.Expression objects whose node type is Node{T,D}.
+# DynamicExpressions.Expression objects whose node type is NNode{T,D}.
 # D is inferred from `operators`.
 
 module SuppositionUtils
 
 using Supposition: Data
-using DynamicExpressions: Node, Expression, OperatorEnum
+using DynamicExpressions: NNode, Expression, OperatorEnum
 using DynamicExpressions.OperatorEnumConstructionModule: empty_all_globals!
 empty_all_globals!()
 
@@ -20,10 +20,10 @@ function make_expression_generator(
     D = length(operators.ops)
 
     val_gen = Data.Floats{T}(; nans=false, infs=false)
-    val_node_gen = map(v -> Node{T,D}(; val=v), val_gen)
+    val_node_gen = map(v -> NNode{T,D}(; val=v), val_gen)
 
     feature_gen = Data.SampledFrom(1:num_features)
-    feature_node_gen = map(i -> Node{T,D}(; feature=i), feature_gen)
+    feature_node_gen = map(i -> NNode{T,D}(; feature=i), feature_gen)
 
     leaf_gen = val_node_gen | feature_node_gen
 
@@ -32,7 +32,7 @@ function make_expression_generator(
             op_gen = Data.SampledFrom(1:length(op_list))
 
             child -> map(
-                (op_idx, args...) -> Node{T,D}(; op=op_idx, children=args),
+                (op_idx, args...) -> NNode{T,D}(; op=op_idx, children=args),
                 op_gen,
                 ntuple(_ -> child, degree)...,
             )

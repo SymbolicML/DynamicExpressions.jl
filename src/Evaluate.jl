@@ -3,7 +3,7 @@ module EvaluateModule
 using DispatchDoctor: @stable, @unstable
 
 import ..NodeModule:
-    AbstractExpressionNode, constructorof, max_degree, get_children, with_type_parameters
+    AbstractExpressionNNode, constructorof, max_degree, get_children, with_type_parameters
 import ..StringsModule: string_tree
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: fill_similar, counttuple, ResultOk
@@ -158,7 +158,7 @@ end
 
 """
     eval_tree_array(
-        tree::AbstractExpressionNode{T},
+        tree::AbstractExpressionNNode{T},
         cX::AbstractMatrix{T},
         operators::OperatorEnum;
         eval_options::Union{EvalOptions,Nothing}=nothing,
@@ -169,7 +169,7 @@ operators contain all of the operators used. This function fuses doublets
 and triplets of operations for lower memory usage.
 
 # Arguments
-- `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
+- `tree::AbstractExpressionNNode`: The root node of the tree to evaluate.
 - `cX::AbstractMatrix{T}`: The input data to evaluate the tree on, with shape `[num_features, num_rows]`.
 - `operators::OperatorEnum`: The operators used in the tree.
 - `eval_options::Union{EvalOptions,Nothing}`: See [`EvalOptions`](@ref) for documentation
@@ -199,7 +199,7 @@ The bulk of the code is for optimizations and pre-emptive NaN/Inf checks,
 which speed up evaluation significantly.
 """
 function eval_tree_array(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
     eval_options::Union{EvalOptions,Nothing}=nothing,
@@ -233,13 +233,13 @@ function eval_tree_array(
 end
 
 function eval_tree_array(
-    tree::AbstractExpressionNode{T}, cX::AbstractVector{T}, operators::OperatorEnum; kws...
+    tree::AbstractExpressionNNode{T}, cX::AbstractVector{T}, operators::OperatorEnum; kws...
 ) where {T}
     return eval_tree_array(tree, reshape(cX, (size(cX, 1), 1)), operators; kws...)
 end
 
 function eval_tree_array(
-    tree::AbstractExpressionNode{T1},
+    tree::AbstractExpressionNNode{T1},
     cX::AbstractMatrix{T2},
     operators::OperatorEnum;
     kws...,
@@ -259,7 +259,7 @@ end
 end
 
 function _eval_tree_array(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     eval_options::EvalOptions,
@@ -318,7 +318,7 @@ function deg1_eval(
 end
 
 function deg0_eval(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, eval_options::EvalOptions
+    tree::AbstractExpressionNNode{T}, cX::AbstractMatrix{T}, eval_options::EvalOptions
 )::ResultOk where {T}
     if tree.constant
         return ResultOk(
@@ -353,7 +353,7 @@ end
 
 # This basically forms an if statement over the operators for the degree.
 function inner_dispatch_degn_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cX::AbstractMatrix{T},
     ::Val{degree},
     operators::OperatorEnum,
@@ -364,7 +364,7 @@ function inner_dispatch_degn_eval(
     )::(_get_return_type(tree, cX, operators, eval_options))
 end
 @generated function _inner_dispatch_degn_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cX::AbstractMatrix{T},
     ::Val{degree},
     operators::O,
@@ -395,7 +395,7 @@ end
 
 # This forms an if statement over the degree of a given node.
 @generated function dispatch_degn_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     eval_options::EvalOptions,
@@ -412,7 +412,7 @@ end
     end
 end
 @generated function dispatch_deg2_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cX::AbstractMatrix{T},
     op_idx::Integer,
     operators::OperatorEnum,
@@ -466,7 +466,7 @@ end
     end
 end
 @generated function dispatch_deg1_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cX::AbstractMatrix{T},
     op_idx::Integer,
     operators::OperatorEnum,
@@ -513,7 +513,7 @@ end
     end
 end
 @generated function dispatch_deg1_l2_ll0_lr0_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cX::AbstractMatrix{T},
     op::F,
     l_op_idx::Integer,
@@ -534,7 +534,7 @@ end
     end
 end
 @generated function dispatch_deg1_l1_ll0_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cX::AbstractMatrix{T},
     op::F,
     l_op_idx::Integer,
@@ -554,7 +554,7 @@ end
 end
 
 function deg1_l2_ll0_lr0_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cX::AbstractMatrix{T},
     op::F,
     op_l::F2,
@@ -607,7 +607,7 @@ end
 
 # op(op2(x)) for x variable or constant
 function deg1_l1_ll0_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cX::AbstractMatrix{T},
     op::F,
     op_l::F2,
@@ -635,7 +635,7 @@ end
 
 # op(x, y) for x and y variable/constant
 function deg2_l0_r0_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cX::AbstractMatrix{T},
     op::F,
     eval_options::EvalOptions{false,false},
@@ -682,7 +682,7 @@ end
 
 # op(x, y) for x variable/constant, y arbitrary
 function deg2_l0_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
@@ -708,7 +708,7 @@ end
 
 # op(x, y) for x arbitrary, y variable/constant
 function deg2_r0_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
@@ -733,14 +733,14 @@ function deg2_r0_eval(
 end
 
 """
-    dispatch_constant_tree(tree::AbstractExpressionNode{T}, operators::OperatorEnum) where {T}
+    dispatch_constant_tree(tree::AbstractExpressionNNode{T}, operators::OperatorEnum) where {T}
 
 Evaluate a tree which is assumed to not contain any variable nodes. This
 gives better performance, as we do not need to perform computation
 over an entire array when the values are all the same.
 """
 @generated function dispatch_constant_tree(
-    tree::AbstractExpressionNode{T,D}, operators::OperatorEnum
+    tree::AbstractExpressionNNode{T,D}, operators::OperatorEnum
 ) where {T,D}
     quote
         deg = tree.degree
@@ -755,7 +755,7 @@ end
 
 # Now that we have the degree, we can get the operator
 @generated function inner_dispatch_degn_eval_constant(
-    tree::AbstractExpressionNode{T}, ::Val{degree}, operators::OperatorEnum
+    tree::AbstractExpressionNNode{T}, ::Val{degree}, operators::OperatorEnum
 ) where {T,degree}
     nops = get_nops(operators, Val(degree))
     get_inputs = quote
@@ -792,7 +792,7 @@ end
     end
 end
 
-@inline function deg0_eval_constant(tree::AbstractExpressionNode{T}) where {T}
+@inline function deg0_eval_constant(tree::AbstractExpressionNNode{T}) where {T}
     output = tree.val
     return ResultOk(output, is_valid(output))::ResultOk{T}
 end
@@ -803,19 +803,19 @@ function degn_eval_constant(inputs::Tuple{T,Vararg{T}}, op::F) where {T,F}
 end
 
 """
-    differentiable_eval_tree_array(tree::AbstractExpressionNode, cX::AbstractMatrix, operators::OperatorEnum)
+    differentiable_eval_tree_array(tree::AbstractExpressionNNode, cX::AbstractMatrix, operators::OperatorEnum)
 
 Evaluate an expression tree in a way that can be auto-differentiated.
 """
 function differentiable_eval_tree_array(
-    tree::AbstractExpressionNode{T1}, cX::AbstractMatrix{T}, operators::OperatorEnum
+    tree::AbstractExpressionNNode{T1}, cX::AbstractMatrix{T}, operators::OperatorEnum
 ) where {T<:Number,T1}
     result = _differentiable_eval_tree_array(tree, cX, operators)
     return (result.x, result.ok)
 end
 
 @generated function _differentiable_eval_tree_array(
-    tree::AbstractExpressionNode{T1,D}, cX::AbstractMatrix{T}, operators::OperatorEnum
+    tree::AbstractExpressionNNode{T1,D}, cX::AbstractMatrix{T}, operators::OperatorEnum
 )::ResultOk where {T<:Number,T1,D}
     quote
         tree.degree == 0 && return deg0_diff_eval(tree, cX, operators)
@@ -830,7 +830,7 @@ end
 end
 
 function deg0_diff_eval(
-    tree::AbstractExpressionNode{T1}, cX::AbstractMatrix{T}, operators::OperatorEnum
+    tree::AbstractExpressionNNode{T1}, cX::AbstractMatrix{T}, operators::OperatorEnum
 )::ResultOk where {T<:Number,T1}
     if tree.constant
         ResultOk(fill_similar(one(T), cX, axes(cX, 2)) .* tree.val, true)
@@ -845,7 +845,7 @@ function degn_diff_eval(cumulators::C, op::F) where {C<:Tuple,F}
 end
 
 @generated function dispatch_degn_diff_eval(
-    tree::AbstractExpressionNode{T1,D},
+    tree::AbstractExpressionNNode{T1,D},
     cX::AbstractMatrix{T},
     op_idx::Integer,
     ::Val{degree},
@@ -874,7 +874,7 @@ end
 end
 
 """
-    eval_tree_array(tree::AbstractExpressionNode, cX::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)
+    eval_tree_array(tree::AbstractExpressionNNode, cX::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)
 
 Evaluate a generic binary tree (equation) over a given input data,
 whatever that input data may be. The `operators` enum contains all
@@ -903,7 +903,7 @@ function eval(current_node)
 ```
 
 # Arguments
-- `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
+- `tree::AbstractExpressionNNode`: The root node of the tree to evaluate.
 - `cX::AbstractArray`: The input data to evaluate the tree on.
 - `operators::GenericOperatorEnum`: The operators used in the tree.
 - `throw_errors::Bool=true`: Whether to throw errors
@@ -922,7 +922,7 @@ function eval(current_node)
     that it was not defined for.
 """
 @unstable function eval_tree_array(
-    tree::AbstractExpressionNode{T1},
+    tree::AbstractExpressionNNode{T1},
     cX::AbstractArray{T2,N},
     operators::GenericOperatorEnum;
     throw_errors::Union{Val,Bool}=Val(true),
@@ -948,7 +948,7 @@ function eval(current_node)
 end
 
 @generated function _eval_tree_array_generic(
-    tree::AbstractExpressionNode{T1,D},
+    tree::AbstractExpressionNNode{T1,D},
     cX::AbstractArray{T2,N},
     operators::GenericOperatorEnum,
     ::Val{throw_errors},
@@ -968,7 +968,7 @@ end
 end
 
 @unstable function deg0_eval_generic(
-    tree::AbstractExpressionNode{T1}, cX::AbstractArray{T2,N}
+    tree::AbstractExpressionNNode{T1}, cX::AbstractArray{T2,N}
 ) where {T1,T2,N}
     if tree.constant
         if N == 1
@@ -1000,7 +1000,7 @@ end
 end
 
 @generated function dispatch_degn_eval_generic(
-    tree::AbstractExpressionNode{T1},
+    tree::AbstractExpressionNNode{T1},
     cX::AbstractArray{T2,N},
     op_idx::Integer,
     ::Val{degree},

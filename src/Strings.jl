@@ -2,7 +2,7 @@ module StringsModule
 
 using ..UtilsModule: deprecate_varmap
 using ..OperatorEnumModule: AbstractOperatorEnum
-using ..NodeModule: AbstractExpressionNode, tree_mapreduce, max_degree
+using ..NodeModule: AbstractExpressionNNode, tree_mapreduce, max_degree
 
 function dispatch_op_name(
     ::Val{deg}, ::Nothing, idx, pretty::Bool
@@ -131,7 +131,7 @@ end
 
 """
     string_tree(
-        tree::AbstractExpressionNode{T},
+        tree::AbstractExpressionNNode{T},
         operators::Union{AbstractOperatorEnum,Nothing}=nothing;
         f_variable::F1=string_variable,
         f_constant::F2=string_constant,
@@ -152,7 +152,7 @@ Convert an equation to a string.
 - `variable_names::Union{Array{String, 1}, Nothing}=nothing`: (optional) what variables to print for each feature.
 """
 function string_tree(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNNode{T},
     operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     f_variable::F1=string_variable,
     f_constant::F2=string_constant,
@@ -198,7 +198,7 @@ end
 for io in ((), (:(io::IO),))
     @eval function print_tree(
         $(io...),
-        tree::AbstractExpressionNode,
+        tree::AbstractExpressionNNode,
         operators::Union{AbstractOperatorEnum,Nothing}=nothing;
         f_variable::F1=string_variable,
         f_constant::F2=string_constant,

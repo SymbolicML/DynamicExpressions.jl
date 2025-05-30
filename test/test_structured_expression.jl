@@ -77,7 +77,7 @@ end
     # `StructuredExpression` example
 
     `StructuredExpression`s allow you to specify a predefined structure for an
-    expression that exists outside of the regular `AbstractExpressionNode` objects
+    expression that exists outside of the regular `AbstractExpressionNNode` objects
     which store expressions as trees.
 
     Let's look at an example:
@@ -88,9 +88,9 @@ end
 
     operators = OperatorEnum(; unary_operators=(cos, exp), binary_operators=(+, -, *, /))
     variable_names = ["x", "y"]
-    x = Expression(Node{Float64}(; feature=1); operators, variable_names)
-    y = Expression(Node{Float64}(; feature=2); operators, variable_names)
-    @test typeof(x) <: AbstractExpression{Float64,<:Node{Float64}}  #src
+    x = Expression(NNode{Float64}(; feature=1); operators, variable_names)
+    y = Expression(NNode{Float64}(; feature=2); operators, variable_names)
+    @test typeof(x) <: AbstractExpression{Float64,<:NNode{Float64}}  #src
 
     typeof(x)
     #=
@@ -111,15 +111,15 @@ end
         (; f, g); structure=nt -> nt.f + nt.g, operators, variable_names
     )
     ex
-    @test typeof(ex) <: AbstractExpression{Float64,<:Node{Float64}}  #src
+    @test typeof(ex) <: AbstractExpression{Float64,<:NNode{Float64}}  #src
     #=
     Note that this is displayed as a single tree, with the `+` operator
     used to combine them. Despite this, the expression is not actually
-    *stored* with the `+` operator in an `AbstractExpressionNode`.
+    *stored* with the `+` operator in an `AbstractExpressionNNode`.
 
     By default, using `get_tree` will evaluate the result of `nt.f + nt.g`.
     This let's us use things like the regular operations available to
-    `AbstractExpressionNode`s:
+    `AbstractExpressionNNode`s:
     =#
     length(get_tree(ex))
     @test length(get_tree(ex)) == 17  #src

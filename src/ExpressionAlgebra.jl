@@ -1,6 +1,6 @@
 module ExpressionAlgebraModule
 
-using ..NodeModule: AbstractExpressionNode
+using ..NodeModule: AbstractExpressionNNode
 using ..ExpressionModule:
     AbstractExpression,
     get_operators,
@@ -11,7 +11,7 @@ using ..ExpressionModule:
 
 function insert_operator_index(
     op::Integer, exprs::Tuple, example_expr::E
-) where {T,N<:AbstractExpressionNode{T},E<:AbstractExpression{T,N}}
+) where {T,N<:AbstractExpressionNNode{T},E<:AbstractExpression{T,N}}
     _exprs = map(exprs) do expr
         if expr isa AbstractExpression
             # Assume the contents are an expression; otherwise, this

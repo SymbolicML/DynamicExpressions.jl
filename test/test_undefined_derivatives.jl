@@ -6,7 +6,7 @@ operators = OperatorEnum(; binary_operators=[+, *, -, /], unary_operators=[safe_
 
 @extend_operators operators
 
-x1, x2, x3 = (i -> Node(Float64; feature=i)).(1:3)
+x1, x2, x3 = (i -> NNode(Float64; feature=i)).(1:3)
 
 tree = safe_log(x1)
 

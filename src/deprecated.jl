@@ -1,9 +1,9 @@
 import Base: @deprecate
-import .NodeModule: Node, GraphNode
+import .NodeModule: NNode, GraphNNode
 
 @deprecate simplify_tree(tree, operators) simplify_tree!(tree, operators)
 
-for N in (:Node, :GraphNode)
+for N in (:NNode, :GraphNNode)
     @eval begin
         function $N(d::Integer, c::Bool, v::T) where {T}
             Base.depwarn(
@@ -76,18 +76,24 @@ Base.@deprecate_binding EvaluateEquationDerivativeModule EvaluateDerivativeModul
 Base.@deprecate_binding SimplifyEquationModule SimplifyModule
 
 @deprecate(
-    count_constants(tree::Union{AbstractExpression,AbstractExpressionNode}),
+    count_constants(tree::Union{AbstractExpression,AbstractExpressionNNode}),
     count_constant_nodes(tree)
 )
 @deprecate(
-    index_constants(tree::Union{AbstractExpression,AbstractExpressionNode}, T::Type=UInt16),
+    index_constants(tree::Union{AbstractExpression,AbstractExpressionNNode}, T::Type=UInt16),
     index_constant_nodes(tree, T)
 )
 @deprecate(
-    get_constants(tree::Union{AbstractExpression,AbstractExpressionNode}),
+    get_constants(tree::Union{AbstractExpression,AbstractExpressionNNode}),
     get_scalar_constants(tree)
 )
 @deprecate(
-    set_constants!(tree::Union{AbstractExpression,AbstractExpressionNode}, constants, refs),
+    set_constants!(tree::Union{AbstractExpression,AbstractExpressionNNode}, constants, refs),
     set_scalar_constants!(tree, constants, refs)
 )
+
+const AbstractNode = AbstractNNode{2}
+const AbstractExpressionNode{T} = AbstractExpressionNNode{T,2}
+const ParametricNode{T} = ParametricNNode{T,2}
+const Node{T} = NNode{T,2}
+const GraphNode{T} = GraphNNode{T,2}

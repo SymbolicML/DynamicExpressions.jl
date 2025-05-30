@@ -5,8 +5,8 @@
     # Test data setup
     X = rand(2, 10)  # 2 features, 10 samples
     operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
-    tree = Node(;
-        op=2, l=Node(; op=1, l=Node(Float64; feature=1)), r=Node(Float64; val=2.0)
+    tree = NNode(;
+        op=2, l=NNode(; op=1, l=NNode(Float64; feature=1)), r=NNode(Float64; val=2.0)
     )
 
     # Basic buffer creation - buffer shape should match (num_leafs, num_samples)
@@ -36,10 +36,10 @@ end
 
     # Test different tree structures
     for tree in [
-        Node(Float64; feature=1),
-        Node(Float64; val=1.5),
-        Node(; op=1, l=Node(Float64; feature=1), r=Node(Float64; val=2.0)),
-        Node(; op=1, l=Node(Float64; feature=1)),
+        NNode(Float64; feature=1),
+        NNode(Float64; val=1.5),
+        NNode(; op=1, l=NNode(Float64; feature=1), r=NNode(Float64; val=2.0)),
+        NNode(; op=1, l=NNode(Float64; feature=1)),
     ]
         # Regular evaluation
         result1, ok1 = eval_tree_array(tree, X, operators)
@@ -63,10 +63,10 @@ end
     operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
 
     # Create a complex tree that will use multiple buffer slots
-    tree = Node(;
+    tree = NNode(;
         op=1,  # +
-        l=Node(; op=1, l=Node(Float64; feature=1)),  # sin(x1)
-        r=Node(; op=1, l=Node(Float64; feature=2), r=Node(Float64; val=2.0)),  # x2 + 2
+        l=NNode(; op=1, l=NNode(Float64; feature=1)),  # sin(x1)
+        r=NNode(; op=1, l=NNode(Float64; feature=2), r=NNode(Float64; val=2.0)),  # x2 + 2
     )
 
     # This tree needs more buffer space due to intermediate computations
@@ -101,10 +101,10 @@ end
     operators = OperatorEnum(; binary_operators=[+, /, *], unary_operators=[sin])
 
     # Create a tree that might produce NaN/Inf
-    tree = Node(;
+    tree = NNode(;
         op=2,  # /
-        l=Node(Float64; val=1.0),
-        r=Node(Float64; val=0.0),  # Division by zero
+        l=NNode(Float64; val=1.0),
+        r=NNode(Float64; val=0.0),  # Division by zero
     )
 
     buffer = zeros(5, size(X, 2))
@@ -132,7 +132,7 @@ end
     for turbo in (false, true), i in 1:100
         # Generate a random tree with varying size (1-10 nodes)
         n_nodes = rand(1:10)
-        tree = gen_random_tree_fixed_size(n_nodes, operators, size(X, 1), Float64, Node)
+        tree = gen_random_tree_fixed_size(n_nodes, operators, size(X, 1), Float64, NNode)
 
         # Regular evaluation
         eval_options_no_buffer = EvalOptions(; turbo)

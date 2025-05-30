@@ -2,7 +2,7 @@ module ParseModule
 
 using DispatchDoctor: @unstable
 
-using ..NodeModule: AbstractExpressionNode, Node, constructorof
+using ..NodeModule: AbstractExpressionNNode, NNode, constructorof
 using ..OperatorEnumModule: AbstractOperatorEnum
 using ..OperatorEnumConstructionModule: OperatorEnum, empty_all_globals!
 using ..ExpressionModule:
@@ -14,7 +14,7 @@ using ..ExpressionModule:
     node_type
 
 """
-    @parse_expression(expr; operators, variable_names, node_type=Node, evaluate_on=[])
+    @parse_expression(expr; operators, variable_names, node_type=NNode, evaluate_on=[])
 
 (Experimental) Parse a symbolic expression `expr` into a computational graph where nodes represent operations or variables.
 
@@ -47,10 +47,10 @@ julia> ex = @parse_expression my_custom_op(x, sin(y) + 0.3) operators=operators 
 my_custom_op(x, sin(y) + 0.3)
 
 julia> typeof(ex)
-Expression{Float64, Node{Float64}, OperatorEnum{Tuple{typeof(+), typeof(-), typeof(*), typeof(my_custom_op)}, Tuple{typeof(sin)}}, Vector{String}}
+Expression{Float64, NNode{Float64}, OperatorEnum{Tuple{typeof(+), typeof(-), typeof(*), typeof(my_custom_op)}, Tuple{typeof(sin)}}, Vector{String}}
 
 julia> typeof(ex.tree)
-Node{Float64}
+NNode{Float64}
 
 julia> ex(ones(2, 1))
 1-element Vector{Float64}:
@@ -64,12 +64,12 @@ julia> ex = @parse_expression(
             cos(exp(α - 1)),
             operators=OperatorEnum(binary_operators=[-], unary_operators=[cos, exp]),
             variable_names=[:α],
-            node_type=GraphNode
+            node_type=GraphNNode
         )
 cos(exp(α))
 
 julia> typeof(ex.tree)
-GraphNode{Float32}
+GraphNNode{Float32}
 ```
 
 ### Using external functions and variables
@@ -86,7 +86,7 @@ julia> ex = @parse_expression(
            variable_names = [:x],
            evaluate_on = [show_type],
        )
-typeof(x) = Node{Float32}
+typeof(x) = NNode{Float32}
 (5.0 * 2.5) - cos(x)
 ```
 """
@@ -211,7 +211,7 @@ end
     node_type::Type{N}=default_node_type(expression_type),
     evaluate_on::Union{Nothing,AbstractVector}=nothing,
     kws...,
-) where {N<:AbstractExpressionNode,E<:AbstractExpression}
+) where {N<:AbstractExpressionNNode,E<:AbstractExpression}
     empty_all_globals!(; force=false)
     let variable_names = if variable_names === nothing
             nothing
@@ -253,7 +253,7 @@ module EmptyModule end
     ::Type{E},
     evaluate_on::Union{Nothing,AbstractVector};
     kws...,
-) where {N<:AbstractExpressionNode,E<:AbstractExpression}
+) where {N<:AbstractExpressionNNode,E<:AbstractExpression}
     ex.head != :call && throw(
         ArgumentError(
             "Unrecognized expression type: `Expr(:$(ex.head), ...)`. " *
@@ -281,7 +281,7 @@ end
     ::Type{E},
     evaluate_on::Union{Nothing,AbstractVector};
     kws...,
-)::N where {F<:Function,N<:AbstractExpressionNode,E<:AbstractExpression}
+)::N where {F<:Function,N<:AbstractExpressionNNode,E<:AbstractExpression}
     degree = length(args) - 1
     if degree <= length(operators.ops) && func ∈ operators[degree]
         op_idx = findfirst(==(func), operators[degree])
@@ -359,7 +359,7 @@ end
     ex,
     operators::AbstractOperatorEnum,
     variable_names::Union{AbstractVector{<:AbstractString},Nothing},
-    node_type::Type{<:AbstractExpressionNode},
+    node_type::Type{<:AbstractExpressionNNode},
     expression_type::Type{<:AbstractExpression},
     evaluate_on::Union{Nothing,AbstractVector};
     kws...,
@@ -370,7 +370,7 @@ end
 @unstable function parse_leaf(
     ex,
     variable_names,
-    node_type::Type{<:AbstractExpressionNode},
+    node_type::Type{<:AbstractExpressionNNode},
     expression_type::Type{<:AbstractExpression};
     kws...,
 )
@@ -395,7 +395,7 @@ end
             )
         end
         return node_type(; feature=i::Int)
-    elseif ex isa AbstractExpressionNode
+    elseif ex isa AbstractExpressionNNode
         return ex
     else
         return node_type(; val=ex)

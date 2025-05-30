@@ -10,9 +10,9 @@ using DispatchDoctor: allow_unstable
         operators = OperatorEnum(;
             binary_operators=[+, -, *, /], unary_operators=[cos, sin]
         )
-        x1, x2, x3 = (i -> Node(; feature=i)).(1:3)
+        x1, x2, x3 = (i -> NNode(; feature=i)).(1:3)
         tree = cos(x1 * 5.2 - 0.9) * x3 + x2 * x2 - 2.2 * x1 + 1.0
-        tree = convert(Node{T}, tree)
+        tree = convert(NNode{T}, tree)
 
         y = tree(X, operators)
         @test typeof(y) == MVector{10,T}

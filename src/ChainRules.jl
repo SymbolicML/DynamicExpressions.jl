@@ -9,15 +9,15 @@ using ChainRulesCore:
     @thunk,
     canonicalize
 using ..OperatorEnumModule: OperatorEnum
-using ..NodeModule: AbstractExpressionNode, with_type_parameters, tree_mapreduce
+using ..NodeModule: AbstractExpressionNNode, with_type_parameters, tree_mapreduce
 using ..EvaluateModule: eval_tree_array
 using ..EvaluateDerivativeModule: eval_grad_tree_array
 
-struct NodeTangent{T,N<:AbstractExpressionNode{T},A<:AbstractArray{T}} <: AbstractTangent
+struct NodeTangent{T,N<:AbstractExpressionNNode{T},A<:AbstractArray{T}} <: AbstractTangent
     tree::N
     gradient::A
 end
-function extract_gradient(gradient::NodeTangent, ::AbstractExpressionNode)
+function extract_gradient(gradient::NodeTangent, ::AbstractExpressionNNode)
     return gradient.gradient
 end
 function Base.:+(a::NodeTangent, b::NodeTangent)
@@ -30,7 +30,7 @@ Base.zero(::Union{Type{NodeTangent},NodeTangent}) = ZeroTangent()
 
 function CRC.rrule(
     ::typeof(eval_tree_array),
-    tree::AbstractExpressionNode,
+    tree::AbstractExpressionNNode,
     X::AbstractMatrix,
     operators::OperatorEnum;
     kws...,

@@ -4,7 +4,7 @@ using DispatchDoctor: @stable, @unstable
 using ChainRulesCore: ChainRulesCore as CRC, NoTangent, @thunk
 
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
-using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
+using ..NodeModule: AbstractExpressionNNode, NNode, tree_mapreduce
 using ..ExpressionModule:
     AbstractExpression, Metadata, with_contents, with_metadata, unpack_metadata
 using ..ChainRulesModule: NodeTangent
@@ -47,7 +47,7 @@ import ..ValueInterfaceModule:
     count_scalar_constants, pack_scalar_constants!, unpack_scalar_constants
 
 """A type of expression node that also stores a parameter index"""
-mutable struct ParametricNode{T,D} <: AbstractExpressionNode{T,D}
+mutable struct ParametricNNode{T,D} <: AbstractExpressionNNode{T,D}
     degree::UInt8
     constant::Bool  # if true => constant; if false, then check `is_parameter`
     val::T
@@ -57,43 +57,43 @@ mutable struct ParametricNode{T,D} <: AbstractExpressionNode{T,D}
     parameter::UInt16  # Stores index of per-class parameter
 
     op::UInt8
-    children::NTuple{D,ParametricNode{T,D}}  # Children nodes
+    children::NTuple{D,ParametricNNode{T,D}}  # Children nodes
 
-    function ParametricNode{_T,_D}() where {_T,_D}
+    function ParametricNNode{_T,_D}() where {_T,_D}
         n = new{_T,_D}()
         n.is_parameter = false
         n.parameter = UInt16(0)
         return n
     end
     # TODO: Test with this disabled to spot any unintended uses
-    function ParametricNode{_T}() where {_T}
-        return ParametricNode{_T,2}()
+    function ParametricNNode{_T}() where {_T}
+        return ParametricNNode{_T,2}()
     end
 end
 
-@make_accessors ParametricNode
+@make_accessors ParametricNNode
 
 """
-    ParametricExpression{T,N<:ParametricNode{T},D<:NamedTuple} <: AbstractExpression{T,N}
+    ParametricExpression{T,N<:ParametricNNode{T},D<:NamedTuple} <: AbstractExpression{T,N}
 
 (Experimental) An expression to store parameters for a tree
 """
 struct ParametricExpression{
     T,
-    N<:ParametricNode{T},
+    N<:ParametricNNode{T},
     D<:NamedTuple{(:operators, :variable_names, :parameters, :parameter_names)},
 } <: AbstractExpression{T,N}
     tree::N
     metadata::Metadata{D}
 
-    function ParametricExpression(tree::ParametricNode, metadata::Metadata)
+    function ParametricExpression(tree::ParametricNNode, metadata::Metadata)
         return new{eltype(tree),typeof(tree),typeof(unpack_metadata(metadata))}(
             tree, metadata
         )
     end
 end
 function ParametricExpression(
-    tree::ParametricNode{T1};
+    tree::ParametricNNode{T1};
     operators::Union{AbstractOperatorEnum,Nothing},
     variable_names=nothing,
     parameters::AbstractMatrix{T2},
@@ -103,7 +103,7 @@ function ParametricExpression(
         @assert size(parameters, 1) == length(parameter_names)
     end
     T = promote_type(T1, T2)
-    t = T === T1 ? tree : convert(ParametricNode{T}, tree)
+    t = T === T1 ? tree : convert(ParametricNNode{T}, tree)
     m = Metadata((;
         operators,
         variable_names,
@@ -116,21 +116,21 @@ end
 ###############################################################################
 # Abstract expression node interface ##########################################
 ###############################################################################
-@unstable constructorof(::Type{N}) where {N<:ParametricNode} =
-    ParametricNode{T,max_degree(N)} where {T}
+@unstable constructorof(::Type{N}) where {N<:ParametricNNode} =
+    ParametricNNode{T,max_degree(N)} where {T}
 @unstable constructorof(::Type{<:ParametricExpression}) = ParametricExpression
-function with_type_parameters(::Type{N}, ::Type{T}) where {N<:ParametricNode,T}
-    return ParametricNode{T,max_degree(N)}
+function with_type_parameters(::Type{N}, ::Type{T}) where {N<:ParametricNNode,T}
+    return ParametricNNode{T,max_degree(N)}
 end
-function with_max_degree(::Type{N}, ::Val{D}) where {T,N<:ParametricNode{T},D}
-    return ParametricNode{T,D}
+function with_max_degree(::Type{N}, ::Val{D}) where {T,N<:ParametricNNode{T},D}
+    return ParametricNNode{T,D}
 end
-@unstable default_node_type(::Type{<:ParametricExpression}) = ParametricNode{T,2} where {T}
+@unstable default_node_type(::Type{<:ParametricExpression}) = ParametricNNode{T,2} where {T}
 function default_node_type(::Type{N}) where {T,N<:ParametricExpression{T}}
-    return ParametricNode{T,max_degree(N)}
+    return ParametricNNode{T,max_degree(N)}
 end
-preserve_sharing(::Union{Type{<:ParametricNode},ParametricNode}) = false # TODO: Change this?
-function leaf_copy(t::ParametricNode{T}) where {T}
+preserve_sharing(::Union{Type{<:ParametricNNode},ParametricNNode}) = false # TODO: Change this?
+function leaf_copy(t::ParametricNNode{T}) where {T}
     if t.constant
         return constructorof(typeof(t))(; val=t.val)
     elseif !t.is_parameter
@@ -143,7 +143,7 @@ function leaf_copy(t::ParametricNode{T}) where {T}
         return n
     end
 end
-function set_node!(tree::ParametricNode, new_tree::ParametricNode)
+function set_node!(tree::ParametricNNode, new_tree::ParametricNNode)
     tree.degree = new_tree.degree
     if new_tree.degree == 0
         if new_tree.constant
@@ -167,7 +167,7 @@ function set_node!(tree::ParametricNode, new_tree::ParametricNode)
     end
     return nothing
 end
-function leaf_convert(::Type{N}, t::ParametricNode) where {T,N<:ParametricNode{T}}
+function leaf_convert(::Type{N}, t::ParametricNNode) where {T,N<:ParametricNNode{T}}
     if t.constant
         return constructorof(N)(T; val=convert(T, t.val))
     elseif t.is_parameter
@@ -180,7 +180,7 @@ function leaf_convert(::Type{N}, t::ParametricNode) where {T,N<:ParametricNode{T
         return constructorof(N)(T; feature=t.feature)
     end
 end
-function leaf_hash(h::UInt, t::ParametricNode)
+function leaf_hash(h::UInt, t::ParametricNNode)
     if t.constant
         return hash((:constant, t.val), h)
     else
@@ -191,7 +191,7 @@ function leaf_hash(h::UInt, t::ParametricNode)
         end
     end
 end
-function leaf_equal(a::ParametricNode, b::ParametricNode)
+function leaf_equal(a::ParametricNNode, b::ParametricNNode)
     if a.constant
         return b.constant && a.val == b.val
     else
@@ -305,20 +305,20 @@ function extract_gradient(
         }
     },
     ex::ParametricExpression{T,N},
-) where {T,N<:ParametricNode{T},NT<:NodeTangent{T,N},PARAM<:AbstractMatrix{T}}
+) where {T,N<:ParametricNNode{T},NT<:NodeTangent{T,N},PARAM<:AbstractMatrix{T}}
     d_constants = extract_gradient(gradient.tree, get_tree(ex))
     d_params = gradient.metadata._data.parameters[:]
     return vcat(d_constants, d_params)  # Same shape as `get_scalar_constants`
 end
 
-struct BranchConverter{NT<:Node} <: Function end
-struct LeafConverter{NT<:Node} <: Function
+struct BranchConverter{NT<:NNode} <: Function end
+struct LeafConverter{NT<:NNode} <: Function
     num_params::UInt16
 end
 function (bc::BranchConverter{NT})(op::Integer, children::Vararg{Any,M}) where {NT,M}
     return NT(; op, children)
 end
-function (lc::LeafConverter{NT})(leaf::ParametricNode) where {NT}
+function (lc::LeafConverter{NT})(leaf::ParametricNNode) where {NT}
     if leaf.constant
         return NT(; val=leaf.val)
     elseif leaf.is_parameter
@@ -327,20 +327,20 @@ function (lc::LeafConverter{NT})(leaf::ParametricNode) where {NT}
         return NT(; feature=leaf.feature + lc.num_params)
     end
 end
-function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
+function Base.convert(::Type{NNode}, ex::ParametricExpression{T}) where {T}
     num_params = UInt16(size(ex.metadata.parameters, 1))
     tree = get_tree(ex)
     _NT = typeof(tree)
     D = max_degree(_NT)
-    NT = with_max_degree(with_type_parameters(Node, T), Val(D))
+    NT = with_max_degree(with_type_parameters(NNode, T), Val(D))
 
     return tree_mapreduce(
         LeafConverter{NT}(num_params), branch -> branch.op, BranchConverter{NT}(), tree, NT
     )
 end
-function CRC.rrule(::typeof(convert), ::Type{Node}, ex::ParametricExpression{T}) where {T}
+function CRC.rrule(::typeof(convert), ::Type{NNode}, ex::ParametricExpression{T}) where {T}
     tree = get_contents(ex)
-    primal = convert(Node, ex)
+    primal = convert(NNode, ex)
     pullback = let tree = tree
         d_primal -> let
             # ^The exact same tangent with respect to constants, so we can just take it.
@@ -401,9 +401,9 @@ function eval_tree_array(
         i_parameter in eachindex(axes(parameters, 1)), i_row in eachindex(classes)
     ]
     params_and_X = vcat(indexed_parameters, X)
-    # Then, we create a normal `Node{T}` type from the `ParametricNode{T}`,
+    # Then, we create a normal `NNode{T}` type from the `ParametricNNode{T}`,
     # with `feature` set to the parameter index + num_features
-    regular_tree = convert(Node, ex)
+    regular_tree = convert(NNode, ex)
     return eval_tree_array(regular_tree, params_and_X, get_operators(ex, operators); kws...)
 end
 
@@ -439,7 +439,7 @@ function string_tree(
     end
     @assert length(variable_names3) >= num_params + max_feature
     return string_tree(
-        convert(Node, ex),
+        convert(NNode, ex),
         get_operators(ex, operators);
         variable_names=variable_names3,
         kws...,
@@ -450,7 +450,7 @@ end
 @unstable function parse_leaf(
     ex,
     variable_names,
-    node_type::Type{<:ParametricNode},
+    node_type::Type{<:ParametricNNode},
     expression_type::Type{<:ParametricExpression};
     parameter_names,
     kws...,
@@ -474,7 +474,7 @@ end
         n.is_parameter = true
         n.parameter = j::Int
         return n
-    elseif ex isa AbstractExpressionNode
+    elseif ex isa AbstractExpressionNNode
         return ex
     else
         return node_type(; val=ex)

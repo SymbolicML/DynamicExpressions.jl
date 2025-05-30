@@ -15,8 +15,8 @@ end
 local operators, tree
 operators = OperatorEnum(; binary_operators=(op1, op2), unary_operators=(op3,))
 @extend_operators operators
-x1 = Node(; feature=1)
-x2 = Node(; feature=2)
+x1 = NNode(; feature=1)
+x2 = NNode(; feature=2)
 tree = op1(op2(x1, x2), op3(x1))
 @test repr(tree) == "op1(op2(x1, x2), op3(x1))"
 # Test evaluation:
@@ -41,9 +41,9 @@ operators = OperatorEnum(; binary_operators=[my_func_a], unary_operators=[my_fun
 @extend_operators operators
 
 function create_and_eval_tree()
-    x1 = Node(Float64; feature=1)
-    x2 = Node(Float64; feature=2)
-    c1 = Node(Float64; val=0.2)
+    x1 = NNode(Float64; feature=1)
+    x2 = NNode(Float64; feature=2)
+    c1 = NNode(Float64; val=0.2)
     tree = my_func_a(my_func_a(x2, 0.2), my_func_b(x1))
     func = (x1, x2) -> my_func_a(my_func_a(x2, 0.2), my_func_b(x1))
     X = randn(MersenneTwister(0), 2, 20)
@@ -68,9 +68,9 @@ import .B: my_func_c, my_func_d
 operators = OperatorEnum(; binary_operators=[my_func_c], unary_operators=[my_func_d])
 @extend_operators operators
 
-x1 = Node(Float64; feature=1)
-x2 = Node(Float64; feature=2)
-c1 = Node(Float64; val=0.2)
+x1 = NNode(Float64; feature=1)
+x2 = NNode(Float64; feature=2)
+c1 = NNode(Float64; val=0.2)
 tree = my_func_c(my_func_c(x2, 0.2), my_func_d(x1))
 func = (x1, x2) -> my_func_c(my_func_c(x2, 0.2), my_func_d(x1))
 X = randn(MersenneTwister(0), 2, 20)

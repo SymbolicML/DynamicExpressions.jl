@@ -32,8 +32,8 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
         operators = OperatorEnum(;
             binary_operators=binops, unary_operators=unaops, define_helper_functions=false
         )
-        x = Node(T; feature=1)
-        c = Node(T; val=one(T))
+        x = NNode(T; feature=1)
+        c = NNode(T; val=one(T))
 
         # Trivial:
         for l in (x, c)
@@ -44,8 +44,8 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
 
         # Binary operators
         for i in eachindex(binops), l in (x, c), r in (x, c)
-            tree = Node(i, l, r)
-            tree = convert(Node{T}, tree)
+            tree = NNode(i, l, r)
+            tree = convert(NNode{T}, tree)
             @ignore_domain_error eval_tree_array(
                 tree, X, operators; eval_options=EvalOptions(; turbo=use_turbo)
             )
@@ -53,14 +53,14 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
 
         # Unary operators
         for j in eachindex(unaops), k in eachindex(unaops), l in (x, c)
-            tree = Node(j, l)
-            tree = convert(Node{T}, tree)
+            tree = NNode(j, l)
+            tree = convert(NNode{T}, tree)
             @ignore_domain_error eval_tree_array(
                 tree, X, operators; eval_options=EvalOptions(; turbo=use_turbo)
             )
 
-            tree = Node(j, Node(k, l))
-            tree = convert(Node{T}, tree)
+            tree = NNode(j, NNode(k, l))
+            tree = convert(NNode{T}, tree)
             @ignore_domain_error eval_tree_array(
                 tree, X, operators; eval_options=EvalOptions(; turbo=use_turbo)
             )
@@ -73,14 +73,14 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
             l in (x, c),
             r in (x, c)
 
-            tree = Node(i, Node(j1, l), Node(j2, r))
-            tree = convert(Node{T}, tree)
+            tree = NNode(i, NNode(j1, l), NNode(j2, r))
+            tree = convert(NNode{T}, tree)
             @ignore_domain_error eval_tree_array(
                 tree, X, operators; eval_options=EvalOptions(; turbo=use_turbo)
             )
 
-            tree = Node(j1, Node(i, l, r))
-            tree = convert(Node{T}, tree)
+            tree = NNode(j1, NNode(i, l, r))
+            tree = convert(NNode{T}, tree)
             @ignore_domain_error eval_tree_array(
                 tree, X, operators; eval_options=EvalOptions(; turbo=use_turbo)
             )
@@ -96,33 +96,33 @@ function test_functions_on_trees(::Type{T}, operators) where {T}
     @assert num_unaops > 0 && num_binops > 0
 
     for T1 in [Float32, Float64]
-        x = Node(T1; feature=1)
-        c = Node(T1; val=T1(1.0))
+        x = NNode(T1; feature=1)
+        c = NNode(T1; val=T1(1.0))
 
         i_una = 1
         i_bin = 1
 
         # Here, we just cycle through the operators and build
         # a more complex expression.
-        a1 = Node(i_una, x)
+        a1 = NNode(i_una, x)
         i_una = (i_una % num_unaops) + 1
-        a2 = Node(i_bin, c, a1)
+        a2 = NNode(i_bin, c, a1)
         i_bin = (i_bin % num_binops) + 1
-        a3 = Node(i_bin, x, c)
+        a3 = NNode(i_bin, x, c)
         i_bin = (i_bin % num_binops) + 1
-        a4 = Node(i_bin, a3, a2)
+        a4 = NNode(i_bin, a3, a2)
         i_bin = (i_bin % num_binops) + 1
-        a5 = Node(i_bin, x, x)
+        a5 = NNode(i_bin, x, x)
         i_bin = (i_bin % num_binops) + 1
-        a6 = Node(i_una, a5)
+        a6 = NNode(i_una, a5)
         i_una = (i_una % num_unaops) + 1
-        a7 = Node(i_una, a6)
+        a7 = NNode(i_una, a6)
         i_una = (i_una % num_unaops) + 1
-        a8 = Node(i_una, a4)
+        a8 = NNode(i_una, a4)
         i_una = (i_una % num_unaops) + 1
-        tree = Node(i_bin, a8, a7)
+        tree = NNode(i_bin, a8, a7)
     end
-    tree = convert(Node{T}, tree)
+    tree = convert(NNode{T}, tree)
     tree = copy_node(tree)
     set_node!(tree, tree)
 

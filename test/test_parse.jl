@@ -30,14 +30,14 @@
     # Whereas the regular use would fail
     if VERSION >= v"1.9"
         @test_throws ErrorException @eval let
-            x = Node{Float64}(; feature=1)
-            y = Node{Float64}(; feature=2)
+            x = NNode{Float64}(; feature=1)
+            y = NNode{Float64}(; feature=2)
 
             my_custom_op(x, sin(y) + 0.3)
         end
         @test_throws "Convenience constructor for operator `sin` is out-of-date" @eval let
-            x = Node{Float64}(; feature=1)
-            y = Node{Float64}(; feature=2)
+            x = NNode{Float64}(; feature=1)
+            y = NNode{Float64}(; feature=2)
 
             sin(y) + 0.3
         end
@@ -50,39 +50,39 @@ end
     ex = @parse_expression(1.0, operators = operators, variable_names = [])
     @test typeof(ex) <: Expression
     @test ex.tree.val == 1.0
-    @test typeof(ex.tree) <: Node{Float64}
+    @test typeof(ex.tree) <: NNode{Float64}
 end
 
 @testitem "Or an int" begin
     using DynamicExpressions
     operators = OperatorEnum()
     ex = @parse_expression(1, operators = operators, variable_names = [])
-    @test typeof(ex.tree) <: Node{Int64}
+    @test typeof(ex.tree) <: NNode{Int64}
 end
 
 @testitem "Or just a variable" begin
     using DynamicExpressions
     operators = OperatorEnum()
     ex = @parse_expression(x, operators = operators, variable_names = ["x"])
-    @test typeof(ex.tree) <: Node{Float32}
+    @test typeof(ex.tree) <: NNode{Float32}
 end
 
 @testitem "Or, with custom node types" begin
     using DynamicExpressions
     operators = OperatorEnum()
     ex = @parse_expression(
-        x, operators = operators, variable_names = ["x"], node_type = GraphNode
+        x, operators = operators, variable_names = ["x"], node_type = GraphNNode
     )
-    @test typeof(ex.tree) <: GraphNode{Float32}
+    @test typeof(ex.tree) <: GraphNNode{Float32}
 end
 
-@testitem "With GraphNode" begin
+@testitem "With GraphNNode" begin
     using DynamicExpressions
 
-    node_type = GraphNode
+    node_type = GraphNNode
     operators = OperatorEnum()
     ex = @parse_expression(x, operators = operators, variable_names = ["x"], node_type)
-    @test typeof(ex.tree) <: GraphNode{Float32}
+    @test typeof(ex.tree) <: GraphNNode{Float32}
 end
 
 @testitem "Should work with symbols for variable names too" begin
@@ -92,7 +92,7 @@ end
         operators = OperatorEnum(; unary_operators=[cos, exp]),
         variable_names = [:α]
     )
-    @test typeof(ex.tree) <: Node{Float32}
+    @test typeof(ex.tree) <: NNode{Float32}
     s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
     @test s == "cos(exp(α))"
 end
@@ -112,7 +112,7 @@ end
         )
     end
 
-    @test typeof(ex.tree) <: Node{Any}
+    @test typeof(ex.tree) <: NNode{Any}
     @test typeof(ex.metadata.operators) <: GenericOperatorEnum
     s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
     @test s == "[1, 2, 3] * tan(cos(5.0 + x))"
@@ -125,9 +125,9 @@ end
             binary_operators=[*, +], unary_operators=[tan, cos]
         ),
         variable_names = ["x"],
-        node_type = Node{Union{Int,Vector{Int}}}
+        node_type = NNode{Union{Int,Vector{Int}}}
     )
-    @test typeof(ex.tree) <: Node{Union{Int,Vector{Int}}}
+    @test typeof(ex.tree) <: NNode{Union{Int,Vector{Int}}}
     @test typeof(ex.metadata.operators) <: GenericOperatorEnum
     s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
     @test s == "[1, 2, 3] * tan(cos(5 + x))"
@@ -165,12 +165,12 @@ end
         x * $tu - cos(y),
         operators = GenericOperatorEnum(; binary_operators=[*, -], unary_operators=[cos]),
         variable_names = ["x", "y"],
-        node_type = Node{Tuple{Float64,ComplexF64}}
+        node_type = NNode{Tuple{Float64,ComplexF64}}
     )
     s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
 
     @test s == "(x * ((1.0, 0.0 + 2.0im))) - cos(y)"
-    @test typeof(ex.tree) <: Node{Tuple{Float64,ComplexF64}}
+    @test typeof(ex.tree) <: NNode{Tuple{Float64,ComplexF64}}
 end
 
 @testitem "interpolating custom function" begin
@@ -188,7 +188,7 @@ end
         s = sprint((io, e) -> show(io, MIME("text/plain"), e), ex)
         @test s == "(x * 2.5) - cos(y)"
     end
-    @test contains(logged_out, "Node{Float32")
+    @test contains(logged_out, "NNode{Float32")
 end
 
 @testitem "Helpful errors for missing operator" begin
@@ -314,14 +314,14 @@ end
     kws = [
         :(operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])),
         :(variable_names = [:x, :y]),
-        :(node_type = GraphNode),
+        :(node_type = GraphNNode),
         :(evaluate_on = [show]),
     ]
     result = DE.ParseModule._parse_kws(kws)
     @test result.operators ==
         :(OperatorEnum(; binary_operators=[+, *], unary_operators=[sin]))
     @test result.variable_names == :([:x, :y])
-    @test result.node_type == :(GraphNode)
+    @test result.node_type == :(GraphNNode)
     @test result.evaluate_on == :([show])
     kws = [:(operators), :(variable_names), :(node_type), :(evaluate_on)]
     result = DE.ParseModule._parse_kws(kws)

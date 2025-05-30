@@ -1,7 +1,7 @@
 using DynamicExpressions
 using Test
 
-mutable struct MyCustomNode{A,B} <: AbstractNode{2}
+mutable struct MyCustomNode{A,B} <: AbstractNNode{2}
     degree::Int
     val1::A
     val2::B
@@ -44,7 +44,7 @@ node2 = MyCustomNode(1.5, 3, node1, node1)
 @test count(t -> t.degree == 0, node2) == 2
 
 # If we have a bad definition, it should get caught with a helpful message
-mutable struct MyCustomNode2{T} <: AbstractExpressionNode{T,2}
+mutable struct MyCustomNode2{T} <: AbstractExpressionNNode{T,2}
     degree::UInt8
     constant::Bool
     val::T

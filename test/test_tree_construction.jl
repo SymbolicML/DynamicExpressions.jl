@@ -24,11 +24,11 @@ for unaop in [cos, exp, safe_log, safe_log2, safe_log10, safe_sqrt, relu, gamma,
         f_true = (x,) -> binop(abs(3.0 * unaop(x))^2.0, -1.2)
 
         # binop at outside:
-        const_tree = Node(
-            5, Node(2, Node(; val=3.0) * Node(1, Node("x1")))^2.0, Node(; val=-1.2)
+        const_tree = NNode(
+            5, NNode(2, NNode(; val=3.0) * NNode(1, NNode("x1")))^2.0, NNode(; val=-1.2)
         )
-        const_tree_bad = Node(
-            5, Node(2, Node(; val=3.0) * Node(1, Node("x1")))^2.1, Node(; val=-1.3)
+        const_tree_bad = NNode(
+            5, NNode(2, NNode(; val=3.0) * NNode(1, NNode("x1")))^2.1, NNode(; val=-1.3)
         )
         n = count_nodes(const_tree)
 
@@ -53,8 +53,8 @@ for unaop in [cos, exp, safe_log, safe_log2, safe_log10, safe_sqrt, relu, gamma,
                 zero_tolerance = 1e-6
             end
 
-            tree = convert(Node{T}, const_tree)
-            tree_bad = convert(Node{T}, const_tree_bad)
+            tree = convert(NNode{T}, const_tree)
+            tree_bad = convert(NNode{T}, const_tree_bad)
 
             Random.seed!(0)
             N = 100
@@ -92,8 +92,8 @@ end
 
 @testset "Set a node equal to another node" begin
     operators = OperatorEnum(; default_params...)
-    tree = Node(Float64; feature=1)
-    tree2 = exp(Node(Float64; feature=2) / 3.2) + Node(Float64; feature=1) * 2.0
+    tree = NNode(Float64; feature=1)
+    tree2 = exp(NNode(Float64; feature=2) / 3.2) + NNode(Float64; feature=1) * 2.0
 
     # Test printing works:
     io = IOBuffer()
@@ -107,19 +107,19 @@ end
 end
 
 @testset "Type inference" begin
-    @inferred Node(; feature=1)
-    @inferred Node(; val=1)
-    @inferred Node(Float32; val=1)
-    @inferred Node{Float32}(; val=1)
-    x1 = Node{Float32}(; feature=1)
-    @inferred Node(; op=1, l=x1)
-    @inferred Node(; op=1, l=x1, r=x1)
-    @inferred Node(; op=1, l=x1, r=Node{Float64}(x1))
+    @inferred NNode(; feature=1)
+    @inferred NNode(; val=1)
+    @inferred NNode(Float32; val=1)
+    @inferred NNode{Float32}(; val=1)
+    x1 = NNode{Float32}(; feature=1)
+    @inferred NNode(; op=1, l=x1)
+    @inferred NNode(; op=1, l=x1, r=x1)
+    @inferred NNode(; op=1, l=x1, r=NNode{Float64}(x1))
 end
 
 @testset "Miscellaneous" begin
     operators = OperatorEnum(; default_params...)
-    for N in (Node, GraphNode)
+    for N in (NNode, GraphNNode)
         tree = N{ComplexF64}(; val=1)
         @test typeof(tree.val) === ComplexF64
 

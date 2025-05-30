@@ -1,6 +1,6 @@
 module SimplifyModule
 
-import ..NodeModule: AbstractExpressionNode, constructorof, Node, copy_node, set_node!
+import ..NodeModule: AbstractExpressionNNode, constructorof, NNode, copy_node, set_node!
 import ..NodeUtilsModule: tree_mapreduce, is_node_constant
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..ValueInterfaceModule: is_valid
@@ -14,10 +14,10 @@ is_commutative(_) = false
 is_subtraction(::typeof(-)) = true
 is_subtraction(_) = false
 
-combine_operators(tree::AbstractExpressionNode, ::AbstractOperatorEnum) = tree
-# This is only defined for `Node` as it is not possible for, e.g.,
-# `GraphNode`, and n-arity nodes.
-function combine_operators(tree::Node{T,2}, operators::AbstractOperatorEnum) where {T}
+combine_operators(tree::AbstractExpressionNNode, ::AbstractOperatorEnum) = tree
+# This is only defined for `NNode` as it is not possible for, e.g.,
+# `GraphNNode`, and n-arity nodes.
+function combine_operators(tree::NNode{T,2}, operators::AbstractOperatorEnum) where {T}
     # NOTE: (const (+*-) const) already accounted for. Call simplify_tree! before.
     # ((const + var) + const) => (const + var)
     # ((const * var) * const) => (const * var)
@@ -107,7 +107,7 @@ end
 
 function combine_children!(
     operators, p::N, c::Vararg{N,degree}
-) where {T,N<:AbstractExpressionNode{T},degree}
+) where {T,N<:AbstractExpressionNNode{T},degree}
     all(is_node_constant, c) || return p
     vals = map(n -> n.val, c)
     all(is_valid, vals) || return p
@@ -119,7 +119,7 @@ function combine_children!(
 end
 
 # Simplify tree
-function simplify_tree!(tree::AbstractExpressionNode, operators::AbstractOperatorEnum)
+function simplify_tree!(tree::AbstractExpressionNNode, operators::AbstractOperatorEnum)
     return tree_mapreduce(
         identity, (p, c...) -> combine_children!(operators, p, c...), tree, typeof(tree);
     )

@@ -2,7 +2,7 @@
     using DynamicExpressions
     using DynamicExpressions: ReadOnlyNode
 
-    inner_node = Node{Float64}(; val=42.0)
+    inner_node = NNode{Float64}(; val=42.0)
     readonly_node = ReadOnlyNode(inner_node)
 
     @test readonly_node isa ReadOnlyNode
@@ -16,7 +16,7 @@ end
     using DynamicExpressions
     using DynamicExpressions: ReadOnlyNode
 
-    inner_node = Node{Float64}(; val=42.0)
+    inner_node = NNode{Float64}(; val=42.0)
     readonly_node = ReadOnlyNode(inner_node)
 
     @test_throws ErrorException readonly_node.val = 100.0
@@ -28,8 +28,8 @@ end
     using DynamicExpressions: ReadOnlyNode
 
     operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(sin, exp))
-    x1 = Node{Float64}(; feature=1)
-    x2 = Node{Float64}(; feature=2)
+    x1 = NNode{Float64}(; feature=1)
+    x2 = NNode{Float64}(; feature=2)
     tree = 2 * x1 - sin(x2)
     readonly_node = ReadOnlyNode(tree)
 
@@ -40,7 +40,7 @@ end
     using DynamicExpressions
     using DynamicExpressions: ReadOnlyNode
 
-    inner_node = Node{Float64}(; val=42.0)
+    inner_node = NNode{Float64}(; val=42.0)
     readonly_node = ReadOnlyNode(inner_node)
     copied_node = copy(readonly_node)
 
@@ -65,5 +65,5 @@ end
     @test tree isa ReadOnlyNode
     @test string_tree(tree, operators; variable_names) ==
         "((x * x) - cos((2.5 * y) + -0.5)) + exp(-(y * y))"
-    @test getfield(tree, :_inner) isa Node
+    @test getfield(tree, :_inner) isa NNode
 end

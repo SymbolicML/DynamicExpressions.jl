@@ -2,7 +2,7 @@
     using DynamicExpressions
     using DynamicExpressions: get_tree, get_operators, get_variable_names
 
-    tree = Node(Float64; feature=1)
+    tree = NNode(Float64; feature=1)
     operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
     variable_names = ["x"]
 
@@ -22,7 +22,7 @@
     @test copy(expr) == expr
     @test hash(copy(expr)) == hash(expr)
 
-    expr2 = Expression(Node(; op=1, l=tree); operators, variable_names)
+    expr2 = Expression(NNode(; op=1, l=tree); operators, variable_names)
     @test copy_node(expr2) != expr
     @test hash(copy(expr2)) != hash(expr)
 
@@ -39,7 +39,7 @@ end
     using DynamicExpressions
     using DynamicExpressions: ExpressionInterface
     using Interfaces: test
-    tree = Node(Float64; feature=1)
+    tree = NNode(Float64; feature=1)
     operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
     variable_names = ["x"]
     expr = Expression(tree; operators, variable_names)
@@ -197,7 +197,7 @@ end
 
     ex = @parse_expression(x1 + 1.5, binary_operators = [+, *], variable_names = ["x1"])
     ex_graph = @parse_expression(
-        x1 + 1.5, binary_operators = [+, *], variable_names = ["x1"], node_type = GraphNode
+        x1 + 1.5, binary_operators = [+, *], variable_names = ["x1"], node_type = GraphNNode
     )
     @test !DynamicExpressions.preserve_sharing(ex)
     @test DynamicExpressions.preserve_sharing(ex_graph)
@@ -240,7 +240,7 @@ end
 @testitem "No operators and variable names" begin
     using DynamicExpressions
 
-    x1 = Node{Float64}(; feature=1)
+    x1 = NNode{Float64}(; feature=1)
     expr = Expression(x1; operators=nothing, variable_names=nothing)
 
     @test sprint(show, expr) == "x1"
@@ -250,7 +250,7 @@ end
     @test sprint(show, get_metadata(expr)) ==
         "Metadata((operators = nothing, variable_names = nothing))"
 
-    cos_x1 = Node{Float64}(; op=1, l=x1)
+    cos_x1 = NNode{Float64}(; op=1, l=x1)
     expr = Expression(cos_x1; operators=nothing, variable_names=nothing)
     @test sprint(show, expr) == "unary_operator[1](x1)"
     @test copy(expr) == expr
@@ -272,7 +272,7 @@ end
     using DynamicExpressions: get_tree, get_operators, default_node_type
 
     ex = @parse_expression(x1 + 1.5, binary_operators = [+], variable_names = ["x1"])
-    @test DynamicExpressions.ExpressionModule.node_type(ex) <: Node
+    @test DynamicExpressions.ExpressionModule.node_type(ex) <: NNode
 
     @test !isempty(ex)
 
@@ -305,7 +305,7 @@ end
 
     `Expression` is a fundamental type in DynamicExpressions that represents
     a mathematical expression as a tree structure. It combines an
-    `AbstractExpressionNode` (typically a `Node`) with metadata like operators
+    `AbstractExpressionNNode` (typically a `NNode`) with metadata like operators
     and variable names.
     =#
     using DynamicExpressions, Random
@@ -319,19 +319,19 @@ end
     variable_names = ["x", "y"]
 
     # Now, let's create an Expression manually:
-    x = Node{Float64}(; feature=1)
+    x = NNode{Float64}(; feature=1)
     x_expr = Expression(x; operators, variable_names)
 
     # We can build up more complex expressions using these basic building blocks:
-    y = Node{Float64}(; feature=2)
-    c = Node{Float64}(; val=2.0)
-    complex_node = Node(; op=3, l=x, r=Node(; op=1, l=y, r=c))
+    y = NNode{Float64}(; feature=2)
+    c = NNode{Float64}(; val=2.0)
+    complex_node = NNode(; op=3, l=x, r=NNode(; op=1, l=y, r=c))
     # where the `3` indicates `*` and `1` indicates `+`.
     complex_expr = Expression(complex_node; operators, variable_names)
 
     #=
     This expression includes its own metadata: the operators and variable names,
-    and so there are no scope issues as with raw `AbstractExpressionNode` types
+    and so there are no scope issues as with raw `AbstractExpressionNNode` types
     which depend on the last-used metadata for convenience functions like printing.
     In other words, you can print this expression, or evaluate it, directly:
     =#
@@ -348,10 +348,10 @@ end
         :(sin(2.0 * x + exp(y + 5.0))); operators=operators, variable_names=variable_names
     )
 
-    # We can convert an expression into the primitive `AbstractExpressionNode` type
+    # We can convert an expression into the primitive `AbstractExpressionNNode` type
     # with [`get_tree`](@ref):
     tree = get_tree(parsed_expr)
-    @test tree isa AbstractExpressionNode  #src
+    @test tree isa AbstractExpressionNNode  #src
 
     # Some `AbstractExpression` types may choose to store their expression in
     # a different way than simply saving it as one of the fields. For any expression,
@@ -367,13 +367,13 @@ end
     These can be used with [`with_contents`](@ref) and [`with_metadata`](@ref) to
     create new expressions based on the original:
     =#
-    with_contents(parsed_expr, Node(; op=2, l=get_contents(parsed_expr)))
+    with_contents(parsed_expr, NNode(; op=2, l=get_contents(parsed_expr)))
 
     #=
     `Expression` objects support various operations defined on regular trees,
     which permits us to overload specific methods with modified behavior.
     For example, we can count the number of nodes, which simply forwards
-    to the method as it is defined on [`Node`](@ref):
+    to the method as it is defined on [`NNode`](@ref):
     =#
     node_count = count_nodes(parsed_expr)
     println("Number of nodes: $node_count")
@@ -402,10 +402,10 @@ end
     will automatically look up the matching index in the stored [`OperatorEnum`](@ref).
     This means we can combine expressions like so:
     =#
-    xs = [Expression(Node{Float64}(; feature=i); operators, variable_names) for i in 1:5]
+    xs = [Expression(NNode{Float64}(; feature=i); operators, variable_names) for i in 1:5]
 
     xs[1] + xs[2]
-    # These have the same type – they simply combine their `AbstractExpressionNode` objects
+    # These have the same type – they simply combine their `AbstractExpressionNNode` objects
     # and ensure the metadata is the same.
     typeof(xs[1] + xs[2])
 
@@ -462,7 +462,7 @@ end
         binary_operators=[+, -, *, /, >, <, >=, <=, max, min, rem],
         unary_operators=[sin, cos],
     )
-    x1, x2 = [Node(Float64; feature=i) for i in 1:2]
+    x1, x2 = [NNode(Float64; feature=i) for i in 1:2]
 
     # Test comparison operators string representation
     tree = x1 > x2
