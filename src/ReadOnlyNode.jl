@@ -33,5 +33,13 @@ struct ReadOnlyNode{T,D,N} <: AbstractReadOnlyNode{T,D,N}
     ReadOnlyNode(n::N) where {T,N<:AbstractExpressionNode{T}} = new{T,max_degree(N),N}(n)
 end
 @unstable constructorof(::Type{<:ReadOnlyNode}) = ReadOnlyNode
+# TODO: Should this provide the degree? Or is it fine, since it always infers it from the inner node type?
+
+function with_type_parameters(::Type{N}, ::Type{T}) where {N<:ReadOnlyNode,T}
+    return ReadOnlyNode{T,max_degree(N),with_type_parameters(inner_node_type(N), T)}
+end
+
+@inline inner_node_type(::Type{<:(ReadOnlyNode{T,D,N} where {T,D})}) where {N} = N
+@inline inner_node_type(::Type{<:ReadOnlyNode}) = Node
 
 end
