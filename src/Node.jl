@@ -420,16 +420,24 @@ Set every field of `tree` equal to the corresponding field of `new_tree`.
 function set_node!(tree::AbstractExpressionNode, new_tree::AbstractExpressionNode)
     tree.degree = new_tree.degree
     if new_tree.degree == 0
-        tree.constant = new_tree.constant
-        if new_tree.constant
-            tree.val = new_tree.val::eltype(new_tree)
-        else
-            tree.feature = new_tree.feature
-        end
+        set_leaf!(tree, new_tree)
     else
-        tree.op = new_tree.op
-        set_children!(tree, get_children(new_tree))
+        set_branch!(tree, new_tree)
     end
+    return nothing
+end
+function set_leaf!(tree::AbstractExpressionNode, new_leaf::AbstractExpressionNode)
+    tree.constant = new_leaf.constant
+    if new_leaf.constant
+        tree.val = new_leaf.val::eltype(new_leaf)
+    else
+        tree.feature = new_leaf.feature
+    end
+    return nothing
+end
+function set_branch!(tree::AbstractExpressionNode, new_branch::AbstractExpressionNode)
+    tree.op = new_branch.op
+    set_children!(tree, get_children(new_branch))
     return nothing
 end
 
