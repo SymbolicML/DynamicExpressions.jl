@@ -3,7 +3,7 @@ module DynamicExpressionsSymbolicUtilsExt
 using DynamicExpressions:
     AbstractExpression, get_tree, get_operators, get_variable_names, default_node_type
 using DynamicExpressions.NodeModule:
-    AbstractExpressionNode, Node, constructorof, DEFAULT_NODE_TYPE
+    AbstractExpressionNode, Node, constructorof, DEFAULT_NODE_TYPE, get_child
 using DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
 using DynamicExpressions.UtilsModule: deprecate_varmap
 
@@ -39,7 +39,7 @@ end
 subs_bad(x) = is_valid(x) ? x : Inf
 
 function parse_tree_to_eqs(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNode{T,2},
     operators::AbstractOperatorEnum,
     index_functions::Bool=false,
 ) where {T}
@@ -50,7 +50,8 @@ function parse_tree_to_eqs(
     end
     # Collect the next children
     # TODO: Type instability!
-    children = tree.degree == 2 ? (tree.l, tree.r) : (tree.l,)
+    children =
+        tree.degree == 2 ? (get_child(tree, 1), get_child(tree, 2)) : (get_child(tree, 1),)
     # Get the operation
     op = tree.degree == 2 ? operators.binops[tree.op] : operators.unaops[tree.op]
     # Create an N tuple of Numbers for each argument
@@ -219,13 +220,13 @@ will generate a symbolic equation in SymbolicUtils.jl format.
     (CURRENTLY UNAVAILABLE - See https://github.com/MilesCranmer/SymbolicRegression.jl/pull/84).
 """
 function node_to_symbolic(
-    tree::AbstractExpressionNode,
+    tree::AbstractExpressionNode{T,2},
     operators::AbstractOperatorEnum;
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
     index_functions::Bool=false,
     # Deprecated:
     varMap=nothing,
-)
+) where {T}
     variable_names = deprecate_varmap(variable_names, varMap, :node_to_symbolic)
     expr = subs_bad(parse_tree_to_eqs(tree, operators, index_functions))
     # Check for NaN and Inf

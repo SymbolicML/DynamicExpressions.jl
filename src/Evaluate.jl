@@ -3,7 +3,12 @@ module EvaluateModule
 using DispatchDoctor: @stable, @unstable
 
 import ..NodeModule:
-    AbstractExpressionNode, constructorof, max_degree, get_children, with_type_parameters
+    AbstractExpressionNode,
+    constructorof,
+    max_degree,
+    get_children,
+    get_child,
+    with_type_parameters
 import ..StringsModule: string_tree
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: fill_similar, counttuple, ResultOk
@@ -422,10 +427,10 @@ end
     long_compilation_time = nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     if long_compilation_time
         return quote
-            result_l = _eval_tree_array(tree.l, cX, operators, eval_options)
+            result_l = _eval_tree_array(get_child(tree, 1), cX, operators, eval_options)
             !result_l.ok && return result_l
             @return_on_nonfinite_array(eval_options, result_l.x)
-            result_r = _eval_tree_array(tree.r, cX, operators, eval_options)
+            result_r = _eval_tree_array(get_child(tree, 2), cX, operators, eval_options)
             !result_r.ok && return result_r
             @return_on_nonfinite_array(eval_options, result_r.x)
             # op(x, y), for any x or y
@@ -437,25 +442,27 @@ end
             $nbin,
             i -> i == op_idx,
             i -> let op = operators.binops[i]
-                if tree.l.degree == 0 && tree.r.degree == 0
+                if get_child(tree, 1).degree == 0 && get_child(tree, 2).degree == 0
                     deg2_l0_r0_eval(tree, cX, op, eval_options)
-                elseif tree.r.degree == 0
-                    result_l = _eval_tree_array(tree.l, cX, operators, eval_options)
+                elseif get_child(tree, 2).degree == 0
+                    result_l = _eval_tree_array(get_child(tree, 1), cX, operators, eval_options)
                     !result_l.ok && return result_l
                     @return_on_nonfinite_array(eval_options, result_l.x)
                     # op(x, y), where y is a constant or variable but x is not.
                     deg2_r0_eval(tree, result_l.x, cX, op, eval_options)
-                elseif tree.l.degree == 0
-                    result_r = _eval_tree_array(tree.r, cX, operators, eval_options)
+                elseif get_child(tree, 1).degree == 0
+                    result_r = _eval_tree_array(get_child(tree, 2), cX, operators, eval_options)
                     !result_r.ok && return result_r
                     @return_on_nonfinite_array(eval_options, result_r.x)
                     # op(x, y), where x is a constant or variable but y is not.
                     deg2_l0_eval(tree, result_r.x, cX, op, eval_options)
                 else
-                    result_l = _eval_tree_array(tree.l, cX, operators, eval_options)
+                    result_l = _eval_tree_array(get_child(tree, 1), cX, operators, eval_options)
                     !result_l.ok && return result_l
                     @return_on_nonfinite_array(eval_options, result_l.x)
-                    result_r = _eval_tree_array(tree.r, cX, operators, eval_options)
+                    result_r = _eval_tree_array(
+                        get_child(tree, 2), cX, operators, eval_options
+                    )
                     !result_r.ok && return result_r
                     @return_on_nonfinite_array(eval_options, result_r.x)
                     # op(x, y), for any x or y
@@ -476,7 +483,7 @@ end
     long_compilation_time = nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     if long_compilation_time
         return quote
-            result = _eval_tree_array(tree.l, cX, operators, eval_options)
+            result = _eval_tree_array(get_child(tree, 1), cX, operators, eval_options)
             !result.ok && return result
             @return_on_nonfinite_array(eval_options, result.x)
             deg1_eval(result.x, operators.unaops[op_idx], eval_options)
@@ -489,21 +496,24 @@ end
             $nuna,
             i -> i == op_idx,
             i -> let op = operators.unaops[i]
-                if tree.l.degree == 2 && tree.l.l.degree == 0 && tree.l.r.degree == 0
+                if get_child(tree, 1).degree == 2 &&
+                    get_child(get_child(tree, 1), 1).degree == 0 &&
+                    get_child(get_child(tree, 1), 2).degree == 0
                     # op(op2(x, y)), where x, y, z are constants or variables.
-                    l_op_idx = tree.l.op
+                    l_op_idx = get_child(tree, 1).op
                     dispatch_deg1_l2_ll0_lr0_eval(
                         tree, cX, op, l_op_idx, operators.binops, eval_options
                     )
-                elseif tree.l.degree == 1 && tree.l.l.degree == 0
+                elseif get_child(tree, 1).degree == 1 &&
+                    get_child(get_child(tree, 1), 1).degree == 0
                     # op(op2(x)), where x is a constant or variable.
-                    l_op_idx = tree.l.op
+                    l_op_idx = get_child(tree, 1).op
                     dispatch_deg1_l1_ll0_eval(
                         tree, cX, op, l_op_idx, operators.unaops, eval_options
                     )
                 else
                     # op(x), for any x.
-                    result = _eval_tree_array(tree.l, cX, operators, eval_options)
+                    result = _eval_tree_array(get_child(tree, 1), cX, operators, eval_options)
                     !result.ok && return result
                     @return_on_nonfinite_array(eval_options, result.x)
                     deg1_eval(result.x, op, eval_options)
@@ -560,9 +570,10 @@ function deg1_l2_ll0_lr0_eval(
     op_l::F2,
     eval_options::EvalOptions{false,false},
 ) where {T,F,F2}
-    if tree.l.l.constant && tree.l.r.constant
-        val_ll = tree.l.l.val
-        val_lr = tree.l.r.val
+    if get_child(get_child(tree, 1), 1).constant &&
+        get_child(get_child(tree, 1), 2).constant
+        val_ll = get_child(get_child(tree, 1), 1).val
+        val_lr = get_child(get_child(tree, 1), 2).val
         @return_on_nonfinite_val(eval_options, val_ll, cX)
         @return_on_nonfinite_val(eval_options, val_lr, cX)
         x_l = op_l(val_ll, val_lr)::T
@@ -570,10 +581,10 @@ function deg1_l2_ll0_lr0_eval(
         x = op(x_l)::T
         @return_on_nonfinite_val(eval_options, x, cX)
         return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
-    elseif tree.l.l.constant
-        val_ll = tree.l.l.val
+    elseif get_child(get_child(tree, 1), 1).constant
+        val_ll = get_child(get_child(tree, 1), 1).val
         @return_on_nonfinite_val(eval_options, val_ll, cX)
-        feature_lr = tree.l.r.feature
+        feature_lr = get_child(get_child(tree, 1), 2).feature
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(val_ll, cX[feature_lr, j])::T
@@ -581,9 +592,9 @@ function deg1_l2_ll0_lr0_eval(
             cumulator[j] = x
         end
         return ResultOk(cumulator, true)
-    elseif tree.l.r.constant
-        feature_ll = tree.l.l.feature
-        val_lr = tree.l.r.val
+    elseif get_child(get_child(tree, 1), 2).constant
+        feature_ll = get_child(get_child(tree, 1), 1).feature
+        val_lr = get_child(get_child(tree, 1), 2).val
         @return_on_nonfinite_val(eval_options, val_lr, cX)
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
@@ -593,8 +604,8 @@ function deg1_l2_ll0_lr0_eval(
         end
         return ResultOk(cumulator, true)
     else
-        feature_ll = tree.l.l.feature
-        feature_lr = tree.l.r.feature
+        feature_ll = get_child(get_child(tree, 1), 1).feature
+        feature_lr = get_child(get_child(tree, 1), 2).feature
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])::T
@@ -613,8 +624,8 @@ function deg1_l1_ll0_eval(
     op_l::F2,
     eval_options::EvalOptions{false,false},
 ) where {T,F,F2}
-    if tree.l.l.constant
-        val_ll = tree.l.l.val
+    if get_child(get_child(tree, 1), 1).constant
+        val_ll = get_child(get_child(tree, 1), 1).val
         @return_on_nonfinite_val(eval_options, val_ll, cX)
         x_l = op_l(val_ll)::T
         @return_on_nonfinite_val(eval_options, x_l, cX)
@@ -622,7 +633,7 @@ function deg1_l1_ll0_eval(
         @return_on_nonfinite_val(eval_options, x, cX)
         return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
     else
-        feature_ll = tree.l.l.feature
+        feature_ll = get_child(get_child(tree, 1), 1).feature
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j])::T
@@ -633,35 +644,35 @@ function deg1_l1_ll0_eval(
     end
 end
 
-# op(x, y) for x and y variable/constant
+# op(x, y), for x, y either constants or variables.
 function deg2_l0_r0_eval(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     op::F,
     eval_options::EvalOptions{false,false},
 ) where {T,F}
-    if tree.l.constant && tree.r.constant
-        val_l = tree.l.val
+    if get_child(tree, 1).constant && get_child(tree, 2).constant
+        val_l = get_child(tree, 1).val
         @return_on_nonfinite_val(eval_options, val_l, cX)
-        val_r = tree.r.val
+        val_r = get_child(tree, 2).val
         @return_on_nonfinite_val(eval_options, val_r, cX)
         x = op(val_l, val_r)::T
         @return_on_nonfinite_val(eval_options, x, cX)
         return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
-    elseif tree.l.constant
+    elseif get_child(tree, 1).constant
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
-        val_l = tree.l.val
+        val_l = get_child(tree, 1).val
         @return_on_nonfinite_val(eval_options, val_l, cX)
-        feature_r = tree.r.feature
+        feature_r = get_child(tree, 2).feature
         @inbounds @simd for j in axes(cX, 2)
             x = op(val_l, cX[feature_r, j])::T
             cumulator[j] = x
         end
         return ResultOk(cumulator, true)
-    elseif tree.r.constant
+    elseif get_child(tree, 2).constant
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
-        feature_l = tree.l.feature
-        val_r = tree.r.val
+        feature_l = get_child(tree, 1).feature
+        val_r = get_child(tree, 2).val
         @return_on_nonfinite_val(eval_options, val_r, cX)
         @inbounds @simd for j in axes(cX, 2)
             x = op(cX[feature_l, j], val_r)::T
@@ -670,8 +681,8 @@ function deg2_l0_r0_eval(
         return ResultOk(cumulator, true)
     else
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
-        feature_l = tree.l.feature
-        feature_r = tree.r.feature
+        feature_l = get_child(tree, 1).feature
+        feature_r = get_child(tree, 2).feature
         @inbounds @simd for j in axes(cX, 2)
             x = op(cX[feature_l, j], cX[feature_r, j])::T
             cumulator[j] = x
@@ -680,7 +691,7 @@ function deg2_l0_r0_eval(
     end
 end
 
-# op(x, y) for x variable/constant, y arbitrary
+# op(x, y), where y is a constant or variable but x is not.
 function deg2_l0_eval(
     tree::AbstractExpressionNode{T},
     cumulator::AbstractVector{T},
@@ -688,8 +699,8 @@ function deg2_l0_eval(
     op::F,
     eval_options::EvalOptions{false,false},
 ) where {T,F}
-    if tree.l.constant
-        val = tree.l.val
+    if get_child(tree, 1).constant
+        val = get_child(tree, 1).val
         @return_on_nonfinite_val(eval_options, val, cX)
         @inbounds @simd for j in eachindex(cumulator)
             x = op(val, cumulator[j])::T
@@ -697,7 +708,7 @@ function deg2_l0_eval(
         end
         return ResultOk(cumulator, true)
     else
-        feature = tree.l.feature
+        feature = get_child(tree, 1).feature
         @inbounds @simd for j in eachindex(cumulator)
             x = op(cX[feature, j], cumulator[j])::T
             cumulator[j] = x
@@ -714,8 +725,8 @@ function deg2_r0_eval(
     op::F,
     eval_options::EvalOptions{false,false},
 ) where {T,F}
-    if tree.r.constant
-        val = tree.r.val
+    if get_child(tree, 2).constant
+        val = get_child(tree, 2).val
         @return_on_nonfinite_val(eval_options, val, cX)
         @inbounds @simd for j in eachindex(cumulator)
             x = op(cumulator[j], val)::T
@@ -723,7 +734,7 @@ function deg2_r0_eval(
         end
         return ResultOk(cumulator, true)
     else
-        feature = tree.r.feature
+        feature = get_child(tree, 2).feature
         @inbounds @simd for j in eachindex(cumulator)
             x = op(cumulator[j], cX[feature, j])::T
             cumulator[j] = x
