@@ -60,7 +60,7 @@ When using these node constructors, types will automatically be promoted.
 You can convert the type of a node using `convert`:
 
 ```@docs
-convert(::Type{AbstractExpressionNode{T1}}, tree::AbstractExpressionNode{T2}) where {T1, T2}
+convert(::Type{N1}, tree::N2) where {T1,T2,D1,D2,N1<:AbstractExpressionNode{T1,D1},N2<:AbstractExpressionNode{T2,D2}}
 ```
 
 You can set a `tree` (in-place) with `set_node!`:
