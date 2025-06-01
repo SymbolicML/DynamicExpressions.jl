@@ -75,6 +75,42 @@ You can create a copy of a node with `copy_node`:
 copy_node
 ```
 
+## Generic Node Accessors
+
+For working with nodes of arbitrary arity:
+
+```@docs
+get_child
+set_child!
+get_children
+set_children!
+```
+
+Examples:
+
+```julia
+# Define operators including ternary
+my_ternary(x, y, z) = x + y * z
+operators = OperatorEnum(((sin,), (+, *), (my_ternary,)))  # (unary, binary, ternary)
+
+tree = Node{Float64,3}(; op=1, children=(Node{Float64,3}(; val=1.0), Node{Float64,3}(; val=2.0)))
+new_child = Node{Float64,3}(; val=3.0)
+
+left_child = get_child(tree, 1)
+right_child = get_child(tree, 2)
+
+set_child!(tree, new_child, 1)
+
+children = get_children(tree)
+left, right = get_children(tree, Val(2))  # type stable
+
+# Transform to ternary operation
+child1, child2, child3 = Node{Float64,3}(; val=4.0), Node{Float64,3}(; val=5.0), Node{Float64,3}(; val=6.0)
+set_children!(tree, (child1, child2, child3))
+tree.op = 1  # my_ternary
+tree.degree = 3
+```
+
 ## Graph Nodes
 
 You can describe an equation as a *graph* rather than a tree
@@ -109,7 +145,7 @@ This means that we only need to change it once
 to have changes propagate across the expression:
 
 ```julia
-julia> y.r.val *= 0.9
+julia> get_child(y, 2).val *= 0.9
 1.35
 
 julia> z

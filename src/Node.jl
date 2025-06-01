@@ -117,6 +117,9 @@ nodes, you can evaluate or print a given expression.
     object. Only defined if `degree >= 1`
 - `children::NTuple{D,Node{T,D}}`: Children of the node. Only defined up to `degree`
 
+For accessing and modifying children, use [`get_child`](@ref), [`set_child!`](@ref),
+[`get_children`](@ref), and [`set_children!`](@ref).
+
 # Constructors
 
 
@@ -188,17 +191,46 @@ end
 @inline function get_children(node::AbstractNode)
     return getfield(node, :children)
 end
+
+"""
+    get_children(node::AbstractNode)
+    get_children(node::AbstractNode, ::Val{n})
+
+Return the children tuple of a node. The first form returns the complete children tuple as stored.
+The second form returns a tuple of exactly `n` children, useful for type stability when the
+number of children needed is known at compile time.
+"""
 @inline function get_children(node::AbstractNode, ::Val{n}) where {n}
     cs = get_children(node)
     return ntuple(i -> cs[i], Val(Int(n)))
 end
+
+"""
+    get_child(node::AbstractNode, i::Integer)
+
+Return the `i`-th child of a node (1-indexed).
+"""
 @inline function get_child(n::AbstractNode{D}, i::Int) where {D}
     return get_children(n)[i]
 end
+
+"""
+    set_child!(node::AbstractNode, child::AbstractNode, i::Integer)
+
+Replace the `i`-th child of a node (1-indexed) with the given child node.
+Returns the new child. Updates the children tuple in-place.
+"""
 @inline function set_child!(n::AbstractNode{D}, child::AbstractNode{D}, i::Int) where {D}
     set_children!(n, Base.setindex(get_children(n), child, i))
     return child
 end
+
+"""
+    set_children!(node::AbstractNode, children::Tuple)
+
+Replace all children of a node with the given tuple. If fewer children are
+provided than the node's maximum degree, remaining slots are filled with poison nodes.
+"""
 @inline function set_children!(n::AbstractNode{D}, children::Union{Tuple,AbstractVector{<:AbstractNode{D}}}) where {D}
     D2 = length(children)
     if D === D2

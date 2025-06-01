@@ -74,7 +74,7 @@ function combine_operators(tree::Node{T,2}, operators::AbstractOperatorEnum) whe
                     #(const - (const - var)) => (var - const)
                     l = get_child(tree, 1)
                     r = get_child(tree, 2)
-                    simplified_const = (get_child(r, 1).val - l.val) #neg(sub(l.val, r.l.val))
+                    simplified_const = (get_child(r, 1).val - l.val) #neg(sub(l.val, get_child(r, 1).val))
                     set_child!(tree, get_child(get_child(tree, 2), 2), 1)
                     set_child!(tree, l, 2)
                     get_child(tree, 2).val = simplified_const
@@ -82,7 +82,7 @@ function combine_operators(tree::Node{T,2}, operators::AbstractOperatorEnum) whe
                     #(const - (var - const)) => (const - var)
                     l = get_child(tree, 1)
                     r = get_child(tree, 2)
-                    simplified_const = l.val + get_child(r, 2).val #plus(l.val, r.r.val)
+                    simplified_const = l.val + get_child(r, 2).val #plus(l.val, get_child(r, 2).val)
                     set_child!(tree, get_child(get_child(tree, 2), 1), 2)
                     get_child(tree, 1).val = simplified_const
                 end
@@ -93,7 +93,7 @@ function combine_operators(tree::Node{T,2}, operators::AbstractOperatorEnum) whe
                     #((const - var) - const) => (const - var)
                     l = get_child(tree, 1)
                     r = get_child(tree, 2)
-                    simplified_const = get_child(l, 1).val - r.val#sub(l.l.val, r.val)
+                    simplified_const = get_child(l, 1).val - r.val#sub(get_child(l, 1).val, r.val)
                     set_child!(tree, get_child(get_child(tree, 1), 2), 2)
                     set_child!(tree, r, 1)
                     get_child(tree, 1).val = simplified_const
@@ -101,7 +101,7 @@ function combine_operators(tree::Node{T,2}, operators::AbstractOperatorEnum) whe
                     #((var - const) - const) => (var - const)
                     l = get_child(tree, 1)
                     r = get_child(tree, 2)
-                    simplified_const = r.val + get_child(l, 2).val #plus(r.val, l.r.val)
+                    simplified_const = r.val + get_child(l, 2).val #plus(r.val, get_child(l, 2).val)
                     set_child!(tree, get_child(get_child(tree, 1), 1), 1)
                     get_child(tree, 2).val = simplified_const
                 end
