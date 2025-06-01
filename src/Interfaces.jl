@@ -12,6 +12,9 @@ using ..NodeModule:
     constructorof,
     default_allocator,
     with_type_parameters,
+    with_max_degree,
+    max_degree,
+    get_children,
     leaf_copy,
     leaf_convert,
     leaf_hash,
@@ -70,8 +73,10 @@ function _check_get_metadata(ex::AbstractExpression)
     new_ex = with_metadata(ex, get_metadata(ex))
     return new_ex == ex && new_ex isa typeof(ex)
 end
-function _check_get_tree(ex::AbstractExpression{T,N}) where {T,N}
-    return get_tree(ex) isa N || get_tree(ex) isa AbstractReadOnlyNode{T,N}
+function _check_get_tree(
+    ex::AbstractExpression{T,N}
+) where {T,D,N<:AbstractExpressionNode{T,D}}
+    return get_tree(ex) isa N || get_tree(ex) isa AbstractReadOnlyNode{T,D,N}
 end
 function _check_get_operators(ex::AbstractExpression)
     return get_operators(ex) isa AbstractOperatorEnum
@@ -143,9 +148,11 @@ end
 function _check_constructorof(ex::AbstractExpression)
     return constructorof(typeof(ex)) isa Base.Callable
 end
-function _check_tree_mapreduce(ex::AbstractExpression{T,N}) where {T,N}
+function _check_tree_mapreduce(
+    ex::AbstractExpression{T,N}
+) where {T,D,N<:AbstractExpressionNode{T,D}}
     return tree_mapreduce(node -> [node], vcat, ex) isa
-           (Vector{N2} where {N2<:Union{N,AbstractReadOnlyNode{T,N}}})
+           (Vector{N2} where {N2<:Union{N,AbstractReadOnlyNode{T,D,N}}})
 end
 
 #! format: off
@@ -221,6 +228,13 @@ function _check_create_node(tree::AbstractExpressionNode)
     NT = with_type_parameters(N, Float16)
     return NT() isa NT
 end
+function _check_get_children(tree::AbstractExpressionNode{T,D}) where {T,D}
+    tree.degree == 0 && return true
+    return get_children(tree) isa Tuple{typeof(tree),Vararg{typeof(tree)}} &&
+           get_children(tree, Val(D)) isa Tuple &&
+           length(get_children(tree, Val(D))) == D &&
+           length(get_children(tree, Val(1))) == 1
+end
 function _check_copy(tree::AbstractExpressionNode)
     return copy(tree) isa typeof(tree)
 end
@@ -244,8 +258,14 @@ function _check_eltype(tree::AbstractExpressionNode{T}) where {T}
 end
 function _check_with_type_parameters(tree::AbstractExpressionNode{T}) where {T}
     N = typeof(tree)
-    NT = with_type_parameters(Base.typename(N).wrapper, eltype(tree))
-    return NT == typeof(tree)
+    Nf16 = with_type_parameters(N, Float16)
+    return Nf16 <: AbstractExpressionNode{Float16}
+end
+function _check_with_max_degree(tree::AbstractExpressionNode)
+    N = typeof(tree)
+    new_D = max_degree(N) + 1
+    N2 = with_max_degree(N, Val(new_D))
+    return N2 <: AbstractExpressionNode && max_degree(N2) == new_D
 end
 function _check_default_allocator(tree::AbstractExpressionNode)
     N = Base.typename(typeof(tree)).wrapper
@@ -295,35 +315,21 @@ function _check_leaf_equal(tree::AbstractExpressionNode)
     return leaf_equal(tree, copy(tree))
 end
 function _check_branch_copy(tree::AbstractExpressionNode)
-    if tree.degree == 0
-        return true
-    elseif tree.degree == 1
-        return branch_copy(tree, tree.l) isa typeof(tree)
-    else
-        return branch_copy(tree, tree.l, tree.r) isa typeof(tree)
-    end
+    tree.degree == 0 && return true
+    return branch_copy(tree, get_children(tree, Val(tree.degree))...) isa typeof(tree)
 end
 function _check_branch_copy_into!(tree::AbstractExpressionNode{T}) where {T}
-    if tree.degree == 0
-        return true
-    end
+    tree.degree == 0 && return true
     new_branch = constructorof(typeof(tree))(; val=zero(T))
-    if tree.degree == 1
-        ret = branch_copy_into!(new_branch, tree, copy(tree.l))
-        return new_branch == tree && ret === new_branch
-    else
-        ret = branch_copy_into!(new_branch, tree, copy(tree.l), copy(tree.r))
-        return new_branch == tree && ret === new_branch
-    end
+    ret = branch_copy_into!(
+        new_branch, tree, map(copy, get_children(tree, Val(tree.degree)))...
+    )
+    return new_branch == tree && ret === new_branch
 end
 function _check_branch_convert(tree::AbstractExpressionNode)
-    if tree.degree == 0
-        return true
-    elseif tree.degree == 1
-        return branch_convert(typeof(tree), tree, tree.l) isa typeof(tree)
-    else
-        return branch_convert(typeof(tree), tree, tree.l, tree.r) isa typeof(tree)
-    end
+    tree.degree == 0 && return true
+    return branch_convert(typeof(tree), tree, get_children(tree, Val(tree.degree))...) isa
+           typeof(tree)
 end
 function _check_branch_hash(tree::AbstractExpressionNode)
     tree.degree == 0 && return true
@@ -369,6 +375,7 @@ end
 ni_components = (
     mandatory = (
         create_node = "creates a new instance of the node type" => _check_create_node,
+        get_children = "returns the children of the node" => _check_get_children,
         copy = "returns a copy of the tree" => _check_copy,
         hash = "returns the hash of the tree" => _check_hash,
         any = "checks if any element of the tree satisfies a condition" => _check_any,
@@ -377,6 +384,7 @@ ni_components = (
         constructorof = "gets the constructor function for a node type" => _check_constructorof,
         eltype = "gets the element type of the node" => _check_eltype,
         with_type_parameters = "applies type parameters to the node type" => _check_with_type_parameters,
+        with_max_degree = "changes the maximum degree of a node type" => _check_with_max_degree,
         default_allocator = "gets the default allocator for the node type" => _check_default_allocator,
         set_node! = "sets the node's value" => _check_set_node!,
         count_nodes = "counts the number of nodes in the tree" => _check_count_nodes,

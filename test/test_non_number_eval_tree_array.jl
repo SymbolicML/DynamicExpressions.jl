@@ -165,11 +165,11 @@ Base.invokelatest(
     () -> begin
 
         # test operator extended operators
-        @test hasmethod(q, Tuple{Node{Max2Tensor{Float64}}})
-        @test hasmethod(a, Tuple{Max2Tensor{Float64},Node{Max2Tensor{Float64}}})
-        @test hasmethod(a, Tuple{Node{Max2Tensor{Float64}},Node{Max2Tensor{Float64}}})
-        @test !hasmethod(a, Tuple{Float64,Node{Float64}})
-        @test !hasmethod(a, Tuple{Node{Max2Tensor{Float32}},Node{Max2Tensor{Float32}}})
+        @test hasmethod(q, Tuple{Node{Max2Tensor{Float64},2}})
+        @test hasmethod(a, Tuple{Max2Tensor{Float64},Node{Max2Tensor{Float64},2}})
+        @test hasmethod(a, Tuple{Node{Max2Tensor{Float64},2},Node{Max2Tensor{Float64},2}})
+        @test !hasmethod(a, Tuple{Float64,Node{Float64,2}})
+        @test !hasmethod(a, Tuple{Node{Max2Tensor{Float32},2},Node{Max2Tensor{Float32},2}})
 
         tree = a(Node{Max2Tensor{Float64}}(; feature=1), Max2Tensor{Float64}(3.0))
         results = tree(

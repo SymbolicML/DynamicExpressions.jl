@@ -349,7 +349,7 @@ end
     @test val isa Float64
     @test grad isa NamedTuple
     @test grad.tree isa DynamicExpressions.ChainRulesModule.NodeTangent{
-        Float64,ParametricNode{Float64},Vector{Float64}
+        Float64,<:ParametricNode{Float64},Vector{Float64}
     }
     @test grad.metadata._data.parameters isa Matrix{Float64}
 

@@ -5,8 +5,7 @@ using DynamicExpressions:
     OperatorEnum, AbstractExpressionNode, tree_mapreduce, is_valid_array, EvalOptions
 using DynamicExpressions.UtilsModule: ResultOk, counttuple
 
-import DynamicExpressions.ExtensionInterfaceModule:
-    bumper_eval_tree_array, bumper_kern1!, bumper_kern2!
+import DynamicExpressions.ExtensionInterfaceModule: bumper_eval_tree_array, bumper_kern!
 
 function bumper_eval_tree_array(
     tree::AbstractExpressionNode{T},
@@ -37,8 +36,7 @@ function bumper_eval_tree_array(
             branch_node -> branch_node,
             # In the evaluation kernel, we combine the branch nodes
             # with the arrays created by the leaf nodes:
-            ((args::Vararg{Any,M}) where {M}) ->
-                dispatch_kerns!(operators, args..., eval_options),
+            KernelDispatcher(operators, eval_options),
             tree;
             break_sharing=Val(true),
         )
@@ -49,63 +47,44 @@ function bumper_eval_tree_array(
     return (result, all_ok[])
 end
 
-function dispatch_kerns!(
-    operators, branch_node, cumulator, eval_options::EvalOptions{<:Any,true,early_exit}
-) where {early_exit}
-    cumulator.ok || return cumulator
-
-    out = dispatch_kern1!(operators.unaops, branch_node.op, cumulator.x, eval_options)
-    return ResultOk(out, early_exit ? is_valid_array(out) : true)
+struct KernelDispatcher{O<:OperatorEnum,E<:EvalOptions{<:Any,true,<:Any}} <: Function
+    operators::O
+    eval_options::E
 end
-function dispatch_kerns!(
-    operators,
+
+@generated function (kd::KernelDispatcher{<:Any,<:EvalOptions{<:Any,true,early_exit}})(
+    branch_node, inputs::Vararg{Any,degree}
+) where {degree,early_exit}
+    quote
+        Base.Cartesian.@nexprs($degree, i -> inputs[i].ok || return inputs[i])
+        cumulators = Base.Cartesian.@ntuple($degree, i -> inputs[i].x)
+        out = dispatch_kerns!(kd.operators, branch_node, cumulators, kd.eval_options)
+        return ResultOk(out, early_exit ? is_valid_array(out) : true)
+    end
+end
+@generated function dispatch_kerns!(
+    operators::OperatorEnum{OPS},
     branch_node,
-    cumulator1,
-    cumulator2,
-    eval_options::EvalOptions{<:Any,true,early_exit},
-) where {early_exit}
-    cumulator1.ok || return cumulator1
-    cumulator2.ok || return cumulator2
-
-    out = dispatch_kern2!(
-        operators.binops, branch_node.op, cumulator1.x, cumulator2.x, eval_options
-    )
-    return ResultOk(out, early_exit ? is_valid_array(out) : true)
-end
-
-@generated function dispatch_kern1!(unaops, op_idx, cumulator, eval_options::EvalOptions)
-    nuna = counttuple(unaops)
+    cumulators::Tuple{Vararg{Any,degree}},
+    eval_options::EvalOptions,
+) where {OPS,degree}
+    nops = length(OPS.types[degree].types)
     quote
-        Base.@nif(
-            $nuna,
+        op_idx = branch_node.op
+        Base.Cartesian.@nif(
+            $nops,
             i -> i == op_idx,
-            i -> let op = unaops[i]
-                return bumper_kern1!(op, cumulator, eval_options)
-            end,
+            i -> bumper_kern!(operators[$degree][i], cumulators, eval_options)
         )
     end
 end
-@generated function dispatch_kern2!(
-    binops, op_idx, cumulator1, cumulator2, eval_options::EvalOptions
-)
-    nbin = counttuple(binops)
-    quote
-        Base.@nif(
-            $nbin,
-            i -> i == op_idx,
-            i -> let op = binops[i]
-                return bumper_kern2!(op, cumulator1, cumulator2, eval_options)
-            end,
-        )
-    end
-end
-function bumper_kern1!(op::F, cumulator, ::EvalOptions{false,true}) where {F}
-    @. cumulator = op(cumulator)
-    return cumulator
-end
-function bumper_kern2!(op::F, cumulator1, cumulator2, ::EvalOptions{false,true}) where {F}
-    @. cumulator1 = op(cumulator1, cumulator2)
-    return cumulator1
+
+function bumper_kern!(
+    op::F, cumulators::Tuple{Vararg{Any,degree}}, ::EvalOptions{false,true,early_exit}
+) where {F,degree,early_exit}
+    cumulator_1 = first(cumulators)
+    @. cumulator_1 = op(cumulators...)
+    return cumulator_1
 end
 
 end
