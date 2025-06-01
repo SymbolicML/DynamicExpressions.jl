@@ -7,6 +7,7 @@ using ChainRulesCore:
     ZeroTangent,
     Tangent,
     @thunk,
+    unthunk,
     canonicalize
 using ..OperatorEnumModule: OperatorEnum
 using ..NodeModule: AbstractExpressionNode, with_type_parameters, tree_mapreduce
@@ -52,7 +53,8 @@ struct EvalPullback{N,A,O} <: Function
 end
 
 # TODO: Preferable to use the primal in the pullback somehow
-function (e::EvalPullback)((dY, _))
+function (e::EvalPullback)((thunked_dY, _))
+    dY = unthunk(thunked_dY)
     _, dX_constants_dY, complete = eval_grad_tree_array(
         e.tree, e.X, e.operators; variable=Val(:both)
     )
