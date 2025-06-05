@@ -10,6 +10,12 @@ import ..NodeUtilsModule: is_constant
 import ..ExtensionInterfaceModule: bumper_eval_tree_array, _is_loopvectorization_loaded
 import ..ValueInterfaceModule: is_valid, is_valid_array
 
+# Overloaded by SpecialOperators.jl:
+function any_special_operators end
+function special_operator end
+function deg2_eval_special end
+function deg1_eval_special end
+
 const OPERATOR_LIMIT_BEFORE_SLOWDOWN = 15
 
 macro return_on_nonfinite_val(eval_options, val, X)
@@ -218,6 +224,10 @@ function eval_tree_array(
             "Bumper and LoopVectorization features are only compatible with numeric element types",
         )
     end
+    if any_special_operators(operators)
+        cX = copy(cX)
+        # TODO: This is dangerous if the element type is mutable
+    end
     if _eval_options.bumper isa Val{true}
         return bumper_eval_tree_array(tree, cX, operators, _eval_options)
     end
@@ -264,7 +274,7 @@ function _eval_tree_array(
     # we can just return the constant result.
     if tree.degree == 0
         return deg0_eval(tree, cX, eval_options)
-    elseif is_constant(tree)
+    elseif !any_special_operators(operators) && is_constant(tree)
         # Speed hack for constant trees.
         const_result = dispatch_constant_tree(tree, operators)::ResultOk{T}
         !const_result.ok &&
@@ -329,6 +339,9 @@ end
     long_compilation_time = nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     if long_compilation_time
         return quote
+            op = operators.binops[op_idx]
+            special_operator(op) &&
+                return deg2_eval_special(tree, cX, operators, op, eval_options)
             result_l = _eval_tree_array(tree.l, cX, operators, eval_options)
             !result_l.ok && return result_l
             @return_on_nonfinite_array(eval_options, result_l.x)
@@ -336,7 +349,7 @@ end
             !result_r.ok && return result_r
             @return_on_nonfinite_array(eval_options, result_r.x)
             # op(x, y), for any x or y
-            deg2_eval(result_l.x, result_r.x, operators.binops[op_idx], eval_options)
+            deg2_eval(result_l.x, result_r.x, op, eval_options)
         end
     end
     return quote
@@ -344,7 +357,9 @@ end
             $nbin,
             i -> i == op_idx,
             i -> let op = operators.binops[i]
-                if tree.l.degree == 0 && tree.r.degree == 0
+                if special_operator(op)
+                    deg2_eval_special(tree, cX, operators, op, eval_options)
+                elseif tree.l.degree == 0 && tree.r.degree == 0
                     deg2_l0_r0_eval(tree, cX, op, eval_options)
                 elseif tree.r.degree == 0
                     result_l = _eval_tree_array(tree.l, cX, operators, eval_options)
@@ -352,7 +367,9 @@ end
                     @return_on_nonfinite_array(eval_options, result_l.x)
                     # op(x, y), where y is a constant or variable but x is not.
                     deg2_r0_eval(tree, result_l.x, cX, op, eval_options)
-                elseif tree.l.degree == 0
+                elseif !any_special_operators(operators) && tree.l.degree == 0
+                    # This branch changes the execution order, so we cannot
+                    # use this branch when special operators are present.
                     result_r = _eval_tree_array(tree.r, cX, operators, eval_options)
                     !result_r.ok && return result_r
                     @return_on_nonfinite_array(eval_options, result_r.x)
@@ -383,10 +400,13 @@ end
     long_compilation_time = nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     if long_compilation_time
         return quote
+            op = operators.unaops[op_idx]
+            special_operator(op) &&
+                return deg1_eval_special(tree, cX, operators, op, eval_options)
             result = _eval_tree_array(tree.l, cX, operators, eval_options)
             !result.ok && return result
             @return_on_nonfinite_array(eval_options, result.x)
-            deg1_eval(result.x, operators.unaops[op_idx], eval_options)
+            deg1_eval(result.x, op, eval_options)
         end
     end
     # This @nif lets us generate an if statement over choice of operator,
@@ -396,13 +416,20 @@ end
             $nuna,
             i -> i == op_idx,
             i -> let op = operators.unaops[i]
-                if tree.l.degree == 2 && tree.l.l.degree == 0 && tree.l.r.degree == 0
+                if special_operator(op)
+                    deg1_eval_special(tree, cX, operators, op, eval_options)
+                elseif !any_special_operators(operators) &&
+                    tree.l.degree == 2 &&
+                    tree.l.l.degree == 0 &&
+                    tree.l.r.degree == 0
                     # op(op2(x, y)), where x, y, z are constants or variables.
                     l_op_idx = tree.l.op
                     dispatch_deg1_l2_ll0_lr0_eval(
                         tree, cX, op, l_op_idx, operators.binops, eval_options
                     )
-                elseif tree.l.degree == 1 && tree.l.l.degree == 0
+                elseif !any_special_operators(operators) &&
+                    tree.l.degree == 1 &&
+                    tree.l.l.degree == 0
                     # op(op2(x)), where x is a constant or variable.
                     l_op_idx = tree.l.op
                     dispatch_deg1_l1_ll0_eval(
