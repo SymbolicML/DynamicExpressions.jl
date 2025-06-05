@@ -302,7 +302,7 @@ function Base.convert(::Type{Node}, ex::ParametricExpression{T}) where {T}
         elseif leaf.is_parameter
             Node(T; feature=leaf.parameter)
         else
-            Node(T; feature=leaf.feature + num_params)
+            Node(T; feature=(leaf.feature + num_params))
         end,
         branch -> branch.op,
         (op, children...) -> Node(; op, children),
