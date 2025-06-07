@@ -409,39 +409,79 @@ macro extend_operators_base(operators, kws...)
     )
 end
 
+function _pairs_to_ops_tuple(
+    @nospecialize(pair::Pair{Int,<:Tuple}), @nospecialize(pairs::Pair{Int,<:Tuple}...)
+)
+    all_pairs = Pair{Int,Tuple}[pair, pairs...]
+
+    # Find the maximum degree to determine tuple length
+    max_degree = maximum(first, all_pairs)
+
+    # Create array of empty tuples with the right length
+    ops_array = Any[() for _ in 1:max_degree]
+
+    # Fill in the operators at their respective degrees
+    for (degree, operators) in all_pairs
+        degree < 1 && throw(ArgumentError("Degree must be ≥ 1, got $degree"))
+        ops_array[degree] = operators
+    end
+
+    return Tuple(ops_array)
+end
+
 """
-    OperatorEnum(; binary_operators=[], unary_operators=[],
-                   define_helper_functions::Bool=true,
-                   empty_old_operators::Bool=true)
+    OperatorEnum(pairs::Pair{Int,<:Tuple}...; define_helper_functions::Bool=true, empty_old_operators::Bool=true)
 
 Construct an `OperatorEnum` object, defining the possible expressions. This will also
 redefine operators for `AbstractExpressionNode` types, as well as `show`, `print`, and
 `(::AbstractExpressionNode)(X)`. It will automatically compute derivatives with `Zygote.jl`.
 
 # Arguments
-- `binary_operators::Vector{Function}`: A vector of functions, each of which is a binary
-  operator.
-- `unary_operators::Vector{Function}`: A vector of functions, each of which is a unary
-  operator.
+
+- `pairs::Pair{Int,<:Tuple}...`: A variable number of `degree => operators` pairs, where each
+    `degree` is an integer and `operators` is a tuple of functions.
+
+# Keyword Arguments
+
 - `define_helper_functions::Bool=true`: Whether to define helper functions for creating
-   and evaluating node types. Turn this off when doing precompilation. Note that these
-   are *not* needed for the package to work; they are purely for convenience.
+    and evaluating node types. Turn this off when doing precompilation. Note that these
+    are *not* needed for the package to work; they are purely for convenience.
 - `empty_old_operators::Bool=true`: Whether to clear the old operators.
+
+# Examples
+
+```julia
+# Simple case - just unary and binary operators
+OperatorEnum(1 => (sin, cos, exp), 2 => (+, -, *, /))
+
+# Just binary operators
+OperatorEnum(2 => (+, -, *, /))
+
+# Just unary operators
+OperatorEnum(1 => (sin, cos, exp, log))
+
+# Advanced: Adding ternary operators
+OperatorEnum(1 => (sin, cos), 2 => (+, -, *, /), 3 => (fma,))
+
+# Advanced: direct tuple-of-tuples construction (type stable approach)
+OperatorEnum(((sin, cos), (+, -, *, /), (fma,)))
+```
 """
-@unstable function OperatorEnum(;
-    binary_operators=Function[],
-    unary_operators=Function[],
+@unstable function OperatorEnum(
+    @nospecialize(pair::Pair{Int,<:Tuple}),
+    @nospecialize(pairs::Pair{Int,<:Tuple}...);
     define_helper_functions::Bool=true,
     empty_old_operators::Bool=true,
     # Deprecated:
     enable_autodiff=nothing,
 )
-    enable_autodiff !== nothing && Base.depwarn(
+    all_pairs = Any[pair, pairs...]
+    !isnothing(enable_autodiff) && Base.depwarn(
         "The option `enable_autodiff` has been deprecated. " *
         "Differential operators are now automatically computed within the gradient call.",
         :OperatorEnum,
     )
-    for (op, s) in ((binary_operators, "binary"), (unary_operators, "unary"))
+    for (op, s) in map(p -> (p.second, string("degree", p.first)), all_pairs)
         if length(op) > OPERATOR_LIMIT_BEFORE_SLOWDOWN
             @warn(
                 "You have passed over $(OPERATOR_LIMIT_BEFORE_SLOWDOWN) $(s) operators. " *
@@ -454,26 +494,23 @@ redefine operators for `AbstractExpressionNode` types, as well as `show`, `print
 
     if define_helper_functions && any(
         op_set -> any(op -> op isa Broadcast.BroadcastFunction, op_set),
-        (binary_operators, unary_operators),
+        map(last, all_pairs),
     )
         # TODO: Fix issue with defining operators on a `BroadcastFunction`
         # and then on a regular function
         @warn "Using `BroadcastFunction` in an `OperatorEnum` is not yet stable"
     end
 
-    operators = OperatorEnum(Tuple(binary_operators), Tuple(unary_operators))
-
+    operators = OperatorEnum(_pairs_to_ops_tuple(pair, pairs...))
     if define_helper_functions
         @extend_operators_base operators empty_old_operators = empty_old_operators
         set_default_operators!(operators)
     end
-
     return operators
 end
 
 """
-    GenericOperatorEnum(; binary_operators=[], unary_operators=[],
-                          define_helper_functions::Bool=true, empty_old_operators::Bool=true)
+    GenericOperatorEnum(pairs::Pair{Int,<:Tuple}...; options...)
 
 Construct a `GenericOperatorEnum` object, defining possible expressions.
 Unlike `OperatorEnum`, this enum one will work arbitrary operators and data types.
@@ -481,30 +518,40 @@ This will also redefine operators for `AbstractExpressionNode` types, as well as
 and `(::AbstractExpressionNode)(X)`.
 
 # Arguments
-- `binary_operators::Vector{Function}`: A vector of functions, each of which is a binary
-  operator.
-- `unary_operators::Vector{Function}`: A vector of functions, each of which is a unary
-  operator.
+
+- `pairs::Pair{Int,<:Tuple}...`: A variable number of `degree => operators` pairs, where each
+    `degree` is an integer and `operators` is a tuple of functions.
+
+# Keyword Arguments
+
 - `define_helper_functions::Bool=true`: Whether to define helper functions for creating
-   and evaluating node types. Turn this off when doing precompilation. Note that these
-   are *not* needed for the package to work; they are purely for convenience.
+    and evaluating node types. Turn this off when doing precompilation. Note that these
+    are *not* needed for the package to work; they are purely for convenience.
 - `empty_old_operators::Bool=true`: Whether to clear the old operators.
+
+# Examples
+
+```julia
+# For vector operations
+vec_add(x, y) = x .+ y
+vec_square(x) = x .* x
+GenericOperatorEnum(1 => (vec_square,), 2 => (vec_add,))
+
+# For string operations
+GenericOperatorEnum(1 => (reverse,), 2 => (*,))
+```
 """
-@unstable function GenericOperatorEnum(;
-    binary_operators=Function[],
-    unary_operators=Function[],
+function GenericOperatorEnum(
+    @nospecialize(pair::Pair{Int,<:Tuple}),
+    @nospecialize(pairs::Pair{Int,<:Tuple}...);
     define_helper_functions::Bool=true,
     empty_old_operators::Bool=true,
 )
-    @assert length(binary_operators) > 0 || length(unary_operators) > 0
-
-    operators = GenericOperatorEnum(Tuple(binary_operators), Tuple(unary_operators))
-
+    operators = GenericOperatorEnum(_pairs_to_ops_tuple(pair, pairs...))
     if define_helper_functions
         @extend_operators_base operators empty_old_operators = empty_old_operators
         set_default_operators!(operators)
     end
-
     return operators
 end
 
@@ -513,12 +560,14 @@ end
 function _overload_common_operators()
     # Overload the operators in batches (so that we don't hit the warning
     # about too many operators)
-    operators = OperatorEnum(
-        (+, -, *, /, ^, max, min, mod),
+    operators = OperatorEnum((
         (sin, cos, tan, exp, log, log1p, log2, log10, sqrt, cbrt, abs, sinh),
-    )
+        (+, -, *, /, ^, max, min, mod),
+    ))
     @extend_operators(operators, empty_old_operators = false, internal = true)
-    operators = OperatorEnum((), (cosh, tanh, atan, asinh, acosh, round, sign, floor, ceil))
+    operators = OperatorEnum((
+        (cosh, tanh, atan, asinh, acosh, round, sign, floor, ceil), ()
+    ))
     @extend_operators(operators, empty_old_operators = true, internal = true)
 
     empty!(LATEST_UNARY_OPERATOR_MAPPING)
