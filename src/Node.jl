@@ -88,8 +88,6 @@ for N in (:Node, :GraphNode)
         # TODO: Test with this disabled to spot any unintended uses
     end
 end
-# TODO: If we can't reach the same speed, we should make a Node2 type
-#       that is specialized for 2-arity nodes.
 
 #! format: off
 """
