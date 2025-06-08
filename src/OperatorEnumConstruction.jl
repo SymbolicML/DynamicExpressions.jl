@@ -98,7 +98,7 @@ end
     mapping = get!(Dict{Any,OP_FIELDTYPE}, LATEST_OPERATOR_MAPPING, degree)
     if !haskey(mapping, f)
         error(
-            "Convenience constructor for operator `$(f)` for degree `$(degree)` is out-of-date. " *
+            "Convenience constructor for operator `$(f)` for degree $(degree) is out-of-date. " *
             "Please create an `OperatorEnum` (or `GenericOperatorEnum`) containing " *
             "the operator `$(f)` which will define the `$(f)` -> `Int` mapping.",
         )
@@ -558,6 +558,17 @@ function GenericOperatorEnum(
         set_default_operators!(operators)
     end
     return operators
+end
+
+# Make compatible with vector of operators too
+for OP_ENUM in (:OperatorEnum, :GenericOperatorEnum)
+    @eval function $OP_ENUM(
+        @nospecialize(pair::Pair{Int,<:Vector}),
+        @nospecialize(pairs::Pair{Int,<:Vector}...);
+        kws...,
+    )
+        return $OP_ENUM(map(p -> (p.first, Tuple(p.second)), (pair, pairs...))...; kws...)
+    end
 end
 
 # Predefine the most common operators so the errors

@@ -35,7 +35,7 @@
 
             my_custom_op(x, sin(y) + 0.3)
         end
-        @test_throws "Convenience constructor for operator `sin` is out-of-date" @eval let
+        @test_throws "Convenience constructor for operator `sin` for degree 1 is out-of-date" @eval let
             x = Node{Float64}(; feature=1)
             y = Node{Float64}(; feature=2)
 

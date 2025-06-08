@@ -93,17 +93,25 @@ Base.@deprecate_binding SimplifyEquationModule SimplifyModule
 )
 @deprecate(
     OperatorEnum(;
-        binary_operators::Union{Vector,Tuple}=Function[],
-        unary_operators::Union{Vector,Tuple}=Function[],
+        @nospecialize(binary_operators::Union{Vector,Tuple,Nothing} = nothing),
+        @nospecialize(unary_operators::Union{Vector,Tuple,Nothing} = nothing),
         kws...,
     ),
-    OperatorEnum(1 => Tuple(unary_operators), 2 => Tuple(binary_operators); kws...)
+    OperatorEnum(
+        1 => Tuple(something(unary_operators, ())),
+        2 => Tuple(something(binary_operators, ()));
+        kws...,
+    )
 )
 @deprecate(
     GenericOperatorEnum(;
-        binary_operators::Union{Vector,Tuple}=Function[],
-        unary_operators::Union{Vector,Tuple}=Function[],
+        @nospecialize(binary_operators::Union{Vector,Tuple,Nothing} = nothing),
+        @nospecialize(unary_operators::Union{Vector,Tuple,Nothing} = nothing),
         kws...,
     ),
-    GenericOperatorEnum(1 => unary_operators, 2 => binary_operators; kws...)
+    GenericOperatorEnum(
+        1 => Tuple(something(unary_operators, ())),
+        2 => Tuple(something(binary_operators, ()));
+        kws...,
+    )
 )

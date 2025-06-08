@@ -42,7 +42,10 @@ end
     for D in (3, 4, 5)
         x = [Node{Float64,D}(; feature=i) for i in 1:3]
         operator_tuple = ((sin, cos, exp), (+, *, /, -), (fma, clamp), (max, min), ())
-        operators = OperatorEnum(operator_tuple[1:D])
+        # Create pairs for degrees 1 through D
+        pairs = [i => operator_tuple[i] for i in 1:D if !isempty(operator_tuple[i])]
+        operators =
+            isempty(pairs) ? OperatorEnum(1 => ()) : OperatorEnum(pairs[1], pairs[2:end]...)
         DynamicExpressions.OperatorEnumConstructionModule.empty_all_globals!()
         let tree = Node{Float64,D}(; op=2, children=(x[1], x[2]))  # *
             if D > 2
