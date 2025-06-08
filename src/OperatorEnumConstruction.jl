@@ -94,9 +94,14 @@ function set_default_operators!(operators::GenericOperatorEnum)
     return LATEST_OPERATORS_TYPE.x = IsGenericOperatorEnum
 end
 
-@unstable function lookup_op(@nospecialize(f), ::Val{degree}) where {degree}
+@unstable function lookup_op(
+    @nospecialize(f), ::Val{degree}; allow_failure::Bool=false
+) where {degree}
     mapping = get!(Dict{Any,OP_FIELDTYPE}, LATEST_OPERATOR_MAPPING, degree)
     if !haskey(mapping, f)
+        if allow_failure
+            return UInt8(0)
+        end
         error(
             "Convenience constructor for operator `$(f)` for degree $(degree) is out-of-date. " *
             "Please create an `OperatorEnum` (or `GenericOperatorEnum`) containing " *
@@ -267,13 +272,24 @@ function _extend_nary_operator(
             function $($f_outside)(
                 $(args...)
             ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
+                # Standard n-ary operator behavior
                 if all(c -> c.degree == 0 && c.constant, ($(arg_syms...),))
                     $_constructorof(N)(
                         T; val=$($f_inside)(map(c -> c.val, ($(arg_syms...),))...)
                     )
                 else
-                    latest_op_idx = $($lookup_op)($($f_inside), Val($($degree)))
-                    $_constructorof(N)(; op=latest_op_idx, children=($(arg_syms...),))
+                    __is_chainable = $$f_inside ∈ (+, *)
+                    latest_op_idx = $$lookup_op(
+                        $$f_inside, Val($$degree); allow_failure=__is_chainable
+                    )
+                    if __is_chainable && iszero(latest_op_idx)
+                        # If this method exists, and then the operator is removed from the mapping,
+                        # Julia will chain the calls (like `+(x1, x2, x3)`, even though `+` is only given as a binary operator).
+                        # Therefore, we need to manually chain the calls in such instances.
+                        $$foldl($$f_outside, ($(arg_syms...),))
+                    else
+                        $_constructorof(N)(; op=latest_op_idx, children=($(arg_syms...),))
+                    end
                 end
             end
         end

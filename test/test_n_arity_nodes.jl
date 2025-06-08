@@ -513,3 +513,22 @@ end
     @test idx_tree.children[2].degree == 0 && idx_tree.children[2].val == UInt16(0)
     @test idx_tree.children[3].degree == 0 && idx_tree.children[3].val == UInt16(2)
 end
+
+@testitem "Edgecase with n-ary chainable operators" tags = [:narity] begin
+    using DynamicExpressions
+
+    operators = OperatorEnum(1 => (cos,), 2 => (-, *), 3 => (+,))
+    x1, x2, x3 = Node{Float64,3}(; feature=1),
+    Node{Float64,3}(; feature=2),
+    Node{Float64,3}(; feature=3)
+    operators = OperatorEnum(1 => (cos,), 2 => (-, *, +))
+
+    # Normally this would have been an error, but now we chain it
+    ex = Expression(+(x1, x2, x3); operators)
+    @test string(ex) == "(x1 + x2) + x3"
+
+    # But, we can still get explicit 3-degree nodes with + if it is defined
+    operators = OperatorEnum(1 => (cos,), 2 => (-, *), 3 => (+,))
+    ex2 = Expression(+(x1, x2, x3); operators)
+    @test string(ex2) == "+(x1, x2, x3)"
+end
