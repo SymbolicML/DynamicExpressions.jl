@@ -375,7 +375,8 @@ function grad_deg0_eval(
     index = if (mode isa Bool && mode)
         tree.feature::UInt16
     elseif (mode isa Bool && !mode)
-        (index_tree === nothing ? zero(UInt16) : index_tree.val::UInt16)
+        isnothing(index_tree) && error("unexpected input. Please submit a bug report.")
+        index_tree.val::UInt16
     elseif mode == :both
         index_tree::NodeIndex
         if tree.constant
