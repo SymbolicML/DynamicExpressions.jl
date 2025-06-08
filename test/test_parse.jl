@@ -28,19 +28,17 @@
     @test string_tree(ex) == "my_custom_op(x, sin(y) + 0.3)"
 
     # Whereas the regular use would fail
-    if VERSION >= v"1.9"
-        @test_throws ErrorException @eval let
-            x = Node{Float64}(; feature=1)
-            y = Node{Float64}(; feature=2)
+    @test_throws ErrorException @eval let
+        x = Node{Float64}(; feature=1)
+        y = Node{Float64}(; feature=2)
 
-            my_custom_op(x, sin(y) + 0.3)
-        end
-        @test_throws "Convenience constructor for operator `sin` for degree 1 is out-of-date" @eval let
-            x = Node{Float64}(; feature=1)
-            y = Node{Float64}(; feature=2)
+        my_custom_op(x, sin(y) + 0.3)
+    end
+    @test_throws "Convenience constructor for operator `sin` for degree 1 is out-of-date" @eval let
+        x = Node{Float64}(; feature=1)
+        y = Node{Float64}(; feature=2)
 
-            sin(y) + 0.3
-        end
+        sin(y) + 0.3
     end
 end
 
@@ -142,17 +140,15 @@ end
         @test_throws ArgumentError @parse_expression(
             [1, 2, 3] * tan(cos(5 + x)), operators, variable_names
         )
-        if VERSION >= v"1.9"
-            @test_throws(
-                "Unrecognized expression type: `Expr(:vect, ...)`. ",
-                parse_expression(
-                    :([1, 2, 3] * tan(cos(5 + x)));
-                    operators,
-                    variable_names,
-                    calling_module=@__MODULE__
-                )
+        @test_throws(
+            "Unrecognized expression type: `Expr(:vect, ...)`. ",
+            parse_expression(
+                :([1, 2, 3] * tan(cos(5 + x)));
+                operators,
+                variable_names,
+                calling_module=@__MODULE__
             )
-        end
+        )
     end
 
     # But, we can actually evaluate it for simple input
@@ -197,54 +193,43 @@ end
     @test_throws ArgumentError @parse_expression(
         cos(x), operators = operators, variable_names = [:x]
     )
-    if VERSION >= v"1.9"
-        @test_throws "Unrecognized operator: `cos` with no matches in `(sin,)`." parse_expression(
-            :(cos(x)); operators=operators, variable_names=[:x], calling_module=@__MODULE__
-        )
-    end
+    @test_throws "Unrecognized operator: `cos` with no matches in `(sin,)`." parse_expression(
+        :(cos(x)); operators=operators, variable_names=[:x], calling_module=@__MODULE__
+    )
     operators = OperatorEnum(; binary_operators=[+])
     @test_throws ArgumentError parse_expression(
         :(x * y); operators=operators, variable_names=[:x, :y], calling_module=@__MODULE__
     )
-    if VERSION >= v"1.9"
-        @test_throws "Unrecognized operator: `*` with no matches in `(+,)`." parse_expression(
-            :(x * y);
-            operators=operators,
-            variable_names=[:x, :y],
-            calling_module=@__MODULE__
-        )
-    end
+    @test_throws "Unrecognized operator: `*` with no matches in `(+,)`." parse_expression(
+        :(x * y); operators=operators, variable_names=[:x, :y], calling_module=@__MODULE__
+    )
     operators = OperatorEnum(; binary_operators=[+])
-    if VERSION >= v"1.9"
+    @test_throws "Unrecognized operator: `*` with no matches in `(+,)` or `[show]`." parse_expression(
+        :(x * y);
+        operators=operators,
+        variable_names=[:x, :y],
+        evaluate_on=[show],
+        calling_module=@__MODULE__
+    )
+
+    let evaluate_on = [show]
         @test_throws "Unrecognized operator: `*` with no matches in `(+,)` or `[show]`." parse_expression(
             :(x * y);
             operators=operators,
             variable_names=[:x, :y],
-            evaluate_on=[show],
+            evaluate_on=evaluate_on,
             calling_module=@__MODULE__
         )
-
-        let evaluate_on = [show]
-            @test_throws "Unrecognized operator: `*` with no matches in `(+,)` or `[show]`." parse_expression(
-                :(x * y);
-                operators=operators,
-                variable_names=[:x, :y],
-                evaluate_on=evaluate_on,
-                calling_module=@__MODULE__
-            )
-        end
     end
     operators = OperatorEnum(; unary_operators=[cos])
     @eval blah(x...) = first(x)
-    if VERSION >= v"1.9"
-        @test_throws "Unrecognized operator: `blah` with no matches in `[show]`." parse_expression(
-            :($blah(x, x, y));
-            operators=operators,
-            variable_names=[:x, :y],
-            evaluate_on=[show],
-            calling_module=@__MODULE__
-        )
-    end
+    @test_throws "Unrecognized operator: `blah` with no matches in `[show]`." parse_expression(
+        :($blah(x, x, y));
+        operators=operators,
+        variable_names=[:x, :y],
+        evaluate_on=[show],
+        calling_module=@__MODULE__
+    )
 end
 
 @testitem "Helpful error for missing function in scope" begin
@@ -263,15 +248,13 @@ end
             evaluate_on = [my_badly_scoped_function]
         )
     end
-    if VERSION >= v"1.9"
-        @test_throws "Tried to interpolate function `my_badly_scoped_function` but failed." begin
-            ex = @parse_expression(
-                my_badly_scoped_function(x),
-                operators = operators,
-                variable_names = ["x"],
-                evaluate_on = [my_badly_scoped_function]
-            )
-        end
+    @test_throws "Tried to interpolate function `my_badly_scoped_function` but failed." begin
+        ex = @parse_expression(
+            my_badly_scoped_function(x),
+            operators = operators,
+            variable_names = ["x"],
+            evaluate_on = [my_badly_scoped_function]
+        )
     end
 end
 
@@ -281,12 +264,10 @@ end
     @test_throws ArgumentError @parse_expression(
         x + y, operators = operators, variable_names = ["x"],
     )
-    if VERSION >= v"1.9"
-        # "Variable $(ex) not found in `variable_names`. " *
-        @test_throws "Variable `y` not found in `variable_names`." parse_expression(
-            :(x + y); operators=operators, variable_names=["x"], calling_module=@__MODULE__
-        )
-    end
+    # "Variable $(ex) not found in `variable_names`. " *
+    @test_throws "Variable `y` not found in `variable_names`." parse_expression(
+        :(x + y); operators=operators, variable_names=["x"], calling_module=@__MODULE__
+    )
 end
 
 @testitem "Helpful error for bad keyword" begin
@@ -330,11 +311,9 @@ end
     @test result.node_type == :(node_type)
     @test result.evaluate_on == :(evaluate_on)
 
-    if VERSION >= v"1.9"
-        @test_throws "Unrecognized argument: `bad_keyword`" DE.ParseModule._parse_kws([
-            :bad_keyword
-        ])
-    end
+    @test_throws "Unrecognized argument: `bad_keyword`" DE.ParseModule._parse_kws([
+        :bad_keyword
+    ])
 end
 
 @testitem "Test parsing convenience functionality" begin

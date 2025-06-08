@@ -137,44 +137,42 @@ end
 @testitem "Test error catching for GenericOperatorEnum" begin
     using DynamicExpressions
 
-    @static if VERSION >= v"1.7"
-        # And, with generic operator enum, this should be an actual error:
-        @eval my_fnc(x::Real) = x
-        operators = GenericOperatorEnum(;
-            binary_operators=[+, -, *, /], unary_operators=[cos, sin, my_fnc]
-        )
-        @extend_operators operators
-        x1 = Node(Float64; feature=1)
-        tree = sin(x1 / 0.0)
-        X = randn(Float32, 10)
-        let
-            try
-                tree(X, operators)[1]
-                @test false
-            catch e
-                @test e isa ErrorException
-                # Check that "Failed to evaluate" is in the message:
-                @test occursin("Failed to evaluate", e.msg)
-                stack = current_exceptions()
-                @test length(stack) == 2
-                @test stack[1].exception isa DomainError
-            end
+    # And, with generic operator enum, this should be an actual error:
+    @eval my_fnc(x::Real) = x
+    operators = GenericOperatorEnum(;
+        binary_operators=[+, -, *, /], unary_operators=[cos, sin, my_fnc]
+    )
+    @extend_operators operators
+    x1 = Node(Float64; feature=1)
+    tree = sin(x1 / 0.0)
+    X = randn(Float32, 10)
+    let
+        try
+            tree(X, operators)[1]
+            @test false
+        catch e
+            @test e isa ErrorException
+            # Check that "Failed to evaluate" is in the message:
+            @test occursin("Failed to evaluate", e.msg)
+            stack = current_exceptions()
+            @test length(stack) == 2
+            @test stack[1].exception isa DomainError
+        end
 
-            # If a method is not defined, we should get a nothing:
-            X2 = randn(ComplexF64, 1, 10)
-            tree2 = my_fnc(x1)
-            @test tree2(X2, operators; throw_errors=false) === nothing
-            # or a MethodError:
-            try
-                tree2(X2, operators; throw_errors=true)
-                @test false
-            catch e
-                @test e isa ErrorException
-                @test occursin("Failed to evaluate", e.msg)
-                stack2 = current_exceptions()
-                @test length(stack2) == 2
-                @test stack2[1].exception isa MethodError
-            end
+        # If a method is not defined, we should get a nothing:
+        X2 = randn(ComplexF64, 1, 10)
+        tree2 = my_fnc(x1)
+        @test tree2(X2, operators; throw_errors=false) === nothing
+        # or a MethodError:
+        try
+            tree2(X2, operators; throw_errors=true)
+            @test false
+        catch e
+            @test e isa ErrorException
+            @test occursin("Failed to evaluate", e.msg)
+            stack2 = current_exceptions()
+            @test length(stack2) == 2
+            @test stack2[1].exception isa MethodError
         end
     end
 end

@@ -82,9 +82,7 @@ end
     @test ex(X, [1, 2, 2, 3, 1]) ≈ [1.0, 3.0, 2.0, 2.0, 1.0]
 
     # Helpful error if we use it incorrectly
-    if VERSION >= v"1.9"
-        @test_throws "Incorrect call. You must pass" ex(X)
-    end
+    @test_throws "Incorrect call. You must pass" ex(X)
 end
 
 @testitem "2 parameters, 2 variables" begin
@@ -303,11 +301,9 @@ end
     @test_throws InterfaceError count_constant_nodes(ex)
     @test_throws InterfaceError index_constant_nodes(ex)
     @test_throws InterfaceError has_constants(ex)
-    if VERSION >= v"1.9"
-        @test_throws "You should not use this function with `ParametricExpression`." count_constants(
-            ex
-        )
-    end
+    @test_throws "You should not use this function with `ParametricExpression`." count_constants(
+        ex
+    )
 end
 
 @testitem "Parametric expression derivatives" begin

@@ -34,17 +34,15 @@ if "jet" in test_name
                 occursin(s_mod, string(JET.linfomod(vst.linfo)))
             end
         end
-        if VERSION >= v"1.10"
-            JET.test_package(
-                DynamicExpressions;
-                target_defined_modules=true,
-                ignored_modules=(
-                    MyIgnoredModule(DynamicExpressions.NonDifferentiableDeclarationsModule),
-                ),
-            )
-            # TODO: Hack to get JET to ignore modules
-            # https://github.com/aviatesk/JET.jl/issues/570#issuecomment-2199167755
-        end
+        JET.test_package(
+            DynamicExpressions;
+            target_defined_modules=true,
+            ignored_modules=(
+                MyIgnoredModule(DynamicExpressions.NonDifferentiableDeclarationsModule),
+            ),
+        )
+        # TODO: Hack to get JET to ignore modules
+        # https://github.com/aviatesk/JET.jl/issues/570#issuecomment-2199167755
     end
 end
 if "main" in test_name

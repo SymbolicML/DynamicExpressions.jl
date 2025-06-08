@@ -56,7 +56,5 @@ end
 @test_throws ErrorException MyCustomNode2()
 @test_throws ErrorException MyCustomNode2{Float64}()
 
-if VERSION >= v"1.9"
-    @test_throws "Encountered the call for" MyCustomNode2()
-    @test_throws "Encountered the call for" MyCustomNode2{Float64}()
-end
+@test_throws "Encountered the call for" MyCustomNode2()
+@test_throws "Encountered the call for" MyCustomNode2{Float64}()

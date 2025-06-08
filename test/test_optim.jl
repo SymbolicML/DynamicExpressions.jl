@@ -6,10 +6,8 @@
     res = optimize(f, tree)
 
     # Should be unchanged by default
-    if VERSION >= v"1.9"
-        ext = Base.get_extension(DynamicExpressions, :DynamicExpressionsOptimExt)
-        @test res isa ext.ExpressionOptimizationResults
-    end
+    ext = Base.get_extension(DynamicExpressions, :DynamicExpressionsOptimExt)
+    @test res isa ext.ExpressionOptimizationResults
     @test tree == original_tree
     @test isapprox(
         first(get_scalar_constants(res.minimizer)),
@@ -68,7 +66,7 @@ end
 
     @testset "Hessians not implemented" begin
         @test_throws ArgumentError optimize(f, g!, t -> t, tree, BFGS())
-        VERSION >= v"1.9" && @test_throws(
+        @test_throws(
             "Optim.optimize does not yet support Hessians on `AbstractExpressionNode`",
             optimize(f, g!, t -> t, tree, BFGS())
         )

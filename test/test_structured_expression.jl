@@ -21,13 +21,11 @@
     @test shower(cos_f) == "cos((x * x) - cos((2.5 * y) + -0.5))"
     @test shower(exp_g) == "exp(exp(-(y * y)))"
 
-    @static if VERSION >= v"1.7.0"
-        # Will also work for evaluation
-        @test f_plus_g([1.0f0; 1.0f0;;])[1] ≈ (f + g)([1.0f0; 1.0f0;;])[1]
-        @test f_div_g([1.0f0; 1.0f0;;])[1] ≈ (f / g)([1.0f0; 1.0f0;;])[1]
-        @test cos_f([1.0f0; 1.0f0;;])[1] ≈ cos(f)([1.0f0; 1.0f0;;])[1]
-        @test exp_g([1.0f0; 1.0f0;;])[1] ≈ exp(g)([1.0f0; 1.0f0;;])[1]
-    end
+    # Will also work for evaluation
+    @test f_plus_g([1.0f0; 1.0f0;;])[1] ≈ (f + g)([1.0f0; 1.0f0;;])[1]
+    @test f_div_g([1.0f0; 1.0f0;;])[1] ≈ (f / g)([1.0f0; 1.0f0;;])[1]
+    @test cos_f([1.0f0; 1.0f0;;])[1] ≈ cos(f)([1.0f0; 1.0f0;;])[1]
+    @test exp_g([1.0f0; 1.0f0;;])[1] ≈ exp(g)([1.0f0; 1.0f0;;])[1]
 end
 
 @testitem "Interface for structured expressions" begin
