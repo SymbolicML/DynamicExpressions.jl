@@ -16,8 +16,6 @@ import ..NodeModule:
     with_default_max_degree,
     max_degree,
     preserve_sharing,
-    get_children,
-    set_children!,
     leaf_copy,
     leaf_convert,
     leaf_hash,

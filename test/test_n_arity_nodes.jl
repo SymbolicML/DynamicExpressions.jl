@@ -507,7 +507,7 @@ end
     p = Node{Float64,3}(; op=1, children=(c1, c2, c3))
 
     @test p isa Node{Float64,3}          # new type parameter D shows up
-    @test get_children(p) == (c1, c2, c3)
+    @test get_children(p, Val(3)) == (c1, c2, c3)
     @test get_child(p, 2) === c2
     @test get_children(p, Val(1)) === (c1,)  # Val-specialised accessor
     @test_throws BoundsError get_child(p, 4)

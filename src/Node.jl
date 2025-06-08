@@ -89,7 +89,6 @@ for N in (:Node, :GraphNode)
     end
 end
 
-#! format: off
 """
     Node{T,D} <: AbstractExpressionNode{T,D}
 
@@ -134,7 +133,6 @@ You may also choose to specify a default memory allocator for the node other tha
 in the `allocator` keyword argument.
 """
 Node
-
 
 """
     GraphNode{T,D} <: AbstractExpressionNode{T,D}
@@ -184,21 +182,33 @@ function poison_node(n::AbstractNode)
     return n
 end
 
+"""
+    get_children(node::AbstractNode)
+
+Return the raw `.children` tuple of a node. Some of these
+children may be "poisoned" nodes which you should not access,
+as they will trigger infinite recursion errors. Ensure to
+only access children only up to the `.degree` of the node.
+"""
 @inline function get_children(node::AbstractNode)
     return getfield(node, :children)
 end
 
 """
-    get_children(node::AbstractNode)
+    get_children(node::AbstractNode, n::Integer)
     get_children(node::AbstractNode, ::Val{n})
 
-Return the children tuple of a node. The first form returns the complete children tuple as stored.
-The second form returns a tuple of exactly `n` children, useful for type stability when the
-number of children needed is known at compile time.
+Return a tuple of exactly `n` children of the node. You should
+use the `.degree` field of a node to determine the number of children
+to return. Typically this is done within a `Base.Cartesian.@nif` statement
+for total type stability.
 """
-@inline function get_children(node::AbstractNode, ::Val{n}) where {n}
+@inline function get_children(node::AbstractNode{D}, n::Integer) where {D}
+    return get_children(node, Val(n))
+end
+@inline function get_children(node::AbstractNode{D}, ::Val{n}) where {D,n}
     cs = get_children(node)
-    return ntuple(i -> cs[i], Val(Int(n)))
+    return ntuple(i -> cs[i], Val(n))
 end
 
 """
@@ -207,7 +217,7 @@ end
 Return the `i`-th child of a node (1-indexed).
 """
 @inline function get_child(n::AbstractNode{D}, i::Int) where {D}
-    return get_children(n)[i]
+    return get_children(n, i)
 end
 
 """
@@ -227,7 +237,9 @@ end
 Replace all children of a node with the given tuple. If fewer children are
 provided than the node's maximum degree, remaining slots are filled with poison nodes.
 """
-@inline function set_children!(n::AbstractNode{D}, children::Union{Tuple,AbstractVector{<:AbstractNode{D}}}) where {D}
+@inline function set_children!(
+    n::AbstractNode{D}, children::Union{Tuple,AbstractVector{<:AbstractNode{D}}}
+) where {D}
     D2 = length(children)
     if D === D2
         n.children = children
@@ -243,37 +255,39 @@ provided than the node's maximum degree, remaining slots are filled with poison 
 end
 
 macro make_accessors(node_type)
-    esc(quote
-        @inline function Base.getproperty(n::$node_type, k::Symbol)
-            if k == :l
-                # TODO: Should a depwarn be raised here? Or too slow?
-                return $(get_child)(n, 1)
-            elseif k == :r
-                return $(get_child)(n, 2)
-            else
-                return getfield(n, k)
-            end
-        end
-        @inline function Base.setproperty!(n::$node_type, k::Symbol, v)
-            if k == :l
-                if isdefined(n, :children)
-                    $(set_child!)(n, v, 1)
+    esc(
+        quote
+            @inline function Base.getproperty(n::$node_type, k::Symbol)
+                if k == :l
+                    # TODO: Should a depwarn be raised here? Or too slow?
+                    return $(get_child)(n, 1)
+                elseif k == :r
+                    return $(get_child)(n, 2)
                 else
-                    $(set_children!)(n, (v,))
-                    v
-                end
-            elseif k == :r
-                $(set_child!)(n, v, 2)
-            else
-                T = fieldtype(typeof(n), k)
-                if v isa T
-                    setfield!(n, k, v)
-                else
-                    setfield!(n, k, convert(T, v))
+                    return getfield(n, k)
                 end
             end
-        end
-    end)
+            @inline function Base.setproperty!(n::$node_type, k::Symbol, v)
+                if k == :l
+                    if isdefined(n, :children)
+                        $(set_child!)(n, v, 1)
+                    else
+                        $(set_children!)(n, (v,))
+                        v
+                    end
+                elseif k == :r
+                    $(set_child!)(n, v, 2)
+                else
+                    T = fieldtype(typeof(n), k)
+                    if v isa T
+                        setfield!(n, k, v)
+                    else
+                        setfield!(n, k, convert(T, v))
+                    end
+                end
+            end
+        end,
+    )
 end
 
 # @make_accessors Node{T,2} where {T}

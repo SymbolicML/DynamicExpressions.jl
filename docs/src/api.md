@@ -101,7 +101,6 @@ right_child = get_child(tree, 2)
 
 set_child!(tree, new_child, 1)
 
-children = get_children(tree)
 left, right = get_children(tree, Val(2))  # type stable
 
 # Transform to ternary operation
