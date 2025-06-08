@@ -595,3 +595,66 @@ end
     @test dummy.op == src.op
     @test get_children(dummy) == get_children(src)
 end
+
+@testitem "GraphNode compatibility" begin
+    using DynamicExpressions
+    using Test
+
+    my_ternary_op(x, y, z) = x + y * z
+    operators = OperatorEnum(1 => (sin,), 2 => (+, *), 3 => (my_ternary_op,))
+
+    x1, x2, x3 = GraphNode{Float64,3}(; feature=1),
+    GraphNode{Float64,3}(; feature=2),
+    GraphNode{Float64,3}(; feature=3)
+    c1 = GraphNode{Float64,3}(; val=2.5)
+
+    # Test 1: Basic 3-degree node construction
+    ternary_node = GraphNode{Float64,3}(; op=1, children=(x1, x2, x3))
+    @test ternary_node.degree == 3
+    @test ternary_node.op == 1
+    @test length(ternary_node.children) == 3
+    @test all(ternary_node.children .=== (x1, x2, x3))
+
+    # Test 2: Sharing functionality
+    shared_subexpr = GraphNode{Float64,3}(; op=1, children=(x1, x2, c1))
+    tree_with_sharing = GraphNode{Float64,3}(;
+        op=1, children=(shared_subexpr, x3, shared_subexpr)
+    )
+
+    # # Verify reference equality (sharing)
+    @test get_child(tree_with_sharing, 1) === get_child(tree_with_sharing, 3)
+    @test get_child(tree_with_sharing, 1) === shared_subexpr
+
+    # Also should last through copy:
+    tree_with_sharing_copy = copy(tree_with_sharing)
+    @test get_child(tree_with_sharing_copy, 1) === get_child(tree_with_sharing_copy, 3)
+
+    # Test 3: String representation shows sharing with {}
+    sharing_string = string_tree(tree_with_sharing, operators)
+    @test count("my_ternary_op(x1, x2, 2.5)", sharing_string) == 2
+    @test count("{my_ternary_op(x1, x2, 2.5)}", sharing_string) == 1 # With sharing notation
+
+    # Test 4: Copy operations
+    # Breaking sharing creates separate instances
+    tree_no_sharing = copy_node(tree_with_sharing; break_sharing=Val(true))
+    @test get_child(tree_no_sharing, 1) !== get_child(tree_no_sharing, 3)  # No longer shared
+    no_sharing_string = string_tree(tree_no_sharing, operators)
+    @test !occursin("{", no_sharing_string)  # No more shared nodes
+    @test count("my_ternary_op(x1, x2, 2.5)", no_sharing_string) == 2  # Appears twice
+
+    # Test 5: Modification propagation through shared nodes
+    original_string = string_tree(tree_with_sharing, operators)
+    set_children!(shared_subexpr, (x3, x1, x2))  # Modify shared node
+    modified_string = string_tree(tree_with_sharing, operators)
+    @test original_string != modified_string
+    @test get_child(tree_with_sharing, 1) === get_child(tree_with_sharing, 3)  # Still shared
+    @test occursin("my_ternary_op(x3, x1, x2)", modified_string)
+
+    # Test 6: Evaluation with 3-degree nodes
+    X = [1.0 2.0; 0.5 1.5; 0.8 0.3]  # 3 features, 2 samples
+    simple_ternary = GraphNode{Float64,3}(; op=1, children=(x1, x2, x3))
+    expected = [my_ternary_op(1.0, 0.5, 0.8), my_ternary_op(2.0, 1.5, 0.3)]
+    result, flag = eval_tree_array(simple_ternary, X, operators)
+    @test flag
+    @test result ≈ expected
+end
