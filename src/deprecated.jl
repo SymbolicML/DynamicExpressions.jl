@@ -91,3 +91,19 @@ Base.@deprecate_binding SimplifyEquationModule SimplifyModule
     set_constants!(tree::Union{AbstractExpression,AbstractExpressionNode}, constants, refs),
     set_scalar_constants!(tree, constants, refs)
 )
+@deprecate(
+    OperatorEnum(;
+        binary_operators::Union{Vector,Tuple}=Function[],
+        unary_operators::Union{Vector,Tuple}=Function[],
+        kws...,
+    ),
+    OperatorEnum(1 => Tuple(unary_operators), 2 => Tuple(binary_operators); kws...)
+)
+@deprecate(
+    GenericOperatorEnum(;
+        binary_operators::Union{Vector,Tuple}=Function[],
+        unary_operators::Union{Vector,Tuple}=Function[],
+        kws...,
+    ),
+    GenericOperatorEnum(1 => unary_operators, 2 => binary_operators; kws...)
+)

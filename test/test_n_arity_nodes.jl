@@ -6,7 +6,9 @@
     my_binary_op(x, y) = x
     my_ternary_op(x, y, z) = x
 
-    operators = OperatorEnum(((my_unary_op,), (my_binary_op,), (my_ternary_op,)))
+    operators = OperatorEnum(
+        1 => (my_unary_op,), 2 => (my_binary_op,), 3 => (my_ternary_op,)
+    )
 
     # Arity 1 (Unary) in a Node{T,3} type (max_degree is 3)
     n_una_leaf = Node{Float64,3}(; feature=1)
@@ -57,7 +59,7 @@
     # Test .l and .r accessors explicitly for Node{T,2} as per diff's specific @make_accessors Node{T,2}
     n2_leaf1_for_l_r = Node{Float64,2}(; feature=1)
     n2_leaf2_for_l_r = Node{Float64,2}(; val=2.0)
-    ops_for_d2_accessors = OperatorEnum(((), (my_binary_op,)))
+    ops_for_d2_accessors = OperatorEnum(2 => (my_binary_op,))
     n2_bin_for_l_r = Node{Float64,2}(; op=1, children=(n2_leaf1_for_l_r, n2_leaf2_for_l_r))
     @test n2_bin_for_l_r.l === n2_leaf1_for_l_r
     @test n2_bin_for_l_r.r === n2_leaf2_for_l_r
@@ -93,19 +95,21 @@ end
     my_binary_op(x, y) = x
     my_ternary_op(x, y, z) = x
 
-    operators_unary_only = OperatorEnum(((my_unary_op,),))
+    operators_unary_only = OperatorEnum(1 => (my_unary_op,))
     @test length(operators_unary_only) == 1
     @test operators_unary_only.unaops == (my_unary_op,)
     @test operators_unary_only.binops == ()
     @test operators_unary_only[1] == (my_unary_op,)
 
-    operators_binary_only = OperatorEnum(((), (my_binary_op,)))
+    operators_binary_only = OperatorEnum(2 => (my_binary_op,))
     @test length(operators_binary_only) == 2
     @test operators_binary_only.unaops == ()
     @test operators_binary_only.binops == (my_binary_op,)
     @test operators_binary_only[2] == (my_binary_op,)
 
-    operators_full = OperatorEnum(((my_unary_op,), (my_binary_op,), (my_ternary_op,)))
+    operators_full = OperatorEnum(
+        1 => (my_unary_op,), 2 => (my_binary_op,), 3 => (my_ternary_op,)
+    )
     @test length(operators_full) == 3
     @test operators_full.unaops == (my_unary_op,)
     @test operators_full.binops == (my_binary_op,)
@@ -138,9 +142,9 @@ end
     my_eval_binary_op(x, y) = x^2 + y
     my_eval_ternary_op(x, y, z) = x * y - z
 
-    operators_d3 = OperatorEnum((
-        (my_eval_unary_op,), (my_eval_binary_op,), (my_eval_ternary_op,)
-    ))
+    operators_d3 = OperatorEnum(
+        1 => (my_eval_unary_op,), 2 => (my_eval_binary_op,), 3 => (my_eval_ternary_op,)
+    )
 
     x1 = Node{Float64,3}(; feature=1)
     x2 = Node{Float64,3}(; feature=2)
@@ -184,7 +188,7 @@ end
     expected_promoted = my_eval_ternary_op.(X_f64[1, :], X_f64[2, :], 0.5)
     @test output_promoted ≈ expected_promoted
 
-    operators_d2 = OperatorEnum(((), (my_eval_binary_op,)))
+    operators_d2 = OperatorEnum(2 => (my_eval_binary_op,))
     x1_d2 = Node{Float64,2}(; feature=1)
     c1_d2_node = Node{Float64,2}(; val=0.5) # Renamed
     tree_binary_d2 = Node{Float64,2}(; op=1, children=(x1_d2, c1_d2_node))
@@ -204,7 +208,9 @@ end
     my_c_binary_op(x, y) = x^2 + y
     my_c_ternary_op(x, y, z) = x * y - z
 
-    operators = OperatorEnum(((my_c_unary_op,), (my_c_binary_op,), (my_c_ternary_op,)))
+    operators = OperatorEnum(
+        1 => (my_c_unary_op,), 2 => (my_c_binary_op,), 3 => (my_c_ternary_op,)
+    )
 
     c1_const = Node{Float64,3}(; val=0.5) # Renamed
     c2_const = Node{Float64,3}(; val=1.5) # Renamed
@@ -238,7 +244,7 @@ end
     using Test
     using Random
 
-    operators_clamp = OperatorEnum(((), (), (clamp,)))
+    operators_clamp = OperatorEnum(3 => (clamp,))
     DynamicExpressions.@extend_operators operators_clamp
 
     ex_x1 = Expression(Node{Float64,3}(; feature=1); operators=operators_clamp)
@@ -254,7 +260,7 @@ end
     @test flag_clamp3
     @test output_clamp3 ≈ expected_clamp3
 
-    operators_plus_chain = OperatorEnum(((), (+,), (+,)))
+    operators_plus_chain = OperatorEnum(2 => (+,), 3 => (+,))
     DynamicExpressions.@extend_operators operators_plus_chain
     ex_p_x1 = Expression(Node{Float64,3}(; feature=1); operators=operators_plus_chain)
     ex_p_x2 = Expression(Node{Float64,3}(; feature=2); operators=operators_plus_chain)
@@ -277,9 +283,9 @@ end
     my_str_binary_op(x, y) = x
     my_str_ternary_op(x, y, z) = x
 
-    operators = OperatorEnum((
-        (my_str_unary_op,), (my_str_binary_op,), (my_str_ternary_op,)
-    ))
+    operators = OperatorEnum(
+        1 => (my_str_unary_op,), 2 => (my_str_binary_op,), 3 => (my_str_ternary_op,)
+    )
     DynamicExpressions.@extend_operators operators
 
     x1_str = Node{Float64,3}(; feature=1) # Renamed
@@ -312,9 +318,9 @@ end
     my_tmr_unary_op(x) = x
     my_tmr_binary_op(x, y) = x
     my_tmr_ternary_op(x, y, z) = x
-    operators_tmr = OperatorEnum((
-        (my_tmr_unary_op,), (my_tmr_binary_op,), (my_tmr_ternary_op,)
-    ))
+    operators_tmr = OperatorEnum(
+        1 => (my_tmr_unary_op,), 2 => (my_tmr_binary_op,), 3 => (my_tmr_ternary_op,)
+    )
 
     x1_tmr = Node{Float64,3}(; feature=1)
     x2_tmr = Node{Float64,3}(; feature=2)
@@ -356,9 +362,9 @@ end
     my_lv_binary_op(x, y) = x^2 + y
     my_lv_ternary_op(x, y, z) = x * y - z
 
-    let operators_for_lv = OperatorEnum((
-            (my_lv_unary_op,), (my_lv_binary_op,), (my_lv_ternary_op,)
-        ))
+    let operators_for_lv = OperatorEnum(
+            1 => (my_lv_unary_op,), 2 => (my_lv_binary_op,), 3 => (my_lv_ternary_op,)
+        )
         if LoopVectorization !== Nothing &&
             DynamicExpressions.ExtensionInterfaceModule._is_loopvectorization_loaded(0)
             x1_lv = Node{Float64,3}(; feature=1)
@@ -395,9 +401,9 @@ end
     my_p_binary_op(x, y) = x^2 + y
     my_p_ternary_op(x, y, z) = x * y - z
 
-    operators_param = OperatorEnum((
-        (my_p_unary_op,), (my_p_binary_op,), (my_p_ternary_op,)
-    ))
+    operators_param = OperatorEnum(
+        1 => (my_p_unary_op,), 2 => (my_p_binary_op,), 3 => (my_p_ternary_op,)
+    )
     DynamicExpressions.@extend_operators operators_param
 
     pn_x1 = ParametricNode{Float64,3}(; feature=1)
@@ -450,9 +456,9 @@ end
     my_ro_binary_op(x, y) = x
     my_ro_ternary_op(x, y, z) = x
 
-    operators_ro = OperatorEnum((
-        (my_ro_unary_op,), (my_ro_binary_op,), (my_ro_ternary_op,)
-    ))
+    operators_ro = OperatorEnum(
+        1 => (my_ro_unary_op,), 2 => (my_ro_binary_op,), 3 => (my_ro_ternary_op,)
+    )
     DynamicExpressions.@extend_operators operators_ro
 
     x1_ro = Node{Float64,3}(; feature=1)
@@ -488,7 +494,9 @@ end
     my_idx_unary(x) = x
     my_idx_binary(x, y) = x
     my_idx_ternary(x, y, z) = x
-    operators_idx = OperatorEnum(((my_idx_unary,), (my_idx_binary,), (my_idx_ternary,)))
+    operators_idx = OperatorEnum(
+        1 => (my_idx_unary,), 2 => (my_idx_binary,), 3 => (my_idx_ternary,)
+    )
 
     c1_idx = Node{Float64,3}(; val=1.0)
     f1_idx = Node{Float64,3}(; feature=1)

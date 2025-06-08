@@ -14,7 +14,7 @@ empty_all_globals!()
 function make_expression_generator(
     ::Type{T};
     num_features::Int=5,
-    operators::OperatorEnum=OperatorEnum(((abs, cos), (+, -, *, /))),
+    operators::OperatorEnum=OperatorEnum(1 => (abs, cos), 2 => (+, -, *, /)),
     max_layers::Int=3,
 ) where {T}
     D = length(operators.ops)
