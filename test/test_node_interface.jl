@@ -60,3 +60,30 @@ end
         end
     end
 end
+
+@testitem "Node left/right property setters + preserve_sharing" begin
+    using DynamicExpressions.NodeModule: Node, preserve_sharing
+    using Test
+
+    l = Node{Float64,2}(; val=1.0)
+    r = Node{Float64,2}(; val=2.0)
+    p = Node{Float64,2}(; op=1, children=(l, r))
+
+    new_l = Node{Float64,2}(; val=3.0)
+    p.l = new_l         # triggers `setproperty!` branch for :l
+    @test p.l === new_l
+
+    new_r = Node{Float64,2}(; val=4.0)
+    p.r = new_r
+    @test p.r === new_r
+
+    # Trying to set the right child without the left will result in an error,
+    # because the `children` field is not yet created (and won't be by the `.r` setter)
+    p2 = Node{Float64,2}()
+    p2.degree = 2
+    p2.op = 1
+    @test_throws UndefRefError (p2.r = new_r)
+    p2.l = new_r
+    p2.r = new_r  # Now we can add it
+    @test p2.r === new_r
+end

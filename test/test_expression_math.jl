@@ -177,3 +177,38 @@ end
     @test ex_sqrt(X) ≈ [2.0; 0.0]
     @test ex_my(X) ≈ [16.0; 16.0]
 end
+
+# ─── PATCH: replace the ExpressionAlgebra block ──────────────────────────────
+@testitem "ExpressionAlgebra allow_chaining & generated operator wrappers" begin
+    using DynamicExpressions.ExpressionAlgebraModule:
+        allow_chaining, @declare_expression_operator
+    using DynamicExpressions.NodeModule: Node
+    using DynamicExpressions.ExpressionModule: Expression
+    using DynamicExpressions.OperatorEnumModule: OperatorEnum
+    using Test
+
+    @test allow_chaining(+) == true
+    @test allow_chaining(*) == true
+    @test !allow_chaining(^) # default false
+
+    # define a custom binary operator that simply calls +
+    my_add(a, b) = a + b
+    @declare_expression_operator(my_add, 2)
+
+    ops = OperatorEnum(1 => (), 2 => (+, my_add))
+    vars = ["x₁", "x₂"]
+    x₁, x₂ = (
+        Expression(Node(Float64; feature=i); operators=ops, variable_names=vars) for
+        i in 1:2
+    )
+    expr = my_add(x₁, x₂)
+
+    # ---- Evaluate on a matrix input (required by the public API) ------------
+    X = reshape([1, 2], 2, 1)
+    Y = [1 2; 3 4]                # 2×2 Int matrix to hit the promotion path
+    res1 = expr(X)
+    res2 = expr(Y)
+
+    @test res1 == [3]             # (2 × 1) → 1-element vector
+    @test res2 == [4, 6]          # (2 × 2) → 2-element vector, Int→Float64 promotion
+end

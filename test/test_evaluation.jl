@@ -352,3 +352,25 @@ end
         end
     end
 end
+
+@testitem "Evaluate vector dispatch & numeric promotion" begin
+    using DynamicExpressions
+    using DynamicExpressions.OperatorEnumModule: OperatorEnum
+    using Test
+
+    ops = OperatorEnum(1 => (), 2 => (+,))
+    vars = ["x₁", "x₂"]
+    x1, x2 = (
+        Expression(Node(Float64; feature=i); operators=ops, variable_names=vars) for
+        i in 1:2
+    )
+
+    expr = x1 + x2
+
+    # Matrix{Int} with one column (2 features × 1 sample) satisfies the validator
+    X = reshape([1, 2], 2, 1)
+    out = expr(X)
+    @test out[1] == 3
+
+    # Matrix{Int} promotion path is already exercised above
+end

@@ -323,8 +323,8 @@ function default_allocator(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNod
 end
 
 """Trait declaring whether nodes share children or not."""
-preserve_sharing(::Union{Type{<:AbstractNode},AbstractNode}) = false
-preserve_sharing(::Union{Type{<:GraphNode},GraphNode}) = true
+preserve_sharing(::Union{Type{<:AbstractNode},AbstractNode}) = false  # COV_EXCL_LINE
+preserve_sharing(::Union{Type{<:GraphNode},GraphNode}) = true  # COV_EXCL_LINE
 
 include("base.jl")
 

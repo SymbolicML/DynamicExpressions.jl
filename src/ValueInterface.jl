@@ -2,14 +2,14 @@ module ValueInterfaceModule
 
 using Interfaces: Interfaces, @interface, @implements, Arguments
 
-is_valid(x::T) where {T} = true
+is_valid(x::T) where {T} = true  # COV_EXCL_LINE
 is_valid(x::T) where {T<:Number} = isfinite(x) && !isnan(x)
 
 is_valid_array(x::AbstractArray{T}) where {T} = all(is_valid, x)
 is_valid_array(x::AbstractArray{T}) where {T<:Number} = is_valid(sum(x))
 
 get_number_type(t::Type) = error("Base number type of type $(t) is not defined")
-get_number_type(::Type{T}) where {T<:Number} = T
+get_number_type(::Type{T}) where {T<:Number} = T  # COV_EXCL_LINE
 
 """
     pack_scalar_constants!(nvals, idx, value)
@@ -48,7 +48,7 @@ Count how many scalar constants `value` has, for use in `pack_scalar_constants!`
 
 Note that this will return 1 for scalars.
 """
-@inline count_scalar_constants(::T) where {T<:Number} = 1
+@inline count_scalar_constants(::T) where {T<:Number} = 1  # COV_EXCL_LINE
 
 ################################################################################
 # Interface.jl integration #####################################################
