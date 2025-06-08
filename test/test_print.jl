@@ -175,3 +175,20 @@ end
     @test string_tree(tree, operators_with_unary) == "my_unary_op(x1)"
     @test string_tree(tree, operators_with_unary; pretty=true) == "sine(x1)"
 end
+
+using DynamicExpressions.StringsModule: get_op_name, needs_brackets
+using Base.Broadcast: BroadcastFunction
+
+@testset "Strings.get_op_name - broadcast operator variants" begin
+    # single-character operator => leading dot
+    @test get_op_name(BroadcastFunction(+)) == ".+"
+    # multi-character operator => trailing dot
+    @test get_op_name(BroadcastFunction(cos)) == "cos."
+end
+
+@testset "behavior of needs_brackets" begin
+    @test !needs_brackets(3.14)
+    @test !needs_brackets([1, 2, 3])
+    @test needs_brackets(1 + 2im)
+    @test needs_brackets("symbolic")
+end

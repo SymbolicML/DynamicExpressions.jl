@@ -80,10 +80,12 @@ end
 end
 
 # Can overload these for custom behavior:
+# COV_EXCL_START
 needs_brackets(val::Real) = false
 needs_brackets(val::AbstractArray) = false
 needs_brackets(val::Complex) = true
 needs_brackets(val) = true
+# COV_EXCL_STOP
 
 function string_constant(val)
     if needs_brackets(val)
@@ -163,7 +165,7 @@ function string_tree(
     varMap=nothing,
 )::String where {T,F1<:Function,F2<:Function}
     if !isnothing(raw)
-        Base.depwarn("`raw` is deprecated; use `pretty` instead", :string_tree)
+        Base.depwarn("`raw` is deprecated; use `pretty` instead", :string_tree)  # COV_EXCL_LINE
     end
     pretty = @something(pretty, _not(raw), false)
     variable_names = deprecate_varmap(variable_names, varMap, :string_tree)
@@ -218,7 +220,7 @@ for io in ((), (:(io::IO),))
         )
     end
 end
-_not(::Nothing) = nothing
-_not(x) = !x
+_not(::Nothing) = nothing  # COV_EXCL_LINE
+_not(x) = !x  # COV_EXCL_LINE
 
 end
