@@ -494,3 +494,102 @@ end
     ex2 = Expression(+(x1, x2, x3); operators)
     @test string(ex2) == "+(x1, x2, x3)"
 end
+
+@testitem "Node arbitrary-degree child access & mutation" begin
+    using DynamicExpressions.NodeModule:
+        Node, get_child, get_children, set_child!, set_children!
+    using Test
+
+    # Build a tiny 3-ary tree:  +(1, 2, 3)
+    c1 = Node{Float64,3}(; val=1.0)
+    c2 = Node{Float64,3}(; val=2.0)
+    c3 = Node{Float64,3}(; val=3.0)
+    p = Node{Float64,3}(; op=1, children=(c1, c2, c3))
+
+    @test p isa Node{Float64,3}          # new type parameter D shows up
+    @test get_children(p) == (c1, c2, c3)
+    @test get_child(p, 2) === c2
+    @test get_children(p, Val(1)) === (c1,)  # Val-specialised accessor
+    @test_throws BoundsError get_child(p, 4)
+
+    # Replace the 3rd child in-place
+    new_c3 = Node{Float64,3}(; val=30.0)
+    set_child!(p, new_c3, 3)
+    @test get_child(p, 3) === new_c3
+
+    # Length mismatch is allowed; it will be poisoned at the end
+    set_children!(p, (c1, c2))
+    @test get_child(p, 2) === c2
+
+    # Poison node is just self
+    @test get_child(p, 3) === p
+end
+
+@testitem "Node property forwarding (`.l` / `.r`) still works" begin
+    using DynamicExpressions.NodeModule: Node
+    using Test
+
+    a = Node{Float64,2}(; val=10.0)
+    b = Node{Float64,2}(; val=20.0)
+    root = Node{Float64,2}(; op=1, children=(a, b))
+
+    @test root.l === a
+    @test root.r === b
+
+    new_a = Node{Float64,2}(; val=99.0)
+    root.l = new_a
+    @test root.l === new_a
+end
+
+@testitem "Constructor guards all-defaults call throws" begin
+    using DynamicExpressions: AbstractExpressionNode
+    using Test
+
+    mutable struct MyBadNode{T,D} <: AbstractExpressionNode{T,D}
+        degree::UInt8
+        constant::Bool
+        val::T
+        feature::UInt16
+        op::UInt8
+        children::NTuple{D,MyBadNode{T,D}}
+    end
+
+    # Calling with *nothing* default should now error
+    @test_throws "Did you forget to define" MyBadNode{Float64,3}()
+
+    mutable struct MyBadNode2{T,D} <: AbstractExpressionNode{T,D}
+        degree::UInt8
+        constant::Bool
+        val::T
+        feature::UInt16
+        op::UInt8
+        children::NTuple{D,MyBadNode2{T,D}}
+
+        MyBadNode2{T,D}() where {T,D} = new{T,D}()
+    end
+
+    # We only need this; it will default to 2 for D anyways:
+    node = MyBadNode2{Float64}()
+    @test typeof(node) <: MyBadNode2{Float64,2}
+end
+
+@testitem "branch_copy_into! copies generic children" begin
+    using DynamicExpressions.NodeModule: Node, get_children
+    using DynamicExpressions.NodePreallocationModule: branch_copy_into!
+    using Test
+
+    operators = OperatorEnum(2 => (+, -, *))
+    leaves = ntuple(i -> Node{Float64,3}(; val=i), 3)
+    src = Node{Float64,3}(; op=1, children=leaves)
+    dummy = Node{Float64,3}(;
+        op=2,
+        children=(
+            Node{Float64,3}(; val=0), Node{Float64,3}(; val=0), Node{Float64,3}(; val=0)
+        ),
+    )
+
+    branch_copy_into!(dummy, src, get_children(src)...)
+
+    @test dummy.op == src.op
+    @test get_children(dummy) == get_children(src)
+end
