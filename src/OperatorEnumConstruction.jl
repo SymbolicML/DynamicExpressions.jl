@@ -327,7 +327,6 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
     return quote
         local $type_requirements, $build_converters, $op_exists
         $(_validate_no_ambiguous_broadcasts)($operators)
-        # Base.@lock($LATEST_LOCK) do
         lock($LATEST_LOCK)
         try
             if isa($operators, $OperatorEnum)
