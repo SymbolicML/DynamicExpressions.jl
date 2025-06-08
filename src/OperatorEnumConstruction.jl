@@ -590,7 +590,7 @@ end
 
 # Predefine the most common operators so the errors
 # are more informative
-function _overload_common_operators()
+let
     # Overload the operators in batches (so that we don't hit the warning
     # about too many operators)
     operators = OperatorEnum((
@@ -604,8 +604,6 @@ function _overload_common_operators()
     @extend_operators(operators, empty_old_operators = true, internal = true)
 
     foreach(empty!, values(LATEST_OPERATOR_MAPPING))
-    return nothing
 end
-_overload_common_operators()
 
 end

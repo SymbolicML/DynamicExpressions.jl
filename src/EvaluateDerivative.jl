@@ -161,7 +161,6 @@ end
             )
         end
     end
-    # TODO: Need to add the case for many operators
 end
 
 """
