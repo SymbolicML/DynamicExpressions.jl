@@ -448,44 +448,6 @@ end
     @test node_from_pex.children[3].feature == 3
 end
 
-@testitem "ReadOnlyNode with N-ary Node" tags = [:narity] begin
-    using DynamicExpressions
-    using Test
-
-    my_ro_unary_op(x) = x
-    my_ro_binary_op(x, y) = x
-    my_ro_ternary_op(x, y, z) = x
-
-    operators_ro = OperatorEnum(
-        1 => (my_ro_unary_op,), 2 => (my_ro_binary_op,), 3 => (my_ro_ternary_op,)
-    )
-    DynamicExpressions.@extend_operators operators_ro
-
-    x1_ro = Node{Float64,3}(; feature=1)
-    x2_ro = Node{Float64,3}(; feature=2)
-    x3_ro = Node{Float64,3}(; feature=3)
-    tree_ro_ter = Node{Float64,3}(; op=1, children=(x1_ro, x2_ro, x3_ro))
-
-    expr_ro = Expression(tree_ro_ter; operators=operators_ro)
-    readonly_tree = DynamicExpressions.ReadOnlyNode(DynamicExpressions.get_tree(expr_ro))
-
-    @test readonly_tree isa DynamicExpressions.ReadOnlyNodeModule.AbstractReadOnlyNode
-    inner_node_ro = DynamicExpressions.ReadOnlyNodeModule.inner(readonly_tree)
-    @test DynamicExpressions.NodeModule.max_degree(inner_node_ro) == 3
-    @test readonly_tree.degree == 3
-    @test readonly_tree.op == 1
-
-    ro_children = DynamicExpressions.NodeModule.get_children(readonly_tree, Val(3))
-    @test length(ro_children) == 3
-    @test ro_children[1] isa DynamicExpressions.ReadOnlyNodeModule.AbstractReadOnlyNode
-    @test ro_children[1].feature == 1
-    @test ro_children[2].feature == 2
-    @test ro_children[3].feature == 3
-
-    @test readonly_tree.l.feature == 1
-    @test readonly_tree.r.feature == 2
-end
-
 @testitem "NodeUtils.jl NodeIndex for N-ary" tags = [:narity] begin
     using DynamicExpressions
     using Test

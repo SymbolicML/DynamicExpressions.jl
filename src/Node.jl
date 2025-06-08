@@ -298,25 +298,30 @@ Base.eltype(::AbstractExpressionNode{T}) where {T} = T
 
 has_max_degree(::Type{<:AbstractNode}) = false
 has_max_degree(::Type{<:AbstractNode{D}}) where {D} = true
+has_eltype(::Type{<:AbstractExpressionNode}) = false
+has_eltype(::Type{<:AbstractExpressionNode{T}}) where {T} = true
 # COV_EXCL_STOP
 #! format: on
 
-@unstable function constructorof(::Type{N}) where {N<:Node}
-    return Node{T,max_degree(N)} where {T}
+@unstable function node_wrapper(::Type{N}) where {N<:AbstractExpressionNode}
+    return Base.typename(N).wrapper
 end
-@unstable function constructorof(::Type{N}) where {N<:GraphNode}
-    return GraphNode{T,max_degree(N)} where {T}
+@unstable function constructorof(::Type{N}) where {N<:AbstractExpressionNode}
+    return node_wrapper(N){T,max_degree(N)} where {T}
 end
-
-function with_type_parameters(::Type{N}, ::Type{T}) where {N<:Node,T}
-    return Node{T,max_degree(N)}
+function with_type_parameters(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNode,T}
+    return node_wrapper(N){T,max_degree(N)}
 end
-function with_type_parameters(::Type{N}, ::Type{T}) where {N<:GraphNode,T}
-    return GraphNode{T,max_degree(N)}
+@unstable function with_max_degree(::Type{N}, ::Val{D}) where {N<:AbstractExpressionNode,D}
+    if has_eltype(N)
+        return node_wrapper(N){eltype(N),D}
+    else
+        return node_wrapper(N){T,D} where {T}
+    end
 end
-
-with_max_degree(::Type{N}, ::Val{D}) where {T,N<:Node{T},D} = Node{T,D}
-with_max_degree(::Type{N}, ::Val{D}) where {T,N<:GraphNode{T},D} = GraphNode{T,D}
+@unstable function with_default_max_degree(::Type{N}) where {N<:AbstractNode}
+    return with_max_degree(N, Val(max_degree(N)))
+end
 
 function default_allocator(::Type{N}, ::Type{T}) where {N<:AbstractExpressionNode,T}
     return with_type_parameters(N, T)()
@@ -341,17 +346,26 @@ include("base.jl")
     else
         children
     end
-    validate_not_all_defaults(N, val, feature, op, _children)
+    if all_defaults(N, val, feature, op, _children)
+        return make_default(N, T1)
+    end
     return node_factory(N, T1, val, feature, op, _children, allocator)
 end
-function validate_not_all_defaults(::Type{N}, val, feature, op, children) where {N<:AbstractExpressionNode}
-    if all(isnothing, (val, feature, op, children))
+function make_default(::Type{N}, ::Type{T1}) where {T1,N<:AbstractExpressionNode}
+    if has_max_degree(N)
         error(
             "Encountered the call for $N() inside the generic constructor. "
             * "Did you forget to define `$(Base.typename(N).wrapper){T,D}() where {T,D} = new{T,D}()`?"
         )
     end
-    return nothing
+    if T1 === Undefined
+        return with_default_max_degree(N)()
+    else
+        return with_type_parameters(with_default_max_degree(N), T1)()
+    end
+end
+function all_defaults(::Type{N}, val, feature, op, children) where {N<:AbstractExpressionNode}
+    return all(isnothing, (val, feature, op, children))
 end
 """Create a constant leaf."""
 @inline function node_factory(

@@ -15,9 +15,7 @@ end
 
 @testitem "OperatorEnumConstruction helper internals & edge cases" begin
     using DynamicExpressions.OperatorEnumConstructionModule:
-        _unpack_broadcast_function,
-        OperatorEnum,
-        empty_all_globals!
+        _unpack_broadcast_function, OperatorEnum, empty_all_globals!
     using Base.Broadcast: BroadcastFunction
     using Test
 

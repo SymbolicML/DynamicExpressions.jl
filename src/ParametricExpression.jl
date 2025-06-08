@@ -13,6 +13,7 @@ import ..NodeModule:
     constructorof,
     with_type_parameters,
     with_max_degree,
+    with_default_max_degree,
     max_degree,
     preserve_sharing,
     get_children,
@@ -118,16 +119,10 @@ end
 ###############################################################################
 # Abstract expression node interface ##########################################
 ###############################################################################
-@unstable constructorof(::Type{N}) where {N<:ParametricNode} =
-    ParametricNode{T,max_degree(N)} where {T}
 @unstable constructorof(::Type{<:ParametricExpression}) = ParametricExpression
-function with_type_parameters(::Type{N}, ::Type{T}) where {N<:ParametricNode,T}
-    return ParametricNode{T,max_degree(N)}
+@unstable function default_node_type(::Type{<:ParametricExpression})
+    return with_default_max_degree(ParametricNode)
 end
-function with_max_degree(::Type{N}, ::Val{D}) where {T,N<:ParametricNode{T},D}
-    return ParametricNode{T,D}
-end
-@unstable default_node_type(::Type{<:ParametricExpression}) = ParametricNode{T,2} where {T}
 function default_node_type(::Type{N}) where {T,N<:ParametricExpression{T}}
     return ParametricNode{T,max_degree(N)}
 end
