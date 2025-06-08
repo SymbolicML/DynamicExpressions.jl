@@ -45,7 +45,7 @@
     function clean_args_gen_maker(default_turbo)
         args_gen = map(
             (ex, X, turbo, bumper) -> let
-                result, ok = eval_tree_array(ex, X; turbo, bumper)
+                result, ok = eval_tree_array(ex, X; turbo=Val(turbo), bumper=Val(bumper))
                 (; ex, X, turbo, bumper, result, ok)
             end,
             expr_gen,
