@@ -193,34 +193,33 @@ end
     unary_operators = [@eval function (x)
         return x^2
     end for i in 1:num_ops]
-    operators = if VERSION >= v"1.9"
-        @test_logs (:warn, r"You have passed over 15 binary.*") OperatorEnum(;
-            binary_operators, unary_operators
-        )
-    else
-        OperatorEnum(; binary_operators, unary_operators)
-    end
-    tree = Node(1, Node(num_ops ÷ 2, Node(; val=3.0), Node(; feature=2)))
+    operators = @test_logs(
+        (:warn, r"You have passed over 15 degree2.*"), OperatorEnum(2 => binary_operators)
+    )
+    operators = @test_logs(
+        (:warn, r"You have passed over 15 degree1.*"),
+        OperatorEnum(1 => unary_operators, 2 => binary_operators)
+    )
+    tree = Node(;
+        op=1,
+        children=(Node(; op=num_ops ÷ 2, children=(Node(; val=3.0), Node(; feature=2))),),
+    )
     # = (3.0 + x2)^2
     X = randn(Float64, 2, 10)
     truth = @. (3.0 + X[2, :])^2
     @test truth ≈ tree(X, operators)
 
-    VERSION >= v"1.9" &&
-        @test_logs (:warn, r"You have passed over 15 unary.*") OperatorEnum(;
-            unary_operators
-        )
+    @test_logs(
+        (:warn, r"You have passed over 15 degree1.*"), OperatorEnum(1 => unary_operators)
+    )
 
     # This OperatorEnum will trigger the fallback code for fast compilation.
-    many_ops_operators = OperatorEnum(;
-        binary_operators=cat([+, -, *, /], binary_operators; dims=1),
-        unary_operators=cat([sin, cos], unary_operators; dims=1),
+    many_ops_operators = OperatorEnum(
+        1 => [[sin, cos]; unary_operators], 2 => [[+, -, *, /]; binary_operators]
     )
 
     # This OperatorEnum will go through the regular evaluation code.
-    only_basic_ops_operator = OperatorEnum(;
-        binary_operators=[+, -, *, /], unary_operators=[sin, cos]
-    )
+    only_basic_ops_operator = OperatorEnum(1 => [sin, cos], 2 => [+, -, *, /])
 
     # We want to compare them:
     num_tests = 100

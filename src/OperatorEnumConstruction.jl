@@ -567,7 +567,9 @@ for OP_ENUM in (:OperatorEnum, :GenericOperatorEnum)
         @nospecialize(pairs::Pair{Int,<:Vector}...);
         kws...,
     )
-        return $OP_ENUM(map(p -> (p.first, Tuple(p.second)), (pair, pairs...))...; kws...)
+        return $OP_ENUM(
+            map(p -> Pair(p.first, Tuple(p.second)), (pair, pairs...))...; kws...
+        )
     end
 end
 
