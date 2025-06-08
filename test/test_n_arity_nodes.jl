@@ -36,6 +36,8 @@
     @test n_bin.children[3] === n_bin # Poison
     @test DynamicExpressions.NodeModule.get_children(n_bin, Val(2)) ==
         (n_bin_leaf1, n_bin_leaf2)
+    # We can also call directly with integers
+    @test DynamicExpressions.NodeModule.get_children(n_bin, 2) == (n_bin_leaf1, n_bin_leaf2)
     # .l and .r should work for Node{T,3} due to general @make_accessors Node
     @test n_bin.l === n_bin_leaf1
     @test n_bin.r === n_bin_leaf2
