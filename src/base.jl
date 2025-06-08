@@ -50,7 +50,7 @@ and branch (operator) nodes.
 
 # Examples
 ```jldoctest
-julia> operators = OperatorEnum(; binary_operators=[+, *]);
+julia> operators = OperatorEnum(2 => (+, *));
 
 julia> tree = Node(; feature=1) + Node(; feature=2) * 3.2;
 

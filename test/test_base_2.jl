@@ -26,7 +26,7 @@
     either operate directly on the `OperatorEnum`, like with [`eval_tree_array`](@ref),
     or use [`Expression`](@ref) objects to store them alongside the expression.
     =#
-    operators = OperatorEnum(; unary_operators=(sin, exp), binary_operators=(+, -, *, /))
+    operators = OperatorEnum(1 => (sin, exp), 2 => (+, -, *, /))
 
     # Now, let's create another variable
     y = Node{Float64}(; feature=2)

@@ -13,14 +13,14 @@ OperatorEnum
 Construct this operator specification as follows:
 
 ```@docs
-OperatorEnum(; binary_operators=[], unary_operators=[], define_helper_functions::Bool=true)
+OperatorEnum
 ```
 
 This is just for scalar operators. However, you can use
 the following for more general operators:
 
 ```@docs
-GenericOperatorEnum(; binary_operators=[], unary_operators=[], define_helper_functions::Bool=true)
+GenericOperatorEnum
 ```
 
 By default, these operators will define helper functions for constructing trees,
@@ -124,9 +124,7 @@ This makes it so you can have multiple parents for a given node,
 and share parts of an expression. For example:
 
 ```julia
-julia> operators = OperatorEnum(;
-           binary_operators=[+, -, *], unary_operators=[cos, sin, exp]
-       );
+julia> operators = OperatorEnum(1 => (cos, sin, exp), 2 => (+, -, *));
 
 julia> x1, x2 = GraphNode(feature=1), GraphNode(feature=2)
 (x1, x2)

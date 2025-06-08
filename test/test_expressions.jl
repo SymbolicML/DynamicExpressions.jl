@@ -312,9 +312,7 @@ end
 
     # First, let's define our operators and variable names:
 
-    operators = OperatorEnum(;
-        binary_operators=(+, -, *, /), unary_operators=(sin, cos, exp)
-    )
+    operators = OperatorEnum(1 => (sin, cos, exp), 2 => (+, -, *, /))
     #
     variable_names = ["x", "y"]
 

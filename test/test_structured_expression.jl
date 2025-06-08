@@ -86,7 +86,7 @@ end
 
     # First, we will create some normal `Expression` objects.
 
-    operators = OperatorEnum(; unary_operators=(cos, exp), binary_operators=(+, -, *, /))
+    operators = OperatorEnum(1 => (cos, exp), 2 => (+, -, *, /))
     variable_names = ["x", "y"]
     x = Expression(Node{Float64}(; feature=1); operators, variable_names)
     y = Expression(Node{Float64}(; feature=2); operators, variable_names)

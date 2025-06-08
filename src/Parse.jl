@@ -41,7 +41,7 @@ The macro is used to convert a high-level symbolic expression into a structured 
 ```julia
 julia> my_custom_op(x, y) = x + y^3;
 
-julia> operators = OperatorEnum(binary_operators=[+, -, *, my_custom_op], unary_operators=[sin]);
+julia> operators = OperatorEnum(1 => (sin,), 2 => (+, -, *, my_custom_op));
 
 julia> ex = @parse_expression my_custom_op(x, sin(y) + 0.3) operators=operators variable_names=["x", "y"]
 my_custom_op(x, sin(y) + 0.3)
@@ -62,7 +62,7 @@ julia> ex(ones(2, 1))
 ```julia
 julia> ex = @parse_expression(
             cos(exp(α - 1)),
-            operators=OperatorEnum(binary_operators=[-], unary_operators=[cos, exp]),
+            operators=OperatorEnum(1 => (cos, exp), 2 => (-,)),
             variable_names=[:α],
             node_type=GraphNode
         )
@@ -82,7 +82,7 @@ julia> show_type(x) = (@show typeof(x); x);
 
 julia> ex = @parse_expression(
            c * 2.5 - show_type(cos(x)),
-           operators = OperatorEnum(; binary_operators=[*, -], unary_operators=[cos]),
+           operators = OperatorEnum(1 => (cos,), 2 => (*, -)),
            variable_names = [:x],
            evaluate_on = [show_type],
        )
