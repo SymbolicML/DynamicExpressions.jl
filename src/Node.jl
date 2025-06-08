@@ -203,7 +203,7 @@ use the `.degree` field of a node to determine the number of children
 to return. Typically this is done within a `Base.Cartesian.@nif` statement
 for total type stability.
 """
-@inline function get_children(node::AbstractNode{D}, n::Integer) where {D}
+@unstable @inline function get_children(node::AbstractNode{D}, n::Integer) where {D}
     return get_children(node, Val(n))
 end
 @inline function get_children(node::AbstractNode{D}, ::Val{n}) where {D,n}
