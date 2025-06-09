@@ -25,6 +25,9 @@ end
     using DynamicExpressions: ExpressionInterface, NodeInterface
     using Interfaces: test
 
+    # Use consistent operators throughout the test
+    operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[sin])
+
     ex = @parse_expression(
         x + y + p1 * p2 + 1.5,
         binary_operators = [+, -, *, /],
@@ -38,10 +41,19 @@ end
     x1 = ParametricNode{Float64}(; feature=1)
     x2 = ParametricNode{Float64}(; feature=2)
 
-    operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
+    # Create nodes manually using operator indices
+    # x2 * 3.5
+    multiply_node = ParametricNode{Float64}(;
+        op=3, children=(x2, ParametricNode{Float64}(; val=3.5))
+    )
+    # sin(x2 * 3.5)
+    sin_node = ParametricNode{Float64}(; op=1, children=(multiply_node,))
+    # x1 + sin(x2 * 3.5)
+    tree_branch_deg2 = ParametricNode{Float64}(; op=1, children=(x1, sin_node))
 
-    tree_branch_deg2 = x1 + sin(x2 * 3.5)
-    tree_branch_deg1 = sin(x1)
+    # sin(x1)
+    tree_branch_deg1 = ParametricNode{Float64}(; op=1, children=(x1,))
+
     tree_leaf_feature = x1
     tree_leaf_constant = ParametricNode{Float64}(; val=1.0)
 
