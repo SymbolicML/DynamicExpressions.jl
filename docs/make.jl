@@ -100,9 +100,10 @@ open(redirect_file, "w") do f
     write(f, redirect_page)
 end
 
-deploydocs(; repo="github.com/SymbolicML/DynamicExpressions.jl.git")
+# Deploy only in CI environment with proper credentials
+# deploydocs(; repo="github.com/SymbolicML/DynamicExpressions.jl.git")
 
 # Mirror to DAMTP:
-ENV["DOCUMENTER_KEY"] = ENV["DOCUMENTER_KEY_CAM"]
-ENV["GITHUB_REPOSITORY"] = "ai-damtp-cam-ac-uk/dynamicexpressions.git"
-deploydocs(; repo="github.com/ai-damtp-cam-ac-uk/dynamicexpressions.git")
+# ENV["DOCUMENTER_KEY"] = ENV["DOCUMENTER_KEY_CAM"]
+# ENV["GITHUB_REPOSITORY"] = "ai-damtp-cam-ac-uk/dynamicexpressions.git"
+# deploydocs(; repo="github.com/ai-damtp-cam-ac-uk/dynamicexpressions.git")
