@@ -20,4 +20,38 @@ hash(tree::AbstractExpressionNode{T}, h::UInt; break_sharing::Val=Val(false)) wh
 
 ## Printing
 
-Trees are printed using the `
+Trees are printed using the `string_tree` function, which is very
+configurable:
+
+```@docs
+string_tree(tree::Node, operators::AbstractOperatorEnum)
+```
+
+The standard `show` and `print` methods will use the most recently-created `OperatorEnum`
+in a `string_tree`.
+
+## Sampling
+
+There are also methods for random sampling of nodes:
+
+```@docs
+NodeSampler
+rand(rng::AbstractRNG, tree::AbstractNode)
+rand(rng::AbstractRNG, sampler::NodeSampler{N,F,Nothing}) where {N,F}
+```
+
+## Internal utilities
+
+Almost all node utilities are crafted using the `tree_mapreduce` function,
+which evaluates a mapreduce over a tree-like (or graph-like) structure:
+
+```@docs
+tree_mapreduce
+```
+
+Various other utility functions include the following:
+
+```@docs
+filter_map
+filter_map!
+```
