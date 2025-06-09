@@ -71,12 +71,14 @@ copy_node
 
 ## Generic Node Accessors
 
-For working with nodes of arbitrary arity, DynamicExpressions.jl provides functions for accessing and modifying children:
+For working with nodes of arbitrary arity:
 
-- `get_child(node, i)` - Get the i-th child of a node
-- `set_child!(node, child, i)` - Set the i-th child of a node  
-- `get_children(node, Val(n))` - Get all children for a node of arity n
-- `set_children!(node, children)` - Set all children of a node
+```@docs
+get_child
+set_child!
+get_children
+set_children!
+```
 
 Examples:
 
