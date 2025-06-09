@@ -507,7 +507,7 @@ end
 
 @testitem "Node arbitrary-degree child access & mutation" begin
     using DynamicExpressions.NodeModule:
-        Node, get_child, get_children, set_child!, set_children!
+        Node, get_child, get_children, set_child!, set_children!, unsafe_get_children
     using Test
 
     # Build a tiny 3-ary tree:  +(1, 2, 3)
@@ -532,7 +532,8 @@ end
     @test get_child(p, 2) === c2
 
     # Poison node is just self
-    @test get_child(p, 3) === p
+    @test_throws UndefRefError get_child(p, 3)
+    @test unsafe_get_children(p)[3].x === p
 end
 
 @testitem "Node property forwarding (`.l` / `.r`) still works" begin
