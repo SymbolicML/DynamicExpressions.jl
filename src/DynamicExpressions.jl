@@ -28,6 +28,7 @@ end
 import Reexport: @reexport
 macro ignore(args...) end
 
+import .UtilsModule: Nullable
 import .ValueInterfaceModule:
     is_valid,
     is_valid_array,

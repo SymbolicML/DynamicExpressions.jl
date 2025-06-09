@@ -3,6 +3,7 @@ module InterfacesModule
 
 using Interfaces: Interfaces, @interface, @implements, Arguments
 using DispatchDoctor: @unstable
+using ..UtilsModule: Nullable
 using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..NodeModule:
     Node,
@@ -14,6 +15,7 @@ using ..NodeModule:
     with_type_parameters,
     with_max_degree,
     max_degree,
+    unsafe_get_children,
     get_children,
     leaf_copy,
     leaf_convert,
@@ -228,9 +230,9 @@ function _check_create_node(tree::AbstractExpressionNode)
 end
 function _check_get_children(tree::AbstractExpressionNode{T,D}) where {T,D}
     tree.degree == 0 && return true
-    return get_children(tree) isa Tuple{typeof(tree),Vararg{typeof(tree)}} &&
-           get_children(tree, Val(D)) isa Tuple &&
-           length(get_children(tree, Val(D))) == D &&
+    return unsafe_get_children(tree) isa NTuple{D,Nullable{typeof(tree)}} &&
+           get_children(tree, tree.degree) isa Tuple &&
+           length(get_children(tree, tree.degree)) == tree.degree &&
            length(get_children(tree, Val(1))) == 1
 end
 function _check_copy(tree::AbstractExpressionNode)

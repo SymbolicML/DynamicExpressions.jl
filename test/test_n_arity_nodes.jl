@@ -17,10 +17,7 @@
     @test n_una.op == 1
     @test DynamicExpressions.NodeModule.max_degree(n_una) == 3
     @test DynamicExpressions.NodeModule.max_degree(typeof(n_una)) == 3
-    @test n_una.children[1] === n_una_leaf
-    # Test poison (node refers to itself for unused children slots)
-    @test n_una.children[2] === n_una # Poison value is the node itself
-    @test n_una.children[3] === n_una # Poison value is the node itself
+    @test get_child(n_una, 1) === n_una_leaf
     # Test .l accessor (should work due to @make_accessors Node)
     @test n_una.l === n_una_leaf
 
@@ -31,9 +28,9 @@
     @test n_bin.degree == 2
     @test n_bin.op == 1
     @test DynamicExpressions.NodeModule.max_degree(n_bin) == 3
-    @test n_bin.children[1] === n_bin_leaf1
-    @test n_bin.children[2] === n_bin_leaf2
-    @test n_bin.children[3] === n_bin # Poison
+    @test get_child(n_bin, 1) === n_bin_leaf1
+    @test get_child(n_bin, 2) === n_bin_leaf2
+    @test_throws UndefRefError get_child(n_bin, 3)
     @test DynamicExpressions.NodeModule.get_children(n_bin, Val(2)) ==
         (n_bin_leaf1, n_bin_leaf2)
     # We can also call directly with integers
@@ -50,9 +47,9 @@
     @test n_ter.degree == 3
     @test n_ter.op == 1
     @test DynamicExpressions.NodeModule.max_degree(n_ter) == 3
-    @test n_ter.children[1] === n_ter_leaf1
-    @test n_ter.children[2] === n_ter_leaf2
-    @test n_ter.children[3] === n_ter_leaf3
+    @test get_child(n_ter, 1) === n_ter_leaf1
+    @test get_child(n_ter, 2) === n_ter_leaf2
+    @test get_child(n_ter, 3) === n_ter_leaf3
     @test DynamicExpressions.NodeModule.get_children(n_ter, Val(3)) ==
         (n_ter_leaf1, n_ter_leaf2, n_ter_leaf3)
     @test n_ter.l === n_ter_leaf1
@@ -67,7 +64,7 @@
     @test n2_bin_for_l_r.r === n2_leaf2_for_l_r
     n2_new_leaf_for_l_r = Node{Float64,2}(; feature=3)
     n2_bin_for_l_r.l = n2_new_leaf_for_l_r # Uses setproperty!
-    @test n2_bin_for_l_r.children[1] === n2_new_leaf_for_l_r
+    @test get_child(n2_bin_for_l_r, 1) === n2_new_leaf_for_l_r
 
     n_default_D_leaf1 = Node{Float64}(; feature=1)
     @test DynamicExpressions.NodeModule.max_degree(typeof(n_default_D_leaf1)) == 2
@@ -87,6 +84,17 @@
 
     @test DynamicExpressions.NodeModule.defines_eltype(Node{Float64,2}) == true
     @test DynamicExpressions.NodeModule.defines_eltype(Node) == false
+end
+
+@testitem "Nodes throw UndefRefError when accessing poisoned children" begin
+    using DynamicExpressions
+    using Test
+
+    n = Node{Float64,2}(; op=1, children=(Node{Float64,2}(; feature=1),))
+    @test n.l == Node{Float64,2}(; feature=1)
+    @test_throws UndefRefError n.r
+    @test get_child(n, 1) == Node{Float64,2}(; feature=1)
+    @test_throws UndefRefError get_child(n, 2)
 end
 
 @testitem "N-ary OperatorEnum Structure" tags = [:narity] begin
@@ -338,8 +346,8 @@ end
 
     tree_f32_d3_target = convert(Node{Float32,3}, tree_tmr)
     @test typeof(tree_f32_d3_target) == Node{Float32,3}
-    @test typeof(tree_f32_d3_target.children[1].children[1]) == Node{Float32,3}
-    @test tree_f32_d3_target.children[3].children[2].val ≈ Float32(0.5)
+    @test typeof(get_child(get_child(tree_f32_d3_target, 1), 1)) == Node{Float32,3}
+    @test get_child(get_child(tree_f32_d3_target, 3), 2).val ≈ Float32(0.5)
 
     # Test convert(Node{T1}, node_of_type_N2{T2,D2})
     # This specific call needs Node{T1, D_source} as target for it to work without error with current convert.
@@ -445,9 +453,9 @@ end
     node_from_pex = convert(Node, ex_param_ter)
     @test typeof(node_from_pex) == Node{Float64,3}
     @test node_from_pex.degree == 3 && node_from_pex.op == 1
-    @test node_from_pex.children[1].feature == 1
-    @test node_from_pex.children[2].feature == 2
-    @test node_from_pex.children[3].feature == 3
+    @test get_child(node_from_pex, 1).feature == 1
+    @test get_child(node_from_pex, 2).feature == 2
+    @test get_child(node_from_pex, 3).feature == 3
 end
 
 @testitem "NodeUtils.jl NodeIndex for N-ary" tags = [:narity] begin
@@ -473,9 +481,9 @@ end
     @test DynamicExpressions.NodeModule.max_degree(typeof(idx_tree)) == 3
     @test tree_idx.degree == 3
     @test idx_tree.degree == 3
-    @test idx_tree.children[1].degree == 0 && idx_tree.children[1].val == UInt16(1)
-    @test idx_tree.children[2].degree == 0 && idx_tree.children[2].val == UInt16(0)
-    @test idx_tree.children[3].degree == 0 && idx_tree.children[3].val == UInt16(2)
+    @test get_child(idx_tree, 1).degree == 0 && get_child(idx_tree, 1).val == UInt16(1)
+    @test get_child(idx_tree, 2).degree == 0 && get_child(idx_tree, 2).val == UInt16(0)
+    @test get_child(idx_tree, 3).degree == 0 && get_child(idx_tree, 3).val == UInt16(2)
 end
 
 @testitem "Edgecase with n-ary chainable operators" tags = [:narity] begin
@@ -544,7 +552,7 @@ end
 end
 
 @testitem "Constructor guards all-defaults call throws" begin
-    using DynamicExpressions: AbstractExpressionNode
+    using DynamicExpressions: AbstractExpressionNode, Nullable
     using Test
 
     mutable struct MyBadNode{T,D} <: AbstractExpressionNode{T,D}
@@ -553,7 +561,7 @@ end
         val::T
         feature::UInt16
         op::UInt8
-        children::NTuple{D,MyBadNode{T,D}}
+        children::NTuple{D,Nullable{MyBadNode{T,D}}}
     end
 
     # Calling with *nothing* default should now error
@@ -565,7 +573,7 @@ end
         val::T
         feature::UInt16
         op::UInt8
-        children::NTuple{D,MyBadNode2{T,D}}
+        children::NTuple{D,Nullable{MyBadNode2{T,D}}}
 
         MyBadNode2{T,D}() where {T,D} = new{T,D}()
     end
@@ -576,7 +584,7 @@ end
 end
 
 @testitem "branch_copy_into! copies generic children" begin
-    using DynamicExpressions.NodeModule: Node, get_children
+    using DynamicExpressions.NodeModule: Node, unsafe_get_children
     using DynamicExpressions.NodePreallocationModule: branch_copy_into!
     using Test
 
@@ -590,10 +598,10 @@ end
         ),
     )
 
-    branch_copy_into!(dummy, src, get_children(src)...)
+    branch_copy_into!(dummy, src, unsafe_get_children(src)...)
 
     @test dummy.op == src.op
-    @test get_children(dummy) == get_children(src)
+    @test unsafe_get_children(dummy) == unsafe_get_children(src)
 end
 
 @testitem "GraphNode compatibility" begin
@@ -613,7 +621,7 @@ end
     @test ternary_node.degree == 3
     @test ternary_node.op == 1
     @test length(ternary_node.children) == 3
-    @test all(ternary_node.children .=== (x1, x2, x3))
+    @test all(i -> get_child(ternary_node, i) === (x1, x2, x3)[i], 1:3)
 
     # Test 2: Sharing functionality
     shared_subexpr = GraphNode{Float64,3}(; op=1, children=(x1, x2, c1))

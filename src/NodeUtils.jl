@@ -1,5 +1,7 @@
 module NodeUtilsModule
 
+using ..UtilsModule: Nullable
+
 import ..NodeModule:
     AbstractNode,
     AbstractExpressionNode,
@@ -147,7 +149,7 @@ mutable struct NodeIndex{T,D} <: AbstractNode{D}
     degree::UInt8  # 0 for constant/variable, 1 for cos/sin, 2 for +/* etc.
     val::T  # If is a constant, this stores the actual value
     # ------------------- (possibly undefined below)
-    children::NTuple{D,NodeIndex{T,D}}
+    children::NTuple{D,Nullable{NodeIndex{T,D}}}
 
     function NodeIndex(::Type{_T}, ::Val{_D}, val) where {_T,_D}
         return new{_T,_D}(0, convert(_T, val))
@@ -166,10 +168,10 @@ NodeIndex(::Type{T}, ::Val{D}) where {T,D} = NodeIndex(T, Val(D), zero(T))
 
 @inline function Base.getproperty(n::NodeIndex, k::Symbol)
     if k == :l
-        # TODO: Should a depwarn be raised here? Or too slow?
-        return getfield(n, :children)[1]
+        # TODO: Should a deprecation warning be raised here? Or too slow?
+        return getfield(n, :children)[1][]
     elseif k == :r
-        return getfield(n, :children)[2]
+        return getfield(n, :children)[2][]
     else
         return getfield(n, k)
     end

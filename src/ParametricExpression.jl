@@ -8,6 +8,7 @@ using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
 using ..ExpressionModule:
     AbstractExpression, Metadata, with_contents, with_metadata, unpack_metadata
 using ..ChainRulesModule: NodeTangent
+using ..UtilsModule: Nullable
 
 import ..NodeModule:
     constructorof,
@@ -58,7 +59,7 @@ mutable struct ParametricNode{T,D} <: AbstractExpressionNode{T,D}
     parameter::UInt16  # Stores index of per-class parameter
 
     op::UInt8
-    children::NTuple{D,ParametricNode{T,D}}  # Children nodes
+    children::NTuple{D,Nullable{ParametricNode{T,D}}}  # Children nodes
 
     function ParametricNode{_T,_D}() where {_T,_D}
         n = new{_T,_D}()

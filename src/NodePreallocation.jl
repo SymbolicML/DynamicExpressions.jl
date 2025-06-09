@@ -56,7 +56,7 @@ function leaf_copy_into!(dest::N, src::N) where {N<:AbstractExpressionNode}
 end
 # COV_EXCL_STOP
 function branch_copy_into!(
-    dest::N, src::N, children::Vararg{N,M}
+    dest::N, src::N, children::Vararg{Any,M}
 ) where {T,D,N<:AbstractExpressionNode{T,D},M}
     dest.degree = M
     dest.op = src.op

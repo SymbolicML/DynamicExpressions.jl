@@ -58,4 +58,16 @@ struct ResultOk2{A<:AbstractArray,B<:AbstractArray}
     ok::Bool
 end
 
+struct Nullable{T}
+    null::Bool
+    x::T
+end
+@inline function Base.getindex(x::Nullable)
+    x.null && throw(UndefRefError())
+    return x.x
+end
+@inline function Base.convert(::Type{Nullable{T}}, x::Nullable) where {T}
+    return Nullable(x.null, convert(T, x.x))
+end
+
 end

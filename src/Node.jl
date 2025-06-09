@@ -2,7 +2,7 @@ module NodeModule
 
 using DispatchDoctor: @unstable
 
-import ..UtilsModule: deprecate_varmap, Undefined
+import ..UtilsModule: deprecate_varmap, Undefined, Nullable
 
 const DEFAULT_NODE_TYPE = Float32
 const DEFAULT_MAX_DEGREE = 2
@@ -78,7 +78,7 @@ for N in (:Node, :GraphNode)
         val::T  # If is a constant, this stores the actual value
         feature::UInt16  # (Possibly undefined) If is a variable (e.g., x in cos(x)), this stores the feature index.
         op::UInt8  # (Possibly undefined) If operator, this is the index of the operator in the degree-specific operator enum
-        children::NTuple{D,$N{T,D}}
+        children::NTuple{D,Nullable{$N{T,D}}}
 
         #################
         ## Constructors:
@@ -173,13 +173,7 @@ Accessing this node should trigger some kind of noticable error
 (e.g., default returns itself, which causes infinite recursion).
 """
 function poison_node(n::AbstractNode)
-    # We don't want to use `nothing` because the type instability
-    # hits memory hard.
-    # Setting itself as the right child is the best thing,
-    # because it (1) doesn't allocate, and (2) will trigger
-    # infinite recursion errors if someone is mistakenly trying
-    # to access the right child when `.degree == 1`.
-    return n
+    return Nullable(true, n)
 end
 
 """
@@ -190,7 +184,7 @@ children may be "poisoned" nodes which you should not access,
 as they will trigger infinite recursion errors. Ensure to
 only access children only up to the `.degree` of the node.
 """
-@inline function get_children(node::AbstractNode)
+@inline function unsafe_get_children(node::AbstractNode)
     return getfield(node, :children)
 end
 
@@ -207,8 +201,8 @@ for total type stability.
     return get_children(node, Val(n))
 end
 @inline function get_children(node::AbstractNode{D}, ::Val{n}) where {D,n}
-    cs = get_children(node)
-    return ntuple(i -> cs[i], Val(n))
+    cs = unsafe_get_children(node)
+    return ntuple(i -> cs[i][], Val(n))
 end
 
 """
@@ -217,7 +211,7 @@ end
 Return the `i`-th child of a node (1-indexed).
 """
 @inline function get_child(n::AbstractNode{D}, i::Int) where {D}
-    return get_children(n)[i]
+    return unsafe_get_children(n)[i][]
 end
 
 """
@@ -227,7 +221,7 @@ Replace the `i`-th child of a node (1-indexed) with the given child node.
 Returns the new child. Updates the children tuple in-place.
 """
 @inline function set_child!(n::AbstractNode{D}, child::AbstractNode{D}, i::Int) where {D}
-    set_children!(n, Base.setindex(get_children(n), child, i))
+    set_children!(n, Base.setindex(unsafe_get_children(n), Nullable(false, child), i))
     return child
 end
 
@@ -242,17 +236,21 @@ provided than the node's maximum degree, remaining slots are filled with poison 
 ) where {D}
     D2 = length(children)
     if D === D2
-        n.children = children
+        n.children = ntuple(i -> _ensure_nullable(@inbounds(children[i])), Val(D))
     else
         poison = poison_node(n)
         # We insert poison at the end of the tuple so that
         # errors will appear loudly if accessed.
         # This poison should be efficient to insert. So
-        # for simplicity, we can just use poison == n, which
-        # will trigger infinite recursion errors if accessed.
-        n.children = ntuple(i -> i <= D2 ? @inbounds(children[i]) : poison, Val(D))
+        # for simplicity, we can just use poison := Nullable(true, n)
+        # which will raise an UndefRefError if accessed.
+        n.children = ntuple(
+            i -> i <= D2 ? _ensure_nullable(@inbounds(children[i])) : poison, Val(D)
+        )
     end
 end
+@inline _ensure_nullable(x) = Nullable(false, x)
+@inline _ensure_nullable(x::Nullable) = x
 
 macro make_accessors(node_type)
     esc(
@@ -491,7 +489,7 @@ function set_leaf!(tree::AbstractExpressionNode, new_leaf::AbstractExpressionNod
 end
 function set_branch!(tree::AbstractExpressionNode, new_branch::AbstractExpressionNode)
     tree.op = new_branch.op
-    set_children!(tree, get_children(new_branch))
+    set_children!(tree, unsafe_get_children(new_branch))
     return nothing
 end
 

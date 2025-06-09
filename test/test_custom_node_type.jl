@@ -1,22 +1,25 @@
 using DynamicExpressions
+using DynamicExpressions: Nullable
 using Test
 
 mutable struct MyCustomNode{A,B} <: AbstractNode{2}
     degree::Int
     val1::A
     val2::B
-    children::NTuple{2,MyCustomNode{A,B}}
+    children::NTuple{2,Nullable{MyCustomNode{A,B}}}
 
     MyCustomNode(val1, val2) = new{typeof(val1),typeof(val2)}(0, val1, val2)
     function MyCustomNode(val1, val2, l)
         n = MyCustomNode(val1, val2)
         poison = n
         n.degree = 1
-        n.children = (l, poison)
+        set_children!(n, (l, poison))
         return n
     end
     function MyCustomNode(val1, val2, l, r)
-        return new{typeof(val1),typeof(val2)}(2, val1, val2, (l, r))
+        n = new{typeof(val1),typeof(val2)}(2, val1, val2)
+        set_children!(n, (l, r))
+        return n
     end
 end
 
@@ -31,7 +34,7 @@ node2 = MyCustomNode(1.5, 3, node1)
 
 @test typeof(node2) == MyCustomNode{Float64,Int}
 @test node2.degree == 1
-@test node2.children[1].degree == 0
+@test get_child(node2, 1).degree == 0
 @test count_depth(node2) == 2
 @test count_nodes(node2) == 2
 
@@ -50,7 +53,7 @@ mutable struct MyCustomNode2{T} <: AbstractExpressionNode{T,2}
     val::T
     feature::UInt16
     op::UInt8
-    children::NTuple{2,Base.RefValue{MyCustomNode2{T}}}
+    children::NTuple{2,Nullable{MyCustomNode2{T}}}
 end
 
 @test_throws ErrorException MyCustomNode2()
