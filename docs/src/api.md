@@ -169,7 +169,7 @@ The supertype of this abstract type is the `AbstractNode` type,
 which is more generic but does not have all of the same methods:
 
 ```@docs
-AbstractNode{T}
+AbstractNode
 ```
 
 ## Expressions

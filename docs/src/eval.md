@@ -37,7 +37,7 @@ and triplets of operations for lower memory usage.
 
 For example,
 
-```julia
+```@example
 using DynamicExpressions
 
 operators = OperatorEnum(1 => (cos, sin), 2 => (+, -, *, /))
