@@ -149,7 +149,7 @@ function _extend_unary_operator(
     f_inside::Symbol, f_outside::Symbol, type_requirements, internal
 )
     quote
-        @gensym _constructorof _AbstractExpressionNode
+        @gensym _constructorof _AbstractExpressionNode _latest_op_idx _T _N _l
         quote
             if $$internal
                 import ..NodeModule.constructorof as $_constructorof
@@ -161,13 +161,13 @@ function _extend_unary_operator(
             end
 
             function $($f_outside)(
-                l::N
-            ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
-                return if (l.degree == 0 && l.constant)
-                    $_constructorof(N)(T; val=$($f_inside)(l.val))
+                $_l::$_N
+            ) where {$_T<:$($type_requirements),$_N<:$_AbstractExpressionNode{$_T}}
+                return if ($_l.degree == 0 && $_l.constant)
+                    $_constructorof($_N)($_T; val=$($f_inside)($_l.val))
                 else
-                    latest_op_idx = $($lookup_op)($($f_inside), Val(1))
-                    $_constructorof(N)(; op=latest_op_idx, children=(l,))
+                    $_latest_op_idx = $($lookup_op)($($f_inside), Val(1))
+                    $_constructorof($_N)(; op=$_latest_op_idx, children=($_l,))
                 end
             end
         end
@@ -178,7 +178,7 @@ function _extend_binary_operator(
     f_inside::Symbol, f_outside::Symbol, type_requirements, build_converters, internal
 )
     quote
-        @gensym _constructorof _AbstractExpressionNode
+        @gensym _constructorof _AbstractExpressionNode _latest_op_idx _T _T1 _T2 _N _l _r
         quote
             if $$internal
                 import ..NodeModule.constructorof as $_constructorof
@@ -190,62 +190,64 @@ function _extend_binary_operator(
             end
 
             function $($f_outside)(
-                l::N, r::N
-            ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
-                if (l.degree == 0 && l.constant && r.degree == 0 && r.constant)
-                    $_constructorof(N)(T; val=$($f_inside)(l.val, r.val))
+                $_l::$_N, $_r::$_N
+            ) where {$_T<:$($type_requirements),$_N<:$_AbstractExpressionNode{$_T}}
+                if ($_l.degree == 0 && $_l.constant && $_r.degree == 0 && $_r.constant)
+                    $_constructorof($_N)($_T; val=$($f_inside)($_l.val, $_r.val))
                 else
-                    latest_op_idx = $($lookup_op)($($f_inside), Val(2))
-                    $_constructorof(N)(; op=latest_op_idx, children=(l, r))
+                    $_latest_op_idx = $($lookup_op)($($f_inside), Val(2))
+                    $_constructorof($_N)(; op=$_latest_op_idx, children=($_l, $_r))
                 end
             end
             function $($f_outside)(
-                l::N, r::T
-            ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
-                if l.degree == 0 && l.constant
-                    $_constructorof(N)(T; val=$($f_inside)(l.val, r))
+                $_l::$_N, $_r::$_T
+            ) where {$_T<:$($type_requirements),$_N<:$_AbstractExpressionNode{$_T}}
+                if $_l.degree == 0 && $_l.constant
+                    $_constructorof($_N)($_T; val=$($f_inside)($_l.val, $_r))
                 else
-                    latest_op_idx = $($lookup_op)($($f_inside), Val(2))
-                    $_constructorof(N)(;
-                        op=latest_op_idx, children=(l, $_constructorof(N)(T; val=r))
+                    $_latest_op_idx = $($lookup_op)($($f_inside), Val(2))
+                    $_constructorof($_N)(;
+                        op=$_latest_op_idx,
+                        children=($_l, $_constructorof($_N)($_T; val=$_r)),
                     )
                 end
             end
             function $($f_outside)(
-                l::T, r::N
-            ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
-                if r.degree == 0 && r.constant
-                    $_constructorof(N)(T; val=$($f_inside)(l, r.val))
+                $_l::$_T, $_r::$_N
+            ) where {$_T<:$($type_requirements),$_N<:$_AbstractExpressionNode{$_T}}
+                if $_r.degree == 0 && $_r.constant
+                    $_constructorof($_N)($_T; val=$($f_inside)($_l, $_r.val))
                 else
-                    latest_op_idx = $($lookup_op)($($f_inside), Val(2))
-                    $_constructorof(N)(;
-                        op=latest_op_idx, children=($_constructorof(N)(T; val=l), r)
+                    $_latest_op_idx = $($lookup_op)($($f_inside), Val(2))
+                    $_constructorof($_N)(;
+                        op=$_latest_op_idx,
+                        children=($_constructorof($_N)($_T; val=$_l), $_r),
                     )
                 end
             end
             if $($build_converters)
                 # Converters:
                 function $($f_outside)(
-                    l::$_AbstractExpressionNode{T1}, r::$_AbstractExpressionNode{T2}
-                ) where {T1<:$($type_requirements),T2<:$($type_requirements)}
-                    if l isa GraphNode || r isa GraphNode
+                    $_l::$_AbstractExpressionNode{$_T1}, $_r::$_AbstractExpressionNode{$_T2}
+                ) where {$_T1<:$($type_requirements),$_T2<:$($type_requirements)}
+                    if $_l isa $(GraphNode) || $_r isa $(GraphNode)
                         error(
                             "Refusing to promote `GraphNode` as it would break the graph structure. " *
                             "Please convert to a common type first.",
                         )
                     end
-                    return $($f_outside)(promote(l, r)...)
+                    return $($f_outside)(promote($_l, $_r)...)
                 end
 
                 function $($f_outside)(
-                    l::$_AbstractExpressionNode{T1}, r::T2
-                ) where {T1<:$($type_requirements),T2<:$($type_requirements)}
-                    return $($f_outside)(l, convert(T1, r))
+                    $_l::$_AbstractExpressionNode{$_T1}, $_r::$_T2
+                ) where {$_T1<:$($type_requirements),$_T2<:$($type_requirements)}
+                    return $($f_outside)($_l, convert($_T1, $_r))
                 end
                 function $($f_outside)(
-                    l::T1, r::$_AbstractExpressionNode{T2}
-                ) where {T1<:$($type_requirements),T2<:$($type_requirements)}
-                    return $($f_outside)(convert(T2, l), r)
+                    $_l::$_T1, $_r::$_AbstractExpressionNode{$_T2}
+                ) where {$_T1<:$($type_requirements),$_T2<:$($type_requirements)}
+                    return $($f_outside)(convert($_T2, $_l), $_r)
                 end
             end
         end
@@ -256,9 +258,9 @@ function _extend_nary_operator(
     degree::Symbol, f_inside::Symbol, f_outside::Symbol, type_requirements, internal
 )
     quote
-        @gensym _constructorof _AbstractExpressionNode
+        @gensym _constructorof _AbstractExpressionNode _is_chainable _latest_op_idx _T _N
         arg_syms = [$(Symbol)("arg", i) for i in 1:($(degree))]
-        args = [Expr(:(::), arg_syms[i], :N) for i in 1:($(degree))]
+        args = [Expr(:(::), arg_syms[i], _N) for i in 1:($(degree))]
         quote
             if $$internal
                 import ..NodeModule.constructorof as $_constructorof
@@ -271,24 +273,26 @@ function _extend_nary_operator(
 
             function $($f_outside)(
                 $(args...)
-            ) where {T<:$($type_requirements),N<:$_AbstractExpressionNode{T}}
+            ) where {$_T<:$($type_requirements),$_N<:$_AbstractExpressionNode{$_T}}
                 # Standard n-ary operator behavior
                 if all(c -> c.degree == 0 && c.constant, ($(arg_syms...),))
-                    $_constructorof(N)(
-                        T; val=$($f_inside)(map(c -> c.val, ($(arg_syms...),))...)
+                    $_constructorof($_N)(
+                        $_T; val=$($f_inside)(map(c -> c.val, ($(arg_syms...),))...)
                     )
                 else
-                    __is_chainable = $$f_inside ∈ (+, *)
-                    latest_op_idx = $$lookup_op(
-                        $$f_inside, Val($$degree); allow_failure=__is_chainable
+                    $_is_chainable = $$f_inside ∈ (+, *)
+                    $_latest_op_idx = $$lookup_op(
+                        $$f_inside, Val($$degree); allow_failure=$_is_chainable
                     )
-                    if __is_chainable && iszero(latest_op_idx)
+                    if $_is_chainable && iszero($_latest_op_idx)
                         # If this method exists, and then the operator is removed from the mapping,
                         # Julia will chain the calls (like `+(x1, x2, x3)`, even though `+` is only given as a binary operator).
                         # Therefore, we need to manually chain the calls in such instances.
                         $$foldl($$f_outside, ($(arg_syms...),))
                     else
-                        $_constructorof(N)(; op=latest_op_idx, children=($(arg_syms...),))
+                        $_constructorof($_N)(;
+                            op=$_latest_op_idx, children=($(arg_syms...),)
+                        )
                     end
                 end
             end
