@@ -3,16 +3,18 @@
 DynamicExpressions.jl v2.0 introduces support for n-arity operators (nodes with arbitrary numbers of children),
 which required some breaking changes to implement.  This guide will help you migrate your code from v1.x to v2.0.
 
-## Breaking Changes Summary
+## Summary
 
 - Types
     - `Node{T}` is now `Node{T,D}` where `D` is the maximum degree
     - `AbstractExpressionNode{T}` is now `AbstractExpressionNode{T,D}`
     - `AbstractNode` is now `AbstractNode{D}`
+    - Before, `Node{T}` had fields `l::Node{T}` and `r::Node{T}`.
+    - Now, the type is `Node{T,D}`, and it has the field `children::NTuple{D,Nullable{Node{T,D}}}`.
 - Accessors
     - You can now access children by index with `get_child(tree, i)`
-        - `tree.l` should now be written as `get_child(tree, 1)`
-        - `tree.r` should now be written as `get_child(tree, 2)`
+        - `tree.l` can now be written as `get_child(tree, 1)`
+        - `tree.r` can now be written as `get_child(tree, 2)`
         - _note: you can access multiple children with `get_children(tree, Val(degree))`_
     - You can now set children by index with `set_child!(tree, child, i)`
         - `tree.l = child` should now be written as `set_child!(tree, child, 1)`
@@ -22,19 +24,31 @@ which required some breaking changes to implement.  This guide will help you mig
     - `Node{T}(; op=1, l=x)` should now be written as `Node{T}(; op=1, children=(x,))`
     - `Node{T}(; op=1, l=x, r=y)` should now be written as `Node{T}(; op=1, children=(x, y))`
     - You may now use `Node{T,D}(; op=1, children=(x,))` to specify degree other than the default of 2.
-- Types
-    - Before, `Node{T}` had fields `l::Node{T}` and `r::Node{T}`.
-    - Now, the type is `Node{T,D}`, and it has the field `children::NTuple{D,Nullable{Node{T,D}}}`.
 - OperatorEnum
-    - The `OperatorEnum` and `GenericOperatorEnum` now each use a single `ops` field, a tuple of tuples, indexed by arity.
-        - `operators.unaops` should now be written as `operators.ops[1]`
-        - `operators.binops` should now be written as `operators.ops[2]`
-        - However, the properties will be automatically aliased for the time being.
+    - `OperatorEnum` (and `GenericOperatorEnum`) now uses a single `ops` field: this is a tuple of tuples, indexed by arity.
+        - `operators.unaops` is now written as `operators.ops[1]`, and `operators.binops` is now written as `operators.ops[2]`.
     - `OperatorEnum(binary_operators=(+, -, *), unary_operators=(sin, cos))` can now be written as `OperatorEnum(2 => (+, -, *), 1 => (sin, cos))`
         - This API permits higher-arity operators: `OperatorEnum(1 => (sin, cos), 2 => (+, -, *), 3 => (fma, max))`.
-        - (Note that the order you pass the pairs is not important.)
 
-## Necessary Changes to Your Code
+## Breaking Changes
+
+The main breaking change is that `Node{T}` is now `Node{T,D}` where `D` is the
+**maximum degree** of any possible node in the tree. `node.degree` is _still_ the same as before,
+and is such that `node.degree <= D`.
+
+Similarly, `AbstractExpressionNode{T}` is now `AbstractExpressionNode{T,D}`,
+and `AbstractNode` is now `AbstractNode{D}`.
+
+Before, `Node{T}` had fields `l::Node{T}` and `r::Node{T}`. Now, it has a single combined
+field `children::NTuple{D,Nullable{Node{T,D}}}`. This is a tuple of wrapped node objects,
+which should be accessed with `get_child(tree, i)` and set with `set_child!(tree, child, i)`.
+However, the old getters and setters will still function for binary trees (`.l` and `.r`).
+
+You may now use `Node{T,D}(; op=1, children=(x,))` to specify degree other than the default of 2.
+However, the default `Node{T}(; op=1, children=(x,))` is still available and will result
+in type `Node{T,2}`.
+
+### Necessary Changes to Your Code
 
 The main breaking change that requires some modifications is patterns that
 explicitly match `tree.degree` in conditional logic. The `tree.degree == 0`
@@ -137,3 +151,25 @@ y = Node{Float64,3}(; feature=2)
 z = Node{Float64,3}(; feature=3)
 tree = Node{Float64,3}(; op=1, children=(x, y, z))
 ```
+
+## OperatorEnum redesign (Non-Breaking)
+
+`OperatorEnum` (and `GenericOperatorEnum`) now uses a single `ops` field: this is a tuple of tuples, indexed by arity.
+`operators.unaops` is now written as `operators.ops[1]`, and `operators.binops` is now written as `operators.ops[2]`.
+
+However, the properties are aliased, so the old syntax will still work.
+
+Along with this, there is a new API for constructing `OperatorEnum`s:
+
+```julia
+# operators = OperatorEnum(binary_operators=(+, -, *), unary_operators=(sin, cos))  # old
+operators = OperatorEnum(2 => (+, -, *), 1 => (sin, cos))
+```
+
+This API permits higher-arity operators:
+
+```julia
+operators = OperatorEnum(1 => (sin, cos), 2 => (+, -, *), 3 => (fma, max))
+```
+
+(Note that the order you pass the pairs is not important.)
