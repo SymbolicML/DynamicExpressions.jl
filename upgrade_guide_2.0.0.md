@@ -25,6 +25,14 @@ which required some breaking changes to implement.  This guide will help you mig
 - Types
     - Before, `Node{T}` had fields `l::Node{T}` and `r::Node{T}`.
     - Now, the type is `Node{T,D}`, and it has the field `children::NTuple{D,Nullable{Node{T,D}}}`.
+- OperatorEnum
+    - The `OperatorEnum` and `GenericOperatorEnum` now each use a single `ops` field, a tuple of tuples, indexed by arity.
+        - `operators.unaops` should now be written as `operators.ops[1]`
+        - `operators.binops` should now be written as `operators.ops[2]`
+        - However, the properties will be automatically aliased for the time being.
+    - `OperatorEnum(binary_operators=(+, -, *), unary_operators=(sin, cos))` can now be written as `OperatorEnum(2 => (+, -, *), 1 => (sin, cos))`
+        - This API permits higher-arity operators: `OperatorEnum(1 => (sin, cos), 2 => (+, -, *), 3 => (fma, max))`.
+        - (Note that the order you pass the pairs is not important.)
 
 ## Necessary Changes to Your Code
 
