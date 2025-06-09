@@ -202,7 +202,7 @@ for total type stability.
 end
 @inline function get_children(node::AbstractNode{D}, ::Val{n}) where {D,n}
     cs = unsafe_get_children(node)
-    return ntuple(i -> cs[i][], Val(n))
+    return ntuple(i -> cs[i][], Val(Int(n)))
 end
 
 """
