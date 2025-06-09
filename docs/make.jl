@@ -7,7 +7,7 @@ using Literate: markdown
 ####################################
 
 include("utils.jl")
-# process_literate_blocks()  # Disabled to avoid example processing errors
+# process_literate_blocks()  # Temporarily disabled until examples are fixed
 
 ####################################
 # index.md #########################
@@ -56,7 +56,6 @@ makedocs(;
     authors="Miles Cranmer",
     clean=true,
     checkdocs=:none,
-    warnonly=[:missing_docs, :cross_references, :setup_block, :eval_block],
     format=Documenter.HTML(;
         canonical="https://ai.damtp.cam.ac.uk/dynamicexpressions/stable"
     ),
@@ -97,9 +96,10 @@ open(redirect_file, "w") do f
     write(f, redirect_page)
 end
 
+# Deploy only if in CI environment with proper credentials
 # deploydocs(; repo="github.com/SymbolicML/DynamicExpressions.jl.git")
 
 # Mirror to DAMTP:
-# ENV["DOCUMENTER_KEY"] = ENV["DOCUMENTER_KEY_CAM"]
+# ENV["DOCUMENTER_KEY"] = ENV["DOCUMENTER_KEY_CAM"] 
 # ENV["GITHUB_REPOSITORY"] = "ai-damtp-cam-ac-uk/dynamicexpressions.git"
 # deploydocs(; repo="github.com/ai-damtp-cam-ac-uk/dynamicexpressions.git")

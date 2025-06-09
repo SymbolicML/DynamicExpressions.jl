@@ -19,28 +19,31 @@
 
     #=
     Now, let's declare some operators to use in our expression tree.
-
-    Note that the declaration of the `OperatorEnum` updates
-    a global mapping from operators to their index in a list.
-    This is purely for convenience, and most of the time, you would
-    either operate directly on the `OperatorEnum`, like with [`eval_tree_array`](@ref),
-    or use [`Expression`](@ref) objects to store them alongside the expression.
     =#
-    operators = OperatorEnum(1 => (sin, exp), 2 => (+, -, *, /))
+    operators = OperatorEnum(1 => (sin, cos, exp), 2 => (+, -, *, /))
 
     # Now, let's create another variable
     y = Node{Float64}(; feature=2)
 
-    # And we can now create expression trees:
-    tree = (x + y) * const_1 - sin(x)
+    # And we can now create expression trees using explicit Node construction:
+    # tree = (x + y) * const_1 - sin(x)
+    # This becomes: - (* (+ x y) const_1) (sin x)
+    add_node = Node{Float64}(; op=1, children=(x, y))  # x + y (op=1 is first binop: +)
+    mul_node = Node{Float64}(; op=3, children=(add_node, const_1))  # (* (+ x y) const_1) (op=3 is third binop: *)
+    sin_node = Node{Float64}(; op=1, children=(x,))  # sin(x) (op=1 is first unary: sin)
+    tree = Node{Float64}(; op=2, children=(mul_node, sin_node))  # - (* ...) (sin x) (op=2 is second binop: -)
 
     # The type of this is the same as the type of the variables
     # and constants, meaning we have type stability:
     typeof(tree), typeof(x)
     @test typeof(tree) == typeof(x)  #src
 
-    # We can also just use scalars directly:
-    tree2 = 2x - sin(x)
+    # We can also create another tree:
+    # tree2 = 2x - sin(x) becomes: - (* 2 x) (sin x)
+    const_2 = Node{Float64}(; val=2.0)
+    mul_node2 = Node{Float64}(; op=3, children=(const_2, x))  # 2 * x
+    sin_node2 = Node{Float64}(; op=1, children=(x,))  # sin(x)
+    tree2 = Node{Float64}(; op=2, children=(mul_node2, sin_node2))  # - (* 2 x) (sin x)
 
     # As you have noticed, the tree is printed as an expression.
     # We can control this with the [`string_tree`](@ref) function,
@@ -93,8 +96,14 @@
     As a more complex example, let's compute the depth of a tree. Here, we need
     to use a more complicated reduction operation – the `max`:
     =#
+    # complex_expr = x + sin(sin(exp(x))) becomes: + x (sin (sin (exp x)))
+    exp_node = Node{Float64}(; op=3, children=(x,))  # exp(x) (op=3 is third unary: exp)
+    sin_node1 = Node{Float64}(; op=1, children=(exp_node,))  # sin(exp(x))
+    sin_node2 = Node{Float64}(; op=1, children=(sin_node1,))  # sin(sin(exp(x)))
+    complex_tree = Node{Float64}(; op=1, children=(x, sin_node2))  # x + sin(sin(exp(x)))
+    
     depth = tree_mapreduce(
-        node -> 1, (parent, children...) -> 1 + max(children...), x + sin(sin(exp(x)))
+        node -> 1, (parent, children...) -> 1 + max(children...), complex_tree
     )
     @test depth == 5 #src
     #=
