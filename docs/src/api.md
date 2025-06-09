@@ -10,12 +10,6 @@ This `enum` is defined as follows:
 OperatorEnum
 ```
 
-Construct this operator specification as follows:
-
-```@docs
-OperatorEnum
-```
-
 This is just for scalar operators. However, you can use
 the following for more general operators:
 
@@ -60,7 +54,7 @@ When using these node constructors, types will automatically be promoted.
 You can convert the type of a node using `convert`:
 
 ```@docs
-convert(::Type{N1}, tree::N2) where {T1,T2,D1,D2,N1<:AbstractExpressionNode{T1,D1},N2<:AbstractExpressionNode{T2,D2}}
+convert(::Type{N1}, tree::N2) where {T1,T2,N1<:AbstractExpressionNode{T1},N2<:AbstractExpressionNode{T2}}
 ```
 
 You can set a `tree` (in-place) with `set_node!`:
@@ -167,7 +161,7 @@ which breaks shared connections into separate nodes.
 Both the `Node` and `GraphNode` types are subtypes of the abstract type:
 
 ```@docs
-AbstractExpressionNode{T}
+AbstractExpressionNode
 ```
 
 which can be used to create additional expression-like types.
