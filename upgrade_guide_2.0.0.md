@@ -69,7 +69,8 @@ end
 
 You have two options for upgrading
 
-1. Constrain your type signatures: Use `::AbstractExpressionNode{T,2}` to only accept binary trees, and refuse higher-arity nodes
+1. Constrain your type signatures: Use `::AbstractExpressionNode{T,2}` to only
+    accept binary trees, and refuse higher-arity nodes
 
     ```julia
     function my_function(tree::AbstractExpressionNode{T,2}) where T
