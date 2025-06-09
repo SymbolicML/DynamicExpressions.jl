@@ -10,12 +10,6 @@ This `enum` is defined as follows:
 OperatorEnum
 ```
 
-Construct this operator specification as follows:
-
-```@docs
-OperatorEnum
-```
-
 This is just for scalar operators. However, you can use
 the following for more general operators:
 
