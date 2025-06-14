@@ -3,12 +3,7 @@ module EvaluateModule
 using DispatchDoctor: @stable, @unstable
 
 import ..NodeModule:
-    AbstractExpressionNode,
-    constructorof,
-    max_degree,
-    get_children,
-    get_child,
-    with_type_parameters
+    AbstractExpressionNode, constructorof, get_children, get_child, with_type_parameters
 import ..StringsModule: string_tree
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: fill_similar, counttuple, ResultOk
@@ -264,11 +259,11 @@ end
 end
 
 function _eval_tree_array(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNode{T,D},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     eval_options::EvalOptions,
-)::ResultOk where {T}
+)::ResultOk where {T,D}
     # First, we see if there are only constants in the tree - meaning
     # we can just return the constant result.
     if tree.degree == 0
@@ -284,7 +279,7 @@ function _eval_tree_array(
     elseif tree.degree == 1
         op_idx = tree.op
         return dispatch_deg1_eval(tree, cX, op_idx, operators, eval_options)
-    elseif max_degree(tree) == 2 || tree.degree == 2
+    elseif D == 2 || tree.degree == 2
         # TODO - add op(op2(x, y), z) and op(x, op2(y, z))
         # op(x, y), where x, y are constants or variables.
         op_idx = tree.op
@@ -400,12 +395,11 @@ end
 
 # This forms an if statement over the degree of a given node.
 @generated function dispatch_degn_eval(
-    tree::AbstractExpressionNode{T},
+    tree::AbstractExpressionNode{T,D},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
     eval_options::EvalOptions,
-) where {T}
-    D = max_degree(tree)
+) where {T,D}
     return quote
         # If statement over degrees
         degree = tree.degree
