@@ -12,7 +12,6 @@ function _set_nan!(out)
     out .= convert(eltype(out), NaN)
     return nothing
 end
-@non_differentiable _set_nan!(out)
 
 # Evaluation:
 """
