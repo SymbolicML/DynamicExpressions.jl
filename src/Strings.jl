@@ -64,6 +64,18 @@ end
     end
 end
 
+const FEATURE_PLACEHOLDER_FIRST_HALF_LENGTH = length("{FEATURE_")
+function replace_feature_placeholders(s::String, f_variable::Function, variable_names)
+    return replace(
+        s,
+        r"\{FEATURE_(\d+)\}" =>
+            m -> f_variable(
+                parse(Int, m[(begin + FEATURE_PLACEHOLDER_FIRST_HALF_LENGTH):(end - 1)]),
+                variable_names,
+            ),
+    )
+end
+
 # Can overload these for custom behavior:
 needs_brackets(val::Real) = false
 needs_brackets(val::AbstractArray) = false
@@ -112,12 +124,33 @@ function combine_op_with_inputs(op, l, r)::Vector{Char}
     end
 end
 function combine_op_with_inputs(op, l)
-    # "op(l)"
-    out = copy(op)
-    push!(out, '(')
-    append!(out, strip_brackets(l))
-    push!(out, ')')
-    return out
+    # Check if this is an assignment operator with our special prefix
+    op_str = String(op)
+    if startswith(op_str, "ASSIGN_OP:")
+        # Extract the variable name from the operator name
+        var_name = op_str[11:end]
+        # Format: (var ← expr)
+        out = ['(']
+        append!(out, collect(var_name))
+        append!(out, collect(" ← "))
+        # Ensure the expression is always wrapped in parentheses for clarity
+        if l[1] == '(' && l[end] == ')'
+            append!(out, l)
+        else
+            push!(out, '(')
+            append!(out, strip_brackets(l))
+            push!(out, ')')
+        end
+        push!(out, ')')
+        return out
+    else
+        # Regular unary operator: "op(l)"
+        out = copy(op)
+        push!(out, '(')
+        append!(out, strip_brackets(l))
+        push!(out, ')')
+        return out
+    end
 end
 
 """
@@ -188,7 +221,9 @@ function string_tree(
             c
         end,
     )
-    return String(strip_brackets(raw_output))
+    string_output = String(strip_brackets(raw_output))
+    string_output = replace_feature_placeholders(string_output, f_variable, variable_names)
+    return string_output
 end
 
 # Print an equation
