@@ -54,9 +54,7 @@ const Max2Tensor{T} = DynamicTensor{T,2,Tuple{Base.RefValue{T},Vector{T},Matrix{
 Max2Tensor{T}(x) where {T} = DynamicTensor{T,2}(x)
 
 # Before implementing, we get a nice error message:
-if VERSION >= v"1.9-"
-    @test_throws "Base number type of type" DE.get_number_type(DynamicTensor{Float64,2})
-end
+@test_throws "Base number type of type" DE.get_number_type(DynamicTensor{Float64,2})
 
 DE.get_number_type(::Type{<:DynamicTensor{T}}) where {T} = T
 
@@ -165,11 +163,11 @@ Base.invokelatest(
     () -> begin
 
         # test operator extended operators
-        @test hasmethod(q, Tuple{Node{Max2Tensor{Float64}}})
-        @test hasmethod(a, Tuple{Max2Tensor{Float64},Node{Max2Tensor{Float64}}})
-        @test hasmethod(a, Tuple{Node{Max2Tensor{Float64}},Node{Max2Tensor{Float64}}})
-        @test !hasmethod(a, Tuple{Float64,Node{Float64}})
-        @test !hasmethod(a, Tuple{Node{Max2Tensor{Float32}},Node{Max2Tensor{Float32}}})
+        @test hasmethod(q, Tuple{Node{Max2Tensor{Float64},2}})
+        @test hasmethod(a, Tuple{Max2Tensor{Float64},Node{Max2Tensor{Float64},2}})
+        @test hasmethod(a, Tuple{Node{Max2Tensor{Float64},2},Node{Max2Tensor{Float64},2}})
+        @test !hasmethod(a, Tuple{Float64,Node{Float64,2}})
+        @test !hasmethod(a, Tuple{Node{Max2Tensor{Float32},2},Node{Max2Tensor{Float32},2}})
 
         tree = a(Node{Max2Tensor{Float64}}(; feature=1), Max2Tensor{Float64}(3.0))
         results = tree(

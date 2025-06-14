@@ -6,7 +6,8 @@ using ..NodeModule:
     tree_mapreduce,
     leaf_copy,
     branch_copy,
-    set_node!
+    set_node!,
+    set_children!
 
 """
     allocate_container(prototype::AbstractExpressionNode, n=nothing)
@@ -55,14 +56,11 @@ function leaf_copy_into!(dest::N, src::N) where {N<:AbstractExpressionNode}
 end
 # COV_EXCL_STOP
 function branch_copy_into!(
-    dest::N, src::N, children::Vararg{N,M}
-) where {N<:AbstractExpressionNode,M}
+    dest::N, src::N, children::Vararg{Any,M}
+) where {T,D,N<:AbstractExpressionNode{T,D},M}
     dest.degree = M
     dest.op = src.op
-    dest.l = children[1]
-    if M == 2
-        dest.r = children[2]
-    end
+    set_children!(dest, children)
     return dest
 end
 

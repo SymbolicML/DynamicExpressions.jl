@@ -40,7 +40,7 @@ For example,
 ```@example
 using DynamicExpressions
 
-operators = OperatorEnum(; binary_operators=[+, -, *], unary_operators=[cos])
+operators = OperatorEnum(1 => (cos, sin), 2 => (+, -, *, /))
 tree = Node(; feature=1) * cos(Node(; feature=2) - 3.2)
 
 tree([1 2 3; 4 5 6.], operators)
@@ -155,7 +155,7 @@ Let's look at an example. First, let's create a tree:
 ```julia
 using DynamicExpressions
 
-operators = OperatorEnum(binary_operators=(+, -, *, /), unary_operators=(cos, sin))
+operators = OperatorEnum(1 => (cos, sin), 2 => (+, -, *, /))
 
 x1 = Node{Float64}(feature=1)
 x2 = Node{Float64}(feature=2)

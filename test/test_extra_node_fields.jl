@@ -2,23 +2,35 @@
 
 using Test
 using DynamicExpressions
-using DynamicExpressions: constructorof
+using DynamicExpressions: Nullable, constructorof, max_degree
 
-mutable struct FrozenNode{T} <: AbstractExpressionNode{T}
+mutable struct FrozenNode{T,D} <: AbstractExpressionNode{T,D}
     degree::UInt8
     constant::Bool
     val::T
     frozen::Bool  # Extra field!
     feature::UInt16
     op::UInt8
-    l::FrozenNode{T}
-    r::FrozenNode{T}
+    children::NTuple{D,Nullable{FrozenNode{T,D}}}
 
-    function FrozenNode{_T}() where {_T}
-        n = new{_T}()
+    function FrozenNode{_T,_D}() where {_T,_D}
+        n = new{_T,_D}()
         n.frozen = false
         return n
     end
+end
+function DynamicExpressions.constructorof(::Type{N}) where {N<:FrozenNode}
+    return FrozenNode{T,max_degree(N)} where {T}
+end
+function DynamicExpressions.with_type_parameters(
+    ::Type{N}, ::Type{T}
+) where {T,N<:FrozenNode}
+    return FrozenNode{T,max_degree(N)}
+end
+function DynamicExpressions.with_max_degree(
+    ::Type{N}, ::Val{D}
+) where {T,N<:FrozenNode{T},D}
+    return FrozenNode{T,D}
 end
 function DynamicExpressions.leaf_copy(t::FrozenNode{T}) where {T}
     out = if t.constant
@@ -56,7 +68,7 @@ function DynamicExpressions.leaf_equal(a::FrozenNode, b::FrozenNode)
     end
 end
 
-n = let n = FrozenNode{Float64}()
+n = let n = FrozenNode{Float64,2}()
     n.degree = 0
     n.constant = true
     n.val = 0.0
@@ -92,5 +104,5 @@ ex = parse_expression(
 
 @test string_tree(ex) == "x + sin(y + 2.1)"
 @test ex.tree.frozen == false
-@test ex.tree.r.frozen == true
-@test ex.tree.r.l.frozen == false
+@test ex.tree.children[2][].frozen == true
+@test ex.tree.children[2][].children[1][].frozen == false

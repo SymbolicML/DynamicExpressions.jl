@@ -62,17 +62,15 @@ end
     expected = @. sin(2.0 * X[1, :] + exp(X[2, :] + 5.0))
     expected_dy_dx1 = @. 2.0 * cos(2.0 * X[1, :] + exp(X[2, :] + 5.0))
 
-    if VERSION >= v"1.9"
-        @test_nowarn begin
-            result = ex(X)
-            @test result ≈ expected
-            result, _ = eval_tree_array(ex, X)
-            @test result ≈ expected
-            result_grad = ex'(X)
-            @test result_grad[1, :] ≈ expected_dy_dx1
-            _, result_grad, _ = eval_grad_tree_array(ex, X; variable=Val(true))
-            @test result_grad[1, :] ≈ expected_dy_dx1
-        end
+    @test_nowarn begin
+        result = ex(X)
+        @test result ≈ expected
+        result, _ = eval_tree_array(ex, X)
+        @test result ≈ expected
+        result_grad = ex'(X)
+        @test result_grad[1, :] ≈ expected_dy_dx1
+        _, result_grad, _ = eval_grad_tree_array(ex, X; variable=Val(true))
+        @test result_grad[1, :] ≈ expected_dy_dx1
     end
 end
 
@@ -218,11 +216,9 @@ end
     @test_throws ArgumentError @parse_expression(
         $ex + 1.5, variable_names = variable_names, operators = operators
     )
-    if VERSION >= v"1.9"
-        @test_throws "Cannot parse an expression as a value in another expression. " @parse_expression(
-            $ex + 1.5, variable_names = variable_names, operators = operators
-        )
-    end
+    @test_throws "Cannot parse an expression as a value in another expression. " @parse_expression(
+        $ex + 1.5, variable_names = variable_names, operators = operators
+    )
     @eval struct Foo
         x::$(typeof(ex.tree))
     end
@@ -230,11 +226,9 @@ end
     @test_throws ArgumentError @parse_expression(
         $(foo).x + 1.5, variable_names = variable_names, operators = operators
     )
-    if VERSION >= v"1.9"
-        @test_throws "Unrecognized expression type" @parse_expression(
-            $(foo).x + 1.5, variable_names = variable_names, operators = operators
-        )
-    end
+    @test_throws "Unrecognized expression type" @parse_expression(
+        $(foo).x + 1.5, variable_names = variable_names, operators = operators
+    )
 end
 
 @testitem "No operators and variable names" begin
@@ -312,9 +306,7 @@ end
 
     # First, let's define our operators and variable names:
 
-    operators = OperatorEnum(;
-        binary_operators=(+, -, *, /), unary_operators=(sin, cos, exp)
-    )
+    operators = OperatorEnum(1 => (sin, cos, exp), 2 => (+, -, *, /))
     #
     variable_names = ["x", "y"]
 

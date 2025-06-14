@@ -52,31 +52,25 @@
     )
 
     # Verify that the unimplemented methods raise an error
-    if VERSION >= v"1.9"
-        @test_throws "`get_operators` function must be implemented for" DE.get_operators(
-            multi_ex, nothing
-        )
-        @test_throws "`get_variable_names` function must be implemented for" DE.get_variable_names(
-            multi_ex, nothing
-        )
-        @test_throws "`get_tree` function must be implemented for" DE.get_tree(multi_ex)
-        @test_throws "`get_contents` function must be implemented for" DE.get_contents(
-            multi_ex
-        )
-        @test_throws "`get_metadata` function must be implemented for" DE.get_metadata(
-            multi_ex
-        )
-        @test_throws "`copy` function must be implemented for" copy(multi_ex)
-        @test_throws "`get_scalar_constants` function must be implemented for" get_scalar_constants(
-            multi_ex
-        )
-        @test_throws "`set_scalar_constants!` function must be implemented for" set_scalar_constants!(
-            multi_ex, nothing, nothing
-        )
-        @test_throws "`extract_gradient` function must be implemented for" extract_gradient(
-            nothing, multi_ex
-        )
-    end
+    @test_throws "`get_operators` function must be implemented for" DE.get_operators(
+        multi_ex, nothing
+    )
+    @test_throws "`get_variable_names` function must be implemented for" DE.get_variable_names(
+        multi_ex, nothing
+    )
+    @test_throws "`get_tree` function must be implemented for" DE.get_tree(multi_ex)
+    @test_throws "`get_contents` function must be implemented for" DE.get_contents(multi_ex)
+    @test_throws "`get_metadata` function must be implemented for" DE.get_metadata(multi_ex)
+    @test_throws "`copy` function must be implemented for" copy(multi_ex)
+    @test_throws "`get_scalar_constants` function must be implemented for" get_scalar_constants(
+        multi_ex
+    )
+    @test_throws "`set_scalar_constants!` function must be implemented for" set_scalar_constants!(
+        multi_ex, nothing, nothing
+    )
+    @test_throws "`extract_gradient` function must be implemented for" extract_gradient(
+        nothing, multi_ex
+    )
 
     tree_factory(f::F, trees) where {F} = f(; trees...)
     function DE.get_contents(ex::MultiScalarExpression)

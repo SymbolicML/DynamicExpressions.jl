@@ -27,7 +27,7 @@ A dynamic expression is a snippet of code that can change throughout runtime - c
 ```julia
 using DynamicExpressions
 
-operators = OperatorEnum(; binary_operators=[+, -, *], unary_operators=[cos])
+operators = OperatorEnum(1 => (cos,), 2 => (+, -, *))
 variable_names = ["x1", "x2"]
 
 x1 = Expression(Node{Float64}(feature=1); operators, variable_names)
@@ -98,7 +98,7 @@ We can also compute gradients with the same speed:
 ```julia
 using Zygote  # trigger extension
 
-operators = OperatorEnum(; binary_operators=[+, -, *], unary_operators=[cos])
+operators = OperatorEnum(1 => (cos,), 2 => (+, -, *))
 variable_names = ["x1", "x2"]
 x1, x2 = (Expression(Node{Float64}(feature=i); operators, variable_names) for i in 1:2)
 
@@ -149,7 +149,7 @@ using DynamicExpressions: @declare_expression_operator
 my_string_func(x::String) = "ello $x"
 @declare_expression_operator(my_string_func, 1)
 
-operators = GenericOperatorEnum(; binary_operators=[*], unary_operators=[my_string_func])
+operators = GenericOperatorEnum(1 => (my_string_func,), 2 => (*,))
 
 x1 = Expression(_x1; operators, variable_names)
 ```
@@ -192,7 +192,7 @@ vec_square(x) = x .* x
 @declare_expression_operator(vec_square, 1)
 
 # Set up an operator enum:
-operators = GenericOperatorEnum(;binary_operators=[vec_add], unary_operators=[vec_square])
+operators = GenericOperatorEnum(1 => (vec_square,), 2 => (vec_add,))
 
 # Construct the expression:
 variable_names = ["x1"]

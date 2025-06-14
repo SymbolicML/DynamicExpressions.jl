@@ -15,7 +15,6 @@ mapreduce(f::F, op::G, tree::AbstractNode; return_type, f_on_shared, break_shari
 any(f::F, tree::AbstractNode) where {F<:Function}
 all(f::F, tree::AbstractNode) where {F<:Function}
 map(f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; break_sharing::Val=Val(false)) where {F<:Function,RT}
-convert(::Type{<:AbstractExpressionNode{T1}}, n::AbstractExpressionNode{T2}) where {T1,T2}
 hash(tree::AbstractExpressionNode{T}, h::UInt; break_sharing::Val=Val(false)) where {T}
 ```
 

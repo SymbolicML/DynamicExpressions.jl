@@ -32,11 +32,11 @@ end
 
 @testset "collect" begin
     ctree = copy(tree)
-    @test typeof(first(collect(ctree))) == Node{Float64}
+    @test typeof(first(collect(ctree))) <: Node{Float64}
     @test objectid(first(collect(ctree))) == objectid(ctree)
     @test objectid(first(collect(ctree))) == objectid(ctree)
     @test objectid(first(collect(ctree))) == objectid(ctree)
-    @test typeof(collect(ctree)) == Vector{Node{Float64}}
+    @test typeof(collect(ctree)) <: Vector{<:Node{Float64}}
     @test length(collect(ctree)) == 24
     @test sum((t -> (t.degree == 0 && t.constant) ? t.val : 0.0).(collect(ctree))) ≈ 11.6
 end
@@ -168,10 +168,8 @@ end
 end
 
 @testset "Unsupported" begin
-    if VERSION >= v"1.7.0"
-        for func in (:reduce, :foldl, :foldr, :mapfoldl, :mapfoldr)
-            wrapped_func(args...) = (@eval $func)(args...)
-            @test_throws ErrorException wrapped_func(Returns(1), tree)
-        end
+    for func in (:reduce, :foldl, :foldr, :mapfoldl, :mapfoldr)
+        wrapped_func(args...) = (@eval $func)(args...)
+        @test_throws ErrorException wrapped_func(Returns(1), tree)
     end
 end
