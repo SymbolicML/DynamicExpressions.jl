@@ -8,11 +8,11 @@ import ..NodeModule: AbstractExpressionNode
 import ..EvaluateModule: eval_tree_array
 import ..EvaluateDerivativeModule: eval_grad_tree_array
 
+# Needs to be special function so we can declare it non-differentiable to Zygote
 function _set_nan!(out)
     out .= convert(eltype(out), NaN)
     return nothing
 end
-@non_differentiable _set_nan!(out)
 
 # Evaluation:
 """
