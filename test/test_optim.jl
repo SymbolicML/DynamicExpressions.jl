@@ -80,29 +80,26 @@ end
 
     tree = copy(original_tree)
     did_i_run_2 = Ref(false)
-    fg!(F, G, tree) =
-        let
-            if G !== nothing
-                ŷ, dŷ_dconstants, _ = eval_grad_tree_array(
-                    tree, X, operators; variable=false
+    function my_fg!(F, G, tree)
+        if G !== nothing
+            ŷ, dŷ_dconstants, _ = eval_grad_tree_array(tree, X, operators; variable=false)
+            dresult_dŷ = @. 2 * (ŷ - y)
+            for i in eachindex(G)
+                G[i] = sum(
+                    j -> dresult_dŷ[j] * dŷ_dconstants[i, j],
+                    eachindex(axes(dŷ_dconstants, 2), axes(dresult_dŷ, 1)),
                 )
-                dresult_dŷ = @. 2 * (ŷ - y)
-                for i in eachindex(G)
-                    G[i] = sum(
-                        j -> dresult_dŷ[j] * dŷ_dconstants[i, j],
-                        eachindex(axes(dŷ_dconstants, 2), axes(dresult_dŷ, 1)),
-                    )
-                end
-                if F !== nothing
-                    did_i_run_2[] = true
-                    return sum(abs2, ŷ .- y)
-                end
-            elseif F !== nothing
-                # Only f
-                return sum(abs2, tree(X, operators) .- y)
             end
+            if F !== nothing
+                did_i_run_2[] = true
+                return sum(abs2, ŷ .- y)
+            end
+        elseif F !== nothing
+            # Only f
+            return sum(abs2, tree(X, operators) .- y)
         end
-    res = optimize(Optim.only_fg!(fg!), tree, BFGS())
+    end
+    res = optimize(Optim.only_fg!(my_fg!), tree, BFGS())
 
     @test did_i_run_2[]
     @test isapprox(
