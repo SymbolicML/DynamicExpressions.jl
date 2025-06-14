@@ -1,5 +1,7 @@
 module SimplifyModule
 
+using Compat: Fix
+
 import ..NodeModule:
     AbstractExpressionNode, constructorof, Node, copy_node, set_node!, set_child!, get_child
 import ..NodeUtilsModule: tree_mapreduce, is_node_constant
@@ -127,7 +129,7 @@ end
 # Simplify tree
 function simplify_tree!(tree::AbstractExpressionNode, operators::AbstractOperatorEnum)
     return tree_mapreduce(
-        identity, (p, c...) -> combine_children!(operators, p, c...), tree, typeof(tree);
+        identity, Fix{1}(combine_children!, operators), tree, typeof(tree)
     )
 end
 
