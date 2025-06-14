@@ -6,7 +6,7 @@ import ..NodeUtilsModule: tree_mapreduce, is_node_constant
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..ValueInterfaceModule: is_valid
 
-_op_kernel(f::F, l::T, ls::T...) where {F,T} = f(l, ls...)
+@inline _op_kernel(f::F, l::T, ls::T...) where {F,T} = f(l, ls...)
 
 is_commutative(::typeof(*)) = true
 is_commutative(::typeof(+)) = true
