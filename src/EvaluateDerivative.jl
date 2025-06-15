@@ -113,7 +113,7 @@ end
             dx = Base.Cartesian.@ncall($N, +, i -> grad_i * dx_cumulator_i[j])
             x_cumulator_1[j] = x
             dx_cumulator_1[j] = dx
-        end
+        end  # COV_EXCL_LINE
         return ResultOk2(x_cumulator_1, dx_cumulator_1, true)
     end
 end
@@ -143,14 +143,14 @@ end
 
     if nops > OPERATOR_LIMIT_BEFORE_SLOWDOWN
         quote
-            $setup
+            $setup  # COV_EXCL_LINE
             diff_degn_eval(
                 x_cumulators, dx_cumulators, operators[$degree][op_idx], direction
             )
         end
     else
         quote
-            $setup
+            $setup  # COV_EXCL_LINE
             Base.Cartesian.@nif(
                 $nops,
                 i -> i == op_idx,  # COV_EXCL_LINE
@@ -316,12 +316,12 @@ end
     nops = get_nops(operators, Val(degree))
     if nops > OPERATOR_LIMIT_BEFORE_SLOWDOWN
         quote
-            $setup
+            $setup  # COV_EXCL_LINE
             grad_degn_eval(x_cumulators, d_cumulators, operators[$degree][op_idx])
         end
     else
         quote
-            $setup
+            $setup  # COV_EXCL_LINE
             Base.Cartesian.@nif(
                 $nops,
                 i -> i == op_idx,  # COV_EXCL_LINE
@@ -354,10 +354,12 @@ end
             x_cumulator_1[j] = x
             for k in axes(d_cumulator_1, 1)
                 d_cumulator_1[k, j] = Base.Cartesian.@ncall(
-                    $N, +, i -> grad_i * d_cumulator_i[k, j]
+                    $N,
+                    +,
+                    i -> grad_i * d_cumulator_i[k, j]  # COV_EXCL_LINE
                 )
             end
-        end
+        end  # COV_EXCL_LINE
         return ResultOk2(x_cumulator_1, d_cumulator_1, true)
     end
 end

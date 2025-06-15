@@ -586,7 +586,7 @@ function deg1_l2_ll0_lr0_eval(
             x_l = op_l(val_ll, cX[feature_lr, j])::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
-        end
+        end  # COV_EXCL_LINE
         return ResultOk(cumulator, true)
     elseif get_child(get_child(tree, 1), 2).constant
         feature_ll = get_child(get_child(tree, 1), 1).feature
@@ -597,7 +597,7 @@ function deg1_l2_ll0_lr0_eval(
             x_l = op_l(cX[feature_ll, j], val_lr)::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
-        end
+        end  # COV_EXCL_LINE
         return ResultOk(cumulator, true)
     else
         feature_ll = get_child(get_child(tree, 1), 1).feature
@@ -607,7 +607,7 @@ function deg1_l2_ll0_lr0_eval(
             x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
-        end
+        end  # COV_EXCL_LINE
         return ResultOk(cumulator, true)
     end
 end
@@ -635,7 +635,7 @@ function deg1_l1_ll0_eval(
             x_l = op_l(cX[feature_ll, j])::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
-        end
+        end  # COV_EXCL_LINE
         return ResultOk(cumulator, true)
     end
 end
@@ -663,7 +663,7 @@ function deg2_l0_r0_eval(
         @inbounds @simd for j in axes(cX, 2)
             x = op(val_l, cX[feature_r, j])::T
             cumulator[j] = x
-        end
+        end  # COV_EXCL_LINE
         return ResultOk(cumulator, true)
     elseif get_child(tree, 2).constant
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
@@ -673,7 +673,7 @@ function deg2_l0_r0_eval(
         @inbounds @simd for j in axes(cX, 2)
             x = op(cX[feature_l, j], val_r)::T
             cumulator[j] = x
-        end
+        end  # COV_EXCL_LINE
         return ResultOk(cumulator, true)
     else
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
@@ -682,7 +682,7 @@ function deg2_l0_r0_eval(
         @inbounds @simd for j in axes(cX, 2)
             x = op(cX[feature_l, j], cX[feature_r, j])::T
             cumulator[j] = x
-        end
+        end  # COV_EXCL_LINE
         return ResultOk(cumulator, true)
     end
 end
@@ -701,14 +701,14 @@ function deg2_l0_eval(
         @inbounds @simd for j in eachindex(cumulator)
             x = op(val, cumulator[j])::T
             cumulator[j] = x
-        end
+        end  # COV_EXCL_LINE
         return ResultOk(cumulator, true)
     else
         feature = get_child(tree, 1).feature
         @inbounds @simd for j in eachindex(cumulator)
             x = op(cX[feature, j], cumulator[j])::T
             cumulator[j] = x
-        end
+        end  # COV_EXCL_LINE
         return ResultOk(cumulator, true)
     end
 end
@@ -727,14 +727,14 @@ function deg2_r0_eval(
         @inbounds @simd for j in eachindex(cumulator)
             x = op(cumulator[j], val)::T
             cumulator[j] = x
-        end
+        end  # COV_EXCL_LINE
         return ResultOk(cumulator, true)
     else
         feature = get_child(tree, 2).feature
         @inbounds @simd for j in eachindex(cumulator)
             x = op(cumulator[j], cX[feature, j])::T
             cumulator[j] = x
-        end
+        end  # COV_EXCL_LINE
         return ResultOk(cumulator, true)
     end
 end
@@ -769,7 +769,7 @@ end
     nops = get_nops(operators, Val(degree))
     get_inputs = quote
         cs = get_children(tree, Val($degree))
-        Base.Cartesian.@nexprs(
+        Base.Cartesian.@nexprs(  # COV_EXCL_LINE
             $degree,
             i -> begin  # COV_EXCL_LINE
                 input_i = let result = dispatch_constant_tree(cs[i], operators)
@@ -1027,7 +1027,7 @@ end
     nops = get_nops(operators, Val(degree))
     quote
         cs = get_children(tree, Val($degree))
-        Base.Cartesian.@nexprs(
+        Base.Cartesian.@nexprs(  # COV_EXCL_LINE
             $degree,
             i -> begin  # COV_EXCL_LINE
                 cumulator_i =
