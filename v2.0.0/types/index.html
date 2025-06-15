@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Redirecting...</title>
+    <script type="text/javascript">
+        var fragment = window.location.hash;
+        window.location.href = "../api/" + fragment;
+    </script>
+</head>
+<body>
+    <p>If you are not redirected automatically, follow this <a id="redirect-link" href="../api/">link to API</a>.</p>
+    <script type="text/javascript">
+        document.getElementById('redirect-link').href = "../api/" + window.location.hash;
+    </script>
+</body>
+</html>
