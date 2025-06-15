@@ -223,15 +223,16 @@ end
             leaf_equal(a, b)
         else
             (
-                branch_equal(a, b) && Base.Cartesian.@nif(
+                branch_equal(a, b) && Base.Cartesian.@nif(  # COV_EXCL_LINE
                     $D,
                     i -> deg == i,  # COV_EXCL_LINE
-                    i ->
+                    i -> begin  # COV_EXCL_LINE
                         let cs_a = get_children(a, Val(i)), cs_b = get_children(b, Val(i))  # COV_EXCL_LINE
                             Base.Cartesian.@nall(
                                 i, j -> inner_is_equal(cs_a[j], cs_b[j], id_maps)
                             )
                         end
+                    end
                 )
             )
         end

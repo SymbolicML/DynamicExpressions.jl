@@ -100,8 +100,8 @@ end
     return Expression(tree, Metadata(d))
 end
 
-has_node_type(::Union{E,Type{E}}) where {N,E<:AbstractExpression{<:Any,N}} = true
-has_node_type(::Union{E,Type{E}}) where {E<:AbstractExpression} = false
+has_node_type(::Union{E,Type{E}}) where {N,E<:AbstractExpression{<:Any,N}} = true  # COV_EXCL_LINE
+has_node_type(::Union{E,Type{E}}) where {E<:AbstractExpression} = false  # COV_EXCL_LINE
 node_type(::Union{E,Type{E}}) where {N,E<:AbstractExpression{<:Any,N}} = N
 function max_degree(::Union{E,Type{E}}) where {E<:AbstractExpression}
     return has_node_type(E) ? max_degree(node_type(E)) : max_degree(Node)
