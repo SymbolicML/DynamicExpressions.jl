@@ -23,39 +23,37 @@
     truth_1 = @. cos(exp(-(X[2, :] * X[2, :])))
     @test cos(g)(X) ≈ truth_1
 
-    @static if VERSION >= v"1.7.0"
-        # Test with zero inputs
-        @test f([0.0f0; 0.0f0;;])[1] ≈ -cos(-0.5f0)
-        @test g([0.0f0; 0.0f0;;])[1] ≈ 1.0f0
+    # Test with zero inputs
+    @test f([0.0f0; 0.0f0;;])[1] ≈ -cos(-0.5f0)
+    @test g([0.0f0; 0.0f0;;])[1] ≈ 1.0f0
 
-        # Test with large inputs
-        large_x, large_y = 1.0f5, 1.0f5
-        @test f([large_x; large_y;;])[1] ≈ large_x^2 - cos(2.5f0 * large_y - 0.5f0)
-        @test g([0.0f0; large_y;;])[1] ≈ 0.0f0  # exp(-large_number) should be very close to 0
+    # Test with large inputs
+    large_x, large_y = 1.0f5, 1.0f5
+    @test f([large_x; large_y;;])[1] ≈ large_x^2 - cos(2.5f0 * large_y - 0.5f0)
+    @test g([0.0f0; large_y;;])[1] ≈ 0.0f0  # exp(-large_number) should be very close to 0
 
-        # Test with small inputs
-        small = 1.0f-5
-        @test f([small; small;;])[1] ≈ small^2 - cos(2.5f0 * small - 0.5f0)
-        @test g([0.0f0; small;;])[1] ≈ exp(-(small^2))
+    # Test with small inputs
+    small = 1.0f-5
+    @test f([small; small;;])[1] ≈ small^2 - cos(2.5f0 * small - 0.5f0)
+    @test g([0.0f0; small;;])[1] ≈ exp(-(small^2))
 
-        # Test with negative inputs
-        @test f([-1.0f0; -1.0f0;;])[1] ≈ 1.0f0 - cos(-2.5f0 - 0.5f0)
-        @test g([0.0f0; -1.0f0;;])[1] ≈ exp(-1.0f0)
+    # Test with negative inputs
+    @test f([-1.0f0; -1.0f0;;])[1] ≈ 1.0f0 - cos(-2.5f0 - 0.5f0)
+    @test g([0.0f0; -1.0f0;;])[1] ≈ exp(-1.0f0)
 
-        # Test with NaN and Inf
-        @test isnan(f([NaN32; 1.0f0;;])[1])
-        @test isnan(g([0.0f0; NaN32;;])[1])
+    # Test with NaN and Inf
+    @test isnan(f([NaN32; 1.0f0;;])[1])
+    @test isnan(g([0.0f0; NaN32;;])[1])
 
-        # Should be equivariant with respect to composition
-        @test (f * g)([1.0f0; 1.0f0;;])[1] ≈ f([1.0f0; 1.0f0;;])[1] * g([1.0f0; 1.0f0;;])[1]
-        @test (f + g)([1.0f0; 1.0f0;;])[1] ≈ f([1.0f0; 1.0f0;;])[1] + g([1.0f0; 1.0f0;;])[1]
-        @test (f - g)([1.0f0; 1.0f0;;])[1] ≈ f([1.0f0; 1.0f0;;])[1] - g([1.0f0; 1.0f0;;])[1]
-        @test (f / g)([1.0f0; 1.0f0;;])[1] ≈ f([1.0f0; 1.0f0;;])[1] / g([1.0f0; 1.0f0;;])[1]
+    # Should be equivariant with respect to composition
+    @test (f * g)([1.0f0; 1.0f0;;])[1] ≈ f([1.0f0; 1.0f0;;])[1] * g([1.0f0; 1.0f0;;])[1]
+    @test (f + g)([1.0f0; 1.0f0;;])[1] ≈ f([1.0f0; 1.0f0;;])[1] + g([1.0f0; 1.0f0;;])[1]
+    @test (f - g)([1.0f0; 1.0f0;;])[1] ≈ f([1.0f0; 1.0f0;;])[1] - g([1.0f0; 1.0f0;;])[1]
+    @test (f / g)([1.0f0; 1.0f0;;])[1] ≈ f([1.0f0; 1.0f0;;])[1] / g([1.0f0; 1.0f0;;])[1]
 
-        @test (-f)([1.0f0; 1.0f0;;])[1] ≈ -f([1.0f0; 1.0f0;;])[1]
-        @test (cos(f))([1.0f0; 1.0f0;;])[1] ≈ cos(f([1.0f0; 1.0f0;;])[1])
-        @test (exp(g))([1.0f0; 1.0f0;;])[1] ≈ exp(g([1.0f0; 1.0f0;;])[1])
-    end
+    @test (-f)([1.0f0; 1.0f0;;])[1] ≈ -f([1.0f0; 1.0f0;;])[1]
+    @test (cos(f))([1.0f0; 1.0f0;;])[1] ≈ cos(f([1.0f0; 1.0f0;;])[1])
+    @test (exp(g))([1.0f0; 1.0f0;;])[1] ≈ exp(g([1.0f0; 1.0f0;;])[1])
 end
 
 @testitem "Math with numbers and expressions" begin
@@ -133,17 +131,14 @@ end
     @test_throws MissingOperatorError 1.0 / ex
     @test_throws MissingOperatorError 1 / ex
 
-    if VERSION >= v"1.8-"
-        err = try
-            cos(ex)
-        catch e
-            e
-        end
-        @test occursin(
-            "Operator cos not found in operators for expression type",
-            sprint(showerror, err),
-        )
+    err = try
+        cos(ex)
+    catch e
+        e
     end
+    @test occursin(
+        "Operator cos not found in operators for expression type", sprint(showerror, err)
+    )
 end
 @testitem "Custom operators and aliases" begin
     using DynamicExpressions
@@ -181,4 +176,39 @@ end
 
     @test ex_sqrt(X) ≈ [2.0; 0.0]
     @test ex_my(X) ≈ [16.0; 16.0]
+end
+
+# ─── PATCH: replace the ExpressionAlgebra block ──────────────────────────────
+@testitem "ExpressionAlgebra allow_chaining & generated operator wrappers" begin
+    using DynamicExpressions.ExpressionAlgebraModule:
+        allow_chaining, @declare_expression_operator
+    using DynamicExpressions.NodeModule: Node
+    using DynamicExpressions.ExpressionModule: Expression
+    using DynamicExpressions.OperatorEnumModule: OperatorEnum
+    using Test
+
+    @test allow_chaining(+) == true
+    @test allow_chaining(*) == true
+    @test !allow_chaining(^) # default false
+
+    # define a custom binary operator that simply calls +
+    my_add(a, b) = a + b
+    @declare_expression_operator(my_add, 2)
+
+    ops = OperatorEnum(1 => (), 2 => (+, my_add))
+    vars = ["x₁", "x₂"]
+    x₁, x₂ = (
+        Expression(Node(Float64; feature=i); operators=ops, variable_names=vars) for
+        i in 1:2
+    )
+    expr = my_add(x₁, x₂)
+
+    # ---- Evaluate on a matrix input (required by the public API) ------------
+    X = reshape([1, 2], 2, 1)
+    Y = [1 2; 3 4]                # 2×2 Int matrix to hit the promotion path
+    res1 = expr(X)
+    res2 = expr(Y)
+
+    @test res1 == [3]             # (2 × 1) → 1-element vector
+    @test res2 == [4, 6]          # (2 × 2) → 2-element vector, Int→Float64 promotion
 end

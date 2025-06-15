@@ -7,19 +7,12 @@ function symbolic_to_node(args...; kws...)
     return error("Please load the `SymbolicUtils` package to use `symbolic_to_node`.")
 end
 
-struct ZygoteGradient{F,degree,arg} <: Function
+struct ZygoteGradient{F,degree} <: Function
     op::F
 end
 
-function Base.show(io::IO, g::ZygoteGradient{F,degree,arg}) where {F,degree,arg}
+function Base.show(io::IO, g::ZygoteGradient{F,degree}) where {F,degree}
     print(io, "∂")
-    if degree == 2
-        if arg == 1
-            print(io, "₁")
-        elseif arg == 2
-            print(io, "₂")
-        end
-    end
     print(io, g.op)
     return nothing
 end
@@ -32,9 +25,8 @@ end
 function bumper_eval_tree_array(args...)
     return error("Please load the Bumper.jl package to use this feature.")
 end
-function bumper_kern1! end
-function bumper_kern2! end
+function bumper_kern! end
 
-_is_loopvectorization_loaded(_) = false
+_is_loopvectorization_loaded(_) = false  # COV_EXCL_LINE
 
 end

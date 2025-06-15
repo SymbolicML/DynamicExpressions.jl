@@ -2,43 +2,35 @@ module DynamicExpressionsLoopVectorizationExt
 
 using LoopVectorization: @turbo
 using DynamicExpressions: AbstractExpressionNode
+using DynamicExpressions.NodeModule: get_child
 using DynamicExpressions.UtilsModule: ResultOk
 using DynamicExpressions.EvaluateModule:
     @return_on_nonfinite_val, EvalOptions, get_array, get_feature_array, get_filled_array
 import DynamicExpressions.EvaluateModule:
     deg1_eval,
     deg2_eval,
+    degn_eval,
     deg1_l2_ll0_lr0_eval,
     deg1_l1_ll0_eval,
     deg2_l0_r0_eval,
     deg2_l0_eval,
     deg2_r0_eval
 import DynamicExpressions.ExtensionInterfaceModule:
-    _is_loopvectorization_loaded, bumper_kern1!, bumper_kern2!
+    _is_loopvectorization_loaded, bumper_kern!
 
 _is_loopvectorization_loaded(::Int) = true
 
-function deg2_eval(
-    cumulator_l::AbstractVector{T},
-    cumulator_r::AbstractVector{T},
-    op::F,
-    ::EvalOptions{true},
-)::ResultOk where {T<:Number,F}
-    @turbo for j in eachindex(cumulator_l)
-        x = op(cumulator_l[j], cumulator_r[j])
-        cumulator_l[j] = x
+@generated function degn_eval(
+    cumulators::NTuple{N,<:AbstractVector{T}}, op::F, ::EvalOptions{true}
+)::ResultOk where {N,T,F}
+    # Fast general implementation of `cumulators[1] .= op.(cumulators[1], cumulators[2], ...)`
+    quote
+        Base.Cartesian.@nexprs($N, i -> cumulator_i = cumulators[i])
+        @turbo for j in eachindex(cumulator_1)
+            cumulator_1[j] = Base.Cartesian.@ncall($N, op, i -> cumulator_i[j])
+        end
+        return ResultOk(cumulator_1, true)
     end
-    return ResultOk(cumulator_l, true)
-end
-
-function deg1_eval(
-    cumulator::AbstractVector{T}, op::F, ::EvalOptions{true}
-)::ResultOk where {T<:Number,F}
-    @turbo for j in eachindex(cumulator)
-        x = op(cumulator[j])
-        cumulator[j] = x
-    end
-    return ResultOk(cumulator, true)
 end
 
 function deg1_l2_ll0_lr0_eval(
@@ -48,9 +40,10 @@ function deg1_l2_ll0_lr0_eval(
     op_l::F2,
     eval_options::EvalOptions{true},
 ) where {T<:Number,F,F2}
-    if tree.l.l.constant && tree.l.r.constant
-        val_ll = tree.l.l.val
-        val_lr = tree.l.r.val
+    if get_child(get_child(tree, 1), 1).constant &&
+        get_child(get_child(tree, 1), 2).constant
+        val_ll = get_child(get_child(tree, 1), 1).val
+        val_lr = get_child(get_child(tree, 1), 2).val
         @return_on_nonfinite_val(eval_options, val_ll, cX)
         @return_on_nonfinite_val(eval_options, val_lr, cX)
         x_l = op_l(val_ll, val_lr)::T
@@ -58,10 +51,10 @@ function deg1_l2_ll0_lr0_eval(
         x = op(x_l)::T
         @return_on_nonfinite_val(eval_options, x, cX)
         return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
-    elseif tree.l.l.constant
-        val_ll = tree.l.l.val
+    elseif get_child(get_child(tree, 1), 1).constant
+        val_ll = get_child(get_child(tree, 1), 1).val
         @return_on_nonfinite_val(eval_options, val_ll, cX)
-        feature_lr = tree.l.r.feature
+        feature_lr = get_child(get_child(tree, 1), 2).feature
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         @turbo for j in axes(cX, 2)
             x_l = op_l(val_ll, cX[feature_lr, j])
@@ -69,9 +62,9 @@ function deg1_l2_ll0_lr0_eval(
             cumulator[j] = x
         end
         return ResultOk(cumulator, true)
-    elseif tree.l.r.constant
-        feature_ll = tree.l.l.feature
-        val_lr = tree.l.r.val
+    elseif get_child(get_child(tree, 1), 2).constant
+        feature_ll = get_child(get_child(tree, 1), 1).feature
+        val_lr = get_child(get_child(tree, 1), 2).val
         @return_on_nonfinite_val(eval_options, val_lr, cX)
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         @turbo for j in axes(cX, 2)
@@ -81,8 +74,8 @@ function deg1_l2_ll0_lr0_eval(
         end
         return ResultOk(cumulator, true)
     else
-        feature_ll = tree.l.l.feature
-        feature_lr = tree.l.r.feature
+        feature_ll = get_child(get_child(tree, 1), 1).feature
+        feature_lr = get_child(get_child(tree, 1), 2).feature
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         @turbo for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])
@@ -100,8 +93,8 @@ function deg1_l1_ll0_eval(
     op_l::F2,
     eval_options::EvalOptions{true},
 ) where {T<:Number,F,F2}
-    if tree.l.l.constant
-        val_ll = tree.l.l.val
+    if get_child(get_child(tree, 1), 1).constant
+        val_ll = get_child(get_child(tree, 1), 1).val
         @return_on_nonfinite_val(eval_options, val_ll, cX)
         x_l = op_l(val_ll)::T
         @return_on_nonfinite_val(eval_options, x_l, cX)
@@ -109,7 +102,7 @@ function deg1_l1_ll0_eval(
         @return_on_nonfinite_val(eval_options, x, cX)
         return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
     else
-        feature_ll = tree.l.l.feature
+        feature_ll = get_child(get_child(tree, 1), 1).feature
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         @turbo for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j])
@@ -126,28 +119,28 @@ function deg2_l0_r0_eval(
     op::F,
     eval_options::EvalOptions{true},
 ) where {T<:Number,F}
-    if tree.l.constant && tree.r.constant
-        val_l = tree.l.val
+    if get_child(tree, 1).constant && get_child(tree, 2).constant
+        val_l = get_child(tree, 1).val
         @return_on_nonfinite_val(eval_options, val_l, cX)
-        val_r = tree.r.val
+        val_r = get_child(tree, 2).val
         @return_on_nonfinite_val(eval_options, val_r, cX)
         x = op(val_l, val_r)::T
         @return_on_nonfinite_val(eval_options, x, cX)
         return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
-    elseif tree.l.constant
+    elseif get_child(tree, 1).constant
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
-        val_l = tree.l.val
+        val_l = get_child(tree, 1).val
         @return_on_nonfinite_val(eval_options, val_l, cX)
-        feature_r = tree.r.feature
+        feature_r = get_child(tree, 2).feature
         @turbo for j in axes(cX, 2)
             x = op(val_l, cX[feature_r, j])
             cumulator[j] = x
         end
         return ResultOk(cumulator, true)
-    elseif tree.r.constant
+    elseif get_child(tree, 2).constant
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
-        feature_l = tree.l.feature
-        val_r = tree.r.val
+        feature_l = get_child(tree, 1).feature
+        val_r = get_child(tree, 2).val
         @return_on_nonfinite_val(eval_options, val_r, cX)
         @turbo for j in axes(cX, 2)
             x = op(cX[feature_l, j], val_r)
@@ -156,8 +149,8 @@ function deg2_l0_r0_eval(
         return ResultOk(cumulator, true)
     else
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
-        feature_l = tree.l.feature
-        feature_r = tree.r.feature
+        feature_l = get_child(tree, 1).feature
+        feature_r = get_child(tree, 2).feature
         @turbo for j in axes(cX, 2)
             x = op(cX[feature_l, j], cX[feature_r, j])
             cumulator[j] = x
@@ -174,8 +167,8 @@ function deg2_l0_eval(
     op::F,
     eval_options::EvalOptions{true},
 ) where {T<:Number,F}
-    if tree.l.constant
-        val = tree.l.val
+    if get_child(tree, 1).constant
+        val = get_child(tree, 1).val
         @return_on_nonfinite_val(eval_options, val, cX)
         @turbo for j in eachindex(cumulator)
             x = op(val, cumulator[j])
@@ -183,7 +176,7 @@ function deg2_l0_eval(
         end
         return ResultOk(cumulator, true)
     else
-        feature = tree.l.feature
+        feature = get_child(tree, 1).feature
         @turbo for j in eachindex(cumulator)
             x = op(cX[feature, j], cumulator[j])
             cumulator[j] = x
@@ -199,8 +192,8 @@ function deg2_r0_eval(
     op::F,
     eval_options::EvalOptions{true},
 ) where {T<:Number,F}
-    if tree.r.constant
-        val = tree.r.val
+    if get_child(tree, 2).constant
+        val = get_child(tree, 2).val
         @return_on_nonfinite_val(eval_options, val, cX)
         @turbo for j in eachindex(cumulator)
             x = op(cumulator[j], val)
@@ -208,7 +201,7 @@ function deg2_r0_eval(
         end
         return ResultOk(cumulator, true)
     else
-        feature = tree.r.feature
+        feature = get_child(tree, 2).feature
         @turbo for j in eachindex(cumulator)
             x = op(cumulator[j], cX[feature, j])
             cumulator[j] = x
@@ -217,18 +210,13 @@ function deg2_r0_eval(
     end
 end
 
-## Interface with Bumper.jl
-function bumper_kern1!(
-    op::F, cumulator, ::EvalOptions{true,true,early_exit}
-) where {F,early_exit}
-    @turbo @. cumulator = op(cumulator)
-    return cumulator
-end
-function bumper_kern2!(
-    op::F, cumulator1, cumulator2, ::EvalOptions{true,true,early_exit}
-) where {F,early_exit}
-    @turbo @. cumulator1 = op(cumulator1, cumulator2)
-    return cumulator1
+# Interface with Bumper.jl
+function bumper_kern!(
+    op::F, cumulators::Tuple{Vararg{Any,degree}}, ::EvalOptions{true,true,early_exit}
+) where {F,degree,early_exit}
+    cumulator_1 = first(cumulators)
+    @turbo @. cumulator_1 = op(cumulators...)
+    return cumulator_1
 end
 
 end

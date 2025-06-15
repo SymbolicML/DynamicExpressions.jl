@@ -1,5 +1,7 @@
 import PrecompileTools: @compile_workload, @setup_workload
 
+# COV_EXCL_START
+
 macro ignore_domain_error(ex)
     return esc(
         quote
@@ -198,3 +200,5 @@ function do_precompilation(; mode=:precompile)
         end
     end
 end
+
+# COV_EXCL_STOP

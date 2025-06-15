@@ -10,17 +10,11 @@ This `enum` is defined as follows:
 OperatorEnum
 ```
 
-Construct this operator specification as follows:
-
-```@docs
-OperatorEnum(; binary_operators=[], unary_operators=[], define_helper_functions::Bool=true)
-```
-
 This is just for scalar operators. However, you can use
 the following for more general operators:
 
 ```@docs
-GenericOperatorEnum(; binary_operators=[], unary_operators=[], define_helper_functions::Bool=true)
+GenericOperatorEnum
 ```
 
 By default, these operators will define helper functions for constructing trees,
@@ -60,7 +54,7 @@ When using these node constructors, types will automatically be promoted.
 You can convert the type of a node using `convert`:
 
 ```@docs
-convert(::Type{AbstractExpressionNode{T1}}, tree::AbstractExpressionNode{T2}) where {T1, T2}
+convert(::Type{N1}, tree::N2) where {T1,T2,D1,D2,N1<:AbstractExpressionNode{T1,D1},N2<:AbstractExpressionNode{T2,D2}}
 ```
 
 You can set a `tree` (in-place) with `set_node!`:
@@ -73,6 +67,41 @@ You can create a copy of a node with `copy_node`:
 
 ```@docs
 copy_node
+```
+
+## Generic Node Accessors
+
+For working with nodes of arbitrary arity:
+
+```@docs
+get_child
+set_child!
+get_children
+set_children!
+```
+
+Examples:
+
+```julia
+# Define operators including ternary
+my_ternary(x, y, z) = x + y * z
+operators = OperatorEnum(((sin,), (+, *), (my_ternary,)))  # (unary, binary, ternary)
+
+tree = Node{Float64,3}(; op=1, children=(Node{Float64,3}(; val=1.0), Node{Float64,3}(; val=2.0)))
+new_child = Node{Float64,3}(; val=3.0)
+
+left_child = get_child(tree, 1)
+right_child = get_child(tree, 2)
+
+set_child!(tree, new_child, 1)
+
+left, right = get_children(tree, Val(2))  # type stable
+
+# Transform to ternary operation
+child1, child2, child3 = Node{Float64,3}(; val=4.0), Node{Float64,3}(; val=5.0), Node{Float64,3}(; val=6.0)
+set_children!(tree, (child1, child2, child3))
+tree.op = 1  # my_ternary
+tree.degree = 3
 ```
 
 ## Graph Nodes
@@ -88,9 +117,7 @@ This makes it so you can have multiple parents for a given node,
 and share parts of an expression. For example:
 
 ```julia
-julia> operators = OperatorEnum(;
-           binary_operators=[+, -, *], unary_operators=[cos, sin, exp]
-       );
+julia> operators = OperatorEnum(1 => (cos, sin, exp), 2 => (+, -, *));
 
 julia> x1, x2 = GraphNode(feature=1), GraphNode(feature=2)
 (x1, x2)
@@ -109,7 +136,7 @@ This means that we only need to change it once
 to have changes propagate across the expression:
 
 ```julia
-julia> y.r.val *= 0.9
+julia> get_child(y, 2).val *= 0.9
 1.35
 
 julia> z

@@ -28,6 +28,8 @@ function deprecate_varmap(variable_names, varMap, func_name)
     return variable_names
 end
 
+# These are marked unstable due to issues discussed on
+# https://github.com/JuliaLang/julia/issues/55147
 @unstable counttuple(::Type{<:NTuple{N,Any}}) where {N} = N
 
 """
@@ -54,6 +56,23 @@ struct ResultOk2{A<:AbstractArray,B<:AbstractArray}
     x::A
     dx::B
     ok::Bool
+end
+
+struct Nullable{T}
+    null::Bool
+    x::T
+end
+@inline function Base.getindex(x::Nullable)
+    x.null && throw(UndefRefError())
+    return x.x
+end
+@inline function Base.convert(::Type{Nullable{T}}, x::Nullable) where {T}
+    return Nullable(x.null, convert(T, x.x))
+end
+
+function set_nan!(out)
+    out .= convert(eltype(out), NaN)
+    return nothing
 end
 
 end

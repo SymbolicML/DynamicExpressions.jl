@@ -9,9 +9,10 @@
 
     First, let's create a node to reference `feature=1` of our dataset:
     =#
-    using DynamicExpressions, Random
+    using DynamicExpressions, Random, Test
 
     x = Node{Float64}(; feature=1)
+    @test x isa Node{Float64,2}
 
     # We can also create values, using `val`:
     const_1 = Node{Float64}(; val=1.0)
@@ -25,7 +26,7 @@
     either operate directly on the `OperatorEnum`, like with [`eval_tree_array`](@ref),
     or use [`Expression`](@ref) objects to store them alongside the expression.
     =#
-    operators = OperatorEnum(; unary_operators=(sin, exp), binary_operators=(+, -, *, /))
+    operators = OperatorEnum(1 => (sin, exp), 2 => (+, -, *, /))
 
     # Now, let's create another variable
     y = Node{Float64}(; feature=2)

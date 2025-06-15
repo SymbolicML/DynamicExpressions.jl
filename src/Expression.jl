@@ -8,7 +8,8 @@ using ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum
 using ..UtilsModule: Undefined
 using ..ChainRulesModule: NodeTangent
 
-import ..NodeModule: copy_node, set_node!, count_nodes, tree_mapreduce, constructorof
+import ..NodeModule:
+    copy_node, set_node!, count_nodes, tree_mapreduce, constructorof, max_degree
 import ..NodeUtilsModule:
     preserve_sharing,
     count_constant_nodes,
@@ -99,9 +100,14 @@ end
     return Expression(tree, Metadata(d))
 end
 
+has_node_type(::Union{E,Type{E}}) where {N,E<:AbstractExpression{<:Any,N}} = true  # COV_EXCL_LINE
+has_node_type(::Union{E,Type{E}}) where {E<:AbstractExpression} = false  # COV_EXCL_LINE
 node_type(::Union{E,Type{E}}) where {N,E<:AbstractExpression{<:Any,N}} = N
+function max_degree(::Union{E,Type{E}}) where {E<:AbstractExpression}
+    return has_node_type(E) ? max_degree(node_type(E)) : max_degree(Node)
+end
 @unstable default_node_type(_) = Node
-default_node_type(::Type{<:AbstractExpression{T}}) where {T} = Node{T}
+default_node_type(::Type{N}) where {T,N<:AbstractExpression{T}} = Node{T,max_degree(N)}
 
 ########################################################
 # Abstract interface ###################################

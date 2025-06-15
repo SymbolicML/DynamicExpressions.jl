@@ -54,41 +54,37 @@ of the expression.
 """
 declare_operator_alias(op::F, _) where {F<:Function} = op
 
-function apply_operator(op::F, l::AbstractExpression) where {F<:Function}
-    operators = get_operators(l, nothing)
-    op_idx = findfirst(
-        ==(op), map(Base.Fix2(declare_operator_alias, Val(1)), operators.unaops)
-    )
-    if op_idx === nothing
-        throw(
-            MissingOperatorError(
-                "Operator $op not found in operators for expression type $(typeof(l)) with unary operators $(operators.unaops)",
-            ),
-        )
-    end
-    return insert_operator_index(op_idx, (l,), l)
-end
-function apply_operator(op::F, l, r) where {F<:Function}
-    (operators, example_expr) = if l isa AbstractExpression && r isa AbstractExpression
-        @assert typeof(r) === typeof(l)
-        (get_operators(l, nothing), l)
-    elseif l isa AbstractExpression
-        (get_operators(l, nothing), l)
+allow_chaining(@nospecialize(op)) = false
+allow_chaining(::typeof(+)) = true
+allow_chaining(::typeof(*)) = true
+
+function apply_operator(op::F, args::Vararg{Any,D}) where {F<:Function,D}
+    idx = findfirst(e -> e isa AbstractExpression, args)::Int
+    example_expr = args[idx]
+    E = typeof(example_expr)
+    @assert all(e -> !(e isa AbstractExpression) || typeof(e) === E, args)
+    operators = get_operators(example_expr, nothing)
+
+    op_idx = if length(operators) >= D
+        findfirst(==(op), map(Base.Fix2(declare_operator_alias, Val(D)), operators[D]))
     else
-        r::AbstractExpression
-        (get_operators(r, nothing), r)
+        nothing
     end
-    op_idx = findfirst(
-        ==(op), map(Base.Fix2(declare_operator_alias, Val(2)), operators.binops)
-    )
-    if op_idx === nothing
+    if isnothing(op_idx)
+        if allow_chaining(op) && D > 2
+            # These operators might get chained by Julia, so we check
+            # downward for any matching arity.
+            inner = apply_operator(op, args[1:(end - 1)]...)
+            return apply_operator(op, inner, args[end])
+        end
         throw(
             MissingOperatorError(
-                "Operator $op not found in operators for expression type $(typeof(l)) with binary operators $(operators.binops)",
+                "Operator $op not found in operators for expression type " *
+                "$(E) with $(D)-degree operators $(operators[D])",
             ),
         )
     end
-    return insert_operator_index(op_idx, (l, r), example_expr)
+    return insert_operator_index(op_idx, args, example_expr)
 end
 
 """
@@ -96,44 +92,58 @@ end
 
 Declare an operator function for `AbstractExpression` types.
 
-This macro generates a method for the given operator `op` that works with
-`AbstractExpression` arguments. The `arity` parameter specifies whether
-the operator is unary (1) or binary (2).
-
-# Arguments
-- `op`: The operator to be declared (e.g., `Base.sin`, `Base.:+`).
-- `arity`: The number of arguments the operator takes (1 for unary, 2 for binary).
+This macro generates methods for the given operator `op` that work with
+`AbstractExpression` arguments.  The `arity` parameter specifies the number
+of arguments the operator takes.
 """
 macro declare_expression_operator(op, arity)
-    @assert arity ∈ (1, 2)
+    syms = [Symbol('x', i) for i in 1:arity]
+    AE = :($(AbstractExpression))
     if arity == 1
         return esc(
             quote
-                $op(l::AbstractExpression) = $(apply_operator)($op, l)
-            end,
-        )
-    elseif arity == 2
-        return esc(
-            quote
-                function $op(l::AbstractExpression, r::AbstractExpression)
-                    return $(apply_operator)($op, l, r)
-                end
-                function $op(l::T, r::AbstractExpression{T}) where {T}
-                    return $(apply_operator)($op, l, r)
-                end
-                function $op(l::AbstractExpression{T}, r::T) where {T}
-                    return $(apply_operator)($op, l, r)
-                end
-                # Convenience methods for Number types
-                function $op(l::Number, r::AbstractExpression{T}) where {T}
-                    return $(apply_operator)($op, l, r)
-                end
-                function $op(l::AbstractExpression{T}, r::Number) where {T}
-                    return $(apply_operator)($op, l, r)
-                end
+                $op($(only(syms))::$(AE)) = $(apply_operator)($op, $(only(syms)))
             end,
         )
     end
+
+    wrappers = (AE, :($(AE){T}), :T, :Number)
+    methods = Expr(:block)
+
+    for types in Iterators.product(ntuple(_ -> wrappers, arity)...)
+        has_expr = any(
+            t -> t == AE || (t isa Expr && t.head == :curly && t.args[1] == AE), types
+        )
+        has_plain_T = any(==(:T), types)
+        has_abstract_expr_T = any(
+            t -> t isa Expr && t.head == :curly && t.args[1] == AE && :T in t.args, types
+        )
+        has_abstract_expr_plain = any(==(AE), types)
+        if any((
+            !has_expr,
+            # ^At least one arg must be an AbstractExpression (avoid type‑piracy)
+            has_abstract_expr_plain && has_abstract_expr_T,
+            # ^If a plain `T` appears, ensure an `AbstractExpression{T}` is also present
+            has_plain_T ⊻ has_abstract_expr_T,
+            # ^Do not mix bare `AbstractExpression` with `AbstractExpression{T}`
+        ))
+            continue
+        end
+
+        arglist = [Expr(:(::), syms[i], types[i]) for i in 1:arity]
+        signature = Expr(:call, op, arglist...)
+        if any(t -> t == :T || (t isa Expr && t.head == :curly && :T in t.args), types)
+            signature = Expr(:where, signature, :(T))
+        end
+
+        body = Expr(:block, :(return $(apply_operator)($op, $(syms...))))
+
+        fn = Expr(:function, signature, body)
+
+        push!(methods.args, fn)
+    end
+
+    return esc(methods)
 end
 
 #! format: off
@@ -158,6 +168,11 @@ for op in (
     :(>), :(<), :(>=), :(<=), :max, :min,
 )
     @eval @declare_expression_operator Base.$(op) 2
+end
+for op in (
+    :*, :+, :clamp, :max, :min, :fma, :muladd,
+)
+    @eval @declare_expression_operator Base.$(op) 3
 end
 #! format: on
 
