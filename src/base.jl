@@ -136,8 +136,8 @@ end
                 branch = mapreducer.f_branch(tree)
                 Base.Cartesian.@nif(
                     $D,
-                    i -> i == d,
-                    i -> let cs = get_children(tree, Val(i))
+                    i -> i == d,  # COV_EXCL_LINE
+                    i -> let cs = get_children(tree, Val(i))  # COV_EXCL_LINE
                         Base.Cartesian.@ncall(
                             i,
                             mapreducer.op,
@@ -180,7 +180,9 @@ By using this instead of tree_mapreduce, we can take advantage of early exits.
         deg == 0 && return @inline(f(tree))
         return (
             @inline(f(tree)) || Base.Cartesian.@nif(
-                $D, i -> deg == i, i -> let cs = get_children(tree, Val(i))
+                $D,
+                i -> deg == i,  # COV_EXCL_LINE
+                i -> let cs = get_children(tree, Val(i))  # COV_EXCL_LINE
                     Base.Cartesian.@nany(i, j -> any(f, cs[j]))
                 end
             )
@@ -223,9 +225,9 @@ end
             (
                 branch_equal(a, b) && Base.Cartesian.@nif(
                     $D,
-                    i -> deg == i,
+                    i -> deg == i,  # COV_EXCL_LINE
                     i ->
-                        let cs_a = get_children(a, Val(i)), cs_b = get_children(b, Val(i))
+                        let cs_a = get_children(a, Val(i)), cs_b = get_children(b, Val(i))  # COV_EXCL_LINE
                             Base.Cartesian.@nall(
                                 i, j -> inner_is_equal(cs_a[j], cs_b[j], id_maps)
                             )

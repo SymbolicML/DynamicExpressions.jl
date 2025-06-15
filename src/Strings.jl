@@ -33,8 +33,10 @@ end
         degree = branch.degree
         Base.Cartesian.@nif(
             $D,
-            d -> d == degree,
-            d -> dispatch_op_name(Val(d), f.operators, branch.op, f.pretty),
+            d -> d == degree,  # COV_EXCL_LINE
+            d -> begin  # COV_EXCL_LINE
+                dispatch_op_name(Val(d), f.operators, branch.op, f.pretty)
+            end,
         )::Vector{Char}
     end
 end

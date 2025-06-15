@@ -76,8 +76,10 @@ end
         deg == 0 && return diff_deg0_eval(tree, cX, direction)
         Base.Cartesian.@nif(
             $D,
-            i -> i == deg,
-            i -> dispatch_diff_degn_eval(tree, cX, Val(i), operators, direction)
+            i -> i == deg,  # COV_EXCL_LINE
+            i -> begin  # COV_EXCL_LINE
+                dispatch_diff_degn_eval(tree, cX, Val(i), operators, direction)
+            end,
         )
     end
 end
@@ -98,7 +100,7 @@ end
     x_cumulators::NTuple{N}, dx_cumulators::NTuple{N}, op::F, direction::Integer
 ) where {N,F}
     quote
-        Base.Cartesian.@nexprs($N, i -> begin
+        Base.Cartesian.@nexprs($N, i -> begin  # COV_EXCL_LINE
             x_cumulator_i = x_cumulators[i]
             dx_cumulator_i = dx_cumulators[i]
         end)
@@ -129,7 +131,7 @@ end
         cs = get_children(tree, Val($degree))
         Base.Cartesian.@nexprs(
             $degree,
-            i -> begin
+            i -> begin  # COV_EXCL_LINE
                 result_i = _eval_diff_tree_array(cs[i], cX, operators, direction)
                 !result_i.ok && return result_i
             end
@@ -151,13 +153,15 @@ end
             $setup
             Base.Cartesian.@nif(
                 $nops,
-                i -> i == op_idx,
-                i -> diff_degn_eval(
-                    x_cumulators,
-                    dx_cumulators,
-                    get_op(operators, Val($degree), Val(i)),
-                    direction,
-                )
+                i -> i == op_idx,  # COV_EXCL_LINE
+                i -> begin  # COV_EXCL_LINE
+                    diff_degn_eval(
+                        x_cumulators,
+                        dx_cumulators,
+                        get_op(operators, Val($degree), Val(i)),
+                        direction,
+                    )
+                end,
             )
         end
     end
@@ -268,10 +272,12 @@ end
         deg == 0 && return grad_deg0_eval(tree, n_gradients, index_tree, cX, Val(mode))
         Base.Cartesian.@nif(
             $D,
-            i -> i == deg,
-            i -> dispatch_grad_degn_eval(
-                tree, n_gradients, index_tree, cX, Val(i), operators, Val(mode)
-            )
+            i -> i == deg,  # COV_EXCL_LINE
+            i -> begin  # COV_EXCL_LINE
+                dispatch_grad_degn_eval(
+                    tree, n_gradients, index_tree, cX, Val(i), operators, Val(mode)
+                )
+            end,
         )
     end
 end
@@ -291,7 +297,7 @@ end
             isnothing(index_tree) ? index_tree : get_children(index_tree, Val($degree))
         Base.Cartesian.@nexprs(
             $degree,
-            i -> begin
+            i -> begin  # COV_EXCL_LINE
                 result_i = eval_grad_tree_array(
                     cs[i],
                     n_gradients,
@@ -318,10 +324,14 @@ end
             $setup
             Base.Cartesian.@nif(
                 $nops,
-                i -> i == op_idx,
-                i -> grad_degn_eval(
-                    x_cumulators, d_cumulators, get_op(operators, Val($degree), Val(i))
-                )
+                i -> i == op_idx,  # COV_EXCL_LINE
+                i -> begin  # COV_EXCL_LINE
+                    grad_degn_eval(
+                        x_cumulators,
+                        d_cumulators,
+                        get_op(operators, Val($degree), Val(i)),
+                    )
+                end,
             )
         end
     end
@@ -331,7 +341,7 @@ end
     x_cumulators::NTuple{N}, d_cumulators::NTuple{N}, op::F
 ) where {N,F}
     quote
-        Base.Cartesian.@nexprs($N, i -> begin
+        Base.Cartesian.@nexprs($N, i -> begin  # COV_EXCL_LINE
             x_cumulator_i = x_cumulators[i]
             d_cumulator_i = d_cumulators[i]
         end)
