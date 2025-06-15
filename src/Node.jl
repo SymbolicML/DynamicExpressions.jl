@@ -177,7 +177,7 @@ function poison_node(n::AbstractNode)
 end
 
 """
-    get_children(node::AbstractNode)
+    unsafe_get_children(node::AbstractNode)
 
 Return the raw `.children` tuple of a node. Some of these
 children may be "poisoned" nodes which you should not access,
