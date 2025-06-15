@@ -42,7 +42,7 @@ function Base.copy(buffer::ArrayBuffer)
 end
 
 reset_index!(buffer::ArrayBuffer) = buffer.index[] = 0
-reset_index!(::Nothing) = nothing
+reset_index!(::Nothing) = nothing  # COV_EXCL_LINE
 
 next_index!(buffer::ArrayBuffer) = buffer.index[] += 1
 
@@ -373,7 +373,7 @@ end
     nops = get_nops(O, Val(degree))
     return quote
         cs = get_children(tree, Val($degree))
-        Base.Cartesian.@nexprs(
+        Base.Cartesian.@nexprs(  # COV_EXCL_LINE
             $degree,
             i -> begin  # COV_EXCL_LINE
                 result_i = _eval_tree_array(cs[i], cX, operators, eval_options)
@@ -867,7 +867,7 @@ end
     nops = get_nops(operators, Val(degree))
     quote
         cs = get_children(tree, Val($degree))
-        Base.Cartesian.@nexprs(
+        Base.Cartesian.@nexprs(  # COV_EXCL_LINE
             $degree,
             i -> begin  # COV_EXCL_LINE
                 cumulator_i =

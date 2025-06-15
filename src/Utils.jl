@@ -70,4 +70,9 @@ end
     return Nullable(x.null, convert(T, x.x))
 end
 
+function set_nan!(out)
+    out .= convert(eltype(out), NaN)
+    return nothing
+end
+
 end

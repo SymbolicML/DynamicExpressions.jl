@@ -10,12 +10,14 @@ import ..ValueInterfaceModule: is_valid
 
 @inline _op_kernel(f::F, l::T, ls::T...) where {F,T} = f(l, ls...)
 
+# COV_EXCL_START
 is_commutative(::typeof(*)) = true
 is_commutative(::typeof(+)) = true
 is_commutative(_) = false
 
 is_subtraction(::typeof(-)) = true
 is_subtraction(_) = false
+# COV_EXCL_STOP
 
 combine_operators(tree::AbstractExpressionNode, ::AbstractOperatorEnum) = tree
 # This is only defined for `Node` as it is not possible for, e.g.,

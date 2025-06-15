@@ -8,7 +8,7 @@ using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
 using ..ExpressionModule:
     AbstractExpression, Metadata, with_contents, with_metadata, unpack_metadata
 using ..ChainRulesModule: NodeTangent
-using ..UtilsModule: Nullable
+using ..UtilsModule: Nullable, set_nan!
 
 import ..NodeModule:
     constructorof,
@@ -125,7 +125,7 @@ end
 function default_node_type(::Type{N}) where {T,N<:ParametricExpression{T}}
     return ParametricNode{T,max_degree(N)}
 end
-preserve_sharing(::Union{Type{<:ParametricNode},ParametricNode}) = false # TODO: Change this?
+preserve_sharing(::Union{Type{<:ParametricNode},ParametricNode}) = false  # COV_EXCL_LINE
 function leaf_copy(t::ParametricNode{T}) where {T}
     if t.constant
         return constructorof(typeof(t))(; val=t.val)
@@ -368,9 +368,7 @@ function (ex::ParametricExpression)(
     kws...,
 ) where {T}
     (output, flag) = eval_tree_array(ex, X, classes, operators; kws...)
-    if !flag
-        output .= NaN
-    end
+    !flag && set_nan!(output)
     return output
 end
 function eval_tree_array(

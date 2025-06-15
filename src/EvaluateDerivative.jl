@@ -129,7 +129,7 @@ end
 
     setup = quote
         cs = get_children(tree, Val($degree))
-        Base.Cartesian.@nexprs(
+        Base.Cartesian.@nexprs(  # COV_EXCL_LINE
             $degree,
             i -> begin  # COV_EXCL_LINE
                 result_i = _eval_diff_tree_array(cs[i], cX, operators, direction)
@@ -295,7 +295,7 @@ end
         cs = get_children(tree, Val($degree))
         index_cs =
             isnothing(index_tree) ? index_tree : get_children(index_tree, Val($degree))
-        Base.Cartesian.@nexprs(
+        Base.Cartesian.@nexprs(  # COV_EXCL_LINE
             $degree,
             i -> begin  # COV_EXCL_LINE
                 result_i = eval_grad_tree_array(

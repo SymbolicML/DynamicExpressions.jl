@@ -49,12 +49,10 @@ function copy_into!(
         N,
     )
 end
-# COV_EXCL_START
 function leaf_copy_into!(dest::N, src::N) where {N<:AbstractExpressionNode}
     set_node!(dest, src)
     return dest
 end
-# COV_EXCL_STOP
 function branch_copy_into!(
     dest::N, src::N, children::Vararg{Any,M}
 ) where {T,D,N<:AbstractExpressionNode{T,D},M}

@@ -1,17 +1,11 @@
 module EvaluationHelpersModule
 
-using ChainRulesCore: @non_differentiable
-
 import Base: adjoint
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
 import ..NodeModule: AbstractExpressionNode
 import ..EvaluateModule: eval_tree_array
 import ..EvaluateDerivativeModule: eval_grad_tree_array
-
-function _set_nan!(out)
-    out .= convert(eltype(out), NaN)
-    return nothing
-end
+import ..UtilsModule: set_nan!
 
 # Evaluation:
 """
@@ -34,7 +28,7 @@ and triplets of operations for lower memory usage.
 """
 function (tree::AbstractExpressionNode)(X, operators::OperatorEnum; kws...)
     out, did_finish = eval_tree_array(tree, X, operators; kws...)
-    !did_finish && _set_nan!(out)
+    !did_finish && set_nan!(out)
     return out
 end
 """
@@ -63,7 +57,7 @@ function _grad_evaluator(
     tree::AbstractExpressionNode, X, operators::OperatorEnum; variable=Val(true), kws...
 )
     _, grad, did_complete = eval_grad_tree_array(tree, X, operators; variable, kws...)
-    !did_complete && _set_nan!(grad)
+    !did_complete && set_nan!(grad)
     return grad
 end
 function _grad_evaluator(

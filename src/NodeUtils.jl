@@ -179,7 +179,7 @@ end
 
 # Sharing is never needed for NodeIndex,
 # as we trace over the node we are indexing on.
-preserve_sharing(::Union{Type{<:NodeIndex},NodeIndex}) = false
+preserve_sharing(::Union{Type{<:NodeIndex},NodeIndex}) = false  # COV_EXCL_LINE
 
 function index_constant_nodes(
     tree::AbstractExpressionNode{Ti,D} where {Ti}, ::Type{T}=UInt16

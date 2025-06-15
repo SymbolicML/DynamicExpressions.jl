@@ -318,7 +318,7 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
 
     #! format: off
     return quote
-        local $type_requirements, $build_converters, $op_exists
+        local $type_requirements, $build_converters, $op_exists  # COV_EXCL_LINE
         $(_validate_no_ambiguous_broadcasts)($operators)
         lock($LATEST_LOCK)
         try

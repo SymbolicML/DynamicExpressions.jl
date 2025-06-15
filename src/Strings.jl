@@ -73,7 +73,7 @@ function get_pretty_op_name(op::F) where {F}
     return get_op_name(op)
 end
 
-@inline function strip_brackets(s::Vector{Char})::Vector{Char}
+@inline function strip_brackets(s::Vector{Char})
     if first(s) == '(' && last(s) == ')'
         return s[(begin + 1):(end - 1)]
     else
