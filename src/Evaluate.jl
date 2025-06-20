@@ -346,9 +346,8 @@ end
 
 # TODO: Hack to fix type instability in some branches that can't be inferred.
 # It does this using the other branches, which _can_ be inferred.
-@unstable function _get_return_type(tree, cX, operators, eval_options)
-    # public Julia API version of `Core.Compiler.return_type(_eval_tree_array, typeof((tree, cX, operators, eval_options)))`
-    return eltype([_eval_tree_array(tree, cX, operators, eval_options) for _ in 1:0])
+@unstable function _get_return_type(tree, cX, eval_options)
+    return Core.Compiler.return_type(deg0_eval, typeof((tree, cX, eval_options)))
 end
 
 # This basically forms an if statement over the operators for the degree.
@@ -361,7 +360,7 @@ function inner_dispatch_degn_eval(
 ) where {T,degree}
     return _inner_dispatch_degn_eval(
         tree, cX, Val(degree), operators, eval_options
-    )::(_get_return_type(tree, cX, operators, eval_options))
+    )::(_get_return_type(tree, cX, eval_options))
 end
 @generated function _inner_dispatch_degn_eval(
     tree::AbstractExpressionNode{T},
