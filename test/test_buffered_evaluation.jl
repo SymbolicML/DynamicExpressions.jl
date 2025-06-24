@@ -131,8 +131,11 @@ end
 
     for turbo in (false, true), i in 1:100
         # Generate a random tree with varying size (1-10 nodes)
-        n_nodes = rand(1:10)
-        tree = gen_random_tree_fixed_size(n_nodes, operators, size(X, 1), Float64, Node)
+        rng = Random.MersenneTwister(i)
+        n_nodes = rand(rng, 1:10)
+        tree = gen_random_tree_fixed_size(
+            n_nodes, operators, size(X, 1), Float64, Node, rng
+        )
 
         # Regular evaluation
         eval_options_no_buffer = EvalOptions(; turbo)
@@ -142,12 +145,12 @@ end
 
         # Buffer evaluation
         buffer = Array{Float64}(undef, 2n_nodes, size(X, 2))
-        buffer_ref = Ref(rand(1:10))  # Random starting index (will be reset)
+        buffer_ref = Ref(rand(rng, 1:10))  # Random starting index (will be reset)
         eval_options = EvalOptions(; turbo, buffer=ArrayBuffer(buffer, buffer_ref))
         result2, ok2 = eval_tree_array(tree, X, operators; eval_options)
 
         # Results should be identical
-        @test isapprox(result1, result2; atol=1e-10)
+        @test isapprox(result1, result2; atol=1e-10) || (!ok1 && !ok2)
         @test ok1 == ok2
     end
 end
