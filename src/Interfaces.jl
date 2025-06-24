@@ -15,6 +15,7 @@ using ..NodeModule:
     with_type_parameters,
     with_max_degree,
     max_degree,
+    has_max_degree,
     unsafe_get_children,
     get_children,
     leaf_copy,
@@ -144,7 +145,8 @@ function _check_default_node(ex::AbstractExpression{T}) where {T}
     ET = typeof(ex)
     E = Base.typename(ET).wrapper
     return default_node_type(E) <: AbstractExpressionNode &&
-           default_node_type(ET) <: AbstractExpressionNode{T}
+           default_node_type(ET) <: AbstractExpressionNode{T} &&
+           !has_max_degree(default_node_type(ET))
 end
 function _check_constructorof(ex::AbstractExpression)
     return constructorof(typeof(ex)) isa Base.Callable
