@@ -107,7 +107,7 @@ function max_degree(::Union{E,Type{E}}) where {E<:AbstractExpression}
     return has_node_type(E) ? max_degree(node_type(E)) : max_degree(Node)
 end
 @unstable default_node_type(_) = Node
-default_node_type(::Type{N}) where {T,N<:AbstractExpression{T}} = Node{T,max_degree(N)}
+default_node_type(::Type{N}) where {T,N<:AbstractExpression{T}} = Node{T}
 
 ########################################################
 # Abstract interface ###################################

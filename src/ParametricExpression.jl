@@ -119,12 +119,9 @@ end
 # Abstract expression node interface ##########################################
 ###############################################################################
 @unstable constructorof(::Type{<:ParametricExpression}) = ParametricExpression
-@unstable function default_node_type(::Type{<:ParametricExpression})
-    return with_default_max_degree(ParametricNode)
-end
-function default_node_type(::Type{N}) where {T,N<:ParametricExpression{T}}
-    return ParametricNode{T,max_degree(N)}
-end
+@unstable default_node_type(::Type{<:ParametricExpression}) = ParametricNode
+@unstable default_node_type(::Type{N}) where {T,N<:ParametricExpression{T}} =
+    ParametricNode{T}
 preserve_sharing(::Union{Type{<:ParametricNode},ParametricNode}) = false  # COV_EXCL_LINE
 function leaf_copy(t::ParametricNode{T}) where {T}
     if t.constant
