@@ -295,7 +295,7 @@ end
     # Fast general implementation of `cumulators[1] .= op.(cumulators[1], cumulators[2], ...)`
     quote
         Base.Cartesian.@nexprs($N, i -> cumulator_i = cumulators[i])
-        @finite @inbounds @simd for j in eachindex(cumulator_1)
+        @finite @inbounds @simd ivdep for j in eachindex(cumulator_1)
             cumulator_1[j] = Base.Cartesian.@ncall($N, op, i -> cumulator_i[j])::T
         end  # COV_EXCL_LINE
         return ResultOk(cumulator_1, true)
@@ -630,7 +630,7 @@ function deg1_l1_ll0_eval(
     else
         feature_ll = get_child(get_child(tree, 1), 1).feature
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
-        @finite @inbounds @simd for j in axes(cX, 2)
+        @finite @inbounds @simd ivdep for j in eachindex(cumulator)
             x_l = op_l(cX[feature_ll, j])::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
             cumulator[j] = x
@@ -659,7 +659,7 @@ function deg2_l0_r0_eval(
         val_l = get_child(tree, 1).val
         @return_on_nonfinite_val(eval_options, val_l, cX)
         feature_r = get_child(tree, 2).feature
-        @finite @inbounds @simd for j in axes(cX, 2)
+        @finite @inbounds @simd ivdep for j in eachindex(cumulator)
             x = op(val_l, cX[feature_r, j])::T
             cumulator[j] = x
         end  # COV_EXCL_LINE
@@ -669,7 +669,7 @@ function deg2_l0_r0_eval(
         feature_l = get_child(tree, 1).feature
         val_r = get_child(tree, 2).val
         @return_on_nonfinite_val(eval_options, val_r, cX)
-        @finite @inbounds @simd for j in axes(cX, 2)
+        @finite @inbounds @simd ivdep for j in eachindex(cumulator)
             x = op(cX[feature_l, j], val_r)::T
             cumulator[j] = x
         end  # COV_EXCL_LINE
@@ -678,7 +678,7 @@ function deg2_l0_r0_eval(
         cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
         feature_l = get_child(tree, 1).feature
         feature_r = get_child(tree, 2).feature
-        @finite @inbounds @simd for j in axes(cX, 2)
+        @finite @inbounds @simd ivdep for j in eachindex(cumulator)
             x = op(cX[feature_l, j], cX[feature_r, j])::T
             cumulator[j] = x
         end  # COV_EXCL_LINE
@@ -697,14 +697,14 @@ function deg2_l0_eval(
     if get_child(tree, 1).constant
         val = get_child(tree, 1).val
         @return_on_nonfinite_val(eval_options, val, cX)
-        @finite @inbounds @simd for j in eachindex(cumulator)
+        @finite @inbounds @simd ivdep for j in eachindex(cumulator)
             x = op(val, cumulator[j])::T
             cumulator[j] = x
         end  # COV_EXCL_LINE
         return ResultOk(cumulator, true)
     else
         feature = get_child(tree, 1).feature
-        @finite @inbounds @simd for j in eachindex(cumulator)
+        @finite @inbounds @simd ivdep for j in eachindex(cumulator)
             x = op(cX[feature, j], cumulator[j])::T
             cumulator[j] = x
         end  # COV_EXCL_LINE
@@ -723,14 +723,14 @@ function deg2_r0_eval(
     if get_child(tree, 2).constant
         val = get_child(tree, 2).val
         @return_on_nonfinite_val(eval_options, val, cX)
-        @finite @inbounds @simd for j in eachindex(cumulator)
+        @finite @inbounds @simd ivdep for j in eachindex(cumulator)
             x = op(cumulator[j], val)::T
             cumulator[j] = x
         end  # COV_EXCL_LINE
         return ResultOk(cumulator, true)
     else
         feature = get_child(tree, 2).feature
-        @finite @inbounds @simd for j in eachindex(cumulator)
+        @finite @inbounds @simd ivdep for j in eachindex(cumulator)
             x = op(cumulator[j], cX[feature, j])::T
             cumulator[j] = x
         end  # COV_EXCL_LINE

@@ -105,7 +105,7 @@ end
             dx_cumulator_i = dx_cumulators[i]
         end)
         diff_op = _zygote_gradient(op, Val(N))
-        @finite @inbounds @simd for j in eachindex(x_cumulator_1)
+        @finite @inbounds @simd ivdep for j in eachindex(x_cumulator_1)
             x = Base.Cartesian.@ncall($N, op, i -> x_cumulator_i[j])
             Base.Cartesian.@ntuple($N, i -> grad_i) = Base.Cartesian.@ncall(
                 $N, diff_op, i -> x_cumulator_i[j]
@@ -346,13 +346,13 @@ end
             d_cumulator_i = d_cumulators[i]
         end)
         diff_op = _zygote_gradient(op, Val($N))
-        @finite @inbounds @simd for j in eachindex(x_cumulator_1)
+        @finite @inbounds for j in eachindex(x_cumulator_1)
             x = Base.Cartesian.@ncall($N, op, i -> x_cumulator_i[j])
             Base.Cartesian.@ntuple($N, i -> grad_i) = Base.Cartesian.@ncall(
                 $N, diff_op, i -> x_cumulator_i[j]
             )
             x_cumulator_1[j] = x
-            for k in axes(d_cumulator_1, 1)
+            @simd ivdep for k in axes(d_cumulator_1, 1)
                 d_cumulator_1[k, j] = Base.Cartesian.@ncall(
                     $N,
                     +,
