@@ -75,4 +75,13 @@ function set_nan!(out)
     return nothing
 end
 
+"""
+    @finite ex
+
+Wraps `ex` in a `Base.@assume_effects :terminates_locally` block.
+"""
+macro finite(ex)
+    return esc(:(Base.@assume_effects :terminates_locally $ex))
+end
+
 end

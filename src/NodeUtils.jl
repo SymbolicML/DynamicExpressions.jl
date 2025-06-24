@@ -1,6 +1,6 @@
 module NodeUtilsModule
 
-using ..UtilsModule: Nullable
+using ..UtilsModule: Nullable, @finite
 
 import ..NodeModule:
     AbstractNode,
@@ -108,7 +108,7 @@ function get_scalar_constants(
     else
         vals = Vector{BT}(undef, count_scalar_constants(tree))
         i = firstindex(vals)
-        for ref in refs
+        @finite for ref in refs
             i = pack_scalar_constants!(vals, i, ref[].val::T)
         end
         return vals, refs
@@ -123,13 +123,13 @@ Set the constants in a tree, in depth-first order. The function
 """
 function set_scalar_constants!(tree::AbstractExpressionNode{T}, constants, refs) where {T}
     if T <: Number
-        @inbounds for i in eachindex(refs, constants)
+        @finite @inbounds for i in eachindex(refs, constants)
             refs[i][].val = constants[i]
         end
     else
         nums_i = 1
         refs_i = 1
-        while nums_i <= length(constants) && refs_i <= length(refs)
+        @finite while nums_i <= length(constants) && refs_i <= length(refs)
             ix, v = unpack_scalar_constants(constants, nums_i, refs[refs_i][].val::T)
             refs[refs_i][].val = v
             nums_i = ix

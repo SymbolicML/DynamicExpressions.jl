@@ -1,6 +1,6 @@
 module StringsModule
 
-using ..UtilsModule: deprecate_varmap
+using ..UtilsModule: deprecate_varmap, @finite
 using ..OperatorEnumModule: AbstractOperatorEnum
 using ..NodeModule: AbstractExpressionNode, tree_mapreduce, max_degree
 
@@ -122,7 +122,7 @@ function combine_op_with_inputs(op, args::Vararg{Any,D})::Vector{Char} where {D}
         # "op(l, r)"
         out = copy(op)
         push!(out, '(')
-        for i in 1:(D - 1)
+        @finite for i in 1:(D - 1)
             append!(out, strip_brackets(args[i]))
             push!(out, ',')
             push!(out, ' ')

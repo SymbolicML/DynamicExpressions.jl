@@ -8,7 +8,7 @@ using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
 using ..ExpressionModule:
     AbstractExpression, Metadata, with_contents, with_metadata, unpack_metadata
 using ..ChainRulesModule: NodeTangent
-using ..UtilsModule: Nullable, set_nan!
+using ..UtilsModule: Nullable, set_nan!, @finite
 
 import ..NodeModule:
     constructorof,
@@ -241,7 +241,7 @@ function _get_constants_array(parameter_refs, ::Type{BT}) where {BT}
     size = sum(count_scalar_constants, parameter_refs)
     flat = Vector{BT}(undef, size)
     ix = 1
-    for p in parameter_refs
+    @finite for p in parameter_refs
         ix = pack_scalar_constants!(flat, ix, p)
     end
     return flat
@@ -249,7 +249,7 @@ end
 
 function _set_constants_array!(parameter_refs, flat)
     ix, i = 1, 1
-    while ix <= length(flat) && i <= length(parameter_refs)
+    @finite while ix <= length(flat) && i <= length(parameter_refs)
         ix, parameter_refs[i] = unpack_scalar_constants(flat, ix, parameter_refs[i])
         i += 1
     end
@@ -378,7 +378,7 @@ function eval_tree_array(
     @assert length(classes) == size(X, 2)
     @assert maximum(classes) <= size(ex.metadata.parameters, 2)  # TODO: Remove when comfortable
     parameters = ex.metadata.parameters
-    indexed_parameters = [
+    indexed_parameters = @finite [
         parameters[i_parameter, classes[i_row]] for
         i_parameter in eachindex(axes(parameters, 1)), i_row in eachindex(classes)
     ]
