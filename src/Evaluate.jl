@@ -503,7 +503,8 @@ end
             $nuna,
             i -> i == op_idx,  # COV_EXCL_LINE
             i -> let op = operators.unaops[i]  # COV_EXCL_LINE
-                if fused && get_child(tree, 1).degree == 2 &&
+                if fused &&
+                    get_child(tree, 1).degree == 2 &&
                     get_child(get_child(tree, 1), 1).degree == 0 &&
                     get_child(get_child(tree, 1), 2).degree == 0
                     # op(op2(x, y)), where x, y, z are constants or variables.
@@ -511,7 +512,8 @@ end
                     dispatch_deg1_l2_ll0_lr0_eval(
                         tree, cX, op, l_op_idx, operators.binops, eval_options
                     )
-                elseif fused && get_child(tree, 1).degree == 1 &&
+                elseif fused &&
+                    get_child(tree, 1).degree == 1 &&
                     get_child(get_child(tree, 1), 1).degree == 0
                     # op(op2(x)), where x is a constant or variable.
                     l_op_idx = get_child(tree, 1).op
