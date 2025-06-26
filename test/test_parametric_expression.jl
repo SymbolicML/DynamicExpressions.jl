@@ -25,6 +25,9 @@ end
     using DynamicExpressions: ExpressionInterface, NodeInterface
     using Interfaces: test
 
+    # Use consistent operators throughout the test
+    operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[sin])
+
     ex = @parse_expression(
         x + y + p1 * p2 + 1.5,
         binary_operators = [+, -, *, /],
@@ -38,10 +41,19 @@ end
     x1 = ParametricNode{Float64}(; feature=1)
     x2 = ParametricNode{Float64}(; feature=2)
 
-    operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
+    # Create nodes manually using operator indices
+    # x2 * 3.5
+    multiply_node = ParametricNode{Float64}(;
+        op=3, children=(x2, ParametricNode{Float64}(; val=3.5))
+    )
+    # sin(x2 * 3.5)
+    sin_node = ParametricNode{Float64}(; op=1, children=(multiply_node,))
+    # x1 + sin(x2 * 3.5)
+    tree_branch_deg2 = ParametricNode{Float64}(; op=1, children=(x1, sin_node))
 
-    tree_branch_deg2 = x1 + sin(x2 * 3.5)
-    tree_branch_deg1 = sin(x1)
+    # sin(x1)
+    tree_branch_deg1 = ParametricNode{Float64}(; op=1, children=(x1,))
+
     tree_leaf_feature = x1
     tree_leaf_constant = ParametricNode{Float64}(; val=1.0)
 
@@ -82,9 +94,7 @@ end
     @test ex(X, [1, 2, 2, 3, 1]) ≈ [1.0, 3.0, 2.0, 2.0, 1.0]
 
     # Helpful error if we use it incorrectly
-    if VERSION >= v"1.9"
-        @test_throws "Incorrect call. You must pass" ex(X)
-    end
+    @test_throws "Incorrect call. You must pass" ex(X)
 end
 
 @testitem "2 parameters, 2 variables" begin
@@ -303,11 +313,9 @@ end
     @test_throws InterfaceError count_constant_nodes(ex)
     @test_throws InterfaceError index_constant_nodes(ex)
     @test_throws InterfaceError has_constants(ex)
-    if VERSION >= v"1.9"
-        @test_throws "You should not use this function with `ParametricExpression`." count_constants(
-            ex
-        )
-    end
+    @test_throws "You should not use this function with `ParametricExpression`." count_constants(
+        ex
+    )
 end
 
 @testitem "Parametric expression derivatives" begin
@@ -349,7 +357,7 @@ end
     @test val isa Float64
     @test grad isa NamedTuple
     @test grad.tree isa DynamicExpressions.ChainRulesModule.NodeTangent{
-        Float64,ParametricNode{Float64},Vector{Float64}
+        Float64,<:ParametricNode{Float64},Vector{Float64}
     }
     @test grad.metadata._data.parameters isa Matrix{Float64}
 

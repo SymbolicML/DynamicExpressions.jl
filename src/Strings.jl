@@ -2,26 +2,43 @@ module StringsModule
 
 using ..UtilsModule: deprecate_varmap
 using ..OperatorEnumModule: AbstractOperatorEnum
-using ..NodeModule: AbstractExpressionNode, tree_mapreduce
+using ..NodeModule: AbstractExpressionNode, tree_mapreduce, max_degree
 
 function dispatch_op_name(
     ::Val{deg}, ::Nothing, idx, pretty::Bool
 )::Vector{Char} where {deg}
-    return vcat(
-        collect(deg == 1 ? "unary_operator[" : "binary_operator["),
-        collect(string(idx)),
-        [']'],
-    )
+    return vcat(collect(
+        if deg == 1
+            "unary_operator["
+        elseif deg == 2
+            "binary_operator["
+        else
+            "operator_deg$deg["
+        end,
+    ), collect(string(idx)), [']'])
 end
 function dispatch_op_name(
     ::Val{deg}, operators::AbstractOperatorEnum, idx, pretty::Bool
 ) where {deg}
-    op = if deg == 1
-        operators.unaops[idx]
-    else
-        operators.binops[idx]
-    end
+    op = operators[deg][idx]
     return collect((pretty ? get_pretty_op_name(op) : get_op_name(op))::String)
+end
+
+struct OpNameDispatcher{D,O<:Union{AbstractOperatorEnum,Nothing}} <: Function
+    operators::O
+    pretty::Bool
+end
+@generated function (f::OpNameDispatcher{D,O})(branch) where {D,O}
+    return quote
+        degree = branch.degree
+        Base.Cartesian.@nif(
+            $D,
+            d -> d == degree,  # COV_EXCL_LINE
+            d -> begin  # COV_EXCL_LINE
+                dispatch_op_name(Val(d), f.operators, branch.op, f.pretty)
+            end,
+        )::Vector{Char}
+    end
 end
 
 const OP_NAME_CACHE = (; x=Dict{UInt64,String}(), lock=Threads.SpinLock())
@@ -56,7 +73,7 @@ function get_pretty_op_name(op::F) where {F}
     return get_op_name(op)
 end
 
-@inline function strip_brackets(s::Vector{Char})::Vector{Char}
+@inline function strip_brackets(s::Vector{Char})
     if first(s) == '(' && last(s) == ')'
         return s[(begin + 1):(end - 1)]
     else
@@ -65,10 +82,12 @@ end
 end
 
 # Can overload these for custom behavior:
+# COV_EXCL_START
 needs_brackets(val::Real) = false
 needs_brackets(val::AbstractArray) = false
 needs_brackets(val::Complex) = true
 needs_brackets(val) = true
+# COV_EXCL_STOP
 
 function string_constant(val)
     if needs_brackets(val)
@@ -89,35 +108,29 @@ function string_variable(feature, variable_names)
 end
 
 # Vector of chars is faster than strings, so we use that.
-function combine_op_with_inputs(op, l, r)::Vector{Char}
-    if first(op) in ('+', '-', '*', '/', '^', '.', '>', '<', '=') || op == "!="
+function combine_op_with_inputs(op, args::Vararg{Any,D})::Vector{Char} where {D}
+    if D == 2 && (first(op) in ('+', '-', '*', '/', '^', '.', '>', '<', '=') || op == "!=")
         # "(l op r)"
         out = ['(']
-        append!(out, l)
+        append!(out, args[1])
         push!(out, ' ')
         append!(out, op)
         push!(out, ' ')
-        append!(out, r)
+        append!(out, args[2])
         push!(out, ')')
     else
         # "op(l, r)"
         out = copy(op)
         push!(out, '(')
-        append!(out, strip_brackets(l))
-        push!(out, ',')
-        push!(out, ' ')
-        append!(out, strip_brackets(r))
+        for i in 1:(D - 1)
+            append!(out, strip_brackets(args[i]))
+            push!(out, ',')
+            push!(out, ' ')
+        end
+        append!(out, strip_brackets(args[D]))
         push!(out, ')')
         return out
     end
-end
-function combine_op_with_inputs(op, l)
-    # "op(l)"
-    out = copy(op)
-    push!(out, '(')
-    append!(out, strip_brackets(l))
-    push!(out, ')')
-    return out
 end
 
 """
@@ -154,7 +167,7 @@ function string_tree(
     varMap=nothing,
 )::String where {T,F1<:Function,F2<:Function}
     if !isnothing(raw)
-        Base.depwarn("`raw` is deprecated; use `pretty` instead", :string_tree)
+        Base.depwarn("`raw` is deprecated; use `pretty` instead", :string_tree)  # COV_EXCL_LINE
     end
     pretty = @something(pretty, _not(raw), false)
     variable_names = deprecate_varmap(variable_names, varMap, :string_tree)
@@ -169,13 +182,7 @@ function string_tree(
                 collect(f_variable(leaf.feature, variable_names))::Vector{Char}
             end
         end,
-        let operators = operators
-            (branch,) -> if branch.degree == 1
-                dispatch_op_name(Val(1), operators, branch.op, pretty)::Vector{Char}
-            else
-                dispatch_op_name(Val(2), operators, branch.op, pretty)::Vector{Char}
-            end
-        end,
+        OpNameDispatcher{max_degree(tree),typeof(operators)}(operators, pretty),
         combine_op_with_inputs,
         tree,
         Vector{Char};
@@ -215,7 +222,7 @@ for io in ((), (:(io::IO),))
         )
     end
 end
-_not(::Nothing) = nothing
-_not(x) = !x
+_not(::Nothing) = nothing  # COV_EXCL_LINE
+_not(x) = !x  # COV_EXCL_LINE
 
 end

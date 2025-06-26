@@ -50,7 +50,7 @@ and branch (operator) nodes.
 
 # Examples
 ```jldoctest
-julia> operators = OperatorEnum(; binary_operators=[+, *]);
+julia> operators = OperatorEnum(2 => (+, *));
 
 julia> tree = Node(; feature=1) + Node(; feature=2) * 3.2;
 
@@ -88,11 +88,11 @@ function tree_mapreduce(
     f_leaf::F1,
     f_branch::F2,
     op::G,
-    tree::AbstractNode,
+    tree::AbstractNode{D},
     result_type::Type{RT}=Undefined;
     f_on_shared::H=(result, is_shared) -> result,
     break_sharing::Val{BS}=Val(false),
-) where {F1<:Function,F2<:Function,G<:Function,H<:Function,RT,BS}
+) where {F1<:Function,F2<:Function,G<:Function,D,H<:Function,RT,BS}
     sharing = preserve_sharing(typeof(tree)) && !BS
 
     RT == Undefined &&
@@ -101,10 +101,10 @@ function tree_mapreduce(
 
     if sharing && RT != Undefined
         id_map = allocate_id_map(tree, RT)
-        reducer = TreeMapreducer(Val(2), id_map, f_leaf, f_branch, op, f_on_shared)
+        reducer = TreeMapreducer(Val(D), id_map, f_leaf, f_branch, op, f_on_shared)
         return call_mapreducer(reducer, tree)
     else
-        reducer = TreeMapreducer(Val(2), nothing, f_leaf, f_branch, op, f_on_shared)
+        reducer = TreeMapreducer(Val(D), nothing, f_leaf, f_branch, op, f_on_shared)
         return call_mapreducer(reducer, tree)
     end
 end
@@ -120,28 +120,39 @@ struct TreeMapreducer{
     f_on_shared::H
 end
 
-function call_mapreducer(mapreducer::TreeMapreducer{2,ID}, tree::AbstractNode) where {ID}
-    key = ID <: Dict ? objectid(tree) : nothing
-    if ID <: Dict && haskey(mapreducer.id_map, key)
-        result = @inbounds(mapreducer.id_map[key])
-        return mapreducer.f_on_shared(result, true)
-    else
-        result = if tree.degree == 0
-            mapreducer.f_leaf(tree)
-        elseif tree.degree == 1
-            mapreducer.op(mapreducer.f_branch(tree), call_mapreducer(mapreducer, tree.l))
+@generated function call_mapreducer(
+    mapreducer::TreeMapreducer{D,ID}, tree::AbstractNode
+) where {D,ID}
+    quote
+        key = ID <: Dict ? objectid(tree) : nothing
+        if ID <: Dict && haskey(mapreducer.id_map, key)
+            result = @inbounds(mapreducer.id_map[key])
+            return mapreducer.f_on_shared(result, true)
         else
-            mapreducer.op(
-                mapreducer.f_branch(tree),
-                call_mapreducer(mapreducer, tree.l),
-                call_mapreducer(mapreducer, tree.r),
-            )
-        end
-        if ID <: Dict
-            mapreducer.id_map[key] = result
-            return mapreducer.f_on_shared(result, false)
-        else
-            return result
+            d = tree.degree
+            result = if d == 0
+                mapreducer.f_leaf(tree)
+            else
+                branch = mapreducer.f_branch(tree)
+                Base.Cartesian.@nif(
+                    $D,
+                    i -> i == d,  # COV_EXCL_LINE
+                    i -> let cs = get_children(tree, Val(i))  # COV_EXCL_LINE
+                        Base.Cartesian.@ncall(
+                            i,
+                            mapreducer.op,
+                            branch,
+                            j -> call_mapreducer(mapreducer, cs[j])
+                        )
+                    end
+                )
+            end
+            if ID <: Dict
+                mapreducer.id_map[key] = result
+                return mapreducer.f_on_shared(result, false)
+            else
+                return result
+            end
         end
     end
 end
@@ -163,13 +174,19 @@ end
 Reduce a flag function over a tree, returning `true` if the function returns `true` for any node.
 By using this instead of tree_mapreduce, we can take advantage of early exits.
 """
-function any(f::F, tree::AbstractNode) where {F<:Function}
-    if tree.degree == 0
-        return @inline(f(tree))::Bool
-    elseif tree.degree == 1
-        return @inline(f(tree))::Bool || any(f, tree.l)
-    else
-        return @inline(f(tree))::Bool || any(f, tree.l) || any(f, tree.r)
+@generated function any(f::F, tree::AbstractNode{D}) where {F<:Function,D}
+    quote
+        deg = tree.degree
+        deg == 0 && return @inline(f(tree))
+        return (
+            @inline(f(tree)) || Base.Cartesian.@nif(
+                $D,
+                i -> deg == i,  # COV_EXCL_LINE
+                i -> let cs = get_children(tree, Val(i))  # COV_EXCL_LINE
+                    Base.Cartesian.@nany(i, j -> any(f, cs[j]))
+                end
+            )
+        )
     end
 end
 
@@ -178,49 +195,53 @@ function Base.:(==)(a::AbstractExpressionNode, b::AbstractExpressionNode)
 end
 function Base.:(==)(a::N, b::N)::Bool where {N<:AbstractExpressionNode}
     if preserve_sharing(N)
-        return inner_is_equal_shared(a, b, Dict{UInt,Nothing}(), Dict{UInt,Nothing}())
+        return inner_is_equal(a, b, (; a=Dict{UInt,Nothing}(), b=Dict{UInt,Nothing}()))
     else
-        return inner_is_equal(a, b)
+        return inner_is_equal(a, b, nothing)
     end
 end
-function inner_is_equal(a, b)
-    (degree = a.degree) != b.degree && return false
-    if degree == 0
-        return leaf_equal(a, b)
-    elseif degree == 1
-        return branch_equal(a, b) && inner_is_equal(a.l, b.l)
-    else
-        return branch_equal(a, b) && inner_is_equal(a.l, b.l) && inner_is_equal(a.r, b.r)
+@generated function inner_is_equal(
+    a::AbstractNode{D}, b::AbstractNode{D}, id_maps::Union{Nothing,NamedTuple}
+) where {D}
+    quote
+        ids = !isnothing(id_maps) ? (; a=objectid(a), b=objectid(b)) : nothing
+
+        if !isnothing(id_maps)
+            has_a = haskey(id_maps.a, ids.a)
+            has_b = haskey(id_maps.b, ids.b)
+            if has_a && has_b
+                return true
+            elseif has_a ⊻ has_b
+                return false
+            end
+        end
+
+        deg = a.degree
+        result = if deg != b.degree
+            false
+        elseif deg == 0
+            leaf_equal(a, b)
+        else
+            (
+                branch_equal(a, b) && Base.Cartesian.@nif(  # COV_EXCL_LINE
+                    $D,
+                    i -> deg == i,  # COV_EXCL_LINE
+                    i -> begin  # COV_EXCL_LINE
+                        let cs_a = get_children(a, Val(i)), cs_b = get_children(b, Val(i))  # COV_EXCL_LINE
+                            Base.Cartesian.@nall(
+                                i, j -> inner_is_equal(cs_a[j], cs_b[j], id_maps)
+                            )
+                        end
+                    end
+                )
+            )
+        end
+        if !isnothing(ids)
+            id_maps.a[ids.a] = nothing
+            id_maps.b[ids.b] = nothing
+        end
+        return result
     end
-end
-function inner_is_equal_shared(a, b, id_map_a, id_map_b)
-    id_a = objectid(a)
-    id_b = objectid(b)
-    has_a = haskey(id_map_a, id_a)
-    has_b = haskey(id_map_b, id_b)
-
-    if has_a && has_b
-        return true
-    elseif has_a ⊻ has_b
-        return false
-    end
-
-    (degree = a.degree) != b.degree && return false
-
-    result = if degree == 0
-        leaf_equal(a, b)
-    elseif degree == 1
-        branch_equal(a, b) && inner_is_equal_shared(a.l, b.l, id_map_a, id_map_b)
-    else
-        branch_equal(a, b) &&
-            inner_is_equal_shared(a.l, b.l, id_map_a, id_map_b) &&
-            inner_is_equal_shared(a.r, b.r, id_map_a, id_map_b)
-    end
-
-    id_map_a[id_a] = nothing
-    id_map_b[id_b] = nothing
-
-    return result
 end
 
 @inline function branch_equal(a::AbstractExpressionNode, b::AbstractExpressionNode)
@@ -229,7 +250,8 @@ end
 @inline function leaf_equal(
     a::AbstractExpressionNode{T1}, b::AbstractExpressionNode{T2}
 ) where {T1,T2}
-    (constant = a.constant) != b.constant && return false
+    constant = a.constant
+    constant != b.constant && return false
     if constant
         return a.val::T1 == b.val::T2
     else
@@ -334,9 +356,9 @@ end
 Collect all nodes in a tree into a flat array in depth-first order.
 """
 function collect(tree::AbstractNode; break_sharing::Val{BS}=Val(false)) where {BS}
-    return filter(Returns(true), tree; break_sharing=Val(BS))
+    return filter(_ -> true, tree; break_sharing=Val(BS))
 end
-Base.IteratorSize(::Type{<:AbstractNode}) = Base.HasLength()
+Base.IteratorSize(::Type{<:AbstractNode}) = Base.HasLength()  # COV_EXCL_LINE
 
 """
     map(f::F, tree::AbstractNode, result_type::Type{RT}=Nothing; break_sharing::Val{BS}=Val(false)) where {F<:Function,RT,BS}
@@ -350,11 +372,13 @@ function map(
     result_type::Type{RT}=Nothing;
     break_sharing::Val{BS}=Val(false),
 ) where {F<:Function,RT,BS}
-    if RT == Nothing
-        return map(f, collect(tree; break_sharing=Val(BS)))
-    else
-        return filter_map(Returns(true), f, tree, result_type; break_sharing=Val(BS))
-    end
+    return _map(f, tree, result_type, Val(BS))
+end
+function _map(f::F, tree::AbstractNode, ::Type{Nothing}, ::Val{BS}) where {F<:Function,BS}
+    return map(f, collect(tree; break_sharing=Val(BS)))
+end
+function _map(f::F, tree::AbstractNode, ::Type{RT}, ::Val{BS}) where {F<:Function,RT,BS}
+    return filter_map(Returns(true), f, tree, RT; break_sharing=Val(BS))
 end
 
 """
@@ -423,7 +447,7 @@ function mapreduce(
     return tree_mapreduce(f, op, tree, RT; f_on_shared, break_sharing=Val(BS))
 end
 
-isempty(::AbstractNode) = false
+isempty(::AbstractNode) = false  # COV_EXCL_LINE
 function iterate(root::AbstractNode)
     return (root, collect(root; break_sharing=Val(true))[(begin + 1):end])
 end
@@ -510,9 +534,14 @@ using `convert(T1, tree.val)` at constant nodes.
 """
 function convert(
     ::Type{N1}, tree::N2
-) where {T1,T2,N1<:AbstractExpressionNode{T1},N2<:AbstractExpressionNode{T2}}
+) where {T1,T2,D1,D2,N1<:AbstractExpressionNode{T1,D1},N2<:AbstractExpressionNode{T2,D2}}
     if N1 === N2
         return tree
+    end
+    if D1 !== D2
+        throw(
+            ArgumentError("Cannot convert $N2 to $N1 because they have different degrees.")
+        )
     end
     return tree_mapreduce(
         Base.Fix1(leaf_convert, N1),
@@ -522,6 +551,11 @@ function convert(
         N1,
     )
     # TODO: Need to allow user to overload this!
+end
+function convert(
+    ::Type{N1}, tree::N2
+) where {T1,T2,D,N1<:AbstractExpressionNode{T1},N2<:AbstractExpressionNode{T2,D}}
+    return convert(with_max_degree(N1, Val(D)), tree)
 end
 function convert(
     ::Type{N1}, tree::N2

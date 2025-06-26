@@ -21,7 +21,6 @@ import ..ExpressionModule:
     node_type,
     get_scalar_constants,
     set_scalar_constants!
-import ..ReadOnlyNodeModule: ReadOnlyNode
 
 abstract type AbstractStructuredExpression{
     T,F<:Function,N<:AbstractExpressionNode{T},E<:AbstractExpression{T,N},D<:NamedTuple
@@ -132,7 +131,7 @@ function get_metadata(e::AbstractStructuredExpression)
     return e.metadata
 end
 function get_tree(e::AbstractStructuredExpression)
-    return ReadOnlyNode(get_tree(get_metadata(e).structure(get_contents(e))))
+    return get_tree(get_metadata(e).structure(get_contents(e)))
 end
 function get_operators(
     e::AbstractStructuredExpression, operators::Union{AbstractOperatorEnum,Nothing}=nothing

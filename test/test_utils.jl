@@ -2,7 +2,7 @@ using DynamicExpressions
 using DynamicExpressions.UtilsModule: fill_similar
 using Test
 
-operators = OperatorEnum(; binary_operators=(+, *, -, /, ^), unary_operators=(exp, sin))
+operators = OperatorEnum(2 => (+, *, -, /, ^), 1 => (exp, sin))
 
 x1, x2, x3 = Node("x1"), Node("x2"), Node("x3")
 

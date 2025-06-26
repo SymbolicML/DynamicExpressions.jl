@@ -137,44 +137,42 @@ end
 @testitem "Test error catching for GenericOperatorEnum" begin
     using DynamicExpressions
 
-    @static if VERSION >= v"1.7"
-        # And, with generic operator enum, this should be an actual error:
-        @eval my_fnc(x::Real) = x
-        operators = GenericOperatorEnum(;
-            binary_operators=[+, -, *, /], unary_operators=[cos, sin, my_fnc]
-        )
-        @extend_operators operators
-        x1 = Node(Float64; feature=1)
-        tree = sin(x1 / 0.0)
-        X = randn(Float32, 10)
-        let
-            try
-                tree(X, operators)[1]
-                @test false
-            catch e
-                @test e isa ErrorException
-                # Check that "Failed to evaluate" is in the message:
-                @test occursin("Failed to evaluate", e.msg)
-                stack = current_exceptions()
-                @test length(stack) == 2
-                @test stack[1].exception isa DomainError
-            end
+    # And, with generic operator enum, this should be an actual error:
+    @eval my_fnc(x::Real) = x
+    operators = GenericOperatorEnum(;
+        binary_operators=[+, -, *, /], unary_operators=[cos, sin, my_fnc]
+    )
+    @extend_operators operators
+    x1 = Node(Float64; feature=1)
+    tree = sin(x1 / 0.0)
+    X = randn(Float32, 10)
+    let
+        try
+            tree(X, operators)[1]
+            @test false
+        catch e
+            @test e isa ErrorException
+            # Check that "Failed to evaluate" is in the message:
+            @test occursin("Failed to evaluate", e.msg)
+            stack = current_exceptions()
+            @test length(stack) == 2
+            @test stack[1].exception isa DomainError
+        end
 
-            # If a method is not defined, we should get a nothing:
-            X2 = randn(ComplexF64, 1, 10)
-            tree2 = my_fnc(x1)
-            @test tree2(X2, operators; throw_errors=false) === nothing
-            # or a MethodError:
-            try
-                tree2(X2, operators; throw_errors=true)
-                @test false
-            catch e
-                @test e isa ErrorException
-                @test occursin("Failed to evaluate", e.msg)
-                stack2 = current_exceptions()
-                @test length(stack2) == 2
-                @test stack2[1].exception isa MethodError
-            end
+        # If a method is not defined, we should get a nothing:
+        X2 = randn(ComplexF64, 1, 10)
+        tree2 = my_fnc(x1)
+        @test tree2(X2, operators; throw_errors=false) === nothing
+        # or a MethodError:
+        try
+            tree2(X2, operators; throw_errors=true)
+            @test false
+        catch e
+            @test e isa ErrorException
+            @test occursin("Failed to evaluate", e.msg)
+            stack2 = current_exceptions()
+            @test length(stack2) == 2
+            @test stack2[1].exception isa MethodError
         end
     end
 end
@@ -193,34 +191,33 @@ end
     unary_operators = [@eval function (x)
         return x^2
     end for i in 1:num_ops]
-    operators = if VERSION >= v"1.9"
-        @test_logs (:warn, r"You have passed over 15 binary.*") OperatorEnum(;
-            binary_operators, unary_operators
-        )
-    else
-        OperatorEnum(; binary_operators, unary_operators)
-    end
-    tree = Node(1, Node(num_ops ÷ 2, Node(; val=3.0), Node(; feature=2)))
+    operators = @test_logs(
+        (:warn, r"You have passed over 15 degree2.*"), OperatorEnum(2 => binary_operators)
+    )
+    operators = @test_logs(
+        (:warn, r"You have passed over 15 degree1.*"),
+        OperatorEnum(1 => unary_operators, 2 => binary_operators)
+    )
+    tree = Node(;
+        op=1,
+        children=(Node(; op=num_ops ÷ 2, children=(Node(; val=3.0), Node(; feature=2))),),
+    )
     # = (3.0 + x2)^2
     X = randn(Float64, 2, 10)
     truth = @. (3.0 + X[2, :])^2
     @test truth ≈ tree(X, operators)
 
-    VERSION >= v"1.9" &&
-        @test_logs (:warn, r"You have passed over 15 unary.*") OperatorEnum(;
-            unary_operators
-        )
+    @test_logs(
+        (:warn, r"You have passed over 15 degree1.*"), OperatorEnum(1 => unary_operators)
+    )
 
     # This OperatorEnum will trigger the fallback code for fast compilation.
-    many_ops_operators = OperatorEnum(;
-        binary_operators=cat([+, -, *, /], binary_operators; dims=1),
-        unary_operators=cat([sin, cos], unary_operators; dims=1),
+    many_ops_operators = OperatorEnum(
+        1 => [[sin, cos]; unary_operators], 2 => [[+, -, *, /]; binary_operators]
     )
 
     # This OperatorEnum will go through the regular evaluation code.
-    only_basic_ops_operator = OperatorEnum(;
-        binary_operators=[+, -, *, /], unary_operators=[sin, cos]
-    )
+    only_basic_ops_operator = OperatorEnum(1 => [sin, cos], 2 => [+, -, *, /])
 
     # We want to compare them:
     num_tests = 100
@@ -354,4 +351,26 @@ end
             fill_vals!(tree, NaN)
         end
     end
+end
+
+@testitem "Evaluate vector dispatch & numeric promotion" begin
+    using DynamicExpressions
+    using DynamicExpressions.OperatorEnumModule: OperatorEnum
+    using Test
+
+    ops = OperatorEnum(1 => (), 2 => (+,))
+    vars = ["x₁", "x₂"]
+    x1, x2 = (
+        Expression(Node(Float64; feature=i); operators=ops, variable_names=vars) for
+        i in 1:2
+    )
+
+    expr = x1 + x2
+
+    # Matrix{Int} with one column (2 features × 1 sample) satisfies the validator
+    X = reshape([1, 2], 2, 1)
+    out = expr(X)
+    @test out[1] == 3
+
+    # Matrix{Int} promotion path is already exercised above
 end

@@ -22,13 +22,13 @@ using DispatchDoctor: @stable, @unstable
     include("Random.jl")
     include("Parse.jl")
     include("ParametricExpression.jl")
-    include("ReadOnlyNode.jl")
     include("StructuredExpression.jl")
 end
 
 import Reexport: @reexport
 macro ignore(args...) end
 
+import .UtilsModule: Nullable
 import .ValueInterfaceModule:
     is_valid,
     is_valid_array,
@@ -41,6 +41,10 @@ import .ValueInterfaceModule:
     AbstractExpressionNode,
     GraphNode,
     Node,
+    get_child,
+    set_child!,
+    get_children,
+    set_children!,
     copy_node,
     set_node!,
     tree_mapreduce,
@@ -51,6 +55,8 @@ import .NodeModule:
     constructorof,
     with_type_parameters,
     preserve_sharing,
+    max_degree,
+    with_max_degree,
     leaf_copy,
     branch_copy,
     leaf_hash,
@@ -97,7 +103,6 @@ import .ExpressionAlgebraModule: declare_operator_alias
 @reexport import .ParseModule: @parse_expression, parse_expression
 import .ParseModule: parse_leaf
 @reexport import .ParametricExpressionModule: ParametricExpression, ParametricNode
-import .ReadOnlyNodeModule: ReadOnlyNode
 @reexport import .StructuredExpressionModule: StructuredExpression
 import .StructuredExpressionModule: AbstractStructuredExpression
 
