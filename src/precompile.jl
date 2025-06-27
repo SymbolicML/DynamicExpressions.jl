@@ -31,9 +31,7 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
         T == Float16 && use_turbo isa Val{true} && continue
 
         X = rand(T, 3, 10)
-        operators = OperatorEnum(;
-            binary_operators=binops, unary_operators=unaops, define_helper_functions=false
-        )
+        operators = OperatorEnum(1 => unaops, 2 => binops; define_helper_functions=false)
         x = Node(T; feature=1)
         c = Node(T; val=one(T))
 
@@ -186,10 +184,8 @@ function do_precompilation(; mode=:precompile)
                 types=types,
             )
         end
-        operators = OperatorEnum(;
-            binary_operators=binary_operators[1],
-            unary_operators=unary_operators[1],
-            define_helper_functions=false,
+        operators = OperatorEnum(
+            1 => unary_operators[1], 2 => binary_operators[1]; define_helper_functions=false
         )
         # Want to precompile all above calls.
         types = [Float32, Float64]
