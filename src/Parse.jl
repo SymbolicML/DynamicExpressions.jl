@@ -246,10 +246,7 @@ end
 Find an operator function by its name in the OperatorEnum, considering the arity.
 Throws appropriate errors for ambiguous or missing matches.
 """
-@unstable function _find_operator_by_name(func_symbol, args, operators)
-    function_name_offset = 1
-    degree = length(args) - function_name_offset
-
+@unstable function _find_operator_by_name(func_symbol, degree, operators)
     matches = Tuple{Function,Int}[]
 
     for arity in 1:length(operators.ops)
@@ -314,7 +311,8 @@ module EmptyModule end
         Core.eval(EmptyModule, first(ex.args))
     catch
         # Try to find the function in operators by name
-        _find_operator_by_name(first(ex.args), args, operators)
+        degree = length(args) - 1
+        _find_operator_by_name(first(ex.args), degree, operators)
     end::Function
     return _parse_expression(
         func, args, operators, variable_names, N, E, evaluate_on; kws...
