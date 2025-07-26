@@ -242,6 +242,50 @@ end
     end
 end
 
+"""
+Find an operator function by its name in the OperatorEnum, considering the arity.
+Throws appropriate errors for ambiguous or missing matches.
+"""
+@unstable function _find_operator_by_name(func_symbol, args, operators)
+    function_name_offset = 1
+    degree = length(args) - function_name_offset
+    
+    matches = Tuple{Function,Int}[]
+    
+    for arity in 1:length(operators.ops)
+        for op in operators.ops[arity]
+            if nameof(op) == func_symbol
+                push!(matches, (op, arity))
+            end
+        end
+    end
+    
+    if isempty(matches)
+        throw(ArgumentError(
+            "Tried to interpolate function `$(func_symbol)` but failed. " *
+            "Function not found in operators."
+        ))
+    end
+    
+    arity_matches = filter(m -> m[2] == degree, matches)
+    
+    if length(arity_matches) > 1
+        ops_str = join([string(m[1]) for m in arity_matches], ", ")
+        throw(ArgumentError(
+            "Ambiguous operator `$(func_symbol)` with arity $(degree). " *
+            "Multiple matches found: $(ops_str)"
+        ))
+    elseif length(arity_matches) == 0
+        available_arities = [m[2] for m in matches]
+        throw(ArgumentError(
+            "Operator `$(func_symbol)` found but not with arity $(degree). " *
+            "Available arities: $(available_arities)"
+        ))
+    end
+
+    return arity_matches[1][1]::Function
+end
+
 """An empty module for evaluation without collisions."""
 module EmptyModule end
 
@@ -264,9 +308,8 @@ module EmptyModule end
     func = try
         Core.eval(EmptyModule, first(ex.args))
     catch
-        throw(
-            ArgumentError("Tried to interpolate function `$(first(ex.args))` but failed."),
-        )
+        # Try to find the function in operators by name
+        _find_operator_by_name(first(ex.args), args, operators)
     end::Function
     return _parse_expression(
         func, args, operators, variable_names, N, E, evaluate_on; kws...
