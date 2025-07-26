@@ -340,3 +340,57 @@ end
     )
     @test string_tree(ex) == "x"
 end
+
+@testitem "custom operators without passing function object" begin
+    using DynamicExpressions
+
+    custom_mul(x, y) = x * y
+    custom_cos(x) = cos(x)
+    custom_max(x, y, z) = max(x, y, z)
+
+    operators = OperatorEnum(
+        1 => [custom_cos], 2 => [+, -, *, /, custom_mul], 3 => [custom_max]
+    )
+
+    # Test nested custom operators
+    ex = parse_expression(
+        "custom_max(custom_cos(x1), custom_mul(x2, x3), x2 + 1.5)";
+        operators=operators,
+        node_type=Node{T,3} where {T},
+        variable_names=["x1", "x2", "x3"],
+    )
+    @test typeof(ex) <: Expression{Float64}
+    @test string_tree(ex) == "custom_max(custom_cos(x1), custom_mul(x2, x3), x2 + 1.5)"
+    @test ex([1.0 2.0 3.0]') == [6.0]
+
+    # Test error cases for _find_operator_by_name
+    @test_throws(
+        ArgumentError(
+            "Tried to interpolate function `unknown_func` but failed. Function not found in operators.",
+        ),
+        parse_expression("unknown_func(x1)", operators=operators, variable_names=["x1"])
+    )
+
+    # Test ambiguous operator - same name from different modules
+    module TestMod1
+    foo(x) = x + 1
+    end
+    module TestMod2
+    foo(x) = x - 1
+    end
+    same_name_ops = OperatorEnum(1 => [TestMod1.foo, TestMod2.foo])
+    @test_throws(
+        r"Ambiguous operator `foo` with arity 1\. Multiple matches found: Tuple\{Function, Int64\}\[.*foo.*1.*foo.*1.*\]",
+        parse_expression("foo(x1)", operators=same_name_ops, variable_names=["x1"])
+    )
+
+    # Test wrong arity
+    @test_throws(
+        ArgumentError(
+            "Operator `custom_cos` found but not with arity 2. Available arities: [1]"
+        ),
+        parse_expression(
+            "custom_cos(x1, x2)", operators=operators, variable_names=["x1", "x2"]
+        )
+    )
+end
