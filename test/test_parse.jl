@@ -354,21 +354,21 @@ end
 
     # Test nested custom operators
     ex = parse_expression(
-        "custom_max(custom_cos(x1), custom_mul(x2, x3), x4 + 1.5)";
+        "custom_max(custom_cos(x1), custom_mul(x2, x3), x2 + 1.5)";
         operators=operators,
+        node_type=Node{T,3} where {T},
         variable_names=["x1", "x2", "x3"],
     )
-    @test typeof(ex) <: Expression
-    @test string_tree(ex) == "custom_max(custom_cos(x1), custom_mul(x2, x3), x4 + 1.5)"
+    @test typeof(ex) <: Expression{Float64}
+    @test string_tree(ex) == "custom_max(custom_cos(x1), custom_mul(x2, x3), x2 + 1.5)"
+    @test ex([1.0 2.0 3.0]') == [6.0]
 
     # Test error cases for _find_operator_by_name
     @test_throws(
         ArgumentError(
             "Tried to interpolate function `unknown_func` but failed. Function not found in operators.",
         ),
-        parse_expression(
-            Meta.parse("unknown_func(x1)"), operators=operators, variable_names=["x1"]
-        )
+        parse_expression("unknown_func(x1)", operators=operators, variable_names=["x1"])
     )
 
     # Test ambiguous operator - same name from different modules
@@ -381,9 +381,7 @@ end
     same_name_ops = OperatorEnum(1 => [TestMod1.foo, TestMod2.foo])
     @test_throws(
         r"Ambiguous operator `foo` with arity 1\. Multiple matches found: Tuple\{Function, Int64\}\[.*foo.*1.*foo.*1.*\]",
-        parse_expression(
-            Meta.parse("foo(x1)"), operators=same_name_ops, variable_names=["x1"]
-        )
+        parse_expression("foo(x1)", operators=same_name_ops, variable_names=["x1"])
     )
 
     # Test wrong arity
@@ -392,9 +390,7 @@ end
             "Operator `custom_cos` found but not with arity 2. Available arities: [1]"
         ),
         parse_expression(
-            Meta.parse("custom_cos(x1, x2)"),
-            operators=operators,
-            variable_names=["x1", "x2"],
+            "custom_cos(x1, x2)", operators=operators, variable_names=["x1", "x2"]
         )
     )
 end

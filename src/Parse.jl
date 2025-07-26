@@ -242,6 +242,8 @@ end
     end
 end
 
+@unstable parse_expression(ex::String; kws...) = parse_expression(Meta.parse(ex); kws...)
+
 """
 Find an operator function by its name in the OperatorEnum, considering the arity.
 Throws appropriate errors for ambiguous or missing matches.
