@@ -8,6 +8,7 @@ using DispatchDoctor: @stable, @unstable
     include("ExtensionInterface.jl")
     include("OperatorEnum.jl")
     include("Node.jl")
+    include("ArrayNode.jl")
     include("NodeUtils.jl")
     include("NodePreallocation.jl")
     include("Strings.jl")
@@ -50,6 +51,7 @@ import .ValueInterfaceModule:
     tree_mapreduce,
     filter_map,
     filter_map!
+import .ArrayNodeModule: ArrayNode
 import .NodePreallocationModule: allocate_container, copy_into!
 import .NodeModule:
     constructorof,
