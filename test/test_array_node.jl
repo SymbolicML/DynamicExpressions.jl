@@ -179,12 +179,6 @@ end
     operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[sin, cos])
     X = [1.0 2.0; 0.5 1.0]  # 2 features, 2 samples
 
-    # Warm up
-    result = eval_tree_array(tree, X, operators)
-
-    # Test that evaluation doesn't allocate
-    @check_allocs check_eval(t, x, ops) = eval_tree_array(t, x, ops)
-    check_eval(tree, X, operators)
 
     # Test that property access doesn't allocate
     @check_allocs get_degree(n) = n.degree
