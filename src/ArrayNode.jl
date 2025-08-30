@@ -246,8 +246,7 @@ function ArrayNode{T,D}(
                                 child_idx
                             else
                                 # Different tree - copy
-                                new_idx = copy_subtree!(tree, child_tree, child_idx)
-                                new_idx
+                                copy_subtree!(tree, child_tree, child_idx)
                             end
                         else
                             UInt16(0)
@@ -340,19 +339,44 @@ end
 function set_children!(n::ArrayNode{T,D,S}, cs::Tuple) where {T,D,S}
     tree = getfield(n, :tree)
     idx = getfield(n, :idx)
-    child_indices = ntuple(i -> begin
+    child_indices = ntuple(Val(D)) do i
         if i <= length(cs)
             child = cs[i]
-            if isa(child, ArrayNode)
-                getfield(child, :idx)
+            if isa(child, Nullable)
+                # Handle Nullable wrapped children
+                if child.null
+                    UInt16(0)
+                else
+                    child_node = child.x
+                    child_tree = getfield(child_node, :tree)
+                    child_idx = getfield(child_node, :idx)
+                    if child_tree === tree
+                        # Same tree - just use the index
+                        child_idx
+                    else
+                        # Different tree - need to copy the subtree
+                        copy_subtree!(tree, child_tree, child_idx)
+                    end
+                end
+            elseif isa(child, ArrayNode)
+                child_tree = getfield(child, :tree)
+                child_idx = getfield(child, :idx)
+                if child_tree === tree
+                    # Same tree - just use the index
+                    child_idx
+                else
+                    # Different tree - need to copy the subtree
+                    copy_subtree!(tree, child_tree, child_idx)
+                end
             else
                 UInt16(0)
             end
         else
             UInt16(0)
         end
-    end, Val(D))
-    return tree.nodes.children[idx] = child_indices
+    end
+    tree.nodes.children[idx] = child_indices
+    return nothing
 end
 
 # Copy
