@@ -80,7 +80,7 @@ struct ArrayNode{T,D,S} <: AbstractExpressionNode{T,D}
     idx::UInt16
 end
 
-function Base.getproperty(n::ArrayNode{T,D,S}, k::Symbol) where {T,D,S}
+@inline function Base.getproperty(n::ArrayNode{T,D,S}, k::Symbol) where {T,D,S}
     tree = getfield(n, :tree)
     idx = getfield(n, :idx)
     nodes = getfield(tree, :nodes)
@@ -109,18 +109,20 @@ function Base.getproperty(n::ArrayNode{T,D,S}, k::Symbol) where {T,D,S}
                 Nullable(false, ArrayNode{T,D,S}(tree, child_idx))
             end
         end
-    elseif k == :l  # Left child for compatibility
+    elseif k == :l
         child_idx = @inbounds nodes.children[idx][1]
-        return child_idx == 0 ? error("No left child") : ArrayNode{T,D,S}(tree, child_idx)
-    elseif k == :r  # Right child for compatibility
+        child_idx == 0 && error("No left child")
+        return ArrayNode{T,D,S}(tree, child_idx)
+    elseif k == :r
         child_idx = @inbounds nodes.children[idx][2]
-        return child_idx == 0 ? error("No right child") : ArrayNode{T,D,S}(tree, child_idx)
+        child_idx == 0 && error("No right child")
+        return ArrayNode{T,D,S}(tree, child_idx)
     else
         error("Unknown field $k")
     end
 end
 
-function Base.setproperty!(n::ArrayNode{T,D,S}, k::Symbol, v) where {T,D,S}
+@inline function Base.setproperty!(n::ArrayNode{T,D,S}, k::Symbol, v) where {T,D,S}
     tree = getfield(n, :tree)
     idx = getfield(n, :idx)
     nodes = getfield(tree, :nodes)
@@ -136,11 +138,11 @@ function Base.setproperty!(n::ArrayNode{T,D,S}, k::Symbol, v) where {T,D,S}
     elseif k == :op
         @inbounds nodes.op[idx] = v
     elseif k == :l
-        isa(v, ArrayNode) || error("Cannot set left child to non-ArrayNode")
+        !isa(v, ArrayNode) && error("Cannot set left child to non-ArrayNode")
         children = nodes.children[idx]
         @inbounds nodes.children[idx] = (getfield(v, :idx), children[2:end]...)
     elseif k == :r
-        isa(v, ArrayNode) || error("Cannot set right child to non-ArrayNode")
+        !isa(v, ArrayNode) && error("Cannot set right child to non-ArrayNode")
         children = nodes.children[idx]
         @inbounds nodes.children[idx] = (children[1], getfield(v, :idx), children[3:end]...)
     else
@@ -150,7 +152,7 @@ function Base.setproperty!(n::ArrayNode{T,D,S}, k::Symbol, v) where {T,D,S}
 end
 
 # Allocation management
-function allocate_node!(tree::ArrayTree)
+@inline function allocate_node!(tree::ArrayTree)
     tree.free_count == 0 && error("ArrayTree full")
     idx = tree.free_list[tree.free_count]
     tree.free_count -= 1
@@ -158,7 +160,7 @@ function allocate_node!(tree::ArrayTree)
     return idx
 end
 
-function free_node!(tree::ArrayTree, idx::UInt16)
+@inline function free_node!(tree::ArrayTree, idx::UInt16)
     tree.free_count += 1
     tree.free_list[tree.free_count] = idx
     return tree.n_nodes -= 1
@@ -299,16 +301,6 @@ function copy_subtree!(dst::ArrayTree{T,D}, src::ArrayTree{T,D}, src_idx::UInt16
 
     return dst_idx
 end
-
-# Core interface implementations
-Base.eltype(::Type{<:ArrayNode{T}}) where {T} = T
-Base.eltype(::ArrayNode{T}) where {T} = T
-
-max_degree(::Type{<:ArrayNode}) = 2
-max_degree(::Type{<:ArrayNode{T,D}}) where {T,D} = D
-max_degree(n::ArrayNode) = max_degree(typeof(n))
-
-preserve_sharing(::Type{<:ArrayNode}) = false
 
 constructorof(::Type{<:ArrayNode}) = ArrayNode
 with_type_parameters(::Type{<:ArrayNode}, ::Type{T}) where {T} = ArrayNode{T,2}
@@ -508,10 +500,10 @@ function tree_mapreduce(
     return mapreduce_impl(f, op, tree, getfield(n, :idx))
 end
 
-function mapreduce_impl(f::F, op::G, tree::ArrayTree{T,D,S}, idx::UInt16) where {F,G,T,D,S}
+@inline function mapreduce_impl(f::F, op::G, tree::ArrayTree{T,D,S}, idx::UInt16) where {F,G,T,D,S}
     degree = @inbounds tree.nodes.degree[idx]
     node = ArrayNode{T,D,S}(tree, idx)
-    result = f(node)
+    result = @inline f(node)
 
     if degree > 0
         child_results = ntuple(
