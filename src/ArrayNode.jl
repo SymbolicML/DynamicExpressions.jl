@@ -47,28 +47,34 @@ mutable struct ArrayTree{T,D,S<:StructVector{NodeData{T,D}}}
     free_count::UInt16
 
     function ArrayTree{T,D}(n::Int; array_type::Type{<:AbstractVector}=Vector) where {T,D}
-        # Create backing arrays of the specified type
-        degree = array_type{UInt8}(undef, n)
-        constant = array_type{Bool}(undef, n)
-        val = array_type{T}(undef, n)
-        feature = array_type{UInt16}(undef, n)
-        op = array_type{UInt8}(undef, n)
-        children = array_type{NTuple{D,UInt16}}(undef, n)
-
-        # Create a StructVector from the backing arrays
-        nodes = StructVector{NodeData{T,D}}((
-            degree=degree,
-            constant=constant,
-            val=val,
-            feature=feature,
-            op=op,
-            children=children,
-        ))
+        # Create uninitialized StructVector directly
+        # For custom array types, we'd need to pass them to StructVector somehow
+        # For now, just use the default
+        nodes = if array_type === Vector
+            StructVector{NodeData{T,D}}(undef, n)
+        else
+            # For other array types, create backing arrays manually
+            degree = array_type{UInt8}(undef, n)
+            constant = array_type{Bool}(undef, n)
+            val = array_type{T}(undef, n)
+            feature = array_type{UInt16}(undef, n)
+            op = array_type{UInt8}(undef, n)
+            children = array_type{NTuple{D,UInt16}}(undef, n)
+            StructVector{NodeData{T,D}}((
+                degree=degree,
+                constant=constant,
+                val=val,
+                feature=feature,
+                op=op,
+                children=children,
+            ))
+        end
 
         S = typeof(nodes)
-        tree = new{T,D,S}(nodes, UInt16(0), UInt16(0), Vector{UInt16}(undef, n), UInt16(n))
-        # Initialize free list
-        for i in 1:n
+        free_list = Vector{UInt16}(undef, n)
+        tree = new{T,D,S}(nodes, UInt16(0), UInt16(0), free_list, UInt16(n))
+        # Initialize free list in-place
+        @inbounds @simd for i in 1:n
             tree.free_list[i] = UInt16(i)
         end
         return tree
@@ -270,7 +276,9 @@ function ArrayNode{T,D}(
     return ArrayNode{T,D,typeof(tree.nodes)}(tree, idx)
 end
 
-function copy_subtree!(dst::ArrayTree{T,D}, src::ArrayTree{T,D}, src_idx::UInt16) where {T,D}
+function copy_subtree!(
+    dst::ArrayTree{T,D}, src::ArrayTree{T,D}, src_idx::UInt16
+) where {T,D}
     dst_idx = allocate_node!(dst)
 
     @inbounds begin
@@ -314,17 +322,14 @@ end
 function unsafe_get_children(n::ArrayNode{T,D,S}) where {T,D,S}
     tree = getfield(n, :tree)
     idx = getfield(n, :idx)
-    return ntuple(
-        i -> begin
-            child_idx = @inbounds tree.nodes.children[idx][i]
-            if child_idx == 0
-                Nullable(true, n)
-            else
-                Nullable(false, ArrayNode{T,D,S}(tree, child_idx))
-            end
-        end,
-        Val(D),
-    )
+    return ntuple(i -> begin
+        child_idx = @inbounds tree.nodes.children[idx][i]
+        if child_idx == 0
+            Nullable(true, n)
+        else
+            Nullable(false, ArrayNode{T,D,S}(tree, child_idx))
+        end
+    end, Val(D))
 end
 
 function get_children(n::ArrayNode{T,D,S}, ::Val{d}) where {T,D,S,d}
@@ -379,31 +384,115 @@ function set_children!(n::ArrayNode{T,D,S}, cs::Tuple) where {T,D,S}
     return nothing
 end
 
+# Helper to mark nodes as reachable from a given root
+function mark_reachable!(
+    reachable::Vector{Bool}, tree::ArrayTree{T,D}, idx::UInt16
+) where {T,D}
+    if idx == 0 || reachable[idx]
+        return nothing
+    end
+    reachable[idx] = true
+    degree = @inbounds tree.nodes.degree[idx]
+    for i in 1:degree
+        child_idx = @inbounds tree.nodes.children[idx][i]
+        if child_idx != 0
+            mark_reachable!(reachable, tree, child_idx)
+        end
+    end
+end
+
 # Copy
+# Note: break_sharing parameter is ignored since ArrayNode doesn't preserve sharing
 function copy_node(n::ArrayNode{T,D,S}; break_sharing::Val{BS}=Val(false)) where {T,D,S,BS}
+    # BS parameter unused - ArrayNode always breaks sharing since each node owns its tree
     tree = getfield(n, :tree)
     idx = getfield(n, :idx)
+    n_capacity = length(tree.nodes)
 
-    # Count nodes to determine tree size needed
-    node_count = count_nodes(n)
-    # Add some buffer space
-    tree_size = max(32, node_count * 2)
-
-    # Determine the array type from the existing tree's nodes
-    # Default to Vector since that's the most common case
-    # For other array types, we'd need more sophisticated type extraction
+    # Create new tree with same capacity
     new_tree = if tree.nodes.degree isa Vector
-        ArrayTree{T,D}(tree_size; array_type=Vector)
+        ArrayTree{T,D}(n_capacity; array_type=Vector)
     else
-        # For other array types like FixedSizeVector, we just use default
-        ArrayTree{T,D}(tree_size)
+        ArrayTree{T,D}(n_capacity)
     end
-    new_idx = copy_subtree!(new_tree, tree, idx)
-    new_tree.root_idx = new_idx
 
-    return ArrayNode{T,D,S}(new_tree, new_idx)
+    # Direct array copy - works for both full tree and subtree
+    new_tree.nodes.degree[:] = tree.nodes.degree
+    new_tree.nodes.constant[:] = tree.nodes.constant
+    new_tree.nodes.val[:] = tree.nodes.val
+    new_tree.nodes.feature[:] = tree.nodes.feature
+    new_tree.nodes.op[:] = tree.nodes.op
+    new_tree.nodes.children[:] = tree.nodes.children
+
+    # Set the root to our copied node
+    new_tree.root_idx = idx
+
+    if idx == tree.root_idx
+        # Full tree copy - just copy all metadata
+        new_tree.n_nodes = tree.n_nodes
+        new_tree.free_count = tree.free_count
+        new_tree.free_list[:] = tree.free_list
+    else
+        # Subtree copy - need to update free list to exclude unreachable nodes
+        reachable = fill(false, n_capacity)
+        mark_reachable!(reachable, new_tree, idx)
+
+        # Reset free list with unreachable nodes
+        new_tree.free_count = 0
+        new_tree.n_nodes = 0
+        for i in 1:n_capacity
+            if !reachable[i]
+                new_tree.free_count += 1
+                new_tree.free_list[new_tree.free_count] = UInt16(i)
+            else
+                new_tree.n_nodes += 1
+            end
+        end
+    end
+
+    return ArrayNode{T,D,S}(new_tree, new_tree.root_idx)
 end
 
 Base.copy(n::ArrayNode) = copy_node(n)
+
+# tree_mapreduce implementation
+function tree_mapreduce(
+    f::F,
+    op::G,
+    tree::ArrayNode{T,D,S},
+    result_type::Type{RT}=Undefined;
+    f_on_shared::H=(result, is_shared) -> result,
+    break_sharing::Val{BS}=Val(false),
+) where {F<:Function,G<:Function,H<:Function,T,D,S,RT,BS}
+    return tree_mapreduce(f, f, op, tree, result_type; f_on_shared, break_sharing)
+end
+
+function tree_mapreduce(
+    f_leaf::F1,
+    f_branch::F2,
+    op::G,
+    tree::ArrayNode{T,D,S},
+    result_type::Type{RT}=Undefined;
+    f_on_shared::H=(result, is_shared) -> result,
+    break_sharing::Val{BS}=Val(false),
+) where {F1<:Function,F2<:Function,G<:Function,H<:Function,T,D,S,RT,BS}
+    # ArrayNode doesn't preserve sharing, so we can use simple recursion
+    if tree.degree == 0
+        return f_leaf(tree)
+    else
+        # Apply to children
+        degree = tree.degree
+        children_results = ntuple(Val(Int(degree))) do i
+            child = get_children(tree, Val(degree))[i]
+            tree_mapreduce(
+                f_leaf, f_branch, op, child, result_type; f_on_shared, break_sharing
+            )
+        end
+
+        # Reduce children results
+        self_result = f_branch(tree)
+        return op(self_result, children_results...)
+    end
+end
 
 end # module
