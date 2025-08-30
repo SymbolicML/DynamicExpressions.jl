@@ -1,7 +1,8 @@
 @testitem "ArrayNode interface with Vector" begin
     using DynamicExpressions
-    using DynamicExpressions: NodeInterface, ArrayNode
+    using DynamicExpressions: NodeInterface
     using Interfaces: Interfaces
+    const ArrayNode = DynamicExpressions.ArrayNode
 
     # Test with regular Vector
     x1 = ArrayNode{Float64,2,Vector}(; feature=1)
@@ -33,8 +34,9 @@ end
 
 @testitem "ArrayNode with custom array type" begin
     using DynamicExpressions
-    using DynamicExpressions: NodeInterface, ArrayNode
+    using DynamicExpressions: NodeInterface
     using Interfaces: Interfaces
+    const ArrayNode = DynamicExpressions.ArrayNode
     
     # Test that ArrayNode works with any AbstractVector type
     # For production use with FixedSizeArrays, you'd need a wrapper 
@@ -69,8 +71,9 @@ end
 
 @testitem "ArrayNode interface on n-arity nodes" begin
     using DynamicExpressions
-    using DynamicExpressions: NodeInterface, ArrayNode
+    using DynamicExpressions: NodeInterface
     using Interfaces: Interfaces
+    const ArrayNode = DynamicExpressions.ArrayNode
 
     for D in (3, 4, 5)
         # Test with regular arrays
@@ -98,7 +101,8 @@ end
 
 @testitem "ArrayNode basic operations" begin
     using DynamicExpressions
-    using DynamicExpressions: ArrayNode, OperatorEnum
+    using DynamicExpressions: OperatorEnum
+    const ArrayNode = DynamicExpressions.ArrayNode
 
     # Test with regular arrays (default)
     x1 = ArrayNode{Float64,2}(; feature=1)
@@ -150,7 +154,8 @@ end
 
 @testitem "ArrayNode with Expressions" begin
     using DynamicExpressions
-    using DynamicExpressions: ArrayNode, Expression
+    using DynamicExpressions: Expression
+    const ArrayNode = DynamicExpressions.ArrayNode
 
     # Create a simple tree with default arrays
     x1 = ArrayNode{Float64,2}(; feature=1)

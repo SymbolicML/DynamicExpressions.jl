@@ -18,8 +18,6 @@ export ArrayNode
     return A{T}(undef, n)
 end
 
-# Container for all nodes in a tree
-# A is the vector array type (e.g., Vector, FixedSizeVector)
 mutable struct ArrayTree{T,D,A<:AbstractVector}
     degrees::A  # Vector of UInt8
     constants::A  # Vector of Bool
@@ -57,13 +55,11 @@ end
 # Default constructor using regular arrays
 ArrayTree{T,D}(n::Int) where {T,D} = ArrayTree{T,D,Vector}(n)
 
-# ArrayNode is just a lightweight view into the ArrayTree
 mutable struct ArrayNode{T,D,A<:AbstractVector} <: AbstractExpressionNode{T,D}
     tree::ArrayTree{T,D,A}
     idx::Int8
 end
 
-# The clever part: getproperty just indexes into the arrays!
 function getproperty(n::ArrayNode, k::Symbol)
     tree = getfield(n, :tree)
     idx = getfield(n, :idx)
@@ -430,8 +426,6 @@ function set_node!(dst::ArrayNode, src::ArrayNode)
     else
         dst.op = src.op
         
-        # Copy children - need to get D from somewhere
-        # Since both dst and src are ArrayNodes, we can get it from the type
         D = max_degree(typeof(dst))
         child_indices = ntuple(i -> begin
             if i <= src.degree
