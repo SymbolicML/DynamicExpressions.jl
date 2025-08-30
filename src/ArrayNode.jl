@@ -29,22 +29,22 @@ struct NodeData{T,D}
     val::T
     feature::UInt16
     op::UInt8
-    children::NTuple{D,Int8}
+    children::NTuple{D,UInt16}
 end
 
 # Constructor for empty node
 function NodeData{T,D}() where {T,D}
     return NodeData{T,D}(
-        UInt8(0), true, zero(T), UInt16(0), UInt8(0), ntuple(_ -> Int8(-1), Val(D))
+        UInt8(0), true, zero(T), UInt16(0), UInt8(0), ntuple(_ -> UInt16(0), Val(D))
     )
 end
 
 mutable struct ArrayTree{T,D,S<:StructVector{NodeData{T,D}}}
     const nodes::S
-    root_idx::Int8
-    n_nodes::Int8
-    const free_list::Vector{Int8}
-    free_count::Int8
+    root_idx::UInt16
+    n_nodes::UInt16
+    const free_list::Vector{UInt16}
+    free_count::UInt16
 
     function ArrayTree{T,D}(n::Int; array_type::Type{<:AbstractVector}=Vector) where {T,D}
         # Create backing arrays of the specified type
@@ -53,7 +53,7 @@ mutable struct ArrayTree{T,D,S<:StructVector{NodeData{T,D}}}
         val = array_type{T}(undef, n)
         feature = array_type{UInt16}(undef, n)
         op = array_type{UInt8}(undef, n)
-        children = array_type{NTuple{D,Int8}}(undef, n)
+        children = array_type{NTuple{D,UInt16}}(undef, n)
 
         # Create a StructVector from the backing arrays
         nodes = StructVector{NodeData{T,D}}((
@@ -65,21 +65,11 @@ mutable struct ArrayTree{T,D,S<:StructVector{NodeData{T,D}}}
             children=children,
         ))
 
-        # Initialize all nodes to default values
-        for i in 1:n
-            nodes.degree[i] = UInt8(0)
-            nodes.constant[i] = true
-            nodes.val[i] = zero(T)
-            nodes.feature[i] = UInt16(0)
-            nodes.op[i] = UInt8(0)
-            nodes.children[i] = ntuple(_ -> Int8(-1), Val(D))
-        end
-
         S = typeof(nodes)
-        tree = new{T,D,S}(nodes, Int8(0), Int8(0), Vector{Int8}(undef, n), Int8(n))
+        tree = new{T,D,S}(nodes, UInt16(0), UInt16(0), Vector{UInt16}(undef, n), UInt16(n))
         # Initialize free list
         for i in 1:n
-            tree.free_list[i] = Int8(i)
+            tree.free_list[i] = UInt16(i)
         end
         return tree
     end
@@ -87,7 +77,7 @@ end
 
 struct ArrayNode{T,D,S} <: AbstractExpressionNode{T,D}
     tree::ArrayTree{T,D,S}
-    idx::Int8
+    idx::UInt16
 end
 
 function Base.getproperty(n::ArrayNode{T,D,S}, k::Symbol) where {T,D,S}
@@ -113,7 +103,7 @@ function Base.getproperty(n::ArrayNode{T,D,S}, k::Symbol) where {T,D,S}
         # Return tuple of child ArrayNodes wrapped in Nullable
         return ntuple(Val(D)) do i
             child_idx = @inbounds nodes.children[idx][i]
-            if child_idx < 0
+            if child_idx == 0
                 Nullable(true, n)  # Poison node
             else
                 Nullable(false, ArrayNode{T,D,S}(tree, child_idx))
@@ -121,10 +111,10 @@ function Base.getproperty(n::ArrayNode{T,D,S}, k::Symbol) where {T,D,S}
         end
     elseif k == :l  # Left child for compatibility
         child_idx = @inbounds nodes.children[idx][1]
-        return child_idx < 0 ? error("No left child") : ArrayNode{T,D,S}(tree, child_idx)
+        return child_idx == 0 ? error("No left child") : ArrayNode{T,D,S}(tree, child_idx)
     elseif k == :r  # Right child for compatibility
         child_idx = @inbounds nodes.children[idx][2]
-        return child_idx < 0 ? error("No right child") : ArrayNode{T,D,S}(tree, child_idx)
+        return child_idx == 0 ? error("No right child") : ArrayNode{T,D,S}(tree, child_idx)
     else
         error("Unknown field $k")
     end
@@ -168,7 +158,7 @@ function allocate_node!(tree::ArrayTree)
     return idx
 end
 
-function free_node!(tree::ArrayTree, idx::Int8)
+function free_node!(tree::ArrayTree, idx::UInt16)
     tree.free_count += 1
     tree.free_list[tree.free_count] = idx
     return tree.n_nodes -= 1
@@ -228,7 +218,6 @@ function ArrayNode{T,D}(
     end
 
     if !isnothing(op)
-        # DEBUG: op=$op, l is nothing? $(isnothing(l)), r is nothing? $(isnothing(r))
         _children = if !isnothing(l) && isnothing(r)
             (l,)
         elseif !isnothing(l) && !isnothing(r)
@@ -238,7 +227,6 @@ function ArrayNode{T,D}(
         end
 
         if !isnothing(_children)
-            # DEBUG: Building node with children, length=length(_children)
             degree = length(_children)
             tree.nodes.degree[idx] = degree
             tree.nodes.op[idx] = op
@@ -248,7 +236,6 @@ function ArrayNode{T,D}(
                 i -> begin
                     if i <= length(_children)
                         child = _children[i]
-                        # DEBUG: Processing child $i, isa ArrayNode? isa(child, ArrayNode)
                         if isa(child, ArrayNode)
                             child_tree = getfield(child, :tree)
                             child_idx = getfield(child, :idx)
@@ -258,21 +245,13 @@ function ArrayNode{T,D}(
                             else
                                 # Different tree - copy
                                 new_idx = copy_subtree!(tree, child_tree, child_idx)
-                                # DEBUG
-                                # println("Copied child from idx $child_idx to new idx $new_idx")
-                                # println("  Original: constant=", child_tree.nodes.constant[child_idx], 
-                                #         child_tree.nodes.constant[child_idx] ? ", val=" : ", feature=",
-                                #         child_tree.nodes.constant[child_idx] ? child_tree.nodes.val[child_idx] : child_tree.nodes.feature[child_idx])
-                                # println("  Copied: constant=", tree.nodes.constant[new_idx],
-                                #         tree.nodes.constant[new_idx] ? ", val=" : ", feature=",
-                                #         tree.nodes.constant[new_idx] ? tree.nodes.val[new_idx] : tree.nodes.feature[new_idx])
                                 new_idx
                             end
                         else
-                            Int8(-1)
+                            UInt16(0)
                         end
                     else
-                        Int8(-1)
+                        UInt16(0)
                     end
                 end,
                 Val(D),
@@ -290,7 +269,7 @@ function ArrayNode{T,D}(
     return ArrayNode{T,D,typeof(tree.nodes)}(tree, idx)
 end
 
-function copy_subtree!(dst::ArrayTree{T,D}, src::ArrayTree{T,D}, src_idx::Int8) where {T,D}
+function copy_subtree!(dst::ArrayTree{T,D}, src::ArrayTree{T,D}, src_idx::UInt16) where {T,D}
     dst_idx = allocate_node!(dst)
 
     @inbounds begin
@@ -306,13 +285,13 @@ function copy_subtree!(dst::ArrayTree{T,D}, src::ArrayTree{T,D}, src_idx::Int8) 
         i -> begin
             if i <= degree
                 child_idx = @inbounds src.nodes.children[src_idx][i]
-                if child_idx >= 0
+                if child_idx > 0
                     copy_subtree!(dst, src, child_idx)
                 else
-                    Int8(-1)
+                    UInt16(0)
                 end
             else
-                Int8(-1)
+                UInt16(0)
             end
         end, Val(D)
     )
@@ -347,10 +326,10 @@ function unsafe_get_children(n::ArrayNode{T,D,S}) where {T,D,S}
     return ntuple(
         i -> begin
             child_idx = @inbounds tree.nodes.children[idx][i]
-            if child_idx < 0
+            if child_idx == 0
                 Nullable(true, n)
             else
-                Nullable(false, ArrayNode{T,D,typeof(tree.nodes)}(tree, child_idx))
+                Nullable(false, ArrayNode{T,D,S}(tree, child_idx))
             end
         end,
         Val(D),
@@ -362,7 +341,7 @@ function get_children(n::ArrayNode{T,D,S}, ::Val{d}) where {T,D,S,d}
     idx = getfield(n, :idx)
     return ntuple(i -> begin
         child_idx = @inbounds tree.nodes.children[idx][i]
-        ArrayNode{T,D,typeof(tree.nodes)}(tree, child_idx)
+        ArrayNode{T,D,S}(tree, child_idx)
     end, Val(Int(d)))
 end
 
@@ -377,10 +356,10 @@ function set_children!(n::ArrayNode{T,D,S}, cs::Tuple) where {T,D,S}
             if isa(child, ArrayNode)
                 getfield(child, :idx)
             else
-                Int8(-1)
+                UInt16(0)
             end
         else
-            Int8(-1)
+            UInt16(0)
         end
     end, Val(D))
     return tree.nodes.children[idx] = child_indices
@@ -396,12 +375,19 @@ function copy_node(n::ArrayNode{T,D,S}; break_sharing::Val{BS}=Val(false)) where
     # Add some buffer space
     tree_size = max(32, node_count * 2)
 
-    # Create new tree for the copy
-    new_tree = ArrayTree{T,D}(tree_size)
+    # Determine the array type from the existing tree's nodes
+    # Default to Vector since that's the most common case
+    # For other array types, we'd need more sophisticated type extraction
+    new_tree = if tree.nodes.degree isa Vector
+        ArrayTree{T,D}(tree_size; array_type=Vector)
+    else
+        # For other array types like FixedSizeVector, we just use default
+        ArrayTree{T,D}(tree_size)
+    end
     new_idx = copy_subtree!(new_tree, tree, idx)
     new_tree.root_idx = new_idx
 
-    return ArrayNode{T,D,typeof(new_tree.nodes)}(new_tree, new_idx)
+    return ArrayNode{T,D,S}(new_tree, new_idx)
 end
 
 Base.copy(n::ArrayNode) = copy_node(n)
@@ -485,7 +471,7 @@ function set_node!(dst::ArrayNode, src::ArrayNode)
             i -> begin
                 if i <= src.degree
                     child_idx = @inbounds src_tree.nodes.children[src_idx][i]
-                    if child_idx >= 0
+                    if child_idx > 0
                         if dst_tree === src_tree
                             # Same tree
                             child_idx
@@ -494,10 +480,10 @@ function set_node!(dst::ArrayNode, src::ArrayNode)
                             copy_subtree!(dst_tree, src_tree, child_idx)
                         end
                     else
-                        Int8(-1)
+                        UInt16(0)
                     end
                 else
-                    Int8(-1)
+                    UInt16(0)
                 end
             end,
             Val(D),
@@ -522,7 +508,7 @@ function tree_mapreduce(
     return mapreduce_impl(f, op, tree, getfield(n, :idx))
 end
 
-function mapreduce_impl(f::F, op::G, tree::ArrayTree{T,D,S}, idx::Int8) where {F,G,T,D,S}
+function mapreduce_impl(f::F, op::G, tree::ArrayTree{T,D,S}, idx::UInt16) where {F,G,T,D,S}
     degree = @inbounds tree.nodes.degree[idx]
     node = ArrayNode{T,D,S}(tree, idx)
     result = f(node)
@@ -531,7 +517,7 @@ function mapreduce_impl(f::F, op::G, tree::ArrayTree{T,D,S}, idx::Int8) where {F
         child_results = ntuple(
             i -> begin
                 child_idx = @inbounds tree.nodes.children[idx][i]
-                if child_idx >= 0
+                if child_idx > 0
                     mapreduce_impl(f, op, tree, child_idx)
                 else
                     nothing
@@ -554,14 +540,14 @@ function any(f::F, n::ArrayNode) where {F<:Function}
     return any_impl(f, tree, getfield(n, :idx))
 end
 
-function any_impl(f::F, tree::ArrayTree{T,D,S}, idx::Int8) where {F,T,D,S}
+function any_impl(f::F, tree::ArrayTree{T,D,S}, idx::UInt16) where {F,T,D,S}
     node = ArrayNode{T,D,S}(tree, idx)
     f(node) && return true
 
     degree = @inbounds tree.nodes.degree[idx]
     for i in 1:degree
         child_idx = @inbounds tree.nodes.children[idx][i]
-        if child_idx >= 0 && any_impl(f, tree, child_idx)
+        if child_idx > 0 && any_impl(f, tree, child_idx)
             return true
         end
     end
