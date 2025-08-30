@@ -198,8 +198,8 @@ end
     get_op(tree)
 
     # Test that count_nodes doesn't allocate (after warm-up)
-    count_nodes(tree)
-    @check_allocs count_nodes(tree) = count_nodes(tree)
+    @check_allocs count_nodes_test(t) = count_nodes(t)
+    count_nodes_test(tree)
 
     # Test that tree traversal doesn't allocate
     function traverse_tree(n::ArrayNode)
