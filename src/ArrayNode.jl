@@ -8,16 +8,10 @@ import ..NodeModule:
     constructorof,
     with_type_parameters,
     with_max_degree,
-    preserve_sharing,
-    max_degree,
     default_allocator,
     get_children,
     set_children!,
     unsafe_get_children,
-    tree_mapreduce,
-    count_nodes,
-    set_node!,
-    any,
     copy_node
 
 export ArrayNode
@@ -215,6 +209,8 @@ function ArrayNode{T,D}(
         tree.nodes.degree[idx] = 0
         tree.nodes.constant[idx] = true
         tree.nodes.val[idx] = val
+        # Clear children for leaf node
+        tree.nodes.children[idx] = ntuple(_ -> UInt16(0), Val(D))
         return ArrayNode{T,D,typeof(tree.nodes)}(tree, idx)
     end
 
@@ -222,6 +218,8 @@ function ArrayNode{T,D}(
         tree.nodes.degree[idx] = 0
         tree.nodes.constant[idx] = false
         tree.nodes.feature[idx] = feature
+        # Clear children for leaf node  
+        tree.nodes.children[idx] = ntuple(_ -> UInt16(0), Val(D))
         return ArrayNode{T,D,typeof(tree.nodes)}(tree, idx)
     end
 
@@ -273,6 +271,7 @@ function ArrayNode{T,D}(
     tree.nodes.degree[idx] = 0
     tree.nodes.constant[idx] = true
     tree.nodes.val[idx] = zero(T)
+    tree.nodes.children[idx] = ntuple(_ -> UInt16(0), Val(D))
     return ArrayNode{T,D,typeof(tree.nodes)}(tree, idx)
 end
 
@@ -454,45 +453,5 @@ function copy_node(n::ArrayNode{T,D,S}; break_sharing::Val{BS}=Val(false)) where
 end
 
 Base.copy(n::ArrayNode) = copy_node(n)
-
-# tree_mapreduce implementation
-function tree_mapreduce(
-    f::F,
-    op::G,
-    tree::ArrayNode{T,D,S},
-    result_type::Type{RT}=Undefined;
-    f_on_shared::H=(result, is_shared) -> result,
-    break_sharing::Val{BS}=Val(false),
-) where {F<:Function,G<:Function,H<:Function,T,D,S,RT,BS}
-    return tree_mapreduce(f, f, op, tree, result_type; f_on_shared, break_sharing)
-end
-
-function tree_mapreduce(
-    f_leaf::F1,
-    f_branch::F2,
-    op::G,
-    tree::ArrayNode{T,D,S},
-    result_type::Type{RT}=Undefined;
-    f_on_shared::H=(result, is_shared) -> result,
-    break_sharing::Val{BS}=Val(false),
-) where {F1<:Function,F2<:Function,G<:Function,H<:Function,T,D,S,RT,BS}
-    # ArrayNode doesn't preserve sharing, so we can use simple recursion
-    if tree.degree == 0
-        return f_leaf(tree)
-    else
-        # Apply to children
-        degree = tree.degree
-        children_results = ntuple(Val(Int(degree))) do i
-            child = get_children(tree, Val(degree))[i]
-            tree_mapreduce(
-                f_leaf, f_branch, op, child, result_type; f_on_shared, break_sharing
-            )
-        end
-
-        # Reduce children results
-        self_result = f_branch(tree)
-        return op(self_result, children_results...)
-    end
-end
 
 end # module
