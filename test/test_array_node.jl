@@ -179,7 +179,6 @@ end
     operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[sin, cos])
     X = [1.0 2.0; 0.5 1.0]  # 2 features, 2 samples
 
-
     # Test that property access doesn't allocate
     @check_allocs get_degree(n) = n.degree
     @check_allocs get_val(n) = n.val
@@ -473,4 +472,59 @@ end
     end
 
     println("✅ ArrayNode tree_mapreduce operations match Node!")
+end
+
+@testitem "ArrayNode copy has no array aliasing" begin
+    using DynamicExpressions
+    const ArrayNode = DynamicExpressions.ArrayNode
+
+    # Create a test tree
+    x1 = ArrayNode{Float64,2,Vector}(; feature=1)
+    x2 = ArrayNode{Float64,2,Vector}(; feature=2)
+    tree = ArrayNode{Float64,2,Vector}(;
+        op=1,
+        l=ArrayNode{Float64,2,Vector}(;
+            op=2, l=x1, r=ArrayNode{Float64,2,Vector}(; val=3.5)
+        ),
+        r=x2,
+    )
+
+    # Test 1: Copy entire tree (root node)
+    tree_copy = copy(tree)
+
+    # Verify no aliasing - modifying copy shouldn't affect original
+    tree_copy.val = 999.0
+    tree_copy.l.val = 888.0
+
+    # Check that original is unchanged
+    @test tree.l.r.val == 3.5  # Original value unchanged
+    @test tree.l.r.val != 888.0
+
+    # Verify the backing arrays are different
+    orig_tree = tree.tree
+    copy_tree = tree_copy.tree
+    @test orig_tree !== copy_tree  # Different tree objects
+    @test orig_tree.nodes.val !== copy_tree.nodes.val  # Different arrays
+    @test orig_tree.nodes.degree !== copy_tree.nodes.degree
+    @test orig_tree.nodes.children !== copy_tree.nodes.children
+
+    # Test 2: Copy subtree (non-root node)
+    subtree = tree.l
+    subtree_copy = copy(subtree)
+
+    # Modify the copy
+    subtree_copy.r.val = 777.0
+
+    # Original should be unchanged
+    @test tree.l.r.val == 3.5
+    @test subtree.r.val == 3.5
+
+    # Verify different backing arrays for subtree copy too
+    subtree_copy_tree = subtree_copy.tree
+    @test orig_tree !== subtree_copy_tree
+    @test orig_tree.nodes.val !== subtree_copy_tree.nodes.val
+
+    # Test 3: Verify structure is preserved in copy
+    @test copy(tree) == tree
+    @test copy(subtree) == subtree
 end
