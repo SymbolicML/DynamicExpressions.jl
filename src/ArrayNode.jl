@@ -20,8 +20,6 @@ import ..NodeModule:
     any,
     copy_node
 
-import Base: copy, hash, ==, getproperty, setproperty!, eltype
-
 export ArrayNode
 
 # Node data struct
@@ -42,15 +40,31 @@ function NodeData{T,D}() where {T,D}
 end
 
 mutable struct ArrayTree{T,D,S<:StructVector{NodeData{T,D}}}
-    nodes::S
+    const nodes::S
     root_idx::Int8
     n_nodes::Int8
-    free_list::Vector{Int8}
+    const free_list::Vector{Int8}
     free_count::Int8
 
-    function ArrayTree{T,D}(n::Int) where {T,D}
-        # Create a StructVector with pre-allocated arrays
-        nodes = StructVector{NodeData{T,D}}(undef, n)
+    function ArrayTree{T,D}(n::Int; array_type::Type{<:AbstractVector}=Vector) where {T,D}
+        # Create backing arrays of the specified type
+        degree = array_type{UInt8}(undef, n)
+        constant = array_type{Bool}(undef, n)
+        val = array_type{T}(undef, n)
+        feature = array_type{UInt16}(undef, n)
+        op = array_type{UInt8}(undef, n)
+        children = array_type{NTuple{D,Int8}}(undef, n)
+
+        # Create a StructVector from the backing arrays
+        nodes = StructVector{NodeData{T,D}}((
+            degree=degree,
+            constant=constant,
+            val=val,
+            feature=feature,
+            op=op,
+            children=children,
+        ))
+
         # Initialize all nodes to default values
         for i in 1:n
             nodes.degree[i] = UInt8(0)
@@ -76,7 +90,7 @@ struct ArrayNode{T,D,S} <: AbstractExpressionNode{T,D}
     idx::Int8
 end
 
-function getproperty(n::ArrayNode{T,D,S}, k::Symbol) where {T,D,S}
+function Base.getproperty(n::ArrayNode{T,D,S}, k::Symbol) where {T,D,S}
     tree = getfield(n, :tree)
     idx = getfield(n, :idx)
     nodes = getfield(tree, :nodes)
@@ -116,7 +130,7 @@ function getproperty(n::ArrayNode{T,D,S}, k::Symbol) where {T,D,S}
     end
 end
 
-function setproperty!(n::ArrayNode{T,D,S}, k::Symbol, v) where {T,D,S}
+function Base.setproperty!(n::ArrayNode{T,D,S}, k::Symbol, v) where {T,D,S}
     tree = getfield(n, :tree)
     idx = getfield(n, :idx)
     nodes = getfield(tree, :nodes)
@@ -132,17 +146,13 @@ function setproperty!(n::ArrayNode{T,D,S}, k::Symbol, v) where {T,D,S}
     elseif k == :op
         @inbounds nodes.op[idx] = v
     elseif k == :l
-        if isa(v, ArrayNode)
-            children = nodes.children[idx]
-            @inbounds nodes.children[idx] = (getfield(v, :idx), children[2:end]...)
-        end
+        isa(v, ArrayNode) || error("Cannot set left child to non-ArrayNode")
+        children = nodes.children[idx]
+        @inbounds nodes.children[idx] = (getfield(v, :idx), children[2:end]...)
     elseif k == :r
-        if isa(v, ArrayNode)
-            children = nodes.children[idx]
-            @inbounds nodes.children[idx] = (
-                children[1], getfield(v, :idx), children[3:end]...
-            )
-        end
+        isa(v, ArrayNode) || error("Cannot set right child to non-ArrayNode")
+        children = nodes.children[idx]
+        @inbounds nodes.children[idx] = (children[1], getfield(v, :idx), children[3:end]...)
     else
         error("Cannot set field $k")
     end
@@ -165,11 +175,16 @@ function free_node!(tree::ArrayTree, idx::Int8)
 end
 
 # Default constructors - now include array type parameters
-ArrayNode{T,D}(n::Int) where {T,D} = ArrayNode{T,D}(Undefined; allocator=ArrayTree{T,D}(n))
-ArrayNode{T}(n::Int) where {T} = ArrayNode{T,2}(n)
+function ArrayNode{T,D}(n::Int; array_type::Type{<:AbstractVector}=Vector) where {T,D}
+    return ArrayNode{T,D}(Undefined; allocator=ArrayTree{T,D}(n; array_type=array_type))
+end
+function ArrayNode{T}(n::Int; array_type::Type{<:AbstractVector}=Vector) where {T}
+    return ArrayNode{T,2}(n; array_type=array_type)
+end
 
 # Keyword constructors for partial type signatures  
 ArrayNode{T,D}(; kwargs...) where {T,D} = ArrayNode{T,D}(Undefined; kwargs...)
+ArrayNode{T,D,S}(; kwargs...) where {T,D,S} = ArrayNode{T,D}(Undefined; kwargs...)
 ArrayNode{T}(; kwargs...) where {T} = ArrayNode{T,2}(; kwargs...)
 
 # Constructor with keyword arguments - matches Node interface  
@@ -184,11 +199,11 @@ function ArrayNode{T,D}(
     allocator=nothing,
 ) where {T,D,T1}
     # Determine tree source
-    # Always create a new tree unless an allocator is explicitly provided
     tree = if !isnothing(allocator) && isa(allocator, ArrayTree)
         allocator
     else
-        # Just use a reasonable default size
+        # Default size of 64 nodes for small expressions
+        # This is wasteful if building incrementally, but matches Node semantics
         ArrayTree{T,D}(64)
     end
 
@@ -213,6 +228,7 @@ function ArrayNode{T,D}(
     end
 
     if !isnothing(op)
+        # DEBUG: op=$op, l is nothing? $(isnothing(l)), r is nothing? $(isnothing(r))
         _children = if !isnothing(l) && isnothing(r)
             (l,)
         elseif !isnothing(l) && !isnothing(r)
@@ -222,6 +238,7 @@ function ArrayNode{T,D}(
         end
 
         if !isnothing(_children)
+            # DEBUG: Building node with children, length=length(_children)
             degree = length(_children)
             tree.nodes.degree[idx] = degree
             tree.nodes.op[idx] = op
@@ -231,6 +248,7 @@ function ArrayNode{T,D}(
                 i -> begin
                     if i <= length(_children)
                         child = _children[i]
+                        # DEBUG: Processing child $i, isa ArrayNode? isa(child, ArrayNode)
                         if isa(child, ArrayNode)
                             child_tree = getfield(child, :tree)
                             child_idx = getfield(child, :idx)
@@ -239,7 +257,16 @@ function ArrayNode{T,D}(
                                 child_idx
                             else
                                 # Different tree - copy
-                                copy_subtree!(tree, child_tree, child_idx)
+                                new_idx = copy_subtree!(tree, child_tree, child_idx)
+                                # DEBUG
+                                # println("Copied child from idx $child_idx to new idx $new_idx")
+                                # println("  Original: constant=", child_tree.nodes.constant[child_idx], 
+                                #         child_tree.nodes.constant[child_idx] ? ", val=" : ", feature=",
+                                #         child_tree.nodes.constant[child_idx] ? child_tree.nodes.val[child_idx] : child_tree.nodes.feature[child_idx])
+                                # println("  Copied: constant=", tree.nodes.constant[new_idx],
+                                #         tree.nodes.constant[new_idx] ? ", val=" : ", feature=",
+                                #         tree.nodes.constant[new_idx] ? tree.nodes.val[new_idx] : tree.nodes.feature[new_idx])
+                                new_idx
                             end
                         else
                             Int8(-1)
@@ -295,8 +322,8 @@ function copy_subtree!(dst::ArrayTree{T,D}, src::ArrayTree{T,D}, src_idx::Int8) 
 end
 
 # Core interface implementations
-eltype(::Type{<:ArrayNode{T}}) where {T} = T
-eltype(::ArrayNode{T}) where {T} = T
+Base.eltype(::Type{<:ArrayNode{T}}) where {T} = T
+Base.eltype(::ArrayNode{T}) where {T} = T
 
 max_degree(::Type{<:ArrayNode}) = 2
 max_degree(::Type{<:ArrayNode{T,D}}) where {T,D} = D
@@ -307,7 +334,11 @@ preserve_sharing(::Type{<:ArrayNode}) = false
 constructorof(::Type{<:ArrayNode}) = ArrayNode
 with_type_parameters(::Type{<:ArrayNode}, ::Type{T}) where {T} = ArrayNode{T,2}
 with_max_degree(::Type{<:ArrayNode{T,D}}, ::Val{D2}) where {T,D,D2} = ArrayNode{T,D2}
-default_allocator(::Type{ArrayNode{T,D}}) where {T,D} = ArrayTree{T,D}(32)
+function default_allocator(
+    ::Type{ArrayNode{T,D}}; array_type::Type{<:AbstractVector}=Vector
+) where {T,D}
+    return ArrayTree{T,D}(32; array_type=array_type)
+end
 
 # get_children and set_children!
 function unsafe_get_children(n::ArrayNode{T,D,S}) where {T,D,S}
@@ -361,7 +392,7 @@ function copy_node(n::ArrayNode{T,D,S}; break_sharing::Val{BS}=Val(false)) where
     idx = getfield(n, :idx)
 
     # Count nodes to determine tree size needed
-    node_count = count_subtree(tree, idx)
+    node_count = count_nodes(n)
     # Add some buffer space
     tree_size = max(32, node_count * 2)
 
@@ -373,28 +404,23 @@ function copy_node(n::ArrayNode{T,D,S}; break_sharing::Val{BS}=Val(false)) where
     return ArrayNode{T,D,typeof(new_tree.nodes)}(new_tree, new_idx)
 end
 
-copy(n::ArrayNode) = copy_node(n)
+Base.copy(n::ArrayNode) = copy_node(n)
 
-# count_nodes
+# count_nodes - optimized version that checks if we're at root
 function count_nodes(n::ArrayNode)
     tree = getfield(n, :tree)
-    return count_subtree(tree, getfield(n, :idx))
-end
-
-function count_subtree(tree::ArrayTree, idx::Int8)
-    count = 1
-    degree = @inbounds tree.nodes.degree[idx]
-    for i in 1:degree
-        child_idx = @inbounds tree.nodes.children[idx][i]
-        if child_idx >= 0
-            count += count_subtree(tree, child_idx)
-        end
+    idx = getfield(n, :idx)
+    # Optimization: if this is the root of the tree, just return total nodes
+    if tree.root_idx == idx
+        return Int(tree.n_nodes)
+    else
+        # Fall back to tree_mapreduce for subtrees
+        return tree_mapreduce(_ -> 1, +, n, Int)
     end
-    return count
 end
 
 # Equality and hash
-function ==(a::ArrayNode, b::ArrayNode)
+function Base.:(==)(a::ArrayNode, b::ArrayNode)
     a.degree != b.degree && return false
 
     if a.degree == 0
@@ -417,7 +443,7 @@ function ==(a::ArrayNode, b::ArrayNode)
     end
 end
 
-function hash(n::ArrayNode, h::UInt=zero(UInt))
+function Base.hash(n::ArrayNode, h::UInt=zero(UInt))
     if n.degree == 0
         if n.constant
             return hash((0, n.val), h)

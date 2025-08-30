@@ -239,3 +239,66 @@ end
     expected = vec(X .+ 2.0)  # Convert to vector to match result shape
     @test all(abs.(result .- expected) .< 1e-10)
 end
+
+@testitem "ArrayNode with FixedSizeArrays backing storage" begin
+    using DynamicExpressions
+    using DynamicExpressions: OperatorEnum
+    using FixedSizeArrays
+    using AllocCheck: @check_allocs
+    const ArrayNode = DynamicExpressions.ArrayNode
+
+    # Create a FixedSizeVector type for our backing storage
+    # We'll use size 100 for this test
+    const N = 100
+
+    # Create an ArrayTree with FixedSizeVector backing
+    allocator = DynamicExpressions.ArrayNodeModule.ArrayTree{Float64,2}(
+        N; array_type=FixedSizeVector
+    )
+
+    # Test that the backing arrays are indeed FixedSizeArrays
+    @test allocator.nodes.degree isa FixedSizeArray{UInt8}
+    @test allocator.nodes.val isa FixedSizeArray{Float64}
+    @test allocator.nodes.feature isa FixedSizeArray{UInt16}
+
+    # Create nodes using the FixedSizeVector-backed allocator
+    x1 = ArrayNode{Float64,2}(; feature=1, allocator=allocator)
+    x2 = ArrayNode{Float64,2}(; feature=2, allocator=allocator)
+    c = ArrayNode{Float64,2}(; val=3.5, allocator=allocator)
+
+    # Build a tree
+    mul = ArrayNode{Float64,2}(; op=3, l=x2, r=c, allocator=allocator)
+    sin_expr = ArrayNode{Float64,2}(; op=1, l=mul, allocator=allocator)
+    tree = ArrayNode{Float64,2}(; op=1, l=x1, r=sin_expr, allocator=allocator)
+
+    # Test basic operations
+    @test tree.degree == 2
+    @test x1.feature == 1
+    @test c.val == 3.5
+
+    # Test evaluation
+    operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[sin, cos])
+    X = [1.0 2.0; 0.5 1.0]  # 2 features, 2 samples
+    result, complete = eval_tree_array(tree, X, operators)
+    expected = X[1, :] .+ sin.(X[2, :] .* 3.5)
+    @test all(abs.(result .- expected) .< 1e-10)
+
+    # Test that operations are still allocation-free
+    @check_allocs get_degree(n) = n.degree
+    @check_allocs get_val(n) = n.val
+    @check_allocs get_feature(n) = n.feature
+
+    get_degree(tree)
+    get_val(c)
+    get_feature(x1)
+
+    # Test count_nodes
+    @test count_nodes(tree) == 6
+
+    # Test creating nodes is allocation-free with preallocated FixedSizeVector storage
+    @check_allocs create_node(alloc, f) = ArrayNode{Float64,2}(; feature=f, allocator=alloc)
+    new_node = create_node(allocator, 5)
+    @test new_node.feature == 5
+
+    println("✅ ArrayNode works with FixedSizeArrays backing storage!")
+end
