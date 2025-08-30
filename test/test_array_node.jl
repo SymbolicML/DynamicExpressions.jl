@@ -183,7 +183,8 @@ end
     result = eval_tree_array(tree, X, operators)
 
     # Test that evaluation doesn't allocate
-    @check_allocs eval_tree_array(tree, X, operators) = eval_tree_array(tree, X, operators)
+    @check_allocs check_eval(t, x, ops) = eval_tree_array(t, x, ops)
+    check_eval(tree, X, operators)
 
     # Test that property access doesn't allocate
     @check_allocs get_degree(n) = n.degree
