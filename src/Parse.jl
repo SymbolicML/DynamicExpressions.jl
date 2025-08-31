@@ -12,6 +12,7 @@ using ..ExpressionModule:
     get_operators,
     get_variable_names,
     node_type
+using ..ExpressionAlgebraModule: declare_operator_alias
 
 """
     @parse_expression(expr; operators, variable_names, node_type=Node, evaluate_on=[])
@@ -331,8 +332,13 @@ end
     kws...,
 )::N where {F<:Function,N<:AbstractExpressionNode,E<:AbstractExpression}
     degree = length(args) - 1
-    if degree <= length(operators.ops) && func ∈ operators[degree]
-        op_idx = findfirst(==(func), operators[degree])
+    if degree <= length(operators.ops) && (
+        op_idx = findfirst(
+            op -> op == func || declare_operator_alias(op, Val(degree)) == func,
+            operators[degree],
+        );
+        !isnothing(op_idx)
+    )
         return N(;
             op=op_idx::Int,
             children=map(
@@ -342,8 +348,18 @@ end
                 (args[2:end]...,),
             ),
         )
-    elseif degree > 2 && func ∈ (+, -, *) && func ∈ operators[2]
-        op_idx = findfirst(==(func), operators[2])::Int
+    end
+
+    # Handle chaining for +, -, * operators
+    if degree > 2 &&
+        func ∈ (+, -, *) &&
+        (
+            op_idx = findfirst(
+                op -> op == func || declare_operator_alias(op, Val(2)) == func,
+                operators[2],
+            );
+            !isnothing(op_idx)
+        )
         inner = N(;
             op=op_idx::Int,
             children=(
