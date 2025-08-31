@@ -42,6 +42,40 @@
     end
 end
 
+@testitem "Parse with operator aliases" begin
+    using DynamicExpressions
+    using DynamicExpressions: DynamicExpressions as DE
+    using Test
+
+    ## UNARY
+    safe_sqrt(x) = x < 0 ? convert(typeof(x), NaN) : sqrt(x)
+    DE.declare_operator_alias(::typeof(safe_sqrt), ::Val{1}) = sqrt
+
+    operators = OperatorEnum(1 => [safe_sqrt, sin, cos], 2 => [+, -, *, /])
+
+    ex = parse_expression(
+        "sqrt(x) + sin(y)"; operators=operators, variable_names=["x", "y"]
+    )
+
+    @test typeof(ex) <: Expression
+    @test ex.tree.op == 1
+    @test ex.tree.children[1].x.op == 1
+    @test ex.tree.children[2].x.op == 2
+
+    ## BINARY
+    safe_pow(x, y) = x < 0 && y != round(y) ? NaN : x^y
+    DE.declare_operator_alias(::typeof(safe_pow), ::Val{2}) = ^
+
+    operators = OperatorEnum(1 => [sin], 2 => [+, -, safe_pow, *])
+    ex = parse_expression("x^2 + sin(y)"; operators=operators, variable_names=["x", "y"])
+
+    @test typeof(ex) <: Expression
+    @test ex.tree.op == 1
+    @test ex.tree.children[1].x.op == 3  # safe_pow
+    @test ex.tree.children[1].x.children[2].x.val == 2.0
+    @test ex.tree.children[2].x.op == 1
+end
+
 @testitem "Can also parse just a float" begin
     using DynamicExpressions
     operators = OperatorEnum()  # Tests empty operators
