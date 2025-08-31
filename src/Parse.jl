@@ -355,8 +355,7 @@ end
         func ∈ (+, -, *) &&
         (
             op_idx = findfirst(
-                op -> op == func || declare_operator_alias(op, Val(2)) == func,
-                operators[2],
+                op -> op == func || declare_operator_alias(op, Val(2)) == func, operators[2]
             );
             !isnothing(op_idx)
         )
