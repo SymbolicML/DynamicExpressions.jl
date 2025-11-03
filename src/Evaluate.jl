@@ -902,7 +902,7 @@ end
 end
 
 """
-    eval_tree_array(tree::AbstractExpressionNode, cX::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)
+    eval_tree_array(tree::AbstractExpressionNode, cX::AbstractArray, operators::GenericOperatorEnum; throw_errors::Bool=true)
 
 Evaluate a generic binary tree (equation) over a given input data,
 whatever that input data may be. The `operators` enum contains all
