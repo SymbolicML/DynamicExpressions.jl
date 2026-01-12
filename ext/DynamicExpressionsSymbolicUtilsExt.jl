@@ -8,7 +8,7 @@ using DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
 using DynamicExpressions.UtilsModule: deprecate_varmap
 
 using SymbolicUtils
-using SymbolicUtils: BasicSymbolic, TreeReal, iscall, issym, isconst, unwrap_const
+using SymbolicUtils: BasicSymbolic, SymReal, iscall, issym, isconst, unwrap_const
 
 import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 import DynamicExpressions.ValueInterfaceModule: is_valid
@@ -41,7 +41,7 @@ function parse_tree_to_eqs(
     if tree.degree == 0
         # Return constant if needed
         tree.constant && return subs_bad(tree.val)
-        return SymbolicUtils.Sym{TreeReal}(Symbol("x$(tree.feature)"); type=Number)
+        return SymbolicUtils.Sym{SymReal}(Symbol("x$(tree.feature)"); type=Number)
     end
     # Collect the next children
     # TODO: Type instability!
@@ -49,16 +49,25 @@ function parse_tree_to_eqs(
     # Get the operation
     op = tree.degree == 2 ? operators.binops[tree.op] : operators.unaops[tree.op]
     #
-    if !(op ∈ SUPPORTED_OPS) && index_functions
+    if index_functions
         error(
             "index_functions=true is not supported with SymbolicUtils v4+. " *
-            "Custom operator '$op' cannot be converted to a symbolic function.",
+            "Use index_functions=false (the default) instead.",
         )
     end
 
-    return subs_bad(
-        op(map(x -> parse_tree_to_eqs(x, operators, index_functions), children)...)
-    )
+    # Only supported operators can be converted to SymbolicUtils expressions
+    if !(op ∈ SUPPORTED_OPS)
+        error(
+            "Custom operator '$op' is not supported with SymbolicUtils v4+. " *
+            "Only these operators are supported: $SUPPORTED_OPS",
+        )
+    end
+
+    # Convert children to symbolic form
+    sym_children = map(x -> parse_tree_to_eqs(x, operators, index_functions), children)
+
+    return subs_bad(op(sym_children...))
 end
 
 # For normal operators, simply return the function itself:
@@ -220,8 +229,8 @@ function node_to_symbolic(
     # Create a substitution tuple
     subs = Dict(
         [
-            SymbolicUtils.Sym{TreeReal}(Symbol("x$(i)"); type=Number) =>
-                SymbolicUtils.Sym{TreeReal}(Symbol(variable_names[i]); type=Number) for
+            SymbolicUtils.Sym{SymReal}(Symbol("x$(i)"); type=Number) =>
+                SymbolicUtils.Sym{SymReal}(Symbol(variable_names[i]); type=Number) for
             i in 1:length(variable_names)
         ]...,
     )
@@ -280,15 +289,23 @@ function multiply_powers(
         @return_on_false complete eqn
         @return_on_false is_valid(l) eqn
         n = args[2]
-        if typeof(n) <: Integer
-            if n == 1
+        # In SymbolicUtils v4, integer constants are wrapped in Const
+        n_val = if isconst(n)
+            unwrap_const(n)
+        elseif typeof(n) <: Integer
+            n
+        else
+            nothing
+        end
+        if n_val !== nothing && typeof(n_val) <: Integer
+            if n_val == 1
                 return l, true
-            elseif n == -1
+            elseif n_val == -1
                 return 1.0 / l, true
-            elseif n > 1
-                return reduce(*, [l for i in 1:n]), true
-            elseif n < -1
-                return reduce(/, vcat([1], [l for i in 1:abs(n)])), true
+            elseif n_val > 1
+                return reduce(*, [l for i in 1:n_val]), true
+            elseif n_val < -1
+                return reduce(/, vcat([1], [l for i in 1:abs(n_val)])), true
             else
                 return 1.0, true
             end
