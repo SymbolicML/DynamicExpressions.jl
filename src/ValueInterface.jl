@@ -26,9 +26,7 @@ end
 
 # Fallback so callers (and static analysis tools like JET) don't see a MethodError.
 # Types that want to participate in the ValueInterface must implement a more specific method.
-function pack_scalar_constants!(
-    ::AbstractVector{<:Number}, ::Int64, value
-)
+function pack_scalar_constants!(::AbstractVector{<:Number}, ::Int64, value)
     throw(ArgumentError("pack_scalar_constants! not implemented for $(typeof(value))"))
 end
 
@@ -49,9 +47,7 @@ Base.@propagate_inbounds function unpack_scalar_constants(
     return (idx + 1, convert(T, nvals[idx]))
 end
 
-function unpack_scalar_constants(
-    ::AbstractVector{<:Number}, ::Int64, value
-)
+function unpack_scalar_constants(::AbstractVector{<:Number}, ::Int64, value)
     throw(ArgumentError("unpack_scalar_constants not implemented for $(typeof(value))"))
 end
 
