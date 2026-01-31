@@ -55,9 +55,7 @@ tree_copy = convert(Node, eqn, operators_with_pow)
 
 # Let's test a more complex function with supported operators
 # (Custom operators are not supported in SymbolicUtils v4+)
-operators = OperatorEnum(;
-    binary_operators=(+, *, -, /), unary_operators=(cos, exp, sin)
-)
+operators = OperatorEnum(; binary_operators=(+, *, -, /), unary_operators=(cos, exp, sin))
 
 x1, x2, x3 = Node("x1"), Node("x2"), Node("x3")
 @extend_operators operators

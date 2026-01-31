@@ -7,9 +7,7 @@ include("test_params.jl")
 # Test basic conversion with supported operators only
 # (Custom operators are not supported in SymbolicUtils v4+)
 operators = OperatorEnum(;
-    default_params...,
-    binary_operators=(+, *, -, /),
-    unary_operators=(sin, cos, exp),
+    default_params..., binary_operators=(+, *, -, /), unary_operators=(sin, cos, exp)
 )
 
 # Build tree: sin(3.0 * x1) + 2.0
