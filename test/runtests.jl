@@ -26,8 +26,9 @@ if "jet" in test_name
 
         ignored_mod = DynamicExpressions.NonDifferentiableDeclarationsModule
 
-        if isdefined(JET, :match_report) && isdefined(JET, :ReportMatcher) &&
-           isdefined(JET, :AnyFrameModule)
+        if isdefined(JET, :match_report) &&
+            isdefined(JET, :ReportMatcher) &&
+            isdefined(JET, :AnyFrameModule)
             # JET >= 0.11
             JET.test_package(
                 DynamicExpressions;
