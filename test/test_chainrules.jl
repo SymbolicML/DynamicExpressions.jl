@@ -83,9 +83,10 @@ let
 end
 
 # Operator that is NaN for forward pass
-bad_op(x) = x > 0.0 ? log(x) : convert(typeof(x), NaN)
+# Define only for numeric types; `@extend_operators` adds the `Node` method.
+bad_op(x::Real) = x > 0.0 ? log(x) : convert(typeof(x), NaN)
 # And operator that is undefined for backward pass
-undefined_grad_op(x) = x >= 0.0 ? x : zero(x)
+undefined_grad_op(x::Real) = x >= 0.0 ? x : zero(x)
 # And operator that gives a NaN for backward pass
 bad_grad_op(x) = x
 
@@ -102,9 +103,11 @@ let
     @extend_operators operators
     x1 = Node(Float64; feature=1)
 
-    nan_forward = bad_op(x1 + 0.5)
-    undefined_grad = undefined_grad_op(x1 + 0.5)
-    nan_grad = bad_grad_op(x1)
+    # `@extend_operators` defines methods via `eval`, which can trigger world-age issues
+    # when tests are executed inside a function (Julia >= 1.12). Use `invokelatest`.
+    nan_forward = Base.invokelatest(bad_op, x1 + 0.5)
+    undefined_grad = Base.invokelatest(undefined_grad_op, x1 + 0.5)
+    nan_grad = Base.invokelatest(bad_grad_op, x1)
 
     function eval_tree(X, tree)
         y, _ = eval_tree_array(tree, X, operators)
