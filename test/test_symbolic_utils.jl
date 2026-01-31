@@ -54,5 +54,9 @@ let
     # Test round trip preserves structure and variable names
     operators = OperatorEnum(; unary_operators=(sin,), binary_operators=(+, *, -, /))
     ex2_again = convert(Expression, eqn2, operators; variable_names=["alpha", "beta"])
-    @test ex2 == ex2_again
+
+    # SymbolicUtils may reorder commutative operations (e.g., alpha + beta vs beta + alpha),
+    # so compare via simplified SymbolicUtils expressions.
+    eqn2_again = convert(SymbolicUtils.BasicSymbolic, ex2_again)
+    @test SymbolicUtils.simplify(eqn2) == SymbolicUtils.simplify(eqn2_again)
 end
