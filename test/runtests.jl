@@ -48,9 +48,12 @@ if "jet" in test_name
                     occursin(s_mod, string(JET.linfomod(vst.linfo)))
                 end
             end
+            # On JET 0.10, `target_defined_modules` is not available and also
+            # can cause spurious possible-error reports when analyzing beyond
+            # the package's own modules. Restrict to the DynamicExpressions module.
             JET.test_package(
                 DynamicExpressions;
-                target_defined_modules=true,
+                target_modules=(DynamicExpressions,),
                 ignored_modules=(MyIgnoredModule(ignored_mod),),
             )
             # TODO: Hack to get JET to ignore modules
