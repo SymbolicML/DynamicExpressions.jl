@@ -90,7 +90,8 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
 end
 
 function test_functions_on_trees(::Type{T}, operators) where {T}
-    local x, c, tree
+    local x, c
+    tree = Node(T; feature=1)
     num_unaops = length(operators.unaops)
     num_binops = length(operators.binops)
     @assert num_unaops > 0 && num_binops > 0

@@ -32,7 +32,7 @@ if "jet" in test_name
             # JET >= 0.11
             JET.test_package(
                 DynamicExpressions;
-                target_modules=(DynamicExpressions,),
+                target_defined_modules=true,
                 ignored_modules=(JET.AnyFrameModule(ignored_mod),),
             )
         else
