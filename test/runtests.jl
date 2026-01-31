@@ -22,46 +22,38 @@ if "jet" in test_name
             "DynamicExpressions", "dispatch_doctor_mode" => "disable"; force=true
         )
         using JET
-
-# Compatibility shim for JET 0.10 vs 0.11 matcher API
-# - JET <= 0.10: JET.match_module
-# - JET >= 0.11: JET.match_report + ReportMatcher
-const _has_match_report = isdefined(JET, :match_report)
-
-function _jet_run(mod::Module; target_modules=Tuple{Module}())
-    if _has_match_report
-        matcher = JET.ReportMatcher(; target_modules=target_modules)
-        return JET.match_report(matcher, mod)
-    else
-        return JET.match_module(mod; target_modules=target_modules)
-    end
-end
         using DynamicExpressions
 
         ignored_mod = DynamicExpressions.NonDifferentiableDeclarationsModule
 
-        if _has_match_report
+        if isdefined(JET, :match_report) && isdefined(JET, :ReportMatcher) &&
+           isdefined(JET, :AnyFrameModule)
             # JET >= 0.11
-            struct MyIgnoredModule <: JET.ReportMatcher
+            JET.test_package(
+                DynamicExpressions;
+                target_modules=(DynamicExpressions,),
+                ignored_modules=(JET.AnyFrameModule(ignored_mod),),
+            )
+        else
+            # JET <= 0.10: old matcher API
+            struct MyIgnoredModule
                 mod::Module
             end
-            function JET.match_report(
-                m::MyIgnoredModule, @nospecialize(report::JET.InferenceErrorReport)
+            function JET.match_module(
+                mod::MyIgnoredModule, @nospecialize(report::JET.InferenceErrorReport)
             )
-                s_mod = string(m.mod)
+                s_mod = string(mod.mod)
                 any(report.vst) do vst
                     occursin(s_mod, string(JET.linfomod(vst.linfo)))
                 end
             end
-
             JET.test_package(
                 DynamicExpressions;
-                target_modules=(DynamicExpressions,),
+                target_defined_modules=true,
                 ignored_modules=(MyIgnoredModule(ignored_mod),),
             )
-        else
-            # JET <= 0.10 (no ReportMatcher API)
-            JET.test_package(DynamicExpressions; target_modules=(DynamicExpressions,))
+            # TODO: Hack to get JET to ignore modules
+            # https://github.com/aviatesk/JET.jl/issues/570#issuecomment-2199167755
         end
     end
 end
