@@ -334,9 +334,7 @@ end
     degree = length(args) - 1
     if degree <= length(operators.ops) && (
         op_idx = findfirst(
-            op ->
-                op == func ||
-                    (op isa Function && declare_operator_alias(op, Val(degree)) == func),
+            op -> op == func || declare_operator_alias(op, Val(degree)) == func,
             operators[degree],
         );
         !isnothing(op_idx)
@@ -357,9 +355,7 @@ end
         func ∈ (+, -, *) &&
         (
             op_idx = findfirst(
-                op ->
-                    op == func ||
-                        (op isa Function && declare_operator_alias(op, Val(2)) == func),
+                op -> op == func || declare_operator_alias(op, Val(2)) == func,
                 operators[2],
             );
             !isnothing(op_idx)

@@ -35,7 +35,7 @@ function Base.showerror(io::IO, e::MissingOperatorError)
 end
 
 """
-    declare_operator_alias(op::Function, ::Val{arity})::Function
+    declare_operator_alias(op, ::Val{arity})
 
 Define how an internal operator should be matched against user-provided operators in expression trees.
 
@@ -52,11 +52,7 @@ Which would allow a user to write `sqrt(x::Expression)`
 and have it match the operator `safe_sqrt` stored in the binary operators
 of the expression.
 """
-declare_operator_alias(op::F, _) where {F<:Function} = op
-# Fallback for JET / type instability in operator lists:
-# If a non-Function ever appears in an operator tuple, treat it as having no alias.
-# This keeps `declare_operator_alias` total and avoids MethodError during static analysis.
-declare_operator_alias(op, _) = op
+declare_operator_alias(op::F, _) where {F} = op
 
 allow_chaining(@nospecialize(op)) = false
 allow_chaining(::typeof(+)) = true
