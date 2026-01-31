@@ -2,6 +2,9 @@ module DynamicExpressions
 
 using DispatchDoctor: @stable, @unstable
 
+import BorrowChecker
+BorrowChecker.PreferencesModule.disable_by_default!(@__MODULE__)
+
 @stable default_mode = "disable" begin
     include("Utils.jl")
     include("ValueInterface.jl")
