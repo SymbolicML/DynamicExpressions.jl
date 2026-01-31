@@ -23,26 +23,27 @@ if "jet" in test_name
         )
         using JET
         using DynamicExpressions
-        struct MyIgnoredModule
+
+        # JET v0.11 uses the ReportMatcher + match_report API.
+        struct MyIgnoredModule <: JET.ReportMatcher
             mod::Module
         end
-        function JET.match_module(
-            mod::MyIgnoredModule, @nospecialize(report::JET.InferenceErrorReport)
+        function JET.match_report(
+            m::MyIgnoredModule, @nospecialize(report::JET.InferenceErrorReport)
         )
-            s_mod = string(mod.mod)
+            s_mod = string(m.mod)
             any(report.vst) do vst
                 occursin(s_mod, string(JET.linfomod(vst.linfo)))
             end
         end
+
         JET.test_package(
             DynamicExpressions;
-            target_defined_modules=true,
+            target_modules=(DynamicExpressions,),
             ignored_modules=(
                 MyIgnoredModule(DynamicExpressions.NonDifferentiableDeclarationsModule),
             ),
         )
-        # TODO: Hack to get JET to ignore modules
-        # https://github.com/aviatesk/JET.jl/issues/570#issuecomment-2199167755
     end
 end
 if "main" in test_name

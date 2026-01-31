@@ -83,9 +83,10 @@ let
 end
 
 # Operator that is NaN for forward pass
-bad_op(x) = x > 0.0 ? log(x) : convert(typeof(x), NaN)
+# Define only for numeric types; `@extend_operators` adds the `Node` method.
+bad_op(x::Real) = x > 0.0 ? log(x) : convert(typeof(x), NaN)
 # And operator that is undefined for backward pass
-undefined_grad_op(x) = x >= 0.0 ? x : zero(x)
+undefined_grad_op(x::Real) = x >= 0.0 ? x : zero(x)
 # And operator that gives a NaN for backward pass
 bad_grad_op(x) = x
 
