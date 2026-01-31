@@ -58,5 +58,5 @@ let
     # SymbolicUtils may reorder commutative operations (e.g., alpha + beta vs beta + alpha),
     # so compare via simplified SymbolicUtils expressions.
     eqn2_again = convert(SymbolicUtils.BasicSymbolic, ex2_again)
-    @test SymbolicUtils.simplify(eqn2) == SymbolicUtils.simplify(eqn2_again)
+    @test string(SymbolicUtils.simplify(eqn2)) == string(SymbolicUtils.simplify(eqn2_again))
 end
