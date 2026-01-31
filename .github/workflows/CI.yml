@@ -50,7 +50,7 @@ jobs:
         uses: julia-actions/julia-buildpkg@v1
       - name: "Run tests"
         run: |
-            julia --color=yes -e 'import Pkg; Pkg.add("Coverage")'
+            julia --color=yes -e 'import Pkg; Pkg.add("Coverage"); if get(ENV,"SR_TEST","") == "jet"; Pkg.add(name="JET", version="0.11"); end'
             julia --color=yes --threads=auto --check-bounds=yes --depwarn=yes --code-coverage=user -e 'import Coverage; import Pkg; Pkg.activate("."); Pkg.test(coverage=true)'
             julia --color=yes coverage.jl
         shell: bash
@@ -85,7 +85,7 @@ jobs:
         id: run-tests
         continue-on-error: ${{ matrix.test_name == 'enzyme' }}
         run: |
-            julia --color=yes -e 'import Pkg; Pkg.add("Coverage")'
+            julia --color=yes -e 'import Pkg; Pkg.add("Coverage"); if get(ENV,"SR_TEST","") == "jet"; Pkg.add(name="JET", version="0.11"); end'
             SR_TEST=${{ matrix.test_name }} julia --color=yes --threads=auto --check-bounds=yes --depwarn=yes --code-coverage=user -e 'import Coverage; import Pkg; Pkg.activate("."); Pkg.test(coverage=true)'
             julia --color=yes coverage.jl
         shell: bash
