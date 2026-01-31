@@ -32,8 +32,11 @@ end
 
     # internal interface self-checks: verify we handle bad types gracefully
     @test_logs (:error,) begin
-        @test DynamicExpressions.ValueInterfaceModule._check_get_number_type("hello") == false
+        @test DynamicExpressions.ValueInterfaceModule._check_get_number_type("hello") ==
+            false
     end
-    @test DynamicExpressions.ValueInterfaceModule._check_pack_scalar_constants!("hello") == false
-    @test DynamicExpressions.ValueInterfaceModule._check_unpack_scalar_constants("hello") == false
+    @test DynamicExpressions.ValueInterfaceModule._check_pack_scalar_constants!("hello") ==
+        false
+    @test DynamicExpressions.ValueInterfaceModule._check_unpack_scalar_constants("hello") ==
+        false
 end
