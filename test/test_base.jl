@@ -102,7 +102,7 @@ end
 
 @testset "map" begin
     ctree = copy(tree)
-    vals = map(t -> t.val, ctree)
+    vals = map(t -> (t.degree == 0 && t.constant) ? t.val : nothing, ctree)
     vals = [v for v in vals if v !== nothing]
     @test sum(vals) ≈ 11.6
     @test sum(map(_ -> 1, ctree)) == 24
