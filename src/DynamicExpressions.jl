@@ -8,6 +8,7 @@ using DispatchDoctor: @stable, @unstable
     include("ExtensionInterface.jl")
     include("OperatorEnum.jl")
     include("Node.jl")
+    include("ArenaNode.jl")
     include("NodeUtils.jl")
     include("NodePreallocation.jl")
     include("Strings.jl")
