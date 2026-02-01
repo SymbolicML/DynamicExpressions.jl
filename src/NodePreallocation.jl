@@ -20,7 +20,7 @@ If `n` is not provided, it will be computed from `length(prototype)`.
 A given return value of this will be passed to `copy_into!` as the first argument,
 so it should be compatible.
 """
-function allocate_container(
+BorrowChecker.@safe function allocate_container(
     prototype::N, n::Union{Nothing,Integer}=nothing
 ) where {T,N<:AbstractExpressionNode{T}}
     num_nodes = @something(n, length(prototype))
