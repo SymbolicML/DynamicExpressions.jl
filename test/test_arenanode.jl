@@ -24,6 +24,19 @@ const AN = DynamicExpressions.ArenaNodeModule
         @test length(get_children(atree, atree.degree)) == atree.degree
     end
 
+    # Cursor traversal should match the package's collect() DFS order
+    # (and the cursor should be reusable without reallocating the stack).
+    cursor = AN.ArenaCursor(atree; capacity=count_nodes(atree))
+    seen = Int32[]
+    AN.foreach_preorder!(n -> push!(seen, n.idx), atree, cursor)
+    seen2 = Int32[]
+    AN.foreach_preorder!(n -> push!(seen2, n.idx), atree, cursor)
+    @test seen == seen2
+
+    collected = collect(atree; break_sharing=Val(true))
+    collected_idxs = map(n -> n.idx, collected)
+    @test collected_idxs == seen
+
     # Evaluation should match:
     X = randn(Float64, 1, 50)
     y_tree, ok_tree = eval_tree_array(tree, X, operators)

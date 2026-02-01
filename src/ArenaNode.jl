@@ -303,4 +303,72 @@ function tree_from_arena(tree::ArenaNode{T,D}) where {T,D}
     return rebuild(tree)
 end
 
+################################################################################
+# Cursor + reusable stack (prototype)
+################################################################################
+
+"""A reusable traversal cursor for an [`Arena`](@ref).
+
+This is the intended mechanism for allocation-free traversals/rewrites.
+For now, it implements a simple *preorder* traversal using an explicit stack.
+
+The stack is reusable: call [`reset!`](@ref) to traverse a new root without
+reallocating the stack storage.
+"""
+mutable struct ArenaCursor{T,D}
+    arena::Arena{T,D}
+    stack::Vector{Int32}
+
+    function ArenaCursor(arena::Arena{T,D}; capacity::Integer=0) where {T,D}
+        stack = Int32[]
+        capacity > 0 && sizehint!(stack, capacity)
+        return new{T,D}(arena, stack)
+    end
+end
+
+@inline ArenaCursor(tree::ArenaNode{T,D}; capacity::Integer=0) where {T,D} =
+    ArenaCursor(tree.arena; capacity)
+
+"""Reset the cursor stack to start a preorder traversal at `root`."""
+@inline function reset!(c::ArenaCursor{T,D}, root::Int32) where {T,D}
+    empty!(c.stack)
+    push!(c.stack, root)
+    return c
+end
+@inline reset!(c::ArenaCursor, root::ArenaNode) = reset!(c, root.idx)
+
+"""Pop the next node in preorder (or return `nothing` when done)."""
+function next!(c::ArenaCursor{T,D}) where {T,D}
+    isempty(c.stack) && return nothing
+
+    idx = pop!(c.stack)
+    n = ArenaNode{T,D}(c.arena, idx)
+
+    # Push children in reverse order so the leftmost child is visited next.
+    d = @inbounds c.arena.degree[Int(idx)]
+    if d != 0
+        child_idxs = @inbounds c.arena.children[Int(idx)]
+        @inbounds for i in Int(d):-1:1
+            child = child_idxs[i]
+            child != 0 && push!(c.stack, child)
+        end
+    end
+
+    return n
+end
+
+"""Traverse a tree in preorder using a reusable cursor."""
+function foreach_preorder!(f, root::ArenaNode{T,D}, cursor::ArenaCursor{T,D}) where {T,D}
+    cursor.arena === root.arena ||
+        throw(ArgumentError("Cursor arena does not match root arena"))
+
+    reset!(cursor, root)
+    while true
+        n = next!(cursor)
+        n === nothing && break
+        f(n)
+    end
+    return nothing
+end
+
 end
