@@ -205,13 +205,23 @@ end
 @inline function set_child!(
     n::ArenaNode{T,D}, child::AbstractNode{D}, i::Int
 ) where {T,D}
-    child isa ArenaNode{T,D} ||
-        throw(ArgumentError("ArenaNode children must be ArenaNode{T,D} (got $(typeof(child)))"))
-    child.arena === n.arena ||
-        throw(ArgumentError("Cannot link ArenaNodes from different arenas"))
+    child isa AbstractExpressionNode{T,D} ||
+        throw(
+            ArgumentError(
+                "ArenaNode children must be AbstractExpressionNode{$T,$D} (got $(typeof(child)))",
+            ),
+        )
+
+    # We cannot directly link across arenas, so we copy the subtree into `n`'s arena.
+    idx = if child isa ArenaNode{T,D} && child.arena === n.arena
+        child.idx
+    else
+        _copy_to_arena!(n.arena, child)
+    end
+
     old = @inbounds n.arena.children[Int(n.idx)]
-    @inbounds n.arena.children[Int(n.idx)] = Base.setindex(old, child.idx, i)
-    return child
+    @inbounds n.arena.children[Int(n.idx)] = Base.setindex(old, idx, i)
+    return ArenaNode(n.arena, idx)
 end
 
 @inline function set_children!(
@@ -222,28 +232,24 @@ end
     @inbounds for i in 1:min(D, D2)
         c = children[i]
         if c isa Nullable
-            if c.null
-                # keep 0
-            else
-                c2 = c[]
-                c2 isa ArenaNode{T,D} || throw(
-                    ArgumentError(
-                        "ArenaNode children must be ArenaNode{T,D} (got $(typeof(c2)))",
-                    ),
-                )
-                c2.arena === n.arena ||
-                    throw(ArgumentError("Cannot link ArenaNodes from different arenas"))
-                idxs = Base.setindex(idxs, c2.idx, i)
-            end
-        else
-            c isa ArenaNode{T,D} || throw(
-                ArgumentError("ArenaNode children must be ArenaNode{T,D} (got $(typeof(c)))"),
-            )
-            c.arena === n.arena ||
-                throw(ArgumentError("Cannot link ArenaNodes from different arenas"))
-            idxs = Base.setindex(idxs, c.idx, i)
+            c.null && continue
+            c = c[]
         end
+
+        c isa AbstractExpressionNode{T,D} || throw(
+            ArgumentError(
+                "ArenaNode children must be AbstractExpressionNode{$T,$D} (got $(typeof(c)))",
+            ),
+        )
+
+        idx = if c isa ArenaNode{T,D} && c.arena === n.arena
+            c.idx
+        else
+            _copy_to_arena!(n.arena, c)
+        end
+        idxs = Base.setindex(idxs, idx, i)
     end
+
     @inbounds n.arena.children[Int(n.idx)] = idxs
     return nothing
 end
