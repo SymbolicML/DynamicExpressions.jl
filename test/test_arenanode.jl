@@ -37,6 +37,24 @@ const AN = DynamicExpressions.ArenaNodeModule
     collected_idxs = map(n -> n.idx, collected)
     @test collected_idxs == seen
 
+    # Postfix stack-based utilities (mirroring symbolic_regression.rs patterns):
+    sizes = Int[]
+    size_stack = Int[]
+    AN.subtree_sizes_into!(atree, sizes, size_stack)
+    start, stop = AN.subtree_range(sizes, Int(atree.idx))
+    @test start == 1
+    @test stop == Int(atree.idx)
+
+    depth_stack = Int[]
+    depth_postfix = AN.tree_mapreduce_postfix_with_stack(
+        atree,
+        _ -> 1,
+        _ -> 0,
+        (_, children) -> maximum(children) + 1,
+        depth_stack,
+    )
+    @test depth_postfix == count_depth(atree)
+
     # Evaluation should match:
     X = randn(Float64, 1, 50)
     y_tree, ok_tree = eval_tree_array(tree, X, operators)
