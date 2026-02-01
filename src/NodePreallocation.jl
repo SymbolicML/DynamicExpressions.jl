@@ -55,7 +55,7 @@ BorrowChecker.@safe function leaf_copy_into!(dest::N, src::N) where {N<:Abstract
     set_node!(dest, src)
     return dest
 end
-function branch_copy_into!(
+BorrowChecker.@safe function branch_copy_into!(
     dest::N, src::N, children::Vararg{Any,M}
 ) where {T,D,N<:AbstractExpressionNode{T,D},M}
     dest.degree = M
