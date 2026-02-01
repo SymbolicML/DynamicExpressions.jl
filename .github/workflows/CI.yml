@@ -106,6 +106,9 @@ jobs:
       - test
       - additional_tests
     steps:
+      # Codecov uploader expects a git checkout (commit metadata + repo root)
+      - uses: actions/checkout@v4
+
       - name: Download coverage artifacts
         uses: actions/download-artifact@v7
         with:
@@ -118,6 +121,8 @@ jobs:
           cd coverage
           find . -name 'lcov.info' -print
           cat $(find . -name 'lcov.info' -print | sort) > merged-lcov.info
+          # Normalize Windows path separators so Codecov can match sources.
+          sed -i -e '/^SF:/ s#\\\\#/#g' merged-lcov.info
           wc -l merged-lcov.info
 
       - name: Upload to Codecov
@@ -125,3 +130,4 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage/merged-lcov.info
+          disable_search: true
