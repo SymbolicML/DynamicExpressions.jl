@@ -9,6 +9,8 @@ using ..NodeModule:
     set_node!,
     set_children!
 
+import BorrowChecker
+
 """
     allocate_container(prototype::AbstractExpressionNode, n=nothing)
 
@@ -49,7 +51,7 @@ function copy_into!(
         N,
     )
 end
-function leaf_copy_into!(dest::N, src::N) where {N<:AbstractExpressionNode}
+BorrowChecker.@safe function leaf_copy_into!(dest::N, src::N) where {N<:AbstractExpressionNode}
     set_node!(dest, src)
     return dest
 end
