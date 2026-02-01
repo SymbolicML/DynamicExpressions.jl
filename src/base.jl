@@ -23,6 +23,8 @@ import Base:
     reduce,
     sum
 
+import BorrowChecker
+
 using DispatchDoctor: @unstable
 using ..UtilsModule: Undefined
 
@@ -498,7 +500,7 @@ function copy_node(
 ) where {T,N<:AbstractExpressionNode{T},BS}
     return tree_mapreduce(leaf_copy, identity, branch_copy, tree, N; break_sharing=Val(BS))
 end
-function leaf_copy(t::N) where {T,N<:AbstractExpressionNode{T}}
+BorrowChecker.@safe function leaf_copy(t::N) where {T,N<:AbstractExpressionNode{T}}
     if t.constant
         return constructorof(N)(; val=t.val)
     else
