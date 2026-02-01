@@ -320,6 +320,26 @@ mutable struct ArenaScratch{T,D}
     end
 end
 
+"""Check whether `tree`'s arena prefix `1:tree.idx` is a valid postfix encoding.
+
+This mirrors `is_valid_postfix` in symbolic_regression.rs.
+"""
+function is_valid_postfix(tree::ArenaNode{T,D}) where {T,D}
+    stack::Int = 0
+    @inbounds for i in 1:Int(tree.idx)
+        d = tree.arena.degree[i]
+        if d == 0
+            stack += 1
+        else
+            a = Int(d)
+            a <= 0 && return false
+            stack < a && return false
+            stack = stack - a + 1
+        end
+    end
+    return stack == 1
+end
+
 """Compute subtree sizes for an arena that is stored in *postfix order*.
 
 This mirrors `subtree_sizes_into` in symbolic_regression.rs.

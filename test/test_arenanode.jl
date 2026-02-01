@@ -38,6 +38,8 @@ const AN = DynamicExpressions.ArenaNodeModule
     @test collected_idxs == seen
 
     # Postfix stack-based utilities (mirroring symbolic_regression.rs patterns):
+    @test AN.is_valid_postfix(atree)
+
     sizes = Int[]
     size_stack = Int[]
     AN.subtree_sizes_into!(atree, sizes, size_stack)
