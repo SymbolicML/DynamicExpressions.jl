@@ -203,6 +203,6 @@ end
     tree = copy(original_tree)
     x0, refs = get_scalar_constants(tree)
 
-    wrapped = ext._wrap_objective_xv_tail((args...)->nothing, tree, refs)
+    wrapped = ext._wrap_objective_xv_tail((args...) -> nothing, tree, refs)
     @test_throws ArgumentError wrapped(x0)
 end

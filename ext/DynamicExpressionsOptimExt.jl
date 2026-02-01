@@ -99,7 +99,8 @@ function wrap_func(
     #
     # We use `@static` branching so that only the relevant layout for the *installed*
     # NLSolversBase version is compiled/instrumented.
-    @static if fieldnames(NLSolversBase.InplaceObjective) == (:fdf, :fgh, :hvp, :fghvp, :fjvp)
+    @static if fieldnames(NLSolversBase.InplaceObjective) ==
+        (:fdf, :fgh, :hvp, :fghvp, :fjvp)
         # NLSolversBase v8 / Optim v2
         return NLSolversBase.InplaceObjective(
             _wrap_objective_x_last(getfield(f, :fdf), tree, refs),
