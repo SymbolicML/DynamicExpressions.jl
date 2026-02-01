@@ -65,6 +65,31 @@ const AN = DynamicExpressions.ArenaNodeModule
     @test ok_atree
     @test y_tree ≈ y_atree
 
+    # Postfix roundtrip (emit_postfix ↔ parse_postfix_to_arena):
+    pf = AN.emit_postfix(atree)
+    atree_pf = AN.parse_postfix_to_arena(pf)
+    @test AN.is_valid_postfix(atree_pf)
+    @test count_nodes(atree_pf) == count_nodes(atree)
+    @test string_tree(atree_pf, operators) == string_tree(atree, operators)
+    y_pf, ok_pf = eval_tree_array(atree_pf, X, operators)
+    @test ok_pf
+    @test y_pf ≈ y_tree
+
+    # Minimal rewrite prototype should preserve postfix validity:
+    tree_constleft = 3.2 * x1
+    atree_constleft = AN.arena_from_tree(tree_constleft)
+    @test AN.is_valid_postfix(atree_constleft)
+    y_before, ok_before = eval_tree_array(atree_constleft, X, operators)
+    @test ok_before
+    @test atree_constleft.l.constant
+    AN.rewrite_commutative_constants_right!(atree_constleft, operators)
+    @test AN.is_valid_postfix(atree_constleft)
+    @test !atree_constleft.l.constant
+    @test atree_constleft.r.constant
+    y_after, ok_after = eval_tree_array(atree_constleft, X, operators)
+    @test ok_after
+    @test y_after ≈ y_before
+
     # Mutating a constant in-place via the facade should affect evaluation:
     const_nodes = filter(t -> t.degree == 0 && t.constant, atree)
     @test !isempty(const_nodes)
