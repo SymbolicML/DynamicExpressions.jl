@@ -193,3 +193,16 @@ end
         @test first(get_scalar_constants(tree)) == x
     end
 end
+
+@testitem "Wrap objective (..., x, v): error on wrong arity" begin
+    using DynamicExpressions, Optim
+    include("test_optim_setup.jl")
+
+    ext = Base.get_extension(DynamicExpressions, :DynamicExpressionsOptimExt)
+
+    tree = copy(original_tree)
+    x0, refs = get_scalar_constants(tree)
+
+    wrapped = ext._wrap_objective_xv_tail((args...)->nothing, tree, refs)
+    @test_throws ArgumentError wrapped(x0)
+end

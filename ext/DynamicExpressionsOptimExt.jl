@@ -96,10 +96,11 @@ function wrap_func(
     # Some objectives, like `only_fg!(fg!)`, are not functions but instead
     # `InplaceObjective`. These contain multiple functions, each of which needs to be
     # wrapped. Some functions are `nothing`; those can be left as-is.
-    fields = fieldnames(typeof(f))
-
-    # NLSolversBase v8 / Optim v2
-    if fields == (:fdf, :fgh, :hvp, :fghvp, :fjvp)
+    #
+    # We use `@static` branching so that only the relevant layout for the *installed*
+    # NLSolversBase version is compiled/instrumented.
+    @static if fieldnames(NLSolversBase.InplaceObjective) == (:fdf, :fgh, :hvp, :fghvp, :fjvp)
+        # NLSolversBase v8 / Optim v2
         return NLSolversBase.InplaceObjective(
             _wrap_objective_x_last(getfield(f, :fdf), tree, refs),
             _wrap_objective_x_last(getfield(f, :fgh), tree, refs),
@@ -107,10 +108,8 @@ function wrap_func(
             _wrap_objective_xv_tail(getfield(f, :fghvp), tree, refs),
             _wrap_objective_xv_tail(getfield(f, :fjvp), tree, refs),
         )
-    end
-
-    # NLSolversBase v7 / Optim v1
-    if fields == (:df, :fdf, :fgh, :hv, :fghv)
+    elseif fieldnames(NLSolversBase.InplaceObjective) == (:df, :fdf, :fgh, :hv, :fghv)
+        # NLSolversBase v7 / Optim v1
         return NLSolversBase.InplaceObjective(
             _wrap_objective_x_last(getfield(f, :df), tree, refs),
             _wrap_objective_x_last(getfield(f, :fdf), tree, refs),
@@ -118,25 +117,24 @@ function wrap_func(
             _wrap_objective_xv_tail(getfield(f, :hv), tree, refs),
             _wrap_objective_xv_tail(getfield(f, :fghv), tree, refs),
         )
-    end
-
-    # Older NLSolversBase / Optim
-    if fields == (:fdf, :fgh, :hv, :fghv)
+    elseif fieldnames(NLSolversBase.InplaceObjective) == (:fdf, :fgh, :hv, :fghv)
+        # Older NLSolversBase / Optim
         return NLSolversBase.InplaceObjective(
             _wrap_objective_x_last(getfield(f, :fdf), tree, refs),
             _wrap_objective_x_last(getfield(f, :fgh), tree, refs),
             _wrap_objective_xv_tail(getfield(f, :hv), tree, refs),
             _wrap_objective_xv_tail(getfield(f, :fghv), tree, refs),
         )
+    else
+        fields = fieldnames(NLSolversBase.InplaceObjective)
+        throw(
+            ArgumentError(
+                "Unsupported NLSolversBase.InplaceObjective field layout: $(fields). " *
+                "This extension supports layouts used by Optim v1 and v2. " *
+                "Please open an issue at github.com/SymbolicML/DynamicExpressions.jl with your versions.",
+            ),
+        )
     end
-
-    throw(
-        ArgumentError(
-            "Unsupported NLSolversBase.InplaceObjective field layout: $(fields). " *
-            "This extension supports layouts used by Optim v1 and v2. " *
-            "Please open an issue at github.com/SymbolicML/DynamicExpressions.jl with your versions.",
-        ),
-    )
 end
 
 """
