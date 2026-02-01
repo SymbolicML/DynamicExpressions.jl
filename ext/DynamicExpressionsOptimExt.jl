@@ -109,6 +109,17 @@ function wrap_func(
         )
     end
 
+    # NLSolversBase v7 / Optim v1
+    if fields == (:df, :fdf, :fgh, :hv, :fghv)
+        return NLSolversBase.InplaceObjective(
+            _wrap_objective_x_last(getfield(f, :df), tree, refs),
+            _wrap_objective_x_last(getfield(f, :fdf), tree, refs),
+            _wrap_objective_x_last(getfield(f, :fgh), tree, refs),
+            _wrap_objective_xv_tail(getfield(f, :hv), tree, refs),
+            _wrap_objective_xv_tail(getfield(f, :fghv), tree, refs),
+        )
+    end
+
     # Older NLSolversBase / Optim
     if fields == (:fdf, :fgh, :hv, :fghv)
         return NLSolversBase.InplaceObjective(
