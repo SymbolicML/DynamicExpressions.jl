@@ -90,6 +90,48 @@ function wrap_func(
     return nothing
 end
 
+const _INPLACEOBJECTIVE_SPEC_V8 = (
+    fields = (:fdf, :fgh, :hvp, :fghvp, :fjvp),
+    x_last = (:fdf, :fgh),
+    xv_tail = (:hvp, :fghvp, :fjvp),
+)
+const _INPLACEOBJECTIVE_SPEC_V7 = (
+    fields = (:df, :fdf, :fgh, :hv, :fghv),
+    x_last = (:df, :fdf, :fgh),
+    xv_tail = (:hv, :fghv),
+)
+const _INPLACEOBJECTIVE_SPEC_OLD = (
+    fields = (:fdf, :fgh, :hv, :fghv),
+    x_last = (:fdf, :fgh),
+    xv_tail = (:hv, :fghv),
+)
+
+@inline function _wrap_inplaceobjective_field(
+    ::Val{field}, f::NLSolversBase.InplaceObjective, tree::N, refs, spec
+) where {field,N<:Union{AbstractExpressionNode,AbstractExpression}}
+    if field in spec.x_last
+        return _wrap_objective_x_last(getfield(f, field), tree, refs)
+    elseif field in spec.xv_tail
+        return _wrap_objective_xv_tail(getfield(f, field), tree, refs)
+    else
+        throw(
+            ArgumentError(
+                "Internal error: no wrapping rule for InplaceObjective field $(field). " *
+                "Please open an issue at github.com/SymbolicML/DynamicExpressions.jl with your versions.",
+            ),
+        )
+    end
+end
+
+@inline function _wrap_inplaceobjective(
+    f::NLSolversBase.InplaceObjective, tree::N, refs, spec
+) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
+    wrapped = map(spec.fields) do field
+        _wrap_inplaceobjective_field(Val(field), f, tree, refs, spec)
+    end
+    return NLSolversBase.InplaceObjective(wrapped...)
+end
+
 function wrap_func(
     f::NLSolversBase.InplaceObjective, tree::N, refs
 ) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
@@ -99,33 +141,15 @@ function wrap_func(
     #
     # We use `@static` branching so that only the relevant layout for the *installed*
     # NLSolversBase version is compiled/instrumented.
-    @static if fieldnames(NLSolversBase.InplaceObjective) ==
-        (:fdf, :fgh, :hvp, :fghvp, :fjvp)
+    @static if fieldnames(NLSolversBase.InplaceObjective) == _INPLACEOBJECTIVE_SPEC_V8.fields
         # NLSolversBase v8 / Optim v2
-        return NLSolversBase.InplaceObjective(
-            _wrap_objective_x_last(getfield(f, :fdf), tree, refs),
-            _wrap_objective_x_last(getfield(f, :fgh), tree, refs),
-            _wrap_objective_xv_tail(getfield(f, :hvp), tree, refs),
-            _wrap_objective_xv_tail(getfield(f, :fghvp), tree, refs),
-            _wrap_objective_xv_tail(getfield(f, :fjvp), tree, refs),
-        )
-    elseif fieldnames(NLSolversBase.InplaceObjective) == (:df, :fdf, :fgh, :hv, :fghv)
+        return _wrap_inplaceobjective(f, tree, refs, _INPLACEOBJECTIVE_SPEC_V8)
+    elseif fieldnames(NLSolversBase.InplaceObjective) == _INPLACEOBJECTIVE_SPEC_V7.fields
         # NLSolversBase v7 / Optim v1
-        return NLSolversBase.InplaceObjective(
-            _wrap_objective_x_last(getfield(f, :df), tree, refs),
-            _wrap_objective_x_last(getfield(f, :fdf), tree, refs),
-            _wrap_objective_x_last(getfield(f, :fgh), tree, refs),
-            _wrap_objective_xv_tail(getfield(f, :hv), tree, refs),
-            _wrap_objective_xv_tail(getfield(f, :fghv), tree, refs),
-        )
-    elseif fieldnames(NLSolversBase.InplaceObjective) == (:fdf, :fgh, :hv, :fghv)
+        return _wrap_inplaceobjective(f, tree, refs, _INPLACEOBJECTIVE_SPEC_V7)
+    elseif fieldnames(NLSolversBase.InplaceObjective) == _INPLACEOBJECTIVE_SPEC_OLD.fields
         # Older NLSolversBase / Optim
-        return NLSolversBase.InplaceObjective(
-            _wrap_objective_x_last(getfield(f, :fdf), tree, refs),
-            _wrap_objective_x_last(getfield(f, :fgh), tree, refs),
-            _wrap_objective_xv_tail(getfield(f, :hv), tree, refs),
-            _wrap_objective_xv_tail(getfield(f, :fghv), tree, refs),
-        )
+        return _wrap_inplaceobjective(f, tree, refs, _INPLACEOBJECTIVE_SPEC_OLD)
     else
         fields = fieldnames(NLSolversBase.InplaceObjective)
         throw(
