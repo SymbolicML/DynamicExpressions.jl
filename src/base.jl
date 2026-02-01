@@ -375,10 +375,7 @@ function map(
     return _map(f, tree, result_type, Val(BS))
 end
 function _map(f::F, tree::AbstractNode, ::Type{Nothing}, ::Val{BS}) where {F<:Function,BS}
-    # Avoid Base.map: in Julia 1.10 it can be type-unstable when `f` returns a Union.
-    # If the caller doesn't provide a `result_type`, fall back to `Any` to keep the
-    # return type concrete under DispatchDoctor's strict mode.
-    return _map(f, tree, Any, Val(BS))
+    return map(f, collect(tree; break_sharing=Val(BS)))
 end
 function _map(f::F, tree::AbstractNode, ::Type{RT}, ::Val{BS}) where {F<:Function,RT,BS}
     return filter_map(Returns(true), f, tree, RT; break_sharing=Val(BS))
