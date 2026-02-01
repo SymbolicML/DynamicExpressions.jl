@@ -38,44 +38,54 @@ function Optim.minimizer(r::ExpressionOptimizationResults)
 end
 
 """Wrap function or objective with insertion of values of the constant nodes."""
-@inline function _x_argpos_for_objective_field(name::Symbol, nargs::Int)
-    # Most NLSolversBase objective function signatures end with `x`, but some
-    # (notably the Hessian/Jacobian-vector product variants) take `(..., x, v)`.
-    #
-    # NLSolversBase v8 / Optim v2 uses `hvp/fghvp/fjvp`. Older versions used
-    # `hv/fghv`.
-    if name in (:hvp, :fghvp, :fjvp, :hv, :fghv)
-        return max(nargs - 1, 1)
-    else
-        return nargs
-    end
+@inline function _wrap_objective_x_last(
+    ::Nothing, tree::N, refs
+) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
+    return nothing
 end
-
-function wrap_func(
+@inline function _wrap_objective_x_last(
     f::F, tree::N, refs
 ) where {F<:Function,T,N<:Union{AbstractExpressionNode{T},AbstractExpression{T}}}
-    return wrap_func(f, tree, refs, :__default__)
+    function wrapped_f(args::Vararg{Any,M}) where {M}
+        x = args[M]
+        set_scalar_constants!(tree, x, refs)
+        newargs = Base.setindex(args, tree, M)
+        return @inline(f(newargs...))
+    end
+    return wrapped_f
 end
-function wrap_func(
-    f::F, tree::N, refs, name::Symbol
+
+@inline function _wrap_objective_xv_tail(
+    ::Nothing, tree::N, refs
+) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
+    return nothing
+end
+@inline function _wrap_objective_xv_tail(
+    f::F, tree::N, refs
 ) where {F<:Function,T,N<:Union{AbstractExpressionNode{T},AbstractExpression{T}}}
     function wrapped_f(args::Vararg{Any,M}) where {M}
-        xpos = _x_argpos_for_objective_field(name, M)
-        x = args[xpos]
+        if M < 2
+            throw(
+                ArgumentError(
+                    "Expected at least 2 arguments for objective functions of the form (..., x, v).",
+                ),
+            )
+        end
+        x = args[M - 1]
         set_scalar_constants!(tree, x, refs)
-        newargs = ntuple(i -> (i == xpos ? tree : args[i]), M)
+        newargs = Base.setindex(args, tree, M - 1)
         return @inline(f(newargs...))
     end
     return wrapped_f
 end
 
 function wrap_func(
-    ::Nothing, tree::N, refs
-) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
-    return nothing
+    f::F, tree::N, refs
+) where {F<:Function,T,N<:Union{AbstractExpressionNode{T},AbstractExpression{T}}}
+    return _wrap_objective_x_last(f, tree, refs)
 end
 function wrap_func(
-    ::Nothing, tree::N, refs, ::Symbol
+    ::Nothing, tree::N, refs
 ) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
     return nothing
 end
@@ -87,8 +97,34 @@ function wrap_func(
     # `InplaceObjective`. These contain multiple functions, each of which needs to be
     # wrapped. Some functions are `nothing`; those can be left as-is.
     fields = fieldnames(typeof(f))
-    return NLSolversBase.InplaceObjective(
-        (wrap_func(getfield(f, name), tree, refs, name) for name in fields)...,
+
+    # NLSolversBase v8 / Optim v2
+    if fields == (:fdf, :fgh, :hvp, :fghvp, :fjvp)
+        return NLSolversBase.InplaceObjective(
+            _wrap_objective_x_last(getfield(f, :fdf), tree, refs),
+            _wrap_objective_x_last(getfield(f, :fgh), tree, refs),
+            _wrap_objective_xv_tail(getfield(f, :hvp), tree, refs),
+            _wrap_objective_xv_tail(getfield(f, :fghvp), tree, refs),
+            _wrap_objective_xv_tail(getfield(f, :fjvp), tree, refs),
+        )
+    end
+
+    # Older NLSolversBase / Optim
+    if fields == (:fdf, :fgh, :hv, :fghv)
+        return NLSolversBase.InplaceObjective(
+            _wrap_objective_x_last(getfield(f, :fdf), tree, refs),
+            _wrap_objective_x_last(getfield(f, :fgh), tree, refs),
+            _wrap_objective_xv_tail(getfield(f, :hv), tree, refs),
+            _wrap_objective_xv_tail(getfield(f, :fghv), tree, refs),
+        )
+    end
+
+    throw(
+        ArgumentError(
+            "Unsupported NLSolversBase.InplaceObjective field layout: $(fields). " *
+            "This extension supports layouts used by Optim v1 and v2. " *
+            "Please open an issue at github.com/SymbolicML/DynamicExpressions.jl with your versions.",
+        ),
     )
 end
 

@@ -134,12 +134,15 @@ end
     seen_fjvp_v = Ref{Any}(nothing)
 
     my_fdf!(F, t) = (did_fdf[] = true; seen_fdf_tree[] = t; return nothing)
-    my_hvp!(HV, t, vin) =
-        (did_hvp[] = true; seen_hvp_tree[] = t; seen_hvp_v[] = vin; return nothing)
-    my_fghvp!(F, G, t, vin) =
-        (did_fghvp[] = true; seen_fghvp_tree[] = t; seen_fghvp_v[] = vin; return nothing)
-    my_fjvp!(F, J, t, vin) =
-        (did_fjvp[] = true; seen_fjvp_tree[] = t; seen_fjvp_v[] = vin; return nothing)
+    my_hvp!(HV, t, vin) = (
+        did_hvp[] = true; seen_hvp_tree[] = t; seen_hvp_v[] = vin; return nothing
+    )
+    my_fghvp!(F, G, t, vin) = (
+        did_fghvp[] = true; seen_fghvp_tree[] = t; seen_fghvp_v[] = vin; return nothing
+    )
+    my_fjvp!(F, J, t, vin) = (
+        did_fjvp[] = true; seen_fjvp_tree[] = t; seen_fjvp_v[] = vin; return nothing
+    )
 
     # Construct an InplaceObjective regardless of the exact field set/order.
     fields = fieldnames(Optim.NLSolversBase.InplaceObjective)
