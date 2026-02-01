@@ -304,6 +304,152 @@ function tree_from_arena(tree::ArenaNode{T,D}) where {T,D}
 end
 
 ################################################################################
+# Postfix serialization / parsing
+################################################################################
+
+"""A minimal postfix encoding of a tree.
+
+This stores per-node fields for nodes `1:n` in postfix order (postorder traversal).
+Child pointers are *not* stored; they can be reconstructed deterministically from
+`degree` via a stack-based parse.
+
+This is intended for cheap round-tripping and for experiments with postfix-based
+algorithms (mirroring `symbolic_regression.rs`).
+"""
+struct PostfixExpr{T,D}
+    degree::Vector{UInt8}
+    constant::Vector{Bool}
+    val::Vector{T}
+    feature::Vector{UInt16}
+    op::Vector{UInt8}
+end
+
+"""Emit a [`PostfixExpr`](@ref) for an arena-backed tree.
+
+This copies the arena prefix `1:tree.idx`.
+"""
+function emit_postfix(tree::ArenaNode{T,D}) where {T,D}
+    n = Int(tree.idx)
+    a = tree.arena
+    return PostfixExpr{T,D}(
+        copy(@view a.degree[1:n]),
+        copy(@view a.constant[1:n]),
+        copy(@view a.val[1:n]),
+        copy(@view a.feature[1:n]),
+        copy(@view a.op[1:n]),
+    )
+end
+
+@generated function _postfix_pop_children(
+    ::Val{D}, stack::Vector{Int32}, a::Int
+) where {D}
+    branches = Expr[]
+    for k in 1:D
+        vars = [Symbol(:c, j) for j in 1:k]
+        stmts = Expr[]
+        # Pop in reverse to preserve left-to-right operand ordering.
+        for j in k:-1:1
+            push!(stmts, :($(vars[j]) = pop!(stack)))
+        end
+        tup = Expr(:tuple, vars...)
+        push!(branches, :(a == $k && (begin $(stmts...); return $tup; end)))
+    end
+    return quote
+        $(branches...)
+        throw(ArgumentError("invalid arity $a for D=$D"))
+    end
+end
+
+"""Parse a [`PostfixExpr`](@ref) into a fresh arena and return the root `ArenaNode`.
+
+This reconstructs child pointers by replaying the postfix encoding with a stack of
+node indices.
+"""
+function parse_postfix_to_arena(postfix::PostfixExpr{T,D}) where {T,D}
+    n = length(postfix.degree)
+    length(postfix.constant) == n || throw(ArgumentError("mismatched vector lengths"))
+    length(postfix.val) == n || throw(ArgumentError("mismatched vector lengths"))
+    length(postfix.feature) == n || throw(ArgumentError("mismatched vector lengths"))
+    length(postfix.op) == n || throw(ArgumentError("mismatched vector lengths"))
+
+    arena = Arena{T,D}(; capacity=n)
+    stack = Int32[]
+    sizehint!(stack, n)
+
+    @inbounds for i in 1:n
+        d = postfix.degree[i]
+        if d == 0
+            # Leaf nodes.
+            idx = _push_node!(
+                arena,
+                UInt8(0),
+                postfix.constant[i],
+                postfix.val[i],
+                postfix.feature[i],
+                postfix.op[i],
+                _zero_children(Val(D)),
+            )
+            push!(stack, idx)
+        else
+            a = Int(d)
+            (1 <= a <= D) || throw(ArgumentError("invalid arity $a for D=$D"))
+            length(stack) >= a || throw(ArgumentError("invalid postfix encoding"))
+
+            child_idxs = _postfix_pop_children(Val(D), stack, a)
+            idx = push_branch!(arena, postfix.op[i], child_idxs)
+
+            # Preserve any extra fields from the encoding.
+            @inbounds begin
+                arena.constant[Int(idx)] = postfix.constant[i]
+                arena.val[Int(idx)] = postfix.val[i]
+                arena.feature[Int(idx)] = postfix.feature[i]
+            end
+
+            push!(stack, idx)
+        end
+    end
+
+    length(stack) == 1 || throw(ArgumentError("invalid postfix encoding"))
+    root = stack[1]
+    root == Int32(n) || throw(ArgumentError("invalid postfix encoding"))
+    return ArenaNode{T,D}(arena, root)
+end
+
+################################################################################
+# Minimal rewrite prototypes
+################################################################################
+
+# Keep these local to avoid depending on `SimplifyModule` (included later).
+# COV_EXCL_START
+is_commutative(::typeof(*)) = true
+is_commutative(::typeof(+)) = true
+is_commutative(_) = false
+# COV_EXCL_STOP
+
+"""Rewrite commutative binary operators so that constants appear on the right.
+
+This is a minimal in-place rewrite that *preserves postfix validity* since it does
+not change any node degrees; it only swaps child pointers.
+"""
+function rewrite_commutative_constants_right!(tree::ArenaNode{T,D}, operators) where {T,D}
+    root_idx = Int(tree.idx)
+    @inbounds for i in 1:root_idx
+        node = ArenaNode{T,D}(tree.arena, i)
+        node.degree == 2 || continue
+        f = operators.binops[node.op]
+        is_commutative(f) || continue
+
+        l = get_child(node, 1)
+        r = get_child(node, 2)
+        if l.degree == 0 && l.constant && !(r.degree == 0 && r.constant)
+            set_child!(node, r, 1)
+            set_child!(node, l, 2)
+        end
+    end
+    return tree
+end
+
+################################################################################
 # Stack-based traversal/reduction (mirrors symbolic_regression.rs patterns)
 ################################################################################
 
