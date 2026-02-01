@@ -24,6 +24,7 @@ import Base:
     sum
 
 import BorrowChecker
+using BorrowChecker: @unsafe
 
 using DispatchDoctor: @unstable
 using ..UtilsModule: Undefined
@@ -498,7 +499,15 @@ If `break_sharing` is set to `Val(true)`, sharing in a tree will be ignored.
 function copy_node(
     tree::N; break_sharing::Val{BS}=Val(false)
 ) where {T,N<:AbstractExpressionNode{T},BS}
-    return tree_mapreduce(leaf_copy, identity, branch_copy, tree, N; break_sharing=Val(BS))
+    return copy_node(tree, break_sharing)
+end
+
+BorrowChecker.@safe function copy_node(
+    tree::N, break_sharing::Val{BS}
+) where {T,N<:AbstractExpressionNode{T},BS}
+    return @unsafe begin
+        tree_mapreduce(leaf_copy, identity, branch_copy, tree, N; break_sharing)
+    end
 end
 BorrowChecker.@safe function leaf_copy(t::N) where {T,N<:AbstractExpressionNode{T}}
     if t.constant
