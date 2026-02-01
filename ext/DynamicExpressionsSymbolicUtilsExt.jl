@@ -33,6 +33,15 @@ function is_valid(x::BasicSymbolic)
 end
 subs_bad(x) = is_valid(x) ? x : Inf
 
+_sym_number(sym::Symbol) = SymbolicUtils.Sym{SymReal}(sym; type=Number)
+
+function _sym_fn(sym::Symbol, degree::Integer)
+    degree_int = Int(degree)
+    dtypes = ntuple(_ -> Number, degree_int)
+    ftype = Base.unwrap_unionall(SymbolicUtils.FnType{Tuple{dtypes...},Number})
+    return SymbolicUtils.Sym{SymReal}(sym; type=ftype)
+end
+
 function parse_tree_to_eqs(
     tree::AbstractExpressionNode{T,2},
     operators::AbstractOperatorEnum,
@@ -41,7 +50,7 @@ function parse_tree_to_eqs(
     if tree.degree == 0
         # Return constant if needed
         tree.constant && return subs_bad(tree.val)
-        return SymbolicUtils.Sym{SymReal}(Symbol("x$(tree.feature)"); type=Number)
+        return _sym_number(Symbol("x$(tree.feature)"))
     end
     # Collect the next children
     # TODO: Type instability!
@@ -49,26 +58,44 @@ function parse_tree_to_eqs(
         tree.degree == 2 ? (get_child(tree, 1), get_child(tree, 2)) : (get_child(tree, 1),)
     # Get the operation
     op = tree.degree == 2 ? operators.binops[tree.op] : operators.unaops[tree.op]
-    #
-    if index_functions
-        error(
-            "index_functions=true is not supported with SymbolicUtils v4+. " *
-            "Use index_functions=false (the default) instead.",
-        )
-    end
-
-    # Only supported operators can be converted to SymbolicUtils expressions
+    # Only a small subset of functions have symbolic methods in SymbolicUtils.
+    # When `index_functions=true`, we encode unsupported operators as function-like
+    # symbols so they can be round-tripped back to operators via their name/arity.
     if !(op ∈ SUPPORTED_OPS)
-        error(
-            "Custom operator '$op' is not supported with SymbolicUtils v4+. " *
-            "Only these operators are supported: $SUPPORTED_OPS",
-        )
+        if index_functions
+            op = _sym_fn(Symbol(op), tree.degree)
+        else
+            error(
+                "Custom operator '$op' is not supported with SymbolicUtils. " *
+                "Only these operators are supported by default: $SUPPORTED_OPS. " *
+                "To allow round-tripping custom operators, set index_functions=true.",
+            )
+        end
     end
 
     # Convert children to symbolic form
     sym_children = map(x -> parse_tree_to_eqs(x, operators, index_functions), children)
 
     return subs_bad(op(sym_children...))
+end
+
+function convert_to_function(x::BasicSymbolic, operators::AbstractOperatorEnum)
+    if issym(x) && SymbolicUtils.symtype(x) <: SymbolicUtils.FnType
+        st = Base.unwrap_unionall(SymbolicUtils.symtype(x))
+        sig = st.parameters[1]
+        degree = length(sig.parameters)
+        fname = nameof(x)
+        if degree == 1
+            ind = findoperation(fname, operators.unaops)
+            return operators.unaops[ind]
+        elseif degree == 2
+            ind = findoperation(fname, operators.binops)
+            return operators.binops[ind]
+        else
+            throw(AssertionError("Function $(String(fname)) has degree > 2 !"))
+        end
+    end
+    return x
 end
 
 # For normal operators, simply return the function itself:
@@ -215,7 +242,6 @@ will generate a symbolic equation in SymbolicUtils.jl format.
 - `index_functions::Bool=false`: Whether to generate special names for the
     operators, which then allows one to convert back to a `AbstractExpressionNode` format
     using `symbolic_to_node`.
-    (CURRENTLY UNAVAILABLE).
 """
 function node_to_symbolic(
     tree::AbstractExpressionNode{T,2},
@@ -234,8 +260,7 @@ function node_to_symbolic(
     # Create a substitution tuple
     subs = Dict(
         [
-            SymbolicUtils.Sym{SymReal}(Symbol("x$(i)"); type=Number) =>
-                SymbolicUtils.Sym{SymReal}(Symbol(variable_names[i]); type=Number) for
+            _sym_number(Symbol("x$(i)")) => _sym_number(Symbol(variable_names[i])) for
             i in 1:length(variable_names)
         ]...,
     )
