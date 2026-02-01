@@ -10,6 +10,7 @@ using ..NodeModule:
     set_children!
 
 import BorrowChecker
+using BorrowChecker: @unsafe
 
 """
     allocate_container(prototype::AbstractExpressionNode, n=nothing)
@@ -36,20 +37,27 @@ This should result in no extra allocations.
 function copy_into!(
     dest::AbstractArray{N}, src::N; ref::Union{Nothing,Base.RefValue{<:Integer}}=nothing
 ) where {N<:AbstractExpressionNode}
+    return copy_into!(dest, src, ref)
+end
+
+BorrowChecker.@safe function copy_into!(
+    dest::AbstractArray{N}, src::N, ref::Union{Nothing,Base.RefValue{<:Integer}}
+) where {N<:AbstractExpressionNode}
     _ref = if ref === nothing
         Ref(0)
     else
         ref.x = 0
         ref
     end
-    return tree_mapreduce(
-        leaf -> leaf_copy_into!(@inbounds(dest[_ref.x += 1]), leaf),
-        identity,
-        ((p, c::Vararg{Any,M}) where {M}) ->
-            branch_copy_into!(@inbounds(dest[_ref.x += 1]), p, c...),
-        src,
-        N,
-    )
+    return @unsafe begin
+        tree_mapreduce(
+            leaf -> leaf_copy_into!(@inbounds(dest[_ref.x += 1]), leaf),
+            identity,
+            (p, c...) -> branch_copy_into!(@inbounds(dest[_ref.x += 1]), p, c...),
+            src,
+            N,
+        )
+    end
 end
 BorrowChecker.@safe function leaf_copy_into!(dest::N, src::N) where {N<:AbstractExpressionNode}
     set_node!(dest, src)
