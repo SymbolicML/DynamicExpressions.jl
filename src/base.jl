@@ -507,7 +507,7 @@ BorrowChecker.@safe function leaf_copy(t::N) where {T,N<:AbstractExpressionNode{
         return constructorof(N)(T; feature=t.feature)
     end
 end
-function branch_copy(t::N, children::Vararg{Any,M}) where {T,N<:AbstractExpressionNode{T},M}
+BorrowChecker.@safe function branch_copy(t::N, children::Vararg{Any,M}) where {T,N<:AbstractExpressionNode{T},M}
     return constructorof(N)(T; op=t.op, children)
 end
 
