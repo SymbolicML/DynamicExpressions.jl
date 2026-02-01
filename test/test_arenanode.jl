@@ -65,7 +65,7 @@ const AN = DynamicExpressions.ArenaNodeModule
     @test ok_atree
     @test y_tree ≈ y_atree
 
-    # Postfix roundtrip (emit_postfix ↔ parse_postfix_to_arena):
+    # Postfix roundtrip sanity check (debug utility; not an execution strategy):
     pf = AN.emit_postfix(atree)
     atree_pf = AN.parse_postfix_to_arena(pf)
     @test AN.is_valid_postfix(atree_pf)

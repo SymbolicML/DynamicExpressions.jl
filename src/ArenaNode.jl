@@ -304,7 +304,7 @@ function tree_from_arena(tree::ArenaNode{T,D}) where {T,D}
 end
 
 ################################################################################
-# Postfix serialization / parsing
+# Postfix serialization / parsing (debug/roundtrip utilities)
 ################################################################################
 
 """A minimal postfix encoding of a tree.
@@ -313,8 +313,10 @@ This stores per-node fields for nodes `1:n` in postfix order (postorder traversa
 Child pointers are *not* stored; they can be reconstructed deterministically from
 `degree` via a stack-based parse.
 
-This is intended for cheap round-tripping and for experiments with postfix-based
-algorithms (mirroring `symbolic_regression.rs`).
+Note: these utilities are for round-tripping / debugging and for exploring
+postfix-specific algorithms. They are *not* intended as a core implementation
+strategy (i.e. we should not repeatedly convert between representations to make
+normal operations work).
 """
 struct PostfixExpr{T,D}
     degree::Vector{UInt8}
