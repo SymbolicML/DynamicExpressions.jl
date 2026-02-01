@@ -304,6 +304,132 @@ function tree_from_arena(tree::ArenaNode{T,D}) where {T,D}
 end
 
 ################################################################################
+# Stack-based traversal/reduction (mirrors symbolic_regression.rs patterns)
+################################################################################
+
+"""Reusable scratch buffers for stack-based operations on an arena-backed tree."""
+mutable struct ArenaScratch{T,D}
+    # For reductions over nodes (generic element type set by caller).
+    any_stack::Vector{Any}
+    # For subtree size computations (postfix-only utilities).
+    sizes::Vector{Int}
+    size_stack::Vector{Int}
+
+    function ArenaScratch{T,D}() where {T,D}
+        return new{T,D}(Any[], Int[], Int[])
+    end
+end
+
+"""Compute subtree sizes for an arena that is stored in *postfix order*.
+
+This mirrors `subtree_sizes_into` in symbolic_regression.rs.
+
+Assumptions:
+- nodes `1:root_idx` form a valid postfix expression where each operator node
+  consumes `degree` children and produces one result.
+
+Returns `sizes` (also mutated in place).
+"""
+function subtree_sizes_into!(
+    tree::ArenaNode{T,D}, sizes::Vector{Int}, stack::Vector{Int}
+) where {T,D}
+    root_idx = Int(tree.idx)
+    resize!(sizes, root_idx)
+    empty!(stack)
+    sizehint!(stack, root_idx)
+
+    @inbounds for i in 1:root_idx
+        d = tree.arena.degree[i]
+        if d == 0
+            sizes[i] = 1
+            push!(stack, 1)
+        else
+            a = Int(d)
+            sum = 1
+            for _ in 1:a
+                sum += pop!(stack)
+            end
+            sizes[i] = sum
+            push!(stack, sum)
+        end
+    end
+
+    @assert length(stack) == 1
+    return sizes
+end
+
+"""Return the (start, end) indices (inclusive) of the subtree rooted at `root_idx`.
+
+Indices are 1-based, and assume `sizes` was computed by [`subtree_sizes_into!`](@ref).
+"""
+@inline function subtree_range(sizes::AbstractVector{Int}, root_idx::Int)
+    sz = sizes[root_idx]
+    return (root_idx + 1 - sz, root_idx)
+end
+
+"""Postfix map-reduce over an arena-backed tree with a reusable stack.
+
+This mirrors `tree_mapreduce_with_stack` in symbolic_regression.rs.
+
+- `f_leaf(node)::R`
+- `f_branch(node)::B`
+- `op(parent::B, children::NTuple{n,R})::R` for `n = node.degree`
+
+Note: This operates on the implicit postfix order `1:root_idx` and does *not*
+use child pointers.
+"""
+@generated function _postfix_apply_op(
+    ::Val{D},
+    op,
+    parent,
+    stack::Vector{R},
+    start::Int,
+    a::Int,
+) where {D,R}
+    branches = Expr[]
+    for k in 1:D
+        # Construct a literal tuple (stack[start], stack[start+1], ..., stack[start+k-1]).
+        tup = Expr(:tuple, [:(stack[start + $(j - 1)]) for j in 1:k]...)
+        push!(branches, :(a == $k && return op(parent, $tup)))
+    end
+    return quote
+        $(branches...)
+        throw(ArgumentError("invalid arity $a for D=$D"))
+    end
+end
+
+function tree_mapreduce_postfix_with_stack(
+    tree::ArenaNode{T,D},
+    f_leaf,
+    f_branch,
+    op,
+    stack::Vector{R},
+) where {T,D,R}
+    root_idx = Int(tree.idx)
+    empty!(stack)
+    sizehint!(stack, root_idx)
+
+    @inbounds for i in 1:root_idx
+        node = ArenaNode(tree.arena, i)
+        d = node.degree
+        if d == 0
+            push!(stack, f_leaf(node)::R)
+        else
+            a = Int(d)
+            @assert 1 <= a <= D
+            start = length(stack) - a + 1
+            parent = f_branch(node)
+            out = _postfix_apply_op(Val(D), op, parent, stack, start, a)
+            resize!(stack, start - 1)
+            push!(stack, out::R)
+        end
+    end
+
+    @assert length(stack) == 1
+    return pop!(stack)
+end
+
+################################################################################
 # Cursor + reusable stack (prototype)
 ################################################################################
 
