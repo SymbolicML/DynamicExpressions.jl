@@ -4,7 +4,6 @@ using DynamicExpressions: get_operators, get_variable_names
 using Test
 include("test_params.jl")
 
-custom_unary_test(x) = x + 1
 custom_binary_test(x, y) = x - 2y
 
 # Test basic conversion with supported operators only
@@ -29,6 +28,15 @@ X = [1.5;;]  # Test input
 result1, _ = eval_tree_array(tree, X, operators)
 result2, _ = eval_tree_array(tree2, X, operators)
 @test isapprox(result1, result2)
+
+# Test default variable naming (x1, x2, ...) round-trips without providing variable_names
+let
+    operators = OperatorEnum(; unary_operators=(sin,), binary_operators=(+, *, -, /))
+    tree = Node(; feature=1)
+    eqn = convert(SymbolicUtils.BasicSymbolic, tree, operators)
+    tree2 = convert(Node, eqn, operators)
+    @test tree2.degree == 0 && !tree2.constant && tree2.feature == 1
+end
 
 # Test variable name conversion with Expression objects
 let
@@ -66,18 +74,22 @@ end
 
 # Test `index_functions=true` supports round-tripping custom operators
 let
+    # Use a *custom* unary op (`custom_cos`) and a custom binary op.
     operators_custom = OperatorEnum(;
-        binary_operators=(custom_binary_test,), unary_operators=(custom_unary_test,)
+        binary_operators=(custom_binary_test,), unary_operators=(custom_cos,)
     )
 
     x1 = Node(; feature=1)
     # Build a tree that *uses the custom operators* without relying on helper-method injection.
     tree = Node(1, Node(1, x1), Node(; val=2.0))
 
-    @test_throws ErrorException node_to_symbolic(tree, operators_custom)
+    # Without indexing, custom functions can't be represented in SymbolicUtils.
+    @test_throws ErrorException convert(SymbolicUtils.BasicSymbolic, tree, operators_custom)
 
-    eqn = node_to_symbolic(tree, operators_custom; index_functions=true)
-    tree2 = symbolic_to_node(eqn, operators_custom)
+    eqn = convert(SymbolicUtils.BasicSymbolic, tree, operators_custom; index_functions=true)
+    @test occursin("custom_cos", string(eqn))
+
+    tree2 = convert(Node, eqn, operators_custom)
 
     X = [1.5;;]
     result1, _ = eval_tree_array(tree, X, operators_custom)
