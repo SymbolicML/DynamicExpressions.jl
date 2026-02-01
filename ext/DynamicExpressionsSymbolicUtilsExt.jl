@@ -65,14 +65,15 @@ function parse_tree_to_eqs(
     # For unsupported operators:
     # - when `index_functions=true`, we encode them as function-like symbols so they
     #   can be round-tripped back to operators via their name/arity.
-    # - when `index_functions=false`, we preserve the historical behavior: represent
-    #   them as a generic SymbolicUtils term headed by the function object.
+    # - when `index_functions=false`, we throw a clear error, since attempting to
+    #   construct a SymbolicUtils term headed by an arbitrary function object can
+    #   fail with a MethodError.
     if !(op ∈ SUPPORTED_OPS)
         if index_functions
             op = _sym_fn(Symbol(op), tree.degree)
             return subs_bad(op(sym_children...))
         else
-            return subs_bad(SymbolicUtils.Term(op, sym_children...))
+            throw(error("Unsupported operation $(op) in SymbolicUtils conversion"))
         end
     end
 
