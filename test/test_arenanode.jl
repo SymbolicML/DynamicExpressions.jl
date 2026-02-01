@@ -90,6 +90,27 @@ const AN = DynamicExpressions.ArenaNodeModule
     @test ok_after
     @test y_after ≈ y_before
 
+    # In-place set_node! should work even when the source tree is from a different arena.
+    # (This is important for API-compat with algorithms that construct new subtrees.)
+    atree_setnode = AN.arena_from_tree(tree)
+    atree_setnode2 = copy(atree_setnode)
+    set_node!(atree_setnode, atree_setnode2)
+    @test string_tree(atree_setnode, operators) == string_tree(atree_setnode2, operators)
+
+    # set_child! should accept children from another arena by copying them into the target arena.
+    parent = AN.arena_from_tree(sin(x1))
+    other = AN.arena_from_tree(x1 * 3.2)
+    set_child!(parent, other, 1)
+    @test get_child(parent, 1).arena === parent.arena
+
+    # In-place simplify should work.
+    tree_fold = Node{Float64}(; val=2.0) + Node{Float64}(; val=3.0)
+    atree_fold = AN.arena_from_tree(tree_fold)
+    simplify_tree!(atree_fold, operators)
+    @test atree_fold.degree == 0
+    @test atree_fold.constant
+    @test atree_fold.val == 5.0
+
     # Mutating a constant in-place via the facade should affect evaluation:
     const_nodes = filter(t -> t.degree == 0 && t.constant, atree)
     @test !isempty(const_nodes)
