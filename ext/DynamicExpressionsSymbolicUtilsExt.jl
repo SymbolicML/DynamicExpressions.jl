@@ -58,23 +58,23 @@ function parse_tree_to_eqs(
         tree.degree == 2 ? (get_child(tree, 1), get_child(tree, 2)) : (get_child(tree, 1),)
     # Get the operation
     op = tree.degree == 2 ? operators.binops[tree.op] : operators.unaops[tree.op]
+    # Convert children to symbolic form
+    sym_children = map(x -> parse_tree_to_eqs(x, operators, index_functions), children)
+
     # Only a small subset of functions have symbolic methods in SymbolicUtils.
-    # When `index_functions=true`, we encode unsupported operators as function-like
-    # symbols so they can be round-tripped back to operators via their name/arity.
+    # For unsupported operators:
+    # - when `index_functions=true`, we encode them as function-like symbols so they
+    #   can be round-tripped back to operators via their name/arity.
+    # - when `index_functions=false`, we preserve the historical behavior: represent
+    #   them as a generic SymbolicUtils term headed by the function object.
     if !(op ∈ SUPPORTED_OPS)
         if index_functions
             op = _sym_fn(Symbol(op), tree.degree)
+            return subs_bad(op(sym_children...))
         else
-            error(
-                "Custom operator '$op' is not supported with SymbolicUtils. " *
-                "Only these operators are supported by default: $SUPPORTED_OPS. " *
-                "To allow round-tripping custom operators, set index_functions=true.",
-            )
+            return subs_bad(SymbolicUtils.Term(op, sym_children...))
         end
     end
-
-    # Convert children to symbolic form
-    sym_children = map(x -> parse_tree_to_eqs(x, operators, index_functions), children)
 
     return subs_bad(op(sym_children...))
 end
