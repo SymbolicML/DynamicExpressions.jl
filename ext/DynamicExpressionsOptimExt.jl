@@ -38,27 +38,48 @@ function Optim.minimizer(r::ExpressionOptimizationResults)
 end
 
 """Wrap function or objective with insertion of values of the constant nodes."""
+@inline function _x_argpos_for_objective_field(name::Symbol, nargs::Int)
+    # Most NLSolversBase objective function signatures end with `x`, but some
+    # (notably the Hessian/Jacobian-vector product variants) take `(..., x, v)`.
+    #
+    # NLSolversBase v8 / Optim v2 uses `hvp/fghvp/fjvp`. Older versions used
+    # `hv/fghv`.
+    if name in (:hvp, :fghvp, :fjvp, :hv, :fghv)
+        return max(nargs - 1, 1)
+    else
+        return nargs
+    end
+end
+
 function wrap_func(
     f::F, tree::N, refs
 ) where {F<:Function,T,N<:Union{AbstractExpressionNode{T},AbstractExpression{T}}}
+    return wrap_func(f, tree, refs, :__default__)
+end
+function wrap_func(
+    f::F, tree::N, refs, name::Symbol
+) where {F<:Function,T,N<:Union{AbstractExpressionNode{T},AbstractExpression{T}}}
     function wrapped_f(args::Vararg{Any,M}) where {M}
-        first_args = args[begin:(end - 1)]
-        x = args[end]
+        xpos = _x_argpos_for_objective_field(name, M)
+        x = args[xpos]
         set_scalar_constants!(tree, x, refs)
-        return @inline(f(first_args..., tree))
+        newargs = ntuple(i -> (i == xpos ? tree : args[i]), M)
+        return @inline(f(newargs...))
     end
-    # without first args, it looks like this
-    # function wrapped_f(x)
-    #     set_scalar_constants!(tree, x, refs)
-    #     return @inline(f(tree))
-    # end
     return wrapped_f
 end
+
 function wrap_func(
     ::Nothing, tree::N, refs
 ) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
     return nothing
 end
+function wrap_func(
+    ::Nothing, tree::N, refs, ::Symbol
+) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
+    return nothing
+end
+
 function wrap_func(
     f::NLSolversBase.InplaceObjective, tree::N, refs
 ) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
@@ -67,7 +88,7 @@ function wrap_func(
     # wrapped. Some functions are `nothing`; those can be left as-is.
     fields = fieldnames(typeof(f))
     return NLSolversBase.InplaceObjective(
-        (wrap_func(getfield(f, name), tree, refs) for name in fields)...,
+        (wrap_func(getfield(f, name), tree, refs, name) for name in fields)...,
     )
 end
 

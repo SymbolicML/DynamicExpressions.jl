@@ -108,3 +108,85 @@ end
         atol=0.01,
     )
 end
+
+@testitem "Wrap NLSolversBase.InplaceObjective hvp/fghvp/fjvp" begin
+    using DynamicExpressions, Optim
+    include("test_optim_setup.jl")
+
+    ext = Base.get_extension(DynamicExpressions, :DynamicExpressionsOptimExt)
+
+    tree = copy(original_tree)
+    x0, refs = get_scalar_constants(tree)
+    x = x0 .+ 1.234
+    v = x0 .- 5.678
+
+    did_fdf = Ref(false)
+    did_hvp = Ref(false)
+    did_fghvp = Ref(false)
+    did_fjvp = Ref(false)
+
+    seen_fdf_tree = Ref{Any}(nothing)
+    seen_hvp_tree = Ref{Any}(nothing)
+    seen_hvp_v = Ref{Any}(nothing)
+    seen_fghvp_tree = Ref{Any}(nothing)
+    seen_fghvp_v = Ref{Any}(nothing)
+    seen_fjvp_tree = Ref{Any}(nothing)
+    seen_fjvp_v = Ref{Any}(nothing)
+
+    my_fdf!(F, t) = (did_fdf[] = true; seen_fdf_tree[] = t; return nothing)
+    my_hvp!(HV, t, vin) =
+        (did_hvp[] = true; seen_hvp_tree[] = t; seen_hvp_v[] = vin; return nothing)
+    my_fghvp!(F, G, t, vin) =
+        (did_fghvp[] = true; seen_fghvp_tree[] = t; seen_fghvp_v[] = vin; return nothing)
+    my_fjvp!(F, J, t, vin) =
+        (did_fjvp[] = true; seen_fjvp_tree[] = t; seen_fjvp_v[] = vin; return nothing)
+
+    # Construct an InplaceObjective regardless of the exact field set/order.
+    fields = fieldnames(Optim.NLSolversBase.InplaceObjective)
+    vals = map(fields) do name
+        if name == :fdf
+            my_fdf!
+        elseif name == :hvp || name == :hv
+            my_hvp!
+        elseif name == :fghvp || name == :fghv
+            my_fghvp!
+        elseif name == :fjvp
+            my_fjvp!
+        else
+            nothing
+        end
+    end
+    obj = Optim.NLSolversBase.InplaceObjective(vals...)
+    wrapped = ext.wrap_func(obj, tree, refs)
+
+    if :fdf in fields
+        wrapped.fdf(nothing, x)
+        @test did_fdf[]
+        @test seen_fdf_tree[] === tree
+        @test first(get_scalar_constants(tree)) == x
+    end
+
+    if (:hvp in fields) || (:hv in fields)
+        getfield(wrapped, (:hvp in fields ? :hvp : :hv))(nothing, x, v)
+        @test did_hvp[]
+        @test seen_hvp_tree[] === tree
+        @test seen_hvp_v[] === v
+        @test first(get_scalar_constants(tree)) == x
+    end
+
+    if (:fghvp in fields) || (:fghv in fields)
+        getfield(wrapped, (:fghvp in fields ? :fghvp : :fghv))(nothing, nothing, x, v)
+        @test did_fghvp[]
+        @test seen_fghvp_tree[] === tree
+        @test seen_fghvp_v[] === v
+        @test first(get_scalar_constants(tree)) == x
+    end
+
+    if :fjvp in fields
+        wrapped.fjvp(nothing, nothing, x, v)
+        @test did_fjvp[]
+        @test seen_fjvp_tree[] === tree
+        @test seen_fjvp_v[] === v
+        @test first(get_scalar_constants(tree)) == x
+    end
+end
