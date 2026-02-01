@@ -62,16 +62,12 @@ end
 function wrap_func(
     f::NLSolversBase.InplaceObjective, tree::N, refs
 ) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
-    # Some objectives, like `Optim.only_fg!(fg!)`, are not functions but instead
+    # Some objectives, like `only_fg!(fg!)`, are not functions but instead
     # `InplaceObjective`. These contain multiple functions, each of which needs to be
     # wrapped. Some functions are `nothing`; those can be left as-is.
-    @assert fieldnames(NLSolversBase.InplaceObjective) == (:df, :fdf, :fgh, :hv, :fghv)
+    fields = fieldnames(typeof(f))
     return NLSolversBase.InplaceObjective(
-        wrap_func(f.df, tree, refs),
-        wrap_func(f.fdf, tree, refs),
-        wrap_func(f.fgh, tree, refs),
-        wrap_func(f.hv, tree, refs),
-        wrap_func(f.fghv, tree, refs),
+        (wrap_func(getfield(f, name), tree, refs) for name in fields)...,
     )
 end
 

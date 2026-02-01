@@ -99,7 +99,7 @@ end
             return sum(abs2, tree(X, operators) .- y)
         end
     end
-    res = optimize(Optim.only_fg!(my_fg!), tree, BFGS())
+    res = optimize(Optim.NLSolversBase.only_fg!(my_fg!), tree, BFGS())
 
     @test did_i_run_2[]
     @test isapprox(
