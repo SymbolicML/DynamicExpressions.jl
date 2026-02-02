@@ -75,7 +75,7 @@ end
 
 # Now, try combined
 @testitem "Combined evaluation with gradient" begin
-    using DynamicExpressions, Optim, Zygote
+    using DynamicExpressions, Optim, Zygote, NLSolversBase
     include("test_optim_setup.jl")
 
     tree = copy(original_tree)
@@ -99,7 +99,9 @@ end
             return sum(abs2, tree(X, operators) .- y)
         end
     end
-    res = optimize(Optim.NLSolversBase.only_fg!(my_fg!), tree, BFGS())
+    # `only_fg!` returns an `NLSolversBase.InplaceObjective`, which our extension
+    # must be able to wrap (Optim v2 no longer exports `Optim.only_fg!`).
+    res = optimize(NLSolversBase.only_fg!(my_fg!), tree, BFGS())
 
     @test did_i_run_2[]
     @test isapprox(

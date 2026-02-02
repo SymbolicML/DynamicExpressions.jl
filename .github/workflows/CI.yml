@@ -129,36 +129,6 @@ jobs:
           path: lcov.info
 
 
-  optim_v2_smoketest:
-    name: Optim v2 (NLSolversBase v8) - ubuntu-latest
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v4
-      - uses: julia-actions/setup-julia@v2
-        with:
-          version: '1'
-      - uses: julia-actions/cache@v2
-      - uses: julia-actions/julia-buildpkg@v1
-      - name: Pin Optim v2 + NLSolversBase v8
-        run: |
-          julia --color=yes -e 'import Pkg; Pkg.add("Coverage")'
-          julia --color=yes -e 'import Pkg; Pkg.activate("."); Pkg.add(Pkg.PackageSpec(name="Optim", version="2")); Pkg.add(Pkg.PackageSpec(name="NLSolversBase", version="8")); Pkg.status(["Optim", "NLSolversBase"])'
-        shell: bash
-      - name: Run Optim tests (with coverage)
-        id: run-tests
-        run: |
-          SR_TEST=optim julia --color=yes --threads=auto --check-bounds=yes --depwarn=yes --code-coverage=user -e 'import Coverage; import Pkg; Pkg.activate("."); Pkg.test(coverage=true)'
-          julia --color=yes coverage.jl
-        shell: bash
-      - name: Upload coverage artifact
-        if: steps.run-tests.outcome == 'success'
-        uses: actions/upload-artifact@v6
-        with:
-          name: coverage-optim-v2-${{ runner.os }}-julia-1
-          path: lcov.info
-
-
   codecov:
     name: Upload combined coverage to Codecov
     runs-on: ubuntu-latest
@@ -166,7 +136,6 @@ jobs:
       - test
       - additional_tests
       - optim_v1_smoketest
-      - optim_v2_smoketest
     steps:
       # Codecov uploader expects a git checkout (commit metadata + repo root)
       - uses: actions/checkout@v4
