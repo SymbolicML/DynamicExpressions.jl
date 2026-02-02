@@ -183,7 +183,7 @@ function Base.convert(
     end
     # Handle function calls
     if !iscall(expr)
-        error("Unknown symbolic expression type: $(typeof(expr))")
+        error("Unknown symbolic expression type: $(typeof(expr))")  # COV_EXCL_LINE
     end
 
     # First, we remove integer powers:
@@ -323,8 +323,8 @@ function multiply_powers(
         # In SymbolicUtils v4, integer constants are wrapped in Const
         n_val = if isconst(n)
             unwrap_const(n)
-        elseif typeof(n) <: Integer
-            n
+        elseif typeof(n) <: Integer  # COV_EXCL_LINE
+            n  # COV_EXCL_LINE
         else
             nothing
         end

@@ -53,24 +53,29 @@ tree_copy = convert(Node, eqn, operators_with_pow)
 # The structure is preserved as a power in v4
 @test occursin("x1", repr(tree_copy))
 
-# Let's test a more complex function with supported operators
-# (Custom operators are not supported in SymbolicUtils v4+)
-operators = OperatorEnum(; binary_operators=(+, *, -, /), unary_operators=(cos, exp, sin))
+# Let's test a more complex function. In SymbolicUtils v4+, custom operators need
+# `index_functions=true` to round-trip.
 
 x1, x2, x3 = Node("x1"), Node("x2"), Node("x3")
+pow_abs2(x, y) = abs(x)^y
+
+operators = OperatorEnum(;
+    binary_operators=(+, *, -, /, pow_abs2), unary_operators=(custom_cos, exp, sin)
+)
+
 @extend_operators operators
 tree = (
-    ((x2 + x2) * ((-0.5982493 / (x1 * x2)) / -0.54734415)) + (
+    ((x2 + x2) * ((-0.5982493 / pow_abs2(x1, x2)) / -0.54734415)) + (
         sin(
-            cos(
+            custom_cos(
                 sin(1.2926733 - 1.6606787) /
                 sin(((0.14577048 * x1) + ((0.111149654 + x1) - -0.8298334)) - -1.2071426),
-            ) * (cos(x3 - 2.3201916) + ((x1 - (x1 * x2)) / x2)),
-        ) / (0.14854191 - ((cos(x2) * -1.6047639) - 0.023943262))
+            ) * (custom_cos(x3 - 2.3201916) + ((x1 - (x1 * x2)) / x2)),
+        ) / (0.14854191 - ((custom_cos(x2) * -1.6047639) - 0.023943262))
     )
 )
-# Convert to symbolic form
-eqn = convert(BasicSymbolic, tree, operators)
+# Convert to symbolic form (index custom ops so they can be round-tripped).
+eqn = convert(BasicSymbolic, tree, operators; index_functions=true)
 
 tree_copy = convert(Node, eqn, operators)
 tree_copy2 = convert(Node, simplify(eqn), operators)
@@ -89,24 +94,24 @@ output3, flag3 = eval_tree_array(tree_copy2, X, operators)
 ###############################################################################
 ## Hit other parts of `simplify_tree!` and `combine_operators` to increase
 ## code coverage:
-operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(cos, sin))
+operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(custom_cos, sin))
 x1, x2, x3 = [Node(; feature=i) for i in 1:3]
 
 # unary operator applied to constant => constant:
 tree = Node(1, Node(; val=0.0))
-@test repr(tree) ≈ "cos(0.0)"
+@test repr(tree) ≈ "custom_cos(0.0)"
 @test repr(simplify_tree!(tree, operators)) ≈ "1.0"
 
 # except when the result is a NaN, then we don't change it:
 tree = Node(1, Node(; val=NaN))
-@test repr(tree) ≈ "cos(NaN)"
-@test repr(simplify_tree!(tree, operators)) ≈ "cos(NaN)"
+@test repr(tree) ≈ "custom_cos(NaN)"
+@test repr(simplify_tree!(tree, operators)) ≈ "custom_cos(NaN)"
 
 # the same as above, but inside a binary tree.
 tree =
     Node(1, Node(1, Node(; val=0.1), Node(; val=0.2)) + Node(; val=0.2)) + Node(; val=2.0)
-@test repr(tree) ≈ "(cos((0.1 + 0.2) + 0.2) + 2.0)"
-@test repr(combine_operators(tree, operators)) ≈ "(cos(0.4 + 0.1) + 2.0)"
+@test repr(tree) ≈ "(custom_cos((0.1 + 0.2) + 0.2) + 2.0)"
+@test repr(combine_operators(tree, operators)) ≈ "(custom_cos(0.4 + 0.1) + 2.0)"
 
 # left is constant:
 tree = Node(; val=0.5) + (Node(; val=0.2) + x1)

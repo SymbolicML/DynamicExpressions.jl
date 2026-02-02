@@ -96,3 +96,32 @@ let
     result2, _ = eval_tree_array(tree2, X, operators_custom)
     @test isapprox(result1, result2)
 end
+
+# Cover SymbolicUtils v4 conversion edge-cases:
+let
+    operators = OperatorEnum(; unary_operators=(sin,), binary_operators=(+, *, -, /, ^))
+
+    # `convert_to_function(::BasicSymbolic, ...)` should no-op on non-function symbols.
+    x1 = SymbolicUtils.Sym{SymbolicUtils.SymReal}(:x1; type=Number)
+
+    # Access the extension module in a way that works under SafeTestsets (isolated test modules).
+    ext = Base.get_extension(DynamicExpressions, :DynamicExpressionsSymbolicUtilsExt)
+    @test ext !== nothing
+    @test ext.convert_to_function(x1, operators) === x1
+
+    # A 3-argument function symbol should throw (only unary/binary supported).
+    ftype3 = Base.unwrap_unionall(SymbolicUtils.FnType{Tuple{Number,Number,Number},Number})
+    f3 = SymbolicUtils.Sym{SymbolicUtils.SymReal}(:f3; type=ftype3)
+    x2 = SymbolicUtils.Sym{SymbolicUtils.SymReal}(:x2; type=Number)
+    x3 = SymbolicUtils.Sym{SymbolicUtils.SymReal}(:x3; type=Number)
+    @test_throws AssertionError ext.convert_to_function(f3, operators)
+    @test_throws Exception convert(Node, f3(x1, x2, x3), operators)
+
+    # `multiply_powers`: cover negative integer powers (SymbolicUtils v4 Const wrapping).
+    expr_powm2 = SymbolicUtils.term(^, x1, -2)
+    tree_powm2 = convert(Node, expr_powm2, operators)
+
+    X = [1.5;;]
+    rm2, _ = eval_tree_array(tree_powm2, X, operators)
+    @test only(rm2) ≈ 1.5^-2
+end
