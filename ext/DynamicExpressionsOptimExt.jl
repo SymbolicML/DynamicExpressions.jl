@@ -91,19 +91,15 @@ function wrap_func(
 end
 
 const _INPLACEOBJECTIVE_SPEC_V8 = (
-    fields = (:fdf, :fgh, :hvp, :fghvp, :fjvp),
-    x_last = (:fdf, :fgh),
-    xv_tail = (:hvp, :fghvp, :fjvp),
+    fields=(:fdf, :fgh, :hvp, :fghvp, :fjvp),
+    x_last=(:fdf, :fgh),
+    xv_tail=(:hvp, :fghvp, :fjvp),
 )
 const _INPLACEOBJECTIVE_SPEC_V7 = (
-    fields = (:df, :fdf, :fgh, :hv, :fghv),
-    x_last = (:df, :fdf, :fgh),
-    xv_tail = (:hv, :fghv),
+    fields=(:df, :fdf, :fgh, :hv, :fghv), x_last=(:df, :fdf, :fgh), xv_tail=(:hv, :fghv)
 )
 const _INPLACEOBJECTIVE_SPEC_OLD = (
-    fields = (:fdf, :fgh, :hv, :fghv),
-    x_last = (:fdf, :fgh),
-    xv_tail = (:hv, :fghv),
+    fields=(:fdf, :fgh, :hv, :fghv), x_last=(:fdf, :fgh), xv_tail=(:hv, :fghv)
 )
 
 @inline function _wrap_inplaceobjective_field(
@@ -141,7 +137,8 @@ function wrap_func(
     #
     # We use `@static` branching so that only the relevant layout for the *installed*
     # NLSolversBase version is compiled/instrumented.
-    @static if fieldnames(NLSolversBase.InplaceObjective) == _INPLACEOBJECTIVE_SPEC_V8.fields
+    @static if fieldnames(NLSolversBase.InplaceObjective) ==
+        _INPLACEOBJECTIVE_SPEC_V8.fields
         # NLSolversBase v8 / Optim v2
         return _wrap_inplaceobjective(f, tree, refs, _INPLACEOBJECTIVE_SPEC_V8)
     elseif fieldnames(NLSolversBase.InplaceObjective) == _INPLACEOBJECTIVE_SPEC_V7.fields

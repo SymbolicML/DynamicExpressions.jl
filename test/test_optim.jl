@@ -206,3 +206,31 @@ end
     wrapped = ext._wrap_objective_xv_tail((args...) -> nothing, tree, refs)
     @test_throws ArgumentError wrapped(x0)
 end
+
+@testitem "Wrap InplaceObjective: error on unknown field" begin
+    using DynamicExpressions, Optim
+    include("test_optim_setup.jl")
+
+    ext = Base.get_extension(DynamicExpressions, :DynamicExpressionsOptimExt)
+
+    tree = copy(original_tree)
+    _, refs = get_scalar_constants(tree)
+
+    # Construct a dummy InplaceObjective for the *installed* NLSolversBase/Optim
+    # layout, then directly hit the internal error branch.
+    fields = fieldnames(Optim.NLSolversBase.InplaceObjective)
+    dummy = (args...) -> nothing
+    obj = Optim.NLSolversBase.InplaceObjective((dummy for _ in fields)...)
+
+    spec = if fields == ext._INPLACEOBJECTIVE_SPEC_V8.fields
+        ext._INPLACEOBJECTIVE_SPEC_V8
+    elseif fields == ext._INPLACEOBJECTIVE_SPEC_V7.fields
+        ext._INPLACEOBJECTIVE_SPEC_V7
+    else
+        ext._INPLACEOBJECTIVE_SPEC_OLD
+    end
+
+    @test_throws ArgumentError ext._wrap_inplaceobjective_field(
+        Val(:__unknown_field__), obj, tree, refs, spec
+    )
+end
