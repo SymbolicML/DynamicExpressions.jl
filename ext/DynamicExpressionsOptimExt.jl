@@ -9,7 +9,8 @@ using DynamicExpressions:
     set_scalar_constants!,
     get_number_type
 
-import Optim: Optim, OptimizationResults, NLSolversBase
+import Optim: Optim, OptimizationResults
+import NLSolversBase
 
 #! format: off
 """
@@ -90,16 +91,20 @@ function wrap_func(
     return nothing
 end
 
+# `NLSolversBase.InplaceObjective` is an internal type whose field layout changed
+# between NLSolversBase versions.
+#
+# - NLSolversBase v7 (Optim v1.x):  df, fdf, fgh, hv, fghv
+# - NLSolversBase v8 (Optim v2.x):  fdf, fgh, hvp, fghvp, fjvp
 const _INPLACEOBJECTIVE_SPEC_V8 = (
     fields=(:fdf, :fgh, :hvp, :fghvp, :fjvp),
     x_last=(:fdf, :fgh),
     xv_tail=(:hvp, :fghvp, :fjvp),
 )
 const _INPLACEOBJECTIVE_SPEC_V7 = (
-    fields=(:df, :fdf, :fgh, :hv, :fghv), x_last=(:df, :fdf, :fgh), xv_tail=(:hv, :fghv)
-)
-const _INPLACEOBJECTIVE_SPEC_OLD = (
-    fields=(:fdf, :fgh, :hv, :fghv), x_last=(:fdf, :fgh), xv_tail=(:hv, :fghv)
+    fields=(:df, :fdf, :fgh, :hv, :fghv),
+    x_last=(:df, :fdf, :fgh),
+    xv_tail=(:hv, :fghv),
 )
 
 @inline function _wrap_inplaceobjective_field(
@@ -144,15 +149,13 @@ function wrap_func(
     elseif fieldnames(NLSolversBase.InplaceObjective) == _INPLACEOBJECTIVE_SPEC_V7.fields
         # NLSolversBase v7 / Optim v1
         return _wrap_inplaceobjective(f, tree, refs, _INPLACEOBJECTIVE_SPEC_V7)
-    elseif fieldnames(NLSolversBase.InplaceObjective) == _INPLACEOBJECTIVE_SPEC_OLD.fields
-        # Older NLSolversBase / Optim
-        return _wrap_inplaceobjective(f, tree, refs, _INPLACEOBJECTIVE_SPEC_OLD)
+    # (Optim < 1 is no longer supported.)
     else
         fields = fieldnames(NLSolversBase.InplaceObjective)
         throw(
             ArgumentError(
                 "Unsupported NLSolversBase.InplaceObjective field layout: $(fields). " *
-                "This extension supports layouts used by Optim v1 and v2. " *
+                "This extension supports layouts used by NLSolversBase v7 (Optim v1) and v8 (Optim v2). " *
                 "Please open an issue at github.com/SymbolicML/DynamicExpressions.jl with your versions.",
             ),
         )
