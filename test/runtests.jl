@@ -73,24 +73,22 @@ if "jet" in test_names
     end
 end
 
-# Collect testitem definitions to load, then run them once.
-testitem_files = String[]
+# TestItemRunner's `@run_package_tests` scans *all* `.jl` files under the package root,
+# so we must filter to only the testitem files we actually want to run.
+# (Simply `include(...)`-ing a subset of files is not sufficient.)
+
+testitem_suffixes = String[]
 
 if "main" in test_names
-    push!(testitem_files, "unittest.jl")
-else
-    if "optim" in test_names
-        push!(testitem_files, "test_optim.jl")
-    end
-    if "narity" in test_names
-        push!(testitem_files, "test_n_arity_nodes.jl")
-    end
+    push!(testitem_suffixes, joinpath("test", "unittest.jl"))
+end
+if "optim" in test_names
+    push!(testitem_suffixes, joinpath("test", "test_optim.jl"))
+end
+if "narity" in test_names
+    push!(testitem_suffixes, joinpath("test", "test_n_arity_nodes.jl"))
 end
 
-for f in testitem_files
-    include(f)
-end
-
-if !isempty(testitem_files)
-    @run_package_tests
+if !isempty(testitem_suffixes)
+    @run_package_tests filter = ti -> any(suf -> endswith(ti.filename, suf), testitem_suffixes)
 end
