@@ -77,6 +77,13 @@ function parse_tree_to_eqs(
         end
     end
 
+    # SymbolicUtils v4 simplifies `x*x` into `x^2` via the `*` method.
+    # For round-trip to DynamicExpressions without requiring `^` in the operator set,
+    # we construct multiplication terms explicitly.
+    if op === (*)
+        return subs_bad(term(op, sym_children...))
+    end
+
     return subs_bad(op(sym_children...))
 end
 
@@ -352,6 +359,11 @@ function multiply_powers(
         r, complete2 = multiply_powers(args[2])
         @return_on_false complete2 eqn
         @return_on_false is_valid(r) eqn
+        # SymbolicUtils v4 normalizes `x*x` into `x^2` via the `*` method; preserve
+        # explicit multiplication terms so we don't introduce `^` during conversion.
+        if op == *
+            return term(op, l, r), true
+        end
         return op(l, r), true
     else
         # return tree_mapreduce(multiply_powers, op, args)
@@ -363,7 +375,7 @@ function multiply_powers(
         end
         cumulator = out[1][1]
         for i in 2:size(out, 1)
-            cumulator = op(cumulator, out[i][1])
+            cumulator = (op == *) ? term(op, cumulator, out[i][1]) : op(cumulator, out[i][1])
             @return_on_false is_valid(cumulator) eqn
         end
         return cumulator, true

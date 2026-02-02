@@ -41,17 +41,14 @@ tree = convert(Node, eqn2, operators)
 # Make sure the other node is x1:
 @test (!tree.l.constant ? tree.l : tree.r).feature == 1
 
-# SymbolicUtils v4 automatically simplifies x1*x1 to x1^2
-# For round-trip to work, we need ^ in the operator set
-operators_with_pow = OperatorEnum(; binary_operators=(+, -, /, *, ^))
+# Finally, let's try converting a product, and ensure
+# that SymbolicUtils does not convert it to a power:
 tree = Node("x1") * Node("x1")
-eqn = convert(BasicSymbolic, tree, operators_with_pow)
-# The symbolic repr will be x1^2 in SymbolicUtils v4
-@test occursin("x1", repr(eqn))
-# Test converting back (x^2 comes back as x^2 since ^ is in operators):
-tree_copy = convert(Node, eqn, operators_with_pow)
-# The structure is preserved as a power in v4
-@test occursin("x1", repr(tree_copy))
+eqn = convert(BasicSymbolic, tree, operators)
+@test repr(eqn) ≈ "x1*x1"
+# Test converting back:
+tree_copy = convert(Node, eqn, operators)
+@test repr(tree_copy) ≈ "(x1*x1)"
 
 # Let's test a more complex function. In SymbolicUtils v4+, custom operators need
 # `index_functions=true` to round-trip.
