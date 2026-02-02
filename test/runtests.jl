@@ -90,5 +90,6 @@ if "narity" in test_names
 end
 
 if !isempty(testitem_suffixes)
-    @run_package_tests filter = ti -> any(suf -> endswith(ti.filename, suf), testitem_suffixes)
+    @run_package_tests filter =
+        ti -> any(suf -> endswith(ti.filename, suf), testitem_suffixes)
 end

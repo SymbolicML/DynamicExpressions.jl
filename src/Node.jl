@@ -396,16 +396,6 @@ end
     n = allocator(N, T)
     n.degree = 0
     n.constant = false
-    # Ensure `val` is initialized, even though it is unused for variable nodes.
-    # (Some platforms/allocators leave it uninitialized, which can surface as NaNs in tests.)
-    #
-    # We try a couple strategies because `T` may be a Union (e.g. Union{Float64, VecOrMat{Float64}})
-    # where `zero(T)` is not defined, yet a scalar zero is still a valid inhabitant.
-    try
-        n.val = hasmethod(zero, Tuple{Type{T}}) ? zero(T) : convert(T, zero(DEFAULT_NODE_TYPE))
-    catch
-        # If `T` truly has no sensible zero value, leave as-is.
-    end
     n.feature = feature
     return n
 end
