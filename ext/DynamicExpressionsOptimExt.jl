@@ -101,16 +101,16 @@ end
 # We store the fields both as symbols (for runtime layout checks) and as `Val`s
 # (so the wrapper construction is type-stable and can compile-in the field set).
 const _INPLACEOBJECTIVE_SPEC_V8 = (
-    field_syms = (:fdf, :fgh, :hvp, :fghvp, :fjvp),
-    fields = (Val(:fdf), Val(:fgh), Val(:hvp), Val(:fghvp), Val(:fjvp)),
-    x_last = (Val(:fdf), Val(:fgh)),
-    xv_tail = (Val(:hvp), Val(:fghvp), Val(:fjvp)),
+    field_syms=(:fdf, :fgh, :hvp, :fghvp, :fjvp),
+    fields=(Val(:fdf), Val(:fgh), Val(:hvp), Val(:fghvp), Val(:fjvp)),
+    x_last=(Val(:fdf), Val(:fgh)),
+    xv_tail=(Val(:hvp), Val(:fghvp), Val(:fjvp)),
 )
 const _INPLACEOBJECTIVE_SPEC_V7 = (
-    field_syms = (:df, :fdf, :fgh, :hv, :fghv),
-    fields = (Val(:df), Val(:fdf), Val(:fgh), Val(:hv), Val(:fghv)),
-    x_last = (Val(:df), Val(:fdf), Val(:fgh)),
-    xv_tail = (Val(:hv), Val(:fghv)),
+    field_syms=(:df, :fdf, :fgh, :hv, :fghv),
+    fields=(Val(:df), Val(:fdf), Val(:fgh), Val(:hv), Val(:fghv)),
+    x_last=(Val(:df), Val(:fdf), Val(:fgh)),
+    xv_tail=(Val(:hv), Val(:fghv)),
 )
 
 @inline function _wrap_inplaceobjective_field(
@@ -152,7 +152,8 @@ function wrap_func(
         _INPLACEOBJECTIVE_SPEC_V8.field_syms
         # NLSolversBase v8 / Optim v2
         return _wrap_inplaceobjective(f, tree, refs, _INPLACEOBJECTIVE_SPEC_V8)
-    elseif fieldnames(NLSolversBase.InplaceObjective) == _INPLACEOBJECTIVE_SPEC_V7.field_syms
+    elseif fieldnames(NLSolversBase.InplaceObjective) ==
+        _INPLACEOBJECTIVE_SPEC_V7.field_syms
         # NLSolversBase v7 / Optim v1
         return _wrap_inplaceobjective(f, tree, refs, _INPLACEOBJECTIVE_SPEC_V7)
         # (Optim < 1 is no longer supported.)
