@@ -23,7 +23,7 @@ import Base:
     reduce,
     sum
 
-import BorrowChecker
+using BorrowChecker: BorrowChecker
 using BorrowChecker: @unsafe
 
 using DispatchDoctor: @unstable
@@ -516,7 +516,9 @@ BorrowChecker.@safe function leaf_copy(t::N) where {T,N<:AbstractExpressionNode{
         return constructorof(N)(T; feature=t.feature)
     end
 end
-BorrowChecker.@safe function branch_copy(t::N, children::Vararg{Any,M}) where {T,N<:AbstractExpressionNode{T},M}
+BorrowChecker.@safe function branch_copy(
+    t::N, children::Vararg{Any,M}
+) where {T,N<:AbstractExpressionNode{T},M}
     return constructorof(N)(T; op=t.op, children)
 end
 

@@ -9,7 +9,7 @@ using ..NodeModule:
     set_node!,
     set_children!
 
-import BorrowChecker
+using BorrowChecker: BorrowChecker
 using BorrowChecker: @unsafe
 
 """
@@ -59,7 +59,9 @@ BorrowChecker.@safe function copy_into!(
         )
     end
 end
-BorrowChecker.@safe function leaf_copy_into!(dest::N, src::N) where {N<:AbstractExpressionNode}
+BorrowChecker.@safe function leaf_copy_into!(
+    dest::N, src::N
+) where {N<:AbstractExpressionNode}
     set_node!(dest, src)
     return dest
 end
