@@ -10,7 +10,7 @@ using DynamicExpressions:
     get_number_type
 
 import Optim: Optim, OptimizationResults
-import NLSolversBase
+using NLSolversBase: NLSolversBase
 
 #! format: off
 """
@@ -102,9 +102,7 @@ const _INPLACEOBJECTIVE_SPEC_V8 = (
     xv_tail=(:hvp, :fghvp, :fjvp),
 )
 const _INPLACEOBJECTIVE_SPEC_V7 = (
-    fields=(:df, :fdf, :fgh, :hv, :fghv),
-    x_last=(:df, :fdf, :fgh),
-    xv_tail=(:hv, :fghv),
+    fields=(:df, :fdf, :fgh, :hv, :fghv), x_last=(:df, :fdf, :fgh), xv_tail=(:hv, :fghv)
 )
 
 @inline function _wrap_inplaceobjective_field(
@@ -149,7 +147,7 @@ function wrap_func(
     elseif fieldnames(NLSolversBase.InplaceObjective) == _INPLACEOBJECTIVE_SPEC_V7.fields
         # NLSolversBase v7 / Optim v1
         return _wrap_inplaceobjective(f, tree, refs, _INPLACEOBJECTIVE_SPEC_V7)
-    # (Optim < 1 is no longer supported.)
+        # (Optim < 1 is no longer supported.)
     else
         fields = fieldnames(NLSolversBase.InplaceObjective)
         throw(
