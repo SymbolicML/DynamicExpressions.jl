@@ -332,20 +332,62 @@ struct PostfixExpr{T,D}
     op::Vector{UInt8}
 end
 
-"""Emit a [`PostfixExpr`](@ref) for an arena-backed tree.
+"""Emit a [`PostfixExpr`](@ref) (postorder / postfix) encoding of `tree`.
 
-This copies the arena prefix `1:tree.idx`.
+This traverses the tree via child pointers and emits nodes in postorder, with the
+root last.
+
+!!! note
+    This is intended as a **serialization/debug utility**. It is *not* an execution
+    strategy (i.e. we should not repeatedly convert between representations to make
+    algorithms work).
 """
 function emit_postfix(tree::ArenaNode{T,D}) where {T,D}
-    n = Int(tree.idx)
     a = tree.arena
-    return PostfixExpr{T,D}(
-        copy(@view a.degree[1:n]),
-        copy(@view a.constant[1:n]),
-        copy(@view a.val[1:n]),
-        copy(@view a.feature[1:n]),
-        copy(@view a.op[1:n]),
-    )
+
+    # Preallocate using the reachable node count (ignoring potential sharing).
+    n = length(tree; break_sharing=Val(true))
+    degree = UInt8[]
+    constant = Bool[]
+    val = T[]
+    feature = UInt16[]
+    op = UInt8[]
+    sizehint!(degree, n)
+    sizehint!(constant, n)
+    sizehint!(val, n)
+    sizehint!(feature, n)
+    sizehint!(op, n)
+
+    # Iterative postorder traversal: (idx, expanded_children?).
+    stack = Tuple{Int32,Bool}[]
+    sizehint!(stack, n)
+    push!(stack, (tree.idx, false))
+
+    while !isempty(stack)
+        idx, expanded = pop!(stack)
+        i = Int(idx)
+        if expanded
+            @inbounds begin
+                push!(degree, a.degree[i])
+                push!(constant, a.constant[i])
+                push!(val, a.val[i])
+                push!(feature, a.feature[i])
+                push!(op, a.op[i])
+            end
+        else
+            push!(stack, (idx, true))
+            d = @inbounds a.degree[i]
+            if d != 0
+                child_idxs = @inbounds a.children[i]
+                @inbounds for j in Int(d):-1:1
+                    c = child_idxs[j]
+                    c != 0 && push!(stack, (c, false))
+                end
+            end
+        end
+    end
+
+    return PostfixExpr{T,D}(degree, constant, val, feature, op)
 end
 
 @generated function _postfix_pop_children(
@@ -436,13 +478,23 @@ is_commutative(_) = false
 
 """Rewrite commutative binary operators so that constants appear on the right.
 
-This is a minimal in-place rewrite that *preserves postfix validity* since it does
-not change any node degrees; it only swaps child pointers.
+This is a minimal in-place rewrite that only swaps child pointers.
+
+!!! note
+    This does **not** rely on any arena index ordering (e.g. postfix layout). It traverses
+    the tree via child pointers.
+
+Since it does not change degrees, any postfix encoding that depends only on `degree`
+(e.g. [`emit_postfix`](@ref)) is preserved.
 """
 function rewrite_commutative_constants_right!(tree::ArenaNode{T,D}, operators) where {T,D}
-    root_idx = Int(tree.idx)
-    @inbounds for i in 1:root_idx
-        node = ArenaNode{T,D}(tree.arena, i)
+    cursor = ArenaCursor(tree)
+    reset!(cursor, tree)
+
+    while true
+        node = next!(cursor)
+        node === nothing && break
+
         node.degree == 2 || continue
         f = operators.binops[node.op]
         is_commutative(f) || continue
@@ -454,6 +506,7 @@ function rewrite_commutative_constants_right!(tree::ArenaNode{T,D}, operators) w
             set_child!(node, l, 2)
         end
     end
+
     return tree
 end
 
