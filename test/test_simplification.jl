@@ -94,24 +94,24 @@ output3, flag3 = eval_tree_array(tree_copy2, X, operators)
 ###############################################################################
 ## Hit other parts of `simplify_tree!` and `combine_operators` to increase
 ## code coverage:
-operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(custom_cos, sin))
+operators = OperatorEnum(; binary_operators=(+, -, *, /), unary_operators=(cos, sin))
 x1, x2, x3 = [Node(; feature=i) for i in 1:3]
 
 # unary operator applied to constant => constant:
 tree = Node(1, Node(; val=0.0))
-@test repr(tree) ≈ "custom_cos(0.0)"
+@test repr(tree) ≈ "cos(0.0)"
 @test repr(simplify_tree!(tree, operators)) ≈ "1.0"
 
 # except when the result is a NaN, then we don't change it:
 tree = Node(1, Node(; val=NaN))
-@test repr(tree) ≈ "custom_cos(NaN)"
-@test repr(simplify_tree!(tree, operators)) ≈ "custom_cos(NaN)"
+@test repr(tree) ≈ "cos(NaN)"
+@test repr(simplify_tree!(tree, operators)) ≈ "cos(NaN)"
 
 # the same as above, but inside a binary tree.
 tree =
     Node(1, Node(1, Node(; val=0.1), Node(; val=0.2)) + Node(; val=0.2)) + Node(; val=2.0)
-@test repr(tree) ≈ "(custom_cos((0.1 + 0.2) + 0.2) + 2.0)"
-@test repr(combine_operators(tree, operators)) ≈ "(custom_cos(0.4 + 0.1) + 2.0)"
+@test repr(tree) ≈ "(cos((0.1 + 0.2) + 0.2) + 2.0)"
+@test repr(combine_operators(tree, operators)) ≈ "(cos(0.4 + 0.1) + 2.0)"
 
 # left is constant:
 tree = Node(; val=0.5) + (Node(; val=0.2) + x1)

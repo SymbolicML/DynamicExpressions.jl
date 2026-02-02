@@ -375,14 +375,7 @@ function map(
     return _map(f, tree, result_type, Val(BS))
 end
 function _map(f::F, tree::AbstractNode, ::Type{Nothing}, ::Val{BS}) where {F<:Function,BS}
-    # When `result_type` is not provided, infer a concrete element type from the
-    # node type to keep the return type concrete under DispatchDoctor strict mode.
-    RT = Base.promote_op(f, typeof(tree))
-    # `Nothing` is also used as the sentinel for an unspecified `result_type`.
-    if RT === Nothing
-        return filter_map(Returns(true), f, tree, Nothing; break_sharing=Val(BS))
-    end
-    return _map(f, tree, RT, Val(BS))
+    return map(f, collect(tree; break_sharing=Val(BS)))
 end
 function _map(f::F, tree::AbstractNode, ::Type{RT}, ::Val{BS}) where {F<:Function,RT,BS}
     return filter_map(Returns(true), f, tree, RT; break_sharing=Val(BS))

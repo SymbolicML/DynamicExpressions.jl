@@ -102,16 +102,9 @@ end
 
 @testset "map" begin
     ctree = copy(tree)
-    vals = map(t -> (t.degree == 0 && t.constant) ? t.val : nothing, ctree)
+    vals = map(t -> t.val, ctree)
     vals = [v for v in vals if v !== nothing]
     @test sum(vals) ≈ 11.6
-
-    # Exercise the `Base.promote_op(... ) === Nothing` inference path.
-    nothings = map(_ -> nothing, ctree)
-    @test typeof(nothings) == Vector{Nothing}
-    @test length(nothings) == 24
-    @test all(isnothing, nothings)
-
     @test sum(map(_ -> 1, ctree)) == 24
     @test sum(map(_ -> 2, ctree)) == 24 * 2
     @test sum(map(t -> t.degree == 1, ctree)) == 1
