@@ -222,12 +222,14 @@ end
     dummy = (args...) -> nothing
     obj = Optim.NLSolversBase.InplaceObjective((dummy for _ in fields)...)
 
-    spec = if fields == ext._INPLACEOBJECTIVE_SPEC_V8.fields
+    spec = if fields == ext._INPLACEOBJECTIVE_SPEC_V8.field_syms
         ext._INPLACEOBJECTIVE_SPEC_V8
-    elseif fields == ext._INPLACEOBJECTIVE_SPEC_V7.fields
+    elseif fields == ext._INPLACEOBJECTIVE_SPEC_V7.field_syms
         ext._INPLACEOBJECTIVE_SPEC_V7
     else
-        ext._INPLACEOBJECTIVE_SPEC_OLD
+        # Should be unreachable for supported Optim majors, but pick one so the
+        # test still compiles if a future layout appears.
+        ext._INPLACEOBJECTIVE_SPEC_V8
     end
 
     @test_throws ArgumentError ext._wrap_inplaceobjective_field(

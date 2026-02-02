@@ -92,25 +92,33 @@ function wrap_func(
 end
 
 # `NLSolversBase.InplaceObjective` is an internal type whose field layout changed
-# between NLSolversBase versions.
+# between NLSolversBase versions (and therefore between Optim majors).
 #
-# - NLSolversBase v7 (Optim v1.x):  df, fdf, fgh, hv, fghv
-# - NLSolversBase v8 (Optim v2.x):  fdf, fgh, hvp, fghvp, fjvp
+# This extension supports:
+# - Optim v1.x (NLSolversBase v7.x): df, fdf, fgh, hv, fghv
+# - Optim v2.x (NLSolversBase v8.x): fdf, fgh, hvp, fghvp, fjvp
+#
+# We store the fields both as symbols (for runtime layout checks) and as `Val`s
+# (so the wrapper construction is type-stable and can compile-in the field set).
 const _INPLACEOBJECTIVE_SPEC_V8 = (
-    fields=(:fdf, :fgh, :hvp, :fghvp, :fjvp),
-    x_last=(:fdf, :fgh),
-    xv_tail=(:hvp, :fghvp, :fjvp),
+    field_syms = (:fdf, :fgh, :hvp, :fghvp, :fjvp),
+    fields = (Val(:fdf), Val(:fgh), Val(:hvp), Val(:fghvp), Val(:fjvp)),
+    x_last = (Val(:fdf), Val(:fgh)),
+    xv_tail = (Val(:hvp), Val(:fghvp), Val(:fjvp)),
 )
 const _INPLACEOBJECTIVE_SPEC_V7 = (
-    fields=(:df, :fdf, :fgh, :hv, :fghv), x_last=(:df, :fdf, :fgh), xv_tail=(:hv, :fghv)
+    field_syms = (:df, :fdf, :fgh, :hv, :fghv),
+    fields = (Val(:df), Val(:fdf), Val(:fgh), Val(:hv), Val(:fghv)),
+    x_last = (Val(:df), Val(:fdf), Val(:fgh)),
+    xv_tail = (Val(:hv), Val(:fghv)),
 )
 
 @inline function _wrap_inplaceobjective_field(
-    ::Val{field}, f::NLSolversBase.InplaceObjective, tree::N, refs, spec
+    v_field::Val{field}, f::NLSolversBase.InplaceObjective, tree::N, refs, spec
 ) where {field,N<:Union{AbstractExpressionNode,AbstractExpression}}
-    if field in spec.x_last
+    if v_field in spec.x_last
         return _wrap_objective_x_last(getfield(f, field), tree, refs)
-    elseif field in spec.xv_tail
+    elseif v_field in spec.xv_tail
         return _wrap_objective_xv_tail(getfield(f, field), tree, refs)
     else
         throw(
@@ -125,8 +133,8 @@ end
 @inline function _wrap_inplaceobjective(
     f::NLSolversBase.InplaceObjective, tree::N, refs, spec
 ) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
-    wrapped = map(spec.fields) do field
-        _wrap_inplaceobjective_field(Val(field), f, tree, refs, spec)
+    wrapped = map(spec.fields) do v_field
+        _wrap_inplaceobjective_field(v_field, f, tree, refs, spec)
     end
     return NLSolversBase.InplaceObjective(wrapped...)
 end
@@ -141,14 +149,15 @@ function wrap_func(
     # We use `@static` branching so that only the relevant layout for the *installed*
     # NLSolversBase version is compiled/instrumented.
     @static if fieldnames(NLSolversBase.InplaceObjective) ==
-        _INPLACEOBJECTIVE_SPEC_V8.fields
+        _INPLACEOBJECTIVE_SPEC_V8.field_syms
         # NLSolversBase v8 / Optim v2
         return _wrap_inplaceobjective(f, tree, refs, _INPLACEOBJECTIVE_SPEC_V8)
-    elseif fieldnames(NLSolversBase.InplaceObjective) == _INPLACEOBJECTIVE_SPEC_V7.fields
+    elseif fieldnames(NLSolversBase.InplaceObjective) == _INPLACEOBJECTIVE_SPEC_V7.field_syms
         # NLSolversBase v7 / Optim v1
         return _wrap_inplaceobjective(f, tree, refs, _INPLACEOBJECTIVE_SPEC_V7)
         # (Optim < 1 is no longer supported.)
     else
+        # LCOV_EXCL_START
         fields = fieldnames(NLSolversBase.InplaceObjective)
         throw(
             ArgumentError(
@@ -157,6 +166,7 @@ function wrap_func(
                 "Please open an issue at github.com/SymbolicML/DynamicExpressions.jl with your versions.",
             ),
         )
+        # LCOV_EXCL_END
     end
 end
 

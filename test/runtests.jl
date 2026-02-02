@@ -1,21 +1,32 @@
 using SafeTestsets
 using TestItemRunner
 
-# Check if SR_ENZYME_TEST is set in env
-test_name = split(get(ENV, "SR_TEST", "main"), ",")
+# Control which test groups run.
+#
+# Accepts a comma-separated list in SR_TEST (default: "main").
+#
+# - "main": full test suite (testitems)
+# - "optim": Optim-specific testitems only
+# - "narity": n-ary testitems only
+# - "jet": JET analysis
+# - "enzyme": Enzyme tests
 
-unknown_tests = filter(Base.Fix2(∉, ["enzyme", "jet", "main", "narity"]), test_name)
+test_names = split(get(ENV, "SR_TEST", "main"), ",")
+
+allowed = ["enzyme", "jet", "main", "narity", "optim"]
+unknown_tests = filter(Base.Fix2(∉, allowed), test_names)
 
 if !isempty(unknown_tests)
     error("Unknown test names: $unknown_tests")
 end
 
-if "enzyme" in test_name
+if "enzyme" in test_names
     @safetestset "Test enzyme derivatives" begin
         include("test_enzyme.jl")
     end
 end
-if "jet" in test_name
+
+if "jet" in test_names
     @safetestset "JET" begin
         using Preferences
         set_preferences!(
@@ -61,7 +72,25 @@ if "jet" in test_name
         end
     end
 end
-if "main" in test_name
-    include("unittest.jl")
+
+# Collect testitem definitions to load, then run them once.
+testitem_files = String[]
+
+if "main" in test_names
+    push!(testitem_files, "unittest.jl")
+else
+    if "optim" in test_names
+        push!(testitem_files, "test_optim.jl")
+    end
+    if "narity" in test_names
+        push!(testitem_files, "test_n_arity_nodes.jl")
+    end
+end
+
+for f in testitem_files
+    include(f)
+end
+
+if !isempty(testitem_files)
     @run_package_tests
 end
