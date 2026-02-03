@@ -77,10 +77,12 @@ function parse_tree_to_eqs(
         end
     end
 
-    # SymbolicUtils v4 simplifies `x*x` into `x^2` via the `*` method.
-    # For round-trip to DynamicExpressions without requiring `^` in the operator set,
-    # we construct multiplication terms explicitly.
-    if op === (*)
+    # SymbolicUtils v4 may canonicalize some commutative operations at construction time
+    # (e.g. `x*x` -> `x^2`, or reordering `a + b`).
+    #
+    # For stable round-trips (and to avoid introducing `^` when it's not in the operator set),
+    # construct commutative ops as explicit terms.
+    if op === (*) || op === (+)
         return subs_bad(term(op, sym_children...))
     end
 
