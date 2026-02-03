@@ -339,11 +339,22 @@ function multiply_powers(
             if n_val == 1
                 return l, true
             elseif n_val == -1
-                return 1.0 / l, true
+                return term(/, 1.0, l), true
             elseif n_val > 1
-                return reduce(*, [l for i in 1:n_val]), true
+                # IMPORTANT: use `term(*, ...)` to prevent SymbolicUtils from immediately
+                # canonicalizing `l*l` back into `l^2`.
+                out = l
+                for _ in 2:n_val
+                    out = term(*, out, l)
+                end
+                return out, true
             elseif n_val < -1
-                return reduce(/, vcat([1], [l for i in 1:abs(n_val)])), true
+                # Build 1/(l*l*...) using explicit multiplication terms.
+                denom = l
+                for _ in 2:abs(n_val)
+                    denom = term(*, denom, l)
+                end
+                return term(/, 1.0, denom), true
             else
                 return 1.0, true
             end
