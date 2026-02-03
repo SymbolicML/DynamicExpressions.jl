@@ -63,3 +63,26 @@ let
     eqn2_again = convert(SymbolicUtils.BasicSymbolic, ex2_again)
     @test string(SymbolicUtils.simplify(eqn2)) == string(SymbolicUtils.simplify(eqn2_again))
 end
+
+@testset "SymbolicUtils power handling (no ^ in operators)" begin
+    @syms alpha::Real
+
+    ops = OperatorEnum(; unary_operators=(sin,), binary_operators=(+, *, -, /))
+
+    # SymbolicUtils may still choose to *represent/print* powers as `alpha^2` even if our
+    # operator set does not include `^`. The important invariant is that conversion
+    # succeeds and round-trips under this restricted operator set.
+    function assert_roundtrip(expr_su)
+        ex1 = convert(Expression, expr_su, ops; variable_names=["alpha"])
+        su1 = convert(SymbolicUtils.BasicSymbolic, ex1)
+        ex2 = convert(Expression, su1, ops; variable_names=["alpha"])
+        su2 = convert(SymbolicUtils.BasicSymbolic, ex2)
+        @test string(SymbolicUtils.simplify(su1)) == string(SymbolicUtils.simplify(su2))
+        return nothing
+    end
+
+    assert_roundtrip(alpha^2)
+    assert_roundtrip(alpha^-1)
+    assert_roundtrip(alpha^0)
+    assert_roundtrip(sin(alpha^2))
+end
