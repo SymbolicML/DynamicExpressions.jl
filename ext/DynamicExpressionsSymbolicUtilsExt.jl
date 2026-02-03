@@ -375,7 +375,8 @@ function multiply_powers(
         end
         cumulator = out[1][1]
         for i in 2:size(out, 1)
-            cumulator = (op == *) ? term(op, cumulator, out[i][1]) : op(cumulator, out[i][1])
+            cumulator =
+                (op == *) ? term(op, cumulator, out[i][1]) : op(cumulator, out[i][1])
             @return_on_false is_valid(cumulator) eqn
         end
         return cumulator, true
