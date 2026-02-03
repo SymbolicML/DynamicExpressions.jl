@@ -60,11 +60,15 @@ let
     # SymbolicUtils may reorder commutative operations (e.g. alpha + beta vs beta + alpha),
     # so exact tree equality is not a stable invariant. Instead, compare by evaluation.
     X = Float32[
-        -2 -1 0 1 2;
-        0.1 0.2 0.3 0.4 0.5;
+        -2 -1 0 1 2
+        0.1 0.2 0.3 0.4 0.5
     ]
-    y1, ok1 = DynamicExpressions.eval_tree_array(DynamicExpressions.get_tree(ex2), X, operators)
-    y2, ok2 = DynamicExpressions.eval_tree_array(DynamicExpressions.get_tree(ex2_again), X, operators)
+    y1, ok1 = DynamicExpressions.eval_tree_array(
+        DynamicExpressions.get_tree(ex2), X, operators
+    )
+    y2, ok2 = DynamicExpressions.eval_tree_array(
+        DynamicExpressions.get_tree(ex2_again), X, operators
+    )
     @test ok1 && ok2
-    @test isapprox(y1, y2; rtol=0, atol=1f-6)
+    @test isapprox(y1, y2; rtol=0, atol=1.0f-6)
 end
