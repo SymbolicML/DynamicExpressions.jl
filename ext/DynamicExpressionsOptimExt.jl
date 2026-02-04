@@ -9,7 +9,8 @@ using DynamicExpressions:
     set_scalar_constants!,
     get_number_type
 
-import Optim: Optim, OptimizationResults, NLSolversBase
+import Optim: Optim, OptimizationResults
+using NLSolversBase: NLSolversBase
 
 #! format: off
 """
@@ -38,41 +39,136 @@ function Optim.minimizer(r::ExpressionOptimizationResults)
 end
 
 """Wrap function or objective with insertion of values of the constant nodes."""
-function wrap_func(
+@inline function _wrap_objective_x_last(
+    ::Nothing, tree::N, refs
+) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
+    return nothing
+end
+@inline function _wrap_objective_x_last(
     f::F, tree::N, refs
 ) where {F<:Function,T,N<:Union{AbstractExpressionNode{T},AbstractExpression{T}}}
     function wrapped_f(args::Vararg{Any,M}) where {M}
-        first_args = args[begin:(end - 1)]
-        x = args[end]
+        x = args[M]
         set_scalar_constants!(tree, x, refs)
-        return @inline(f(first_args..., tree))
+        newargs = Base.setindex(args, tree, M)
+        return @inline(f(newargs...))
     end
-    # without first args, it looks like this
-    # function wrapped_f(x)
-    #     set_scalar_constants!(tree, x, refs)
-    #     return @inline(f(tree))
-    # end
     return wrapped_f
+end
+
+@inline function _wrap_objective_xv_tail(
+    ::Nothing, tree::N, refs
+) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
+    return nothing
+end
+@inline function _wrap_objective_xv_tail(
+    f::F, tree::N, refs
+) where {F<:Function,T,N<:Union{AbstractExpressionNode{T},AbstractExpression{T}}}
+    function wrapped_f(args::Vararg{Any,M}) where {M}
+        if M < 2
+            throw(
+                ArgumentError(
+                    "Expected at least 2 arguments for objective functions of the form (..., x, v).",
+                ),
+            )
+        end
+        x = args[M - 1]
+        set_scalar_constants!(tree, x, refs)
+        newargs = Base.setindex(args, tree, M - 1)
+        return @inline(f(newargs...))
+    end
+    return wrapped_f
+end
+
+function wrap_func(
+    f::F, tree::N, refs
+) where {F<:Function,T,N<:Union{AbstractExpressionNode{T},AbstractExpression{T}}}
+    return _wrap_objective_x_last(f, tree, refs)
 end
 function wrap_func(
     ::Nothing, tree::N, refs
 ) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
     return nothing
 end
+
+# `NLSolversBase.InplaceObjective` is an internal type whose field layout changed
+# between NLSolversBase versions (and therefore between Optim majors).
+#
+# This extension supports:
+# - Optim v1.x (NLSolversBase v7.x): df, fdf, fgh, hv, fghv
+# - Optim v2.x (NLSolversBase v8.x): fdf, fgh, hvp, fghvp, fjvp
+#
+# We store the fields both as symbols (for runtime layout checks) and as `Val`s
+# (so the wrapper construction is type-stable and can compile-in the field set).
+const _INPLACEOBJECTIVE_SPEC_V8 = (
+    field_syms=(:fdf, :fgh, :hvp, :fghvp, :fjvp),
+    fields=(Val(:fdf), Val(:fgh), Val(:hvp), Val(:fghvp), Val(:fjvp)),
+    x_last=(Val(:fdf), Val(:fgh)),
+    xv_tail=(Val(:hvp), Val(:fghvp), Val(:fjvp)),
+)
+const _INPLACEOBJECTIVE_SPEC_V7 = (
+    field_syms=(:df, :fdf, :fgh, :hv, :fghv),
+    fields=(Val(:df), Val(:fdf), Val(:fgh), Val(:hv), Val(:fghv)),
+    x_last=(Val(:df), Val(:fdf), Val(:fgh)),
+    xv_tail=(Val(:hv), Val(:fghv)),
+)
+
+@inline function _wrap_inplaceobjective_field(
+    v_field::Val{field}, f::NLSolversBase.InplaceObjective, tree::N, refs, spec
+) where {field,N<:Union{AbstractExpressionNode,AbstractExpression}}
+    if v_field in spec.x_last
+        return _wrap_objective_x_last(getfield(f, field), tree, refs)
+    elseif v_field in spec.xv_tail
+        return _wrap_objective_xv_tail(getfield(f, field), tree, refs)
+    else
+        throw(
+            ArgumentError(
+                "Internal error: no wrapping rule for InplaceObjective field $(field). " *
+                "Please open an issue at github.com/SymbolicML/DynamicExpressions.jl with your versions.",
+            ),
+        )
+    end
+end
+
+@inline function _wrap_inplaceobjective(
+    f::NLSolversBase.InplaceObjective, tree::N, refs, spec
+) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
+    wrapped = map(spec.fields) do v_field
+        _wrap_inplaceobjective_field(v_field, f, tree, refs, spec)
+    end
+    return NLSolversBase.InplaceObjective(wrapped...)
+end
+
 function wrap_func(
     f::NLSolversBase.InplaceObjective, tree::N, refs
 ) where {N<:Union{AbstractExpressionNode,AbstractExpression}}
-    # Some objectives, like `Optim.only_fg!(fg!)`, are not functions but instead
+    # Some objectives, like `only_fg!(fg!)`, are not functions but instead
     # `InplaceObjective`. These contain multiple functions, each of which needs to be
     # wrapped. Some functions are `nothing`; those can be left as-is.
-    @assert fieldnames(NLSolversBase.InplaceObjective) == (:df, :fdf, :fgh, :hv, :fghv)
-    return NLSolversBase.InplaceObjective(
-        wrap_func(f.df, tree, refs),
-        wrap_func(f.fdf, tree, refs),
-        wrap_func(f.fgh, tree, refs),
-        wrap_func(f.hv, tree, refs),
-        wrap_func(f.fghv, tree, refs),
-    )
+    #
+    # We use `@static` branching so that only the relevant layout for the *installed*
+    # NLSolversBase version is compiled/instrumented.
+    @static if fieldnames(NLSolversBase.InplaceObjective) ==
+        _INPLACEOBJECTIVE_SPEC_V8.field_syms
+        # NLSolversBase v8 / Optim v2
+        return _wrap_inplaceobjective(f, tree, refs, _INPLACEOBJECTIVE_SPEC_V8)
+    elseif fieldnames(NLSolversBase.InplaceObjective) ==
+        _INPLACEOBJECTIVE_SPEC_V7.field_syms
+        # NLSolversBase v7 / Optim v1
+        return _wrap_inplaceobjective(f, tree, refs, _INPLACEOBJECTIVE_SPEC_V7)
+        # (Optim < 1 is no longer supported.)
+    else
+        # LCOV_EXCL_START
+        fields = fieldnames(NLSolversBase.InplaceObjective)
+        throw(
+            ArgumentError(
+                "Unsupported NLSolversBase.InplaceObjective field layout: $(fields). " *
+                "This extension supports layouts used by NLSolversBase v7 (Optim v1) and v8 (Optim v2). " *
+                "Please open an issue at github.com/SymbolicML/DynamicExpressions.jl with your versions.",
+            ),
+        )
+        # LCOV_EXCL_END
+    end
 end
 
 """
