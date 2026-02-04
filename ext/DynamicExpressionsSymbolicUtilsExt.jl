@@ -8,18 +8,13 @@ using DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
 using DynamicExpressions.UtilsModule: deprecate_varmap
 
 using SymbolicUtils
+using SymbolicUtils: BasicSymbolic, SymReal, iscall, issym, isconst, unwrap_const
 
 import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 import DynamicExpressions.ValueInterfaceModule: is_valid
 
-const SYMBOLIC_UTILS_TYPES = Union{<:Number,SymbolicUtils.Symbolic{<:Number}}
+const SYMBOLIC_UTILS_TYPES = Union{<:Number,BasicSymbolic}
 const SUPPORTED_OPS = (cos, sin, exp, cot, tan, csc, sec, +, -, *, /)
-
-@static if isdefined(SymbolicUtils, :iscall)
-    iscall(x) = SymbolicUtils.iscall(x)
-else
-    iscall(x) = SymbolicUtils.istree(x)
-end
 
 macro return_on_false(flag, retval)
     :(
@@ -29,7 +24,7 @@ macro return_on_false(flag, retval)
     )
 end
 
-function is_valid(x::SymbolicUtils.Symbolic)
+function is_valid(x::BasicSymbolic)
     return if iscall(x)
         all(is_valid.([SymbolicUtils.operation(x); SymbolicUtils.arguments(x)]))
     else
@@ -37,6 +32,52 @@ function is_valid(x::SymbolicUtils.Symbolic)
     end
 end
 subs_bad(x) = is_valid(x) ? x : Inf
+
+_sym_number(sym::Symbol) = SymbolicUtils.Sym{SymReal}(sym; type=Number)
+
+function _sym_fn(sym::Symbol, degree::Integer)
+    degree_int = Int(degree)
+    dtypes = ntuple(_ -> Number, degree_int)
+    ftype = Base.unwrap_unionall(SymbolicUtils.FnType{Tuple{dtypes...},Number})
+    return SymbolicUtils.Sym{SymReal}(sym; type=ftype)
+end
+
+function _unwrap_const_number(expr::BasicSymbolic)
+    val = unwrap_const(expr)
+    if val isa Number
+        return val
+    elseif val isa AbstractArray{<:Number} && length(val) == 1
+        return only(val)
+    else
+        error("Unsupported constant type in SymbolicUtils conversion: $(typeof(val))")
+    end
+end
+
+function _convert_symbolic_atom(
+    ::Type{N},
+    expr::BasicSymbolic,
+    variable_names::Union{AbstractVector{<:AbstractString},Nothing},
+) where {N<:AbstractExpressionNode}
+    # Handle constants (v4 wraps numbers in Const variant)
+    if isconst(expr)
+        return constructorof(N)(; val=DEFAULT_NODE_TYPE(_unwrap_const_number(expr)))
+    end
+    # Handle symbols (variables)
+    if issym(expr)
+        exprname = nameof(expr)
+        if variable_names === nothing
+            s = String(exprname)
+            # Verify it is of the format "x{num}":
+            @assert(
+                occursin(r"^x\d+$", s),
+                "Variable name $s is not of the format x{num}. Please provide the `variable_names` explicitly."
+            )
+            return constructorof(N)(s)
+        end
+        return constructorof(N)(String(exprname), variable_names)
+    end
+    return nothing
+end
 
 function parse_tree_to_eqs(
     tree::AbstractExpressionNode{T,2},
@@ -46,7 +87,7 @@ function parse_tree_to_eqs(
     if tree.degree == 0
         # Return constant if needed
         tree.constant && return subs_bad(tree.val)
-        return SymbolicUtils.Sym{LiteralReal}(Symbol("x$(tree.feature)"))
+        return _sym_number(Symbol("x$(tree.feature)"))
     end
     # Collect the next children
     # TODO: Type instability!
@@ -54,33 +95,54 @@ function parse_tree_to_eqs(
         tree.degree == 2 ? (get_child(tree, 1), get_child(tree, 2)) : (get_child(tree, 1),)
     # Get the operation
     op = tree.degree == 2 ? operators.binops[tree.op] : operators.unaops[tree.op]
-    # Create an N tuple of Numbers for each argument
-    dtypes = map(x -> Number, 1:(tree.degree))
-    #
-    if !(op ∈ SUPPORTED_OPS) && index_functions
-        op = SymbolicUtils.Sym{(SymbolicUtils.FnType){Tuple{dtypes...},Number}}(Symbol(op))
+    # Convert children to symbolic form
+    sym_children = map(x -> parse_tree_to_eqs(x, operators, index_functions), children)
+
+    # Only a small subset of functions have symbolic methods in SymbolicUtils.
+    # For unsupported operators:
+    # - when `index_functions=true`, we encode them as function-like symbols so they
+    #   can be round-tripped back to operators via their name/arity.
+    # - when `index_functions=false`, we throw a clear error, since attempting to
+    #   construct a SymbolicUtils term headed by an arbitrary function object can
+    #   fail with a MethodError.
+    if !(op ∈ SUPPORTED_OPS)
+        if index_functions
+            op = _sym_fn(Symbol(op), tree.degree)
+            return subs_bad(op(sym_children...))
+        else
+            throw(error("Unsupported operation $(op) in SymbolicUtils conversion"))
+        end
     end
 
-    return subs_bad(
-        op(map(x -> parse_tree_to_eqs(x, operators, index_functions), children)...)
-    )
+    # SymbolicUtils v4 may canonicalize some commutative operations at construction time
+    # (e.g. `x*x` -> `x^2`, or reordering `a + b`).
+    #
+    # For stable round-trips (and to avoid introducing `^` when it's not in the operator set),
+    # construct commutative ops as explicit terms.
+    if op === (*) || op === (+)
+        return subs_bad(term(op, sym_children...))
+    end
+
+    return subs_bad(op(sym_children...))
 end
 
-# For operators which are indexed, we need to convert them back
-# using the string:
-function convert_to_function(
-    x::SymbolicUtils.Sym{SymbolicUtils.FnType{T,Number}}, operators::AbstractOperatorEnum
-) where {T<:Tuple}
-    degree = length(T.types)
-    if degree == 1
-        ind = findoperation(x.name, operators.unaops)
-        return operators.unaops[ind]
-    elseif degree == 2
-        ind = findoperation(x.name, operators.binops)
-        return operators.binops[ind]
-    else
-        throw(AssertionError("Function $(String(x.name)) has degree > 2 !"))
+function convert_to_function(x::BasicSymbolic, operators::AbstractOperatorEnum)
+    if issym(x) && SymbolicUtils.symtype(x) <: SymbolicUtils.FnType
+        st = Base.unwrap_unionall(SymbolicUtils.symtype(x))
+        sig = st.parameters[1]
+        degree = length(sig.parameters)
+        fname = nameof(x)
+        if degree == 1
+            ind = findoperation(fname, operators.unaops)
+            return operators.unaops[ind]
+        elseif degree == 2
+            ind = findoperation(fname, operators.binops)
+            return operators.binops[ind]
+        else
+            throw(AssertionError("Function $(String(fname)) has degree > 2 !"))
+        end
     end
+    return x
 end
 
 # For normal operators, simply return the function itself:
@@ -120,7 +182,7 @@ function findoperation(op, ops)
 end
 
 function Base.convert(
-    ::typeof(SymbolicUtils.Symbolic),
+    ::typeof(BasicSymbolic),
     tree::Union{AbstractExpression,AbstractExpressionNode},
     operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
@@ -142,28 +204,34 @@ end
 
 function Base.convert(
     ::Type{N},
-    expr::SymbolicUtils.Symbolic,
+    expr::BasicSymbolic,
     operators::AbstractOperatorEnum;
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
 ) where {N<:AbstractExpressionNode}
     variable_names = deprecate_varmap(variable_names, nothing, :convert)
+    atom = _convert_symbolic_atom(N, expr, variable_names)
+    atom !== nothing && return atom
+    # Handle function calls
     if !iscall(expr)
-        if variable_names === nothing
-            s = String(expr.name)
-            # Verify it is of the format "x{num}":
-            @assert(
-                occursin(r"^x\d+$", s),
-                "Variable name $s is not of the format x{num}. Please provide the `variable_names` explicitly."
-            )
-            return constructorof(N)(s)
-        end
-        return constructorof(N)(String(expr.name), variable_names)
+        error("Unknown symbolic expression type: $(typeof(expr))")  # COV_EXCL_LINE
     end
 
     # First, we remove integer powers:
     y, good_return = multiply_powers(expr)
     if good_return
         expr = y
+    end
+
+    # Re-handle cases where simplification returns a Number, constant, or symbol.
+    if expr isa Number
+        return constructorof(N)(; val=DEFAULT_NODE_TYPE(expr))
+    end
+    if expr isa BasicSymbolic
+        atom = _convert_symbolic_atom(N, expr, variable_names)
+        atom !== nothing && return atom
+    end
+    if !iscall(expr)
+        error("Unknown symbolic expression type: $(typeof(expr))")  # COV_EXCL_LINE
     end
 
     op = convert_to_function(SymbolicUtils.operation(expr), operators)
@@ -190,7 +258,7 @@ _node_type(::Type{E}) where {E<:AbstractExpression} = default_node_type(E)
 
 function Base.convert(
     ::Type{E},
-    x::Union{SymbolicUtils.Symbolic,Number},
+    x::Union{BasicSymbolic,Number},
     operators::AbstractOperatorEnum;
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
     kws...,
@@ -217,7 +285,6 @@ will generate a symbolic equation in SymbolicUtils.jl format.
 - `index_functions::Bool=false`: Whether to generate special names for the
     operators, which then allows one to convert back to a `AbstractExpressionNode` format
     using `symbolic_to_node`.
-    (CURRENTLY UNAVAILABLE - See https://github.com/MilesCranmer/SymbolicRegression.jl/pull/84).
 """
 function node_to_symbolic(
     tree::AbstractExpressionNode{T,2},
@@ -236,8 +303,7 @@ function node_to_symbolic(
     # Create a substitution tuple
     subs = Dict(
         [
-            SymbolicUtils.Sym{LiteralReal}(Symbol("x$(i)")) =>
-                SymbolicUtils.Sym{LiteralReal}(Symbol(variable_names[i])) for
+            _sym_number(Symbol("x$(i)")) => _sym_number(Symbol(variable_names[i])) for
             i in 1:length(variable_names)
         ]...,
     )
@@ -258,7 +324,7 @@ function node_to_symbolic(
 end
 
 function symbolic_to_node(
-    eqn::SymbolicUtils.Symbolic,
+    eqn::BasicSymbolic,
     operators::AbstractOperatorEnum,
     ::Type{N}=Node;
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
@@ -273,7 +339,7 @@ function multiply_powers(eqn::Number)::Tuple{SYMBOLIC_UTILS_TYPES,Bool}
     return eqn, true
 end
 
-function multiply_powers(eqn::SymbolicUtils.Symbolic)::Tuple{SYMBOLIC_UTILS_TYPES,Bool}
+function multiply_powers(eqn::BasicSymbolic)::Tuple{SYMBOLIC_UTILS_TYPES,Bool}
     if !iscall(eqn)
         return eqn, true
     end
@@ -282,7 +348,7 @@ function multiply_powers(eqn::SymbolicUtils.Symbolic)::Tuple{SYMBOLIC_UTILS_TYPE
 end
 
 function multiply_powers(
-    eqn::SymbolicUtils.Symbolic, op::F
+    eqn::BasicSymbolic, op::F
 )::Tuple{SYMBOLIC_UTILS_TYPES,Bool} where {F}
     args = SymbolicUtils.arguments(eqn)
     nargs = length(args)
@@ -296,15 +362,34 @@ function multiply_powers(
         @return_on_false complete eqn
         @return_on_false is_valid(l) eqn
         n = args[2]
-        if typeof(n) <: Integer
-            if n == 1
+        # In SymbolicUtils v4, integer constants are wrapped in Const
+        n_val = if isconst(n)
+            unwrap_const(n)
+        elseif typeof(n) <: Integer  # COV_EXCL_LINE
+            n  # COV_EXCL_LINE
+        else
+            nothing
+        end
+        if n_val !== nothing && typeof(n_val) <: Integer
+            if n_val == 1
                 return l, true
-            elseif n == -1
-                return 1.0 / l, true
-            elseif n > 1
-                return reduce(*, [l for i in 1:n]), true
-            elseif n < -1
-                return reduce(/, vcat([1], [l for i in 1:abs(n)])), true
+            elseif n_val == -1
+                return term(/, 1.0, l), true
+            elseif n_val > 1
+                # IMPORTANT: use `term(*, ...)` to prevent SymbolicUtils from immediately
+                # canonicalizing `l*l` back into `l^2`.
+                out = l
+                for _ in 2:n_val
+                    out = term(*, out, l)
+                end
+                return out, true
+            elseif n_val < -1
+                # Build 1/(l*l*...) using explicit multiplication terms.
+                denom = l
+                for _ in 2:abs(n_val)
+                    denom = term(*, denom, l)
+                end
+                return term(/, 1.0, denom), true
             else
                 return 1.0, true
             end
@@ -320,6 +405,11 @@ function multiply_powers(
         r, complete2 = multiply_powers(args[2])
         @return_on_false complete2 eqn
         @return_on_false is_valid(r) eqn
+        # SymbolicUtils v4 normalizes `x*x` into `x^2` via the `*` method; preserve
+        # explicit multiplication terms so we don't introduce `^` during conversion.
+        if op == *
+            return term(op, l, r), true
+        end
         return op(l, r), true
     else
         # return tree_mapreduce(multiply_powers, op, args)
@@ -331,7 +421,8 @@ function multiply_powers(
         end
         cumulator = out[1][1]
         for i in 2:size(out, 1)
-            cumulator = op(cumulator, out[i][1])
+            cumulator =
+                (op == *) ? term(op, cumulator, out[i][1]) : op(cumulator, out[i][1])
             @return_on_false is_valid(cumulator) eqn
         end
         return cumulator, true
