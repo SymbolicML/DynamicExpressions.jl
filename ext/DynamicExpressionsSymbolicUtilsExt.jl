@@ -42,6 +42,43 @@ function _sym_fn(sym::Symbol, degree::Integer)
     return SymbolicUtils.Sym{SymReal}(sym; type=ftype)
 end
 
+function _unwrap_const_number(expr::BasicSymbolic)
+    val = unwrap_const(expr)
+    if val isa Number
+        return val
+    elseif val isa AbstractArray{<:Number} && length(val) == 1
+        return only(val)
+    else
+        error("Unsupported constant type in SymbolicUtils conversion: $(typeof(val))")
+    end
+end
+
+function _convert_symbolic_atom(
+    ::Type{N},
+    expr::BasicSymbolic,
+    variable_names::Union{AbstractVector{<:AbstractString},Nothing},
+) where {N<:AbstractExpressionNode}
+    # Handle constants (v4 wraps numbers in Const variant)
+    if isconst(expr)
+        return constructorof(N)(; val=DEFAULT_NODE_TYPE(_unwrap_const_number(expr)))
+    end
+    # Handle symbols (variables)
+    if issym(expr)
+        exprname = nameof(expr)
+        if variable_names === nothing
+            s = String(exprname)
+            # Verify it is of the format "x{num}":
+            @assert(
+                occursin(r"^x\d+$", s),
+                "Variable name $s is not of the format x{num}. Please provide the `variable_names` explicitly."
+            )
+            return constructorof(N)(s)
+        end
+        return constructorof(N)(String(exprname), variable_names)
+    end
+    return nothing
+end
+
 function parse_tree_to_eqs(
     tree::AbstractExpressionNode{T,2},
     operators::AbstractOperatorEnum,
@@ -172,24 +209,8 @@ function Base.convert(
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
 ) where {N<:AbstractExpressionNode}
     variable_names = deprecate_varmap(variable_names, nothing, :convert)
-    # Handle constants (v4 wraps numbers in Const variant)
-    if isconst(expr)
-        return constructorof(N)(; val=DEFAULT_NODE_TYPE(unwrap_const(expr)))
-    end
-    # Handle symbols (variables)
-    if issym(expr)
-        exprname = nameof(expr)
-        if variable_names === nothing
-            s = String(exprname)
-            # Verify it is of the format "x{num}":
-            @assert(
-                occursin(r"^x\d+$", s),
-                "Variable name $s is not of the format x{num}. Please provide the `variable_names` explicitly."
-            )
-            return constructorof(N)(s)
-        end
-        return constructorof(N)(String(exprname), variable_names)
-    end
+    atom = _convert_symbolic_atom(N, expr, variable_names)
+    atom !== nothing && return atom
     # Handle function calls
     if !iscall(expr)
         error("Unknown symbolic expression type: $(typeof(expr))")  # COV_EXCL_LINE
@@ -199,6 +220,18 @@ function Base.convert(
     y, good_return = multiply_powers(expr)
     if good_return
         expr = y
+    end
+
+    # Re-handle cases where simplification returns a Number, constant, or symbol.
+    if expr isa Number
+        return constructorof(N)(; val=DEFAULT_NODE_TYPE(expr))
+    end
+    if expr isa BasicSymbolic
+        atom = _convert_symbolic_atom(N, expr, variable_names)
+        atom !== nothing && return atom
+    end
+    if !iscall(expr)
+        error("Unknown symbolic expression type: $(typeof(expr))")  # COV_EXCL_LINE
     end
 
     op = convert_to_function(SymbolicUtils.operation(expr), operators)
