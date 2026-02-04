@@ -106,10 +106,7 @@ end
 
     expr_pow_neg1 = SymbolicUtils.term(^, x, -1)
     @test isapprox(
-        eval_expr(expr_pow_neg1, operators_no_pow, ["x"], X1)[1],
-        0.5;
-        rtol=0,
-        atol=1.0e-12,
+        eval_expr(expr_pow_neg1, operators_no_pow, ["x"], X1)[1], 0.5; rtol=0, atol=1.0e-12
     )
 
     expr_pow3 = SymbolicUtils.term(^, x, 3)
