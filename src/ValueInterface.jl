@@ -24,6 +24,12 @@ Base.@propagate_inbounds function pack_scalar_constants!(
     return idx + 1
 end
 
+# Fallback so callers (and static analysis tools like JET) don't see a MethodError.
+# Types that want to participate in the ValueInterface must implement a more specific method.
+function pack_scalar_constants!(::AbstractVector{<:Number}, ::Int64, value)
+    throw(ArgumentError("pack_scalar_constants! not implemented for $(typeof(value))"))
+end
+
 """
     unpack_scalar_constants(nvals, idx, value)
 
@@ -37,8 +43,12 @@ Returns a tuple of the next index to read from, and the filled-in value.
 """
 Base.@propagate_inbounds function unpack_scalar_constants(
     nvals::AbstractVector{<:Number}, idx::Int64, value::T
-) where {T}
+) where {T<:Number}
     return (idx + 1, convert(T, nvals[idx]))
+end
+
+function unpack_scalar_constants(::AbstractVector{<:Number}, ::Int64, value)
+    throw(ArgumentError("unpack_scalar_constants not implemented for $(typeof(value))"))
 end
 
 """
@@ -60,24 +70,57 @@ end
 function _check_is_valid_array(x)
     return is_valid_array([x]) isa Bool && is_valid_array([x]) == is_valid(x)
 end
-function _check_get_number_type(x)
+function _check_get_number_type(x::X) where {X}
     try
-        get_number_type(typeof(x)) <: Number
+        get_number_type(X) <: Number
     catch e
         @error e
         return false
     end
 end
-function _check_pack_scalar_constants!(x)
-    packed_x = Vector{get_number_type(typeof(x))}(undef, count_scalar_constants(x))
+function _check_pack_scalar_constants!(x::X) where {X}
+    if !applicable(count_scalar_constants, x)
+        return false
+    end
+    n = count_scalar_constants(x)
+
+    packed_x = if X <: Number
+        Vector{X}(undef, n)
+    else
+        # For non-`Number` values, we can't assume a concrete scalar type here.
+        # Use a generic numeric buffer; correctness is checked by roundtripping.
+        Vector{Float64}(undef, n)
+    end
+
+    if !applicable(pack_scalar_constants!, packed_x, 1, x)
+        return false
+    end
+
     new_idx = pack_scalar_constants!(packed_x, 1, x)
-    return new_idx == 1 + count_scalar_constants(x)
+    return new_idx == 1 + n
 end
-function _check_unpack_scalar_constants(x)
-    packed_x = Vector{get_number_type(typeof(x))}(undef, count_scalar_constants(x))
+function _check_unpack_scalar_constants(x::X) where {X}
+    if !applicable(count_scalar_constants, x)
+        return false
+    end
+    n = count_scalar_constants(x)
+
+    packed_x = if X <: Number
+        Vector{X}(undef, n)
+    else
+        Vector{Float64}(undef, n)
+    end
+
+    if !applicable(pack_scalar_constants!, packed_x, 1, x)
+        return false
+    end
+    if !applicable(unpack_scalar_constants, packed_x, 1, x)
+        return false
+    end
+
     pack_scalar_constants!(packed_x, 1, x)
     new_idx, x2 = unpack_scalar_constants(packed_x, 1, x)
-    return new_idx == 1 + count_scalar_constants(x) && x2 == x
+    return new_idx == 1 + n && x2 == x
 end
 function _check_count_scalar_constants(x)
     return count_scalar_constants(x) isa Int &&
