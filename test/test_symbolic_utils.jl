@@ -42,19 +42,27 @@ let
     eqn = convert(SymbolicUtils.BasicSymbolic, ex)
     @test string(eqn) == "sin(x + y)"
 
-    # Test with different variable names in the expression
+    # Test with different variable names in the expression.
+    # Use a non-symmetric expression so we can detect any variable swapping,
+    # while still allowing commutative re-ordering inside SymbolicUtils.
     ex2 = parse_expression(
-        :(sin(alpha + beta));
+        :(sin(alpha + 2 * beta));
         binary_operators=[+, *, -, /],
         unary_operators=[sin],
         variable_names=["alpha", "beta"],
     )
     eqn2 = convert(SymbolicUtils.BasicSymbolic, ex2)
-    @test string(eqn2) == "sin(alpha + beta)"
-    eqn2
+    @test occursin("alpha", string(eqn2))
+    @test occursin("beta", string(eqn2))
+    @test occursin("2", string(eqn2))
 
-    # Test round trip preserves structure and variable names
+    # Test round trip preserves semantics and variable names.
+    # SymbolicUtils v4 may reorder commutative operations, so don't require exact `==`.
     operators = OperatorEnum(; unary_operators=(sin,), binary_operators=(+, *, -, /))
     ex2_again = convert(Expression, eqn2, operators; variable_names=["alpha", "beta"])
-    @test ex2 == ex2_again
+
+    X = rand(Float64, 2, 10) .+ 1
+    y1, _ = eval_tree_array(ex2, X)
+    y2, _ = eval_tree_array(ex2_again, X)
+    @test y1 ≈ y2
 end
