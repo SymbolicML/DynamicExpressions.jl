@@ -27,6 +27,7 @@ jobs:
         with:
           mode: ${{ matrix.downgrade_mode }}
           projects: "., test"
+          julia_version: ${{ matrix.julia-version }}
 
       - uses: julia-actions/julia-buildpkg@v1
 
