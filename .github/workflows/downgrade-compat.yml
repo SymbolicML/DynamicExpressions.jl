@@ -1,0 +1,35 @@
+name: Downgrade Compat
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  downgrade-compat:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        julia-version: ["1.10", "1"]
+        downgrade_mode: ["deps"]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.julia-version }}
+
+      - uses: julia-actions/cache@v2
+
+      - uses: julia-actions/julia-downgrade-compat@v2
+        with:
+          mode: ${{ matrix.downgrade_mode }}
+          projects: "., test"
+
+      - uses: julia-actions/julia-buildpkg@v1
+
+      - uses: julia-actions/julia-runtest@v1
+        with:
+          allow_reresolve: false
+          force_latest_compatible_version: false
