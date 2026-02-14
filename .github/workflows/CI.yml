@@ -10,8 +10,6 @@ on:
       - '.github/workflows/**'
       - 'Project.toml'
   pull_request:
-    branches:
-      - master
     paths:
       - 'test/**'
       - 'src/**'
