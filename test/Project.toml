@@ -28,6 +28,8 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 [compat]
 Aqua = "0.8"
 JET = "0.9, 0.10"
+TestItems = "1"
+TestItemRunner = "1"
 
 [preferences.DynamicExpressions]
 dispatch_doctor_codegen_level = "min"
