@@ -19,7 +19,8 @@ import ..NodeUtilsModule:
     has_constants,
     count_scalar_constants,
     get_scalar_constants,
-    set_scalar_constants!
+    set_scalar_constants!,
+    set_scalar_constants
 import ..NodePreallocationModule: copy_into!, allocate_container
 import ..EvaluateModule: eval_tree_array, differentiable_eval_tree_array
 import ..EvaluateDerivativeModule: eval_grad_tree_array
@@ -326,6 +327,9 @@ function get_scalar_constants(ex::Expression)
 end
 function set_scalar_constants!(ex::Expression{T}, constants, refs) where {T}
     return set_scalar_constants!(get_tree(ex), constants, refs)
+end
+function set_scalar_constants(ex::Expression, constants)
+    return Expression(set_scalar_constants(get_tree(ex), constants), get_metadata(ex))
 end
 function extract_gradient(
     gradient::@NamedTuple{tree::NT, metadata::Nothing}, ex::Expression{T,N}
