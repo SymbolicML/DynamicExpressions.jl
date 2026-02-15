@@ -50,9 +50,13 @@ end
         eval_options = EvalOptions(; buffer=ArrayBuffer(buffer, buffer_ref))
         result2, ok2 = eval_tree_array(tree, X, operators; eval_options)
 
-        # Results should be identical
-        @test result1 ≈ result2
+        # First check success flags match. If evaluation failed, results are not guaranteed
+        # to be meaningful, so only compare the arrays when both sides succeeded.
         @test ok1 == ok2
+        if ok1
+            # Treat NaNs as equal when both sides produce them.
+            @test isapprox(result1, result2; nans=true)
+        end
     end
 end
 
@@ -87,8 +91,8 @@ end
     result2, ok2 = eval_tree_array(tree, X, operators; eval_options)
     # (We expect the index to automatically reset)
 
-    # Results should be identical
-    @test result ≈ result2
+    # Results should be identical (treat NaNs as equal when both sides produce them).
+    @test isapprox(result, result2; nans=true)
     @test ok == ok2
     @test buffer_ref[] == 2
 end
@@ -146,8 +150,12 @@ end
         eval_options = EvalOptions(; turbo, buffer=ArrayBuffer(buffer, buffer_ref))
         result2, ok2 = eval_tree_array(tree, X, operators; eval_options)
 
-        # Results should be identical
-        @test result1 ≈ result2
+        # First check success flags match. If evaluation failed, results are not guaranteed
+        # to be meaningful, so only compare the arrays when both sides succeeded.
         @test ok1 == ok2
+        if ok1
+            # Treat NaNs as equal when both sides produce them.
+            @test isapprox(result1, result2; nans=true)
+        end
     end
 end
