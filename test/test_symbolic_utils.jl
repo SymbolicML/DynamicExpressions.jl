@@ -37,7 +37,9 @@ let
 
     # Test conversion to symbolic form round-trips by evaluation.
     eqn = convert(SymbolicUtils.BasicSymbolic, ex)
-    operators_roundtrip = OperatorEnum(; unary_operators=(sin,), binary_operators=(+, *, -, /))
+    operators_roundtrip = OperatorEnum(;
+        unary_operators=(sin,), binary_operators=(+, *, -, /)
+    )
     ex_again = convert(Expression, eqn, operators_roundtrip; variable_names=["x", "y"])
 
     X = rand(Float64, 2, 10) .+ 1
