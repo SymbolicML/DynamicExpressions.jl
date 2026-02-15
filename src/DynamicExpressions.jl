@@ -73,7 +73,8 @@ import .NodeModule:
     has_constants,
     count_scalar_constants,
     get_scalar_constants,
-    set_scalar_constants!
+    set_scalar_constants!,
+    set_scalar_constants
 @reexport import .StringsModule: string_tree, print_tree
 import .StringsModule: get_op_name, get_pretty_op_name
 @reexport import .OperatorEnumModule: AbstractOperatorEnum
