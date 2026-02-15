@@ -21,27 +21,34 @@ if "jet" in test_name
         set_preferences!("DynamicExpressions", "instability_check" => "disable"; force=true)
         using JET
         using DynamicExpressions
-        struct MyIgnoredModule
-            mod::Module
-        end
-        function JET.match_module(
-            mod::MyIgnoredModule, @nospecialize(report::JET.InferenceErrorReport)
-        )
-            s_mod = string(mod.mod)
-            any(report.vst) do vst
-                occursin(s_mod, string(JET.linfomod(vst.linfo)))
-            end
-        end
+
         if VERSION >= v"1.10"
-            JET.test_package(
-                DynamicExpressions;
-                target_defined_modules=true,
-                ignored_modules=(
-                    MyIgnoredModule(DynamicExpressions.NonDifferentiableDeclarationsModule),
-                ),
-            )
-            # TODO: Hack to get JET to ignore modules
-            # https://github.com/aviatesk/JET.jl/issues/570#issuecomment-2199167755
+            # JET's keyword API has changed across versions.
+            # Prefer the older (but still supported) configuration first.
+            try
+                JET.test_package(
+                    DynamicExpressions;
+                    target_defined_modules=true,
+                    ignored_modules=(
+                        DynamicExpressions.NonDifferentiableDeclarationsModule,
+                        DynamicExpressions.ValueInterfaceModule,
+                    ),
+                )
+            catch err
+                if err isa MethodError
+                    # Newer JET prefers explicit target_modules.
+                    JET.test_package(
+                        DynamicExpressions;
+                        target_modules=(DynamicExpressions,),
+                        ignored_modules=(
+                            DynamicExpressions.NonDifferentiableDeclarationsModule,
+                            DynamicExpressions.ValueInterfaceModule,
+                        ),
+                    )
+                else
+                    rethrow()
+                end
+            end
         end
     end
 end

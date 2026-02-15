@@ -293,73 +293,82 @@ function _extend_operators(operators, skip_user_operators, kws, __module__::Modu
     unary_ex = _extend_unary_operator(f_inside, f_outside, type_requirements, internal)
     #! format: off
     return quote
-        local $type_requirements, $build_converters, $binary_exists, $unary_exists
+        # Initialize locals so static analyzers (JET) don't treat them as undefined
+        # when control-flow goes through closures/locks.
+        local $type_requirements = Any
+        local $build_converters = false
+        local $binary_exists = Dict{Function,Bool}()
+        local $unary_exists = Dict{Function,Bool}()
+
         $(_validate_no_ambiguous_broadcasts)($operators)
         lock($LATEST_LOCK) do
-        if isa($operators, $OperatorEnum)
-            $type_requirements = $(on_type == nothing ? Number : on_type)
-            $build_converters = $(on_type == nothing)
-            if !haskey($(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum, $type_requirements)
-                $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum[$type_requirements] = Dict{Function,Bool}()
-            end
-            if !haskey($(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum, $type_requirements)
-                $(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum[$type_requirements] = Dict{Function,Bool}()
-            end
-            $binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum[$type_requirements]
-            $unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum[$type_requirements]
-        else
-            $type_requirements = $(on_type == nothing ? Any : on_type)
-            $build_converters = false
-            if !haskey($(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum, $type_requirements)
-                $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum[$type_requirements] = Dict{Function,Bool}()
-            end
-            if !haskey($(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum, $type_requirements)
-                $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum[$type_requirements] = Dict{Function,Bool}()
-            end
-            $binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum[$type_requirements]
-            $unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum[$type_requirements]
-        end
-        if $(empty_old_operators)
-            # Trigger errors if operators are not yet defined:
-            empty!($(LATEST_BINARY_OPERATOR_MAPPING))
-            empty!($(LATEST_UNARY_OPERATOR_MAPPING))
-        end
-        for (op, func) in enumerate($(operators).binops)
-            local ($f_outside, $f_inside) = $(_unpack_broadcast_function)(func)
-            local $skip = false
-            if isdefined(Base, $f_outside)
-                $f_outside = :(Base.$($f_outside))
-            elseif $(skip_user_operators)
-                $skip = true
+            if isa($operators, $OperatorEnum)
+                $type_requirements = $(on_type == nothing ? Number : on_type)
+                $build_converters = $(on_type == nothing)
+                if !haskey($(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum, $type_requirements)
+                    $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum[$type_requirements] = Dict{Function,Bool}()
+                end
+                if !haskey($(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum, $type_requirements)
+                    $(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum[$type_requirements] = Dict{Function,Bool}()
+                end
+                $binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).operator_enum[$type_requirements]
+                $unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).operator_enum[$type_requirements]
             else
-                $f_outside = :($($__module__).$($f_outside))
+                $type_requirements = $(on_type == nothing ? Any : on_type)
+                $build_converters = false
+                if !haskey($(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum, $type_requirements)
+                    $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum[$type_requirements] = Dict{Function,Bool}()
+                end
+                if !haskey($(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum, $type_requirements)
+                    $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum[$type_requirements] = Dict{Function,Bool}()
+                end
+                $binary_exists = $(ALREADY_DEFINED_BINARY_OPERATORS).generic_operator_enum[$type_requirements]
+                $unary_exists = $(ALREADY_DEFINED_UNARY_OPERATORS).generic_operator_enum[$type_requirements]
             end
-            $(LATEST_BINARY_OPERATOR_MAPPING)[func] = op
-            $skip && continue
-            # Avoid redefining methods:
-            if !haskey($unary_exists, func)
-                eval($binary_ex)
-                $(unary_exists)[func] = true
+
+            if $(empty_old_operators)
+                # Trigger errors if operators are not yet defined:
+                empty!($(LATEST_BINARY_OPERATOR_MAPPING))
+                empty!($(LATEST_UNARY_OPERATOR_MAPPING))
             end
-        end
-        for (op, func) in enumerate($(operators).unaops)
-            local ($f_outside, $f_inside) = $(_unpack_broadcast_function)(func)
-            local $skip = false
-            if isdefined(Base, $f_outside)
-                $f_outside = :(Base.$($f_outside))
-            elseif $(skip_user_operators)
-                $skip = true
-            else
-                $f_outside = :($($__module__).$($f_outside))
+
+            for (op, func) in enumerate($(operators).binops)
+                local ($f_outside, $f_inside) = $(_unpack_broadcast_function)(func)
+                local $skip = false
+                if isdefined(Base, $f_outside)
+                    $f_outside = :(Base.$($f_outside))
+                elseif $(skip_user_operators)
+                    $skip = true
+                else
+                    $f_outside = :($($__module__).$($f_outside))
+                end
+                $(LATEST_BINARY_OPERATOR_MAPPING)[func] = op
+                $skip && continue
+                # Avoid redefining methods:
+                if !haskey($unary_exists, func)
+                    eval($binary_ex)
+                    $(unary_exists)[func] = true
+                end
             end
-            $(LATEST_UNARY_OPERATOR_MAPPING)[func] = op
-            $skip && continue
-            # Avoid redefining methods:
-            if !haskey($binary_exists, func)
-                eval($unary_ex)
-                $(binary_exists)[func] = true
+
+            for (op, func) in enumerate($(operators).unaops)
+                local ($f_outside, $f_inside) = $(_unpack_broadcast_function)(func)
+                local $skip = false
+                if isdefined(Base, $f_outside)
+                    $f_outside = :(Base.$($f_outside))
+                elseif $(skip_user_operators)
+                    $skip = true
+                else
+                    $f_outside = :($($__module__).$($f_outside))
+                end
+                $(LATEST_UNARY_OPERATOR_MAPPING)[func] = op
+                $skip && continue
+                # Avoid redefining methods:
+                if !haskey($binary_exists, func)
+                    eval($unary_ex)
+                    $(binary_exists)[func] = true
+                end
             end
-        end
         end
     end
     #! format: on
