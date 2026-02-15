@@ -14,17 +14,17 @@ x1_node = Node(; feature=1)
 tree = Node(1, Node(; val=3.0) * x1_node) + Node(; val=2.0)
 
 eqn = node_to_symbolic(tree, operators; variable_names=["energy"])
-@test occursin("sin", string(eqn))
-@test occursin("energy", string(eqn))
-@test occursin("3", string(eqn))
-@test occursin("2", string(eqn))
 
 tree2 = symbolic_to_node(eqn, operators; variable_names=["energy"])
 # SymbolicUtils v4 may reorder commutative operations, so compare by evaluation
-X = [1.5;;]  # Test input
-result1, _ = eval_tree_array(tree, X, operators)
-result2, _ = eval_tree_array(tree2, X, operators)
+X = reshape([1.5, -0.2, 2.0], 1, :)
+expected = sin.(3.0 .* X[1, :]) .+ 2.0
+
+result1, ok1 = eval_tree_array(tree, X, operators)
+result2, ok2 = eval_tree_array(tree2, X, operators)
+@test ok1 && ok2
 @test isapprox(result1, result2)
+@test isapprox(result2, expected; rtol=0, atol=1.0e-12)
 
 # Test variable name conversion with Expression objects
 let
@@ -35,11 +35,16 @@ let
         variable_names=["x", "y"],
     )
 
-    # Test conversion to symbolic form preserves variable names
+    # Test conversion to symbolic form round-trips by evaluation.
     eqn = convert(SymbolicUtils.BasicSymbolic, ex)
-    @test occursin("x", string(eqn))
-    @test occursin("y", string(eqn))
-    @test occursin("sin", string(eqn))
+    operators_roundtrip = OperatorEnum(; unary_operators=(sin,), binary_operators=(+, *, -, /))
+    ex_again = convert(Expression, eqn, operators_roundtrip; variable_names=["x", "y"])
+
+    X = rand(Float64, 2, 10) .+ 1
+    y1, ok1 = eval_tree_array(ex, X)
+    y2, ok2 = eval_tree_array(ex_again, X)
+    @test ok1 && ok2
+    @test y1 ≈ y2
 
     # Test with different variable names in the expression.
     # Use a non-symmetric expression so we can detect any variable swapping,
@@ -51,9 +56,6 @@ let
         variable_names=["alpha", "beta"],
     )
     eqn2 = convert(SymbolicUtils.BasicSymbolic, ex2)
-    @test occursin("alpha", string(eqn2))
-    @test occursin("beta", string(eqn2))
-    @test occursin("2", string(eqn2))
 
     # Test round trip preserves semantics and variable names.
     # SymbolicUtils v4 may reorder commutative operations, so don't require exact `==`.
