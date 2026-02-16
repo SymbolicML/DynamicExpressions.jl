@@ -133,3 +133,4 @@ end
 include("precompile.jl")
 do_precompilation(; mode=:precompile)
 end
+# CI trigger
