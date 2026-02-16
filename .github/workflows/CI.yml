@@ -5,12 +5,14 @@ on:
     branches:
       - '*'
     paths:
+      - 'ext/**'
       - 'test/**'
       - 'src/**'
       - '.github/workflows/**'
       - 'Project.toml'
   pull_request:
     paths:
+      - 'ext/**'
       - 'test/**'
       - 'src/**'
       - '.github/workflows/**'
