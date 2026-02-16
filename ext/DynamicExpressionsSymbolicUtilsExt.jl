@@ -8,7 +8,7 @@ using DynamicExpressions.OperatorEnumModule: AbstractOperatorEnum
 using DynamicExpressions.UtilsModule: deprecate_varmap
 
 using SymbolicUtils
-using SymbolicUtils: BasicSymbolic, SymReal, iscall, issym, isconst, unwrap_const
+using SymbolicUtils: BasicSymbolic, SymReal, iscall, issym, isconst, unwrap_const, term
 
 import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
 import DynamicExpressions.ValueInterfaceModule: is_valid
@@ -68,6 +68,15 @@ function parse_tree_to_eqs(
 
     # Convert children to symbolic form
     sym_children = map(x -> parse_tree_to_eqs(x, operators, index_functions), children)
+
+    # SymbolicUtils v4 may canonicalize some commutative operations at construction time
+    # (e.g. `x*x` -> `x^2`, or reordering `a + b`).
+    #
+    # For stable round-trips (and to avoid introducing `^` when it's not in the operator set),
+    # construct commutative ops as explicit terms.
+    if op === (*) || op === (+)
+        return subs_bad(term(op, sym_children...))
+    end
 
     return subs_bad(op(sym_children...))
 end
@@ -320,11 +329,22 @@ function multiply_powers(
             if n_val == 1
                 return l, true
             elseif n_val == -1
-                return 1.0 / l, true
+                return term(/, 1.0, l), true
             elseif n_val > 1
-                return reduce(*, [l for i in 1:n_val]), true
+                # IMPORTANT: use `term(*, ...)` to prevent SymbolicUtils from immediately
+                # canonicalizing `l*l` back into `l^2`.
+                out = l
+                for _ in 2:n_val
+                    out = term(*, out, l)
+                end
+                return out, true
             elseif n_val < -1
-                return reduce(/, vcat([1], [l for i in 1:abs(n_val)])), true
+                # Build 1/(l*l*...) using explicit multiplication terms.
+                denom = l
+                for _ in 2:abs(n_val)
+                    denom = term(*, denom, l)
+                end
+                return term(/, 1.0, denom), true
             else
                 return 1.0, true
             end
@@ -340,6 +360,11 @@ function multiply_powers(
         r, complete2 = multiply_powers(args[2])
         @return_on_false complete2 eqn
         @return_on_false is_valid(r) eqn
+        # SymbolicUtils v4 normalizes `x*x` into `x^2` via the `*` method; preserve
+        # explicit multiplication terms so we don't introduce `^` during conversion.
+        if op == *
+            return term(op, l, r), true
+        end
         return op(l, r), true
     else
         # return tree_mapreduce(multiply_powers, op, args)
@@ -351,7 +376,8 @@ function multiply_powers(
         end
         cumulator = out[1][1]
         for i in 2:size(out, 1)
-            cumulator = op(cumulator, out[i][1])
+            cumulator =
+                (op == *) ? term(op, cumulator, out[i][1]) : op(cumulator, out[i][1])
             @return_on_false is_valid(cumulator) eqn
         end
         return cumulator, true
