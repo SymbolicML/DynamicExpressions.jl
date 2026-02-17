@@ -78,8 +78,8 @@ m.frozen = !m.frozen
 @test n != m
 
 # Try out an interface for freezing parts of an expression
-freeze!(n) = (n.frozen = true; n)
-thaw!(n) = (n.frozen = false; n)
+freeze!(n) = (n.frozen=true; n)
+thaw!(n) = (n.frozen=false; n)
 
 ex = parse_expression(
     :(x + $freeze!(sin($thaw!(y + 2.1))));

@@ -73,7 +73,9 @@ end
 
 # Const scalar-container unwrapping (SymbolicUtils v4 Const can wrap scalar containers)
 let
-    operators = OperatorEnum(; default_params..., binary_operators=(+, *, -, /), unary_operators=())
+    operators = OperatorEnum(;
+        default_params..., binary_operators=(+, *, -, /), unary_operators=()
+    )
     expr = SymbolicUtils.BasicSymbolicImpl.Const{SymbolicUtils.SymReal}(SVector(1.0))
 
     node = convert(Node, expr, operators)
@@ -86,7 +88,9 @@ end
 
 # Operators excluding `^`: preserve semantics for `x*x` and integer powers
 let
-    operators = OperatorEnum(; default_params..., binary_operators=(+, *, -, /), unary_operators=())
+    operators = OperatorEnum(;
+        default_params..., binary_operators=(+, *, -, /), unary_operators=()
+    )
 
     ex = parse_expression(
         :(x * x);

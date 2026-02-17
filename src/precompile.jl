@@ -1,17 +1,15 @@
 import PrecompileTools: @compile_workload, @setup_workload
 
 macro ignore_domain_error(ex)
-    return esc(
-        quote
-            try
-                $ex
-            catch e
-                if !(e isa DomainError)
-                    rethrow(e)
-                end
+    return esc(quote
+        try
+            $ex
+        catch e
+            if !(e isa DomainError)
+                rethrow(e)
             end
-        end,
-    )
+        end
+    end)
 end
 
 """
@@ -21,8 +19,7 @@ Test all combinations of the given operators and types. Useful for precompilatio
 """
 function test_all_combinations(; binary_operators, unary_operators, turbo, types)
     for binops in binary_operators,
-        unaops in unary_operators,
-        use_turbo in turbo,
+        unaops in unary_operators, use_turbo in turbo,
         T in types
 
         length(binops) == 0 && length(unaops) == 0 && continue
