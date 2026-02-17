@@ -1,4 +1,5 @@
 using SymbolicUtils
+using StaticArrays
 using DynamicExpressions
 using DynamicExpressions: get_operators, get_variable_names
 using Test
@@ -70,6 +71,68 @@ let
     @test y1 ≈ y2
 end
 
+# Const scalar-container unwrapping (SymbolicUtils v4 Const can wrap scalar containers)
+let
+    operators = OperatorEnum(; default_params..., binary_operators=(+, *, -, /), unary_operators=())
+    expr = SymbolicUtils.BasicSymbolicImpl.Const{SymbolicUtils.SymReal}(SVector(1.0))
+
+    node = convert(Node, expr, operators)
+
+    X = rand(Float64, 1, 10) .+ 1
+    y, ok = eval_tree_array(node, X, operators)
+    @test ok
+    @test all(y .== 1.0f0)
+end
+
+# Operators excluding `^`: preserve semantics for `x*x` and integer powers
+let
+    operators = OperatorEnum(; default_params..., binary_operators=(+, *, -, /), unary_operators=())
+
+    ex = parse_expression(
+        :(x * x);
+        binary_operators=[+, *, -, /],
+        unary_operators=Function[],
+        variable_names=["x"],
+    )
+    eqn = convert(SymbolicUtils.BasicSymbolic, ex)
+    ex_again = convert(Expression, eqn, operators; variable_names=["x"])
+
+    X = rand(Float64, 1, 50) .+ 0.1
+    y1, ok1 = eval_tree_array(ex, X)
+    y2, ok2 = eval_tree_array(ex_again, X)
+    @test ok1 && ok2
+    @test y1 ≈ y2
+
+    x = SymbolicUtils.Sym{SymbolicUtils.SymReal}(:x1; type=Number)
+    for n in (0, 1, 2)
+        expr = SymbolicUtils.term(^, x, n)
+        node = convert(Node, expr, operators)
+
+        # SU -> Node -> SU -> Node round-trip should not require `^` in the operator set
+        eqn_rt = node_to_symbolic(node, operators)
+        node_rt = if eqn_rt isa Number
+            convert(Node, eqn_rt, operators)
+        else
+            symbolic_to_node(eqn_rt, operators)
+        end
+
+        X = rand(Float64, 1, 40) .+ 0.1
+        y, ok = eval_tree_array(node_rt, X, operators)
+        @test ok
+        @test y ≈ Float32.(X[1, :] .^ n)
+    end
+
+    x2 = SymbolicUtils.Sym{SymbolicUtils.SymReal}(:x2; type=Number)
+    x3 = SymbolicUtils.Sym{SymbolicUtils.SymReal}(:x3; type=Number)
+    expr = SymbolicUtils.term(*, x, x2, x3)
+    node = convert(Node, expr, operators)
+
+    X = rand(Float64, 3, 40) .+ 0.1
+    y, ok = eval_tree_array(node, X, operators)
+    @test ok
+    @test y ≈ Float32.(X[1, :] .* X[2, :] .* X[3, :])
+end
+
 # Test custom operator round-trip via index_functions
 let
     myop(x, y) = x + 2y
@@ -79,6 +142,8 @@ let
     x2 = Node(; feature=2)
     tree = Node(; op=5, l=x1, r=x2) # myop(x1, x2)
 
+    @test_throws ErrorException node_to_symbolic(tree, operators; index_functions=false)
+
     eqn = node_to_symbolic(tree, operators; index_functions=true)
     tree2 = symbolic_to_node(eqn, operators)
 
@@ -87,18 +152,4 @@ let
     y2, ok2 = eval_tree_array(tree2, X, operators)
     @test ok1 && ok2
     @test y1 ≈ y2
-end
-
-# Regression: `multiply_powers` can turn a call into a numeric atom (e.g. x^0 -> 1.0)
-let
-    operators = OperatorEnum(; default_params..., binary_operators=(+, *, -, /, ^), unary_operators=())
-    x = SymbolicUtils.Sym{SymbolicUtils.SymReal}(:x1; type=Number)
-    expr = SymbolicUtils.term(^, x, 0)
-
-    node = convert(Node, expr, operators)
-
-    X = rand(Float64, 1, 10) .+ 1
-    y, ok = eval_tree_array(node, X, operators)
-    @test ok
-    @test all(isapprox.(y, 1.0; rtol=0, atol=0))
 end

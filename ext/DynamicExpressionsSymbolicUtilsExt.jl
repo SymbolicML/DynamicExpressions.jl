@@ -33,6 +33,17 @@ function is_valid(x::BasicSymbolic)
 end
 subs_bad(x) = is_valid(x) ? x : Inf
 
+function _unwrap_const_number(expr::BasicSymbolic)
+    val = unwrap_const(expr)
+    if val isa Number
+        return val
+    elseif val isa AbstractArray{<:Number} && length(val) == 1
+        return only(val)
+    else
+        error("Unsupported constant type in SymbolicUtils conversion: $(typeof(val))")
+    end
+end
+
 function parse_tree_to_eqs(
     tree::AbstractExpressionNode{T},
     operators::AbstractOperatorEnum,
@@ -165,7 +176,7 @@ function Base.convert(
     variable_names = deprecate_varmap(variable_names, nothing, :convert)
     # Handle constants (v4 wraps numbers in Const variant)
     if isconst(expr)
-        return constructorof(N)(; val=DEFAULT_NODE_TYPE(unwrap_const(expr)))
+        return constructorof(N)(; val=DEFAULT_NODE_TYPE(_unwrap_const_number(expr)))
     end
     # Handle symbols (variables)
     if issym(expr)
@@ -327,7 +338,7 @@ function multiply_powers(
         n = args[2]
         # In SymbolicUtils v4, integer constants are wrapped in Const
         n_val = if isconst(n)
-            unwrap_const(n)
+            _unwrap_const_number(n)
         elseif typeof(n) <: Integer
             n
         else
