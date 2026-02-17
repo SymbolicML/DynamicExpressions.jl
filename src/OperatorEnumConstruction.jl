@@ -387,12 +387,14 @@ defined.
 macro extend_operators(operators, kws...)
     ex = _extend_operators(operators, false, kws, __module__)
     expected_type = AbstractOperatorEnum
-    return esc(quote
-        if !isa($(operators), $expected_type)
-            error("You must pass an operator enum to `@extend_operators`.")
-        end
-        $ex
-    end)
+    return esc(
+        quote
+            if !isa($(operators), $expected_type)
+                error("You must pass an operator enum to `@extend_operators`.")
+            end
+            $ex
+        end,
+    )
 end
 
 """
@@ -406,12 +408,14 @@ and `internal` which is default `false`.
 macro extend_operators_base(operators, kws...)
     ex = _extend_operators(operators, true, kws, __module__)
     expected_type = AbstractOperatorEnum
-    return esc(quote
-        if !isa($(operators), $expected_type)
-            error("You must pass an operator enum to `@extend_operators_base`.")
-        end
-        $ex
-    end)
+    return esc(
+        quote
+            if !isa($(operators), $expected_type)
+                error("You must pass an operator enum to `@extend_operators_base`.")
+            end
+            $ex
+        end,
+    )
 end
 
 """

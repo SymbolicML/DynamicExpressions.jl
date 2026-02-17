@@ -95,7 +95,7 @@ to every constant in the expression.
     the gradient, and whether the evaluation completed as normal (or encountered a nan or inf).
 """
 function Base.adjoint(tree::AbstractExpressionNode)
-    ((args...; kws...) -> _grad_evaluator(tree, args...; kws...))
+    return ((args...; kws...) -> _grad_evaluator(tree, args...; kws...))
 end
 
 end
