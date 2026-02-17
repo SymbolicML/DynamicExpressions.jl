@@ -88,3 +88,17 @@ let
     @test ok1 && ok2
     @test y1 ≈ y2
 end
+
+# Regression: `multiply_powers` can turn a call into a numeric atom (e.g. x^0 -> 1.0)
+let
+    operators = OperatorEnum(; default_params..., binary_operators=(+, *, -, /, ^), unary_operators=())
+    x = SymbolicUtils.Sym{SymbolicUtils.SymReal}(:x1; type=Number)
+    expr = SymbolicUtils.term(^, x, 0)
+
+    node = convert(Node, expr, operators)
+
+    X = rand(Float64, 1, 10) .+ 1
+    y, ok = eval_tree_array(node, X, operators)
+    @test ok
+    @test all(isapprox.(y, 1.0; rtol=0, atol=0))
+end

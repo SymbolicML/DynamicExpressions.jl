@@ -192,6 +192,14 @@ function Base.convert(
         expr = y
     end
 
+    # `multiply_powers` may simplify to an atom (e.g. `x^0` -> `1.0`). Re-handle atoms
+    # before calling `SymbolicUtils.operation`.
+    if expr isa Number
+        return convert(N, expr, operators; variable_names)
+    elseif expr isa BasicSymbolic && !iscall(expr)
+        return convert(N, expr, operators; variable_names)
+    end
+
     op = convert_to_function(SymbolicUtils.operation(expr), operators)
     args = SymbolicUtils.arguments(expr)
 
