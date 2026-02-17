@@ -236,7 +236,7 @@ function benchmark_utilities()
             [get_set_constants!(ex) for ex in exs],
             seconds = 10.0,
             setup = (
-                operators = ($operators);
+                operators = $operators;
                 ntrees = 100;
                 n = 20;
                 n_features = 5;
