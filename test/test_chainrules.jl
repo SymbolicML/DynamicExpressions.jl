@@ -102,9 +102,16 @@ let
     @extend_operators operators
     x1 = Node(Float64; feature=1)
 
-    nan_forward = bad_op(x1 + 0.5)
-    undefined_grad = undefined_grad_op(x1 + 0.5)
-    nan_grad = bad_grad_op(x1)
+    # Build these nodes explicitly rather than calling `bad_op(::Node)` directly.
+    # On Julia 1.12, relying on `@extend_operators` to intercept this call has been
+    # flaky across platforms (it may fall back to the generic `bad_op` and attempt
+    # to evaluate `x > 0.0` with `x::Node`).
+    op_idx(f) = something(findfirst(==(f), operators.unaops))
+    mk_unary(f, l) = typeof(l)(; op=op_idx(f), l)
+
+    nan_forward = mk_unary(bad_op, x1 + 0.5)
+    undefined_grad = mk_unary(undefined_grad_op, x1 + 0.5)
+    nan_grad = mk_unary(bad_grad_op, x1)
 
     function eval_tree(X, tree)
         y, _ = eval_tree_array(tree, X, operators)
