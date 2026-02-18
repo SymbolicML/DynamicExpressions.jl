@@ -90,9 +90,7 @@ function test_all_combinations(; binary_operators, unary_operators, turbo, types
 end
 
 function test_functions_on_trees(::Type{T}, operators) where {T}
-    local x, c
-    # Initialize `tree` so static analyzers (JET) don't think it might be undefined.
-    tree = Node(Float64; val=0.0)
+    local x, c, tree
     num_unaops = length(operators.unaops)
     num_binops = length(operators.binops)
     @assert num_unaops > 0 && num_binops > 0
