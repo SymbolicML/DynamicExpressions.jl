@@ -32,6 +32,7 @@ if "jet" in test_name
                     ignored_modules=(
                         DynamicExpressions.NonDifferentiableDeclarationsModule,
                         DynamicExpressions.ValueInterfaceModule,
+                        DynamicExpressions.OperatorEnumConstructionModule,
                     ),
                 )
             catch err
@@ -43,6 +44,7 @@ if "jet" in test_name
                         ignored_modules=(
                             DynamicExpressions.NonDifferentiableDeclarationsModule,
                             DynamicExpressions.ValueInterfaceModule,
+                            DynamicExpressions.OperatorEnumConstructionModule,
                         ),
                     )
                 else
