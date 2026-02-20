@@ -10,7 +10,9 @@ import ..NodeModule:
     unsafe_get_children,
     get_child,
     set_child!,
-    set_children!
+    set_children!,
+    branch_equal,
+    leaf_equal
 
 """Array-backed arena storing the fields of a tree node in a struct-of-arrays form.
 
@@ -55,10 +57,14 @@ Core fields are accessed and mutated via `getproperty`/`setproperty!`.
 struct ArenaNode{T,D} <: AbstractExpressionNode{T,D}
     arena::Arena{T,D}
     idx::Int32
+
+    @inline function ArenaNode{T,D}(arena::Arena{T,D}, idx::Int32) where {T,D}
+        return new{T,D}(arena, idx)
+    end
 end
 
-@inline ArenaNode(arena::Arena{T,D}, idx::Integer) where {T,D} =
-    ArenaNode{T,D}(arena, Int32(idx))
+@inline ArenaNode(arena::Arena{T,D}, idx::Int32) where {T,D} =
+    ArenaNode{T,D}(arena, idx)
 
 @inline function _zero_children(::Val{D}) where {D}
     return ntuple(_ -> Int32(0), Val(D))
@@ -179,6 +185,37 @@ end
     end
 end
 
+# DispatchDoctor's `@stable` checking is based on type inference from argument *types*,
+# and does not consider constant propagation of `getproperty(x, ::Symbol)`. Define
+# ArenaNode-specific equality helpers that access the underlying arena directly.
+@inline function branch_equal(a::ArenaNode{T,D}, b::ArenaNode{T,D})::Bool where {T,D}
+    arena_a = getfield(a, :arena)
+    arena_b = getfield(b, :arena)
+    ia = Int(getfield(a, :idx))
+    ib = Int(getfield(b, :idx))
+    @inbounds return arena_a.op[ia] == arena_b.op[ib]
+end
+
+@inline function leaf_equal(
+    a::ArenaNode{T1,D}, b::ArenaNode{T2,D}
+)::Bool where {T1,T2,D}
+    arena_a = getfield(a, :arena)
+    arena_b = getfield(b, :arena)
+    ia = Int(getfield(a, :idx))
+    ib = Int(getfield(b, :idx))
+
+    @inbounds begin
+        const_a = arena_a.constant[ia]
+        const_b = arena_b.constant[ib]
+        const_a == const_b || return false
+        if const_a
+            return arena_a.val[ia]::T1 == arena_b.val[ib]::T2
+        else
+            return arena_a.feature[ia] == arena_b.feature[ib]
+        end
+    end
+end
+
 """Return an `NTuple{D,Nullable{ArenaNode}}` of children wrappers.
 
 Unused slots are represented as poison nodes (mirroring `Node`), so that
@@ -225,7 +262,7 @@ end
 end
 
 @inline function set_children!(
-    n::ArenaNode{T,D}, children::Union{Tuple,AbstractVector}
+    n::ArenaNode{T,D}, children::Union{Tuple,AbstractVector{<:AbstractNode{D}}}
 ) where {T,D}
     D2 = length(children)
     idxs = _zero_children(Val(D))
@@ -291,22 +328,22 @@ function arena_from_tree(tree::AbstractExpressionNode{T,D}) where {T,D}
 end
 
 """Convert an arena-backed node back into a heap-allocated `Node` tree."""
-function tree_from_arena(tree::ArenaNode{T,D}) where {T,D}
-    function rebuild(n::ArenaNode{T,D})
-        d = n.degree
-        if d == 0
-            return n.constant ? Node{T,D}(; val=n.val) : Node{T,D}(T; feature=n.feature)
-        else
-            # Use a vector here to avoid `Val(d)` with runtime `d`.
-            cs = Vector{Node{T,D}}(undef, Int(d))
-            @inbounds for i in 1:Int(d)
-                cs[i] = rebuild(get_child(n, i))
-            end
-            return Node{T,D}(T; op=n.op, children=cs)
+@inline function _tree_from_arena(n::ArenaNode{T,D})::Node{T,D} where {T,D}
+    d = n.degree
+    if d == 0
+        return n.constant ? Node{T,D}(; val=n.val) : Node{T,D}(T; feature=n.feature)
+    else
+        # Use a vector here to avoid `Val(d)` with runtime `d`.
+        cs = Vector{Node{T,D}}(undef, Int(d))
+        @inbounds for i in 1:Int(d)
+            cs[i] = _tree_from_arena(get_child(n, i))
         end
+        return Node{T,D}(T; op=n.op, children=cs)
     end
+end
 
-    return rebuild(tree)
+function tree_from_arena(tree::ArenaNode{T,D}) where {T,D}
+    return _tree_from_arena(tree)
 end
 
 ################################################################################
@@ -492,8 +529,9 @@ function rewrite_commutative_constants_right!(tree::ArenaNode{T,D}, operators) w
     reset!(cursor, tree)
 
     while true
-        node = next!(cursor)
-        node === nothing && break
+        maybe_node = next!(cursor)
+        maybe_node.null && break
+        node = maybe_node[]
 
         node.degree == 2 || continue
         f = operators.binops[node.op]
@@ -637,7 +675,7 @@ function tree_mapreduce_postfix_with_stack(
     sizehint!(stack, root_idx)
 
     @inbounds for i in 1:root_idx
-        node = ArenaNode(tree.arena, i)
+        node = ArenaNode(tree.arena, Int32(i))
         d = node.degree
         if d == 0
             push!(stack, f_leaf(node)::R)
@@ -679,8 +717,9 @@ mutable struct ArenaCursor{T,D}
     end
 end
 
-@inline ArenaCursor(tree::ArenaNode{T,D}; capacity::Integer=0) where {T,D} =
-    ArenaCursor(tree.arena; capacity)
+@inline function ArenaCursor(tree::ArenaNode{T,D}; capacity::Integer=0) where {T,D}
+    return ArenaCursor(tree.arena; capacity=capacity)::ArenaCursor{T,D}
+end
 
 """Reset the cursor stack to start a preorder traversal at `root`."""
 @inline function reset!(c::ArenaCursor{T,D}, root::Int32) where {T,D}
@@ -691,11 +730,13 @@ end
 @inline reset!(c::ArenaCursor, root::ArenaNode) = reset!(c, root.idx)
 
 """Pop the next node in preorder (or return `nothing` when done)."""
-function next!(c::ArenaCursor{T,D}) where {T,D}
-    isempty(c.stack) && return nothing
+function next!(c::ArenaCursor{T,D})::Nullable{ArenaNode{T,D}} where {T,D}
+    if isempty(c.stack)
+        return Nullable(true, ArenaNode{T,D}(c.arena, Int32(0)))
+    end
 
     idx = pop!(c.stack)
-    n = ArenaNode{T,D}(c.arena, idx)
+    node = ArenaNode{T,D}(c.arena, idx)
 
     # Push children in reverse order so the leftmost child is visited next.
     d = @inbounds c.arena.degree[Int(idx)]
@@ -707,7 +748,7 @@ function next!(c::ArenaCursor{T,D}) where {T,D}
         end
     end
 
-    return n
+    return Nullable(false, node)
 end
 
 """Traverse a tree in preorder using a reusable cursor."""
@@ -717,9 +758,9 @@ function foreach_preorder!(f, root::ArenaNode{T,D}, cursor::ArenaCursor{T,D}) wh
 
     reset!(cursor, root)
     while true
-        n = next!(cursor)
-        n === nothing && break
-        f(n)
+        maybe_n = next!(cursor)
+        maybe_n.null && break
+        f(maybe_n[])
     end
     return nothing
 end
