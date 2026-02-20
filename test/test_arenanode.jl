@@ -117,7 +117,7 @@ const AN = DynamicExpressions.ArenaNodeModule
         @test string_tree(atree_pf, operators) == string_tree(atree, operators)
         y_pf, ok_pf = eval_tree_array(atree_pf, X, operators)
         @test ok_pf
-        @test y_pf ≈ y_tree
+        @test y_pf ≈ y_mut
 
         # Minimal rewrite prototype should preserve postfix validity:
         tree_constleft = 3.2 * x1
@@ -134,4 +134,82 @@ const AN = DynamicExpressions.ArenaNodeModule
         @test ok_after
         @test y_after ≈ y_before
     end
+
+    @testset "Arena allocations" begin
+        # DispatchDoctor checks in the test environment can dominate allocation counts.
+        # Measure these low-level allocation properties in a fresh process using the
+        # package project (dispatch doctor disabled by default there).
+        project_root = normpath(joinpath(@__DIR__, ".."))
+
+        alloc_script = raw"""
+            local_prefs = joinpath(dirname(Base.active_project()), "LocalPreferences.toml")
+            prefs_text = string(
+                "[DynamicExpressions]\n",
+                "dispatch_doctor_mode = ",
+                repr("disable"),
+                "\n",
+            )
+            write(local_prefs, prefs_text)
+            atexit(() -> rm(local_prefs; force=true))
+
+            using DynamicExpressions
+            const AN = DynamicExpressions.ArenaNodeModule
+
+            operators = OperatorEnum(1 => (sin, cos), 2 => (+, *))
+            x1 = DynamicExpressions.Node{Float64}(; feature=1)
+
+            function alloc_push_constant!(arena)
+                AN.push_constant!(arena, 1.0)
+                return nothing
+            end
+
+            function alloc_set_child!(parent, child)
+                set_child!(parent, child, 1)
+                return nothing
+            end
+
+            function alloc_copy_tree!(arena, tree)
+                AN._copy_to_arena!(arena, tree)
+                return nothing
+            end
+
+            arena_push = AN.Arena{Float64,2}(; capacity=16)
+
+            base_tree = sin(x1)
+            parent_arena = AN.Arena{Float64,2}(; capacity=16)
+            parent_idx = AN._copy_to_arena!(parent_arena, base_tree)
+            parent = AN.ArenaNode(parent_arena, parent_idx)
+
+            child_tree = x1 * 3.2
+            child_arena = AN.Arena{Float64,2}(; capacity=16)
+            child_idx = AN._copy_to_arena!(child_arena, child_tree)
+            child = AN.ArenaNode(child_arena, child_idx)
+
+            tree_large = sin(x1) + x1 * 3.2 + cos(x1)
+            arena_large = AN.Arena{Float64,2}(; capacity=64)
+
+            alloc_push_constant!(arena_push) # warmup
+            alloc_set_child!(parent, child) # warmup
+            alloc_copy_tree!(arena_large, tree_large) # warmup
+
+            println("push_constant=$(@allocated alloc_push_constant!(arena_push))")
+            println("set_child=$(@allocated alloc_set_child!(parent, child))")
+            println("copy_tree=$(@allocated alloc_copy_tree!(arena_large, tree_large))")
+        """
+
+        julia_bin = joinpath(Sys.BINDIR, Base.julia_exename())
+        cmd = `$(julia_bin) --startup-file=no --project=$(project_root) -e $(alloc_script)`
+        out = read(cmd, String)
+
+        allocs = Dict{String,Int}()
+        for m in eachmatch(r"(push_constant|set_child|copy_tree)=(\d+)", out)
+            allocs[m.captures[1]] = parse(Int, m.captures[2])
+        end
+
+        @test all(k -> haskey(allocs, k), ("push_constant", "set_child", "copy_tree"))
+        @test allocs["push_constant"] <= 1024
+        @test allocs["set_child"] <= 1024
+        @test allocs["copy_tree"] <= 1024
+    end
+
 end

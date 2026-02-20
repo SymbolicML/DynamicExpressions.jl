@@ -17,6 +17,8 @@ import ..NodeModule:
 import ..ValueInterfaceModule:
     pack_scalar_constants!, unpack_scalar_constants, count_scalar_constants, get_number_type
 
+import ..ArenaNodeModule: ArenaNode, ArenaCursor, reset!, next!
+
 """
     count_depth(tree::AbstractNode)::Int
 
@@ -70,7 +72,25 @@ has_operators(tree::AbstractExpressionNode) = tree.degree != 0
 Check if an expression is a constant numerical value, or
 whether it depends on input features.
 """
-is_constant(tree::AbstractExpressionNode) = all(t -> t.degree != 0 || t.constant, tree)
+is_constant(tree::AbstractExpressionNode) = !any(t -> t.degree == 0 && !t.constant, tree)
+
+# Specialized implementation for arena-backed nodes to keep DispatchDoctor inference concrete.
+function is_constant(tree::ArenaNode{T,D}) where {T,D}
+    cursor = ArenaCursor(tree; capacity=Int(getfield(tree, :idx)))
+    reset!(cursor, tree)
+    while true
+        maybe_n = next!(cursor)
+        maybe_n.null && break
+        n = maybe_n[]
+        arena = getfield(n, :arena)
+        i = Int(getfield(n, :idx))
+        d = @inbounds arena.degree[i]
+        if d == 0
+            @inbounds arena.constant[i] || return false
+        end
+    end
+    return true
+end
 
 """
     count_scalar_constants(tree::AbstractExpressionNode{T})::Int64 where {T}
