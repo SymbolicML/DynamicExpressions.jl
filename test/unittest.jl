@@ -134,3 +134,7 @@ include("test_structured_expression.jl")
 include("test_zygote_gradient_wrapper.jl")
 include("test_supposition_consistency.jl")
 include("test_n_arity_nodes.jl")
+
+@testitem "Test arena-backed node prototype" begin
+    include("test_arenanode.jl")
+end
