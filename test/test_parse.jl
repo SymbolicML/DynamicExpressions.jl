@@ -76,6 +76,33 @@ end
     @test ex.tree.children[2].x.op == 1
 end
 
+@testitem "String parse treats Julia imaginary unit `im` as a constant" begin
+    using DynamicExpressions
+    using Test
+
+    operators = OperatorEnum(2 => [+, -, *, /])
+
+    ex = parse_expression("0.1im + x"; operators, variable_names=["x"])
+    @test typeof(ex) <: Expression
+
+    function count_vars(n)
+        if n.degree == 0
+            return n.constant ? 0 : 1
+        end
+        s = 0
+        for i in 1:Int(n.degree)
+            s += count_vars(n.children[i].x)
+        end
+        return s
+    end
+
+    @test count_vars(ex.tree) == 1
+
+    ex2 = parse_expression("im + x2"; operators, variable_names=["im", "x2"])
+    @test typeof(ex2) <: Expression
+    @test count_vars(ex2.tree) == 2
+end
+
 @testitem "Can also parse just a float" begin
     using DynamicExpressions
     operators = OperatorEnum()  # Tests empty operators
