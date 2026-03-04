@@ -117,7 +117,7 @@ end
     X2 = reshape(Float32[2, 3], 2, :)
     y2 = ex2(X2)
     @test eltype(y2) == Float32
-    @test y2[1] == 5f0
+    @test y2[1] == 5.0f0
 end
 
 @testitem "Can also parse just a float" begin
