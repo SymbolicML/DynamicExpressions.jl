@@ -203,7 +203,7 @@ end
 
 @unstable @inline _replace_imaginary_unit_symbol(ex) = ex
 @unstable @inline _replace_imaginary_unit_symbol(ex::Symbol) = ex === :im ? im : ex
-@unstable @inline function _replace_imaginary_unit_symbol(ex::Expr)
+@inline function _replace_imaginary_unit_symbol(ex::Expr)
     return Expr(ex.head, map(_replace_imaginary_unit_symbol, ex.args)...)
 end
 
