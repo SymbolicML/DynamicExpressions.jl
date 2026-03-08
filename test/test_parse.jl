@@ -48,7 +48,9 @@ end
     using DynamicExpressions
     using Test
 
-    operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[], define_helper_functions=false)
+    operators = OperatorEnum(;
+        binary_operators=[+, -, *, /], unary_operators=[], define_helper_functions=false
+    )
 
     ex = parse_expression("0.1im + x"; operators, variable_names=["x"])
     @test typeof(ex) <: Expression{ComplexF64}
@@ -56,12 +58,11 @@ end
     function count_vars(n)
         if n.degree == 0
             return n.constant ? 0 : 1
+        elseif n.degree == 1
+            return count_vars(n.l)
+        else
+            return count_vars(n.l) + count_vars(n.r)
         end
-        s = 0
-        for i in 1:Int(n.degree)
-            s += count_vars(n.children[i].x)
-        end
-        return s
     end
 
     @test count_vars(ex.tree) == 1
