@@ -201,13 +201,13 @@ end
     )
 end
 
-@unstable @inline _replace_imaginary_unit_symbol(ex) = ex
-@unstable @inline _replace_imaginary_unit_symbol(ex::Symbol) = ex === :im ? im : ex
-@inline function _replace_imaginary_unit_symbol(ex::Expr)
+_replace_imaginary_unit_symbol(ex) = ex
+@unstable _replace_imaginary_unit_symbol(ex::Symbol) = ex === :im ? im : ex
+function _replace_imaginary_unit_symbol(ex::Expr)
     return Expr(ex.head, map(_replace_imaginary_unit_symbol, ex.args)...)
 end
 
-@unstable @inline function _normalize_expression_for_parse(
+@unstable function _normalize_expression_for_parse(
     ex, variable_names::Union{AbstractVector{<:AbstractString},Nothing}
 )
     if variable_names !== nothing && ("im" in variable_names)
