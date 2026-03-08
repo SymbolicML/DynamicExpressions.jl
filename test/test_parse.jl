@@ -48,7 +48,7 @@ end
     using DynamicExpressions
     using Test
 
-    operators = OperatorEnum(2 => [+, -, *, /])
+    operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[], define_helper_functions=false)
 
     ex = parse_expression("0.1im + x"; operators, variable_names=["x"])
     @test typeof(ex) <: Expression{ComplexF64}
