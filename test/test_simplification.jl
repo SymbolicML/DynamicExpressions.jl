@@ -1,7 +1,7 @@
 include("test_params.jl")
 using DynamicExpressions, Test
 import DynamicExpressions.StringsModule: strip_brackets
-import SymbolicUtils: simplify, Symbolic
+import SymbolicUtils: simplify, BasicSymbolic
 import Random: MersenneTwister
 import Base: ≈
 
@@ -27,7 +27,7 @@ operators = OperatorEnum(; binary_operators=binary_operators)
 tree = Node("x1") + Node("x1")
 
 # Should simplify to 2*x1:
-eqn = convert(Symbolic, tree, operators)
+eqn = convert(BasicSymbolic, tree, operators)
 eqn2 = simplify(eqn)
 # Should correctly simplify to 2 x1:
 # (although it might use 2(x1^1))
@@ -44,7 +44,7 @@ tree = convert(Node, eqn2, operators)
 # Finally, let's try converting a product, and ensure
 # that SymbolicUtils does not convert it to a power:
 tree = Node("x1") * Node("x1")
-eqn = convert(Symbolic, tree, operators)
+eqn = convert(BasicSymbolic, tree, operators)
 @test repr(eqn) ≈ "x1*x1"
 # Test converting back:
 tree_copy = convert(Node, eqn, operators)
@@ -70,7 +70,7 @@ tree = (
     )
 )
 # We use `index_functions` to avoid converting the custom operators into the primitives.
-eqn = convert(Symbolic, tree, operators; index_functions=true)
+eqn = convert(BasicSymbolic, tree, operators; index_functions=true)
 
 tree_copy = convert(Node, eqn, operators)
 tree_copy2 = convert(Node, simplify(eqn), operators)

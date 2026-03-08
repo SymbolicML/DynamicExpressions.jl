@@ -91,11 +91,12 @@ end
 
 function test_functions_on_trees(::Type{T}, operators) where {T}
     local x, c, tree
+    tree = Node(Float64; val=0.0)
     num_unaops = length(operators.unaops)
     num_binops = length(operators.binops)
     @assert num_unaops > 0 && num_binops > 0
 
-    for T1 in [Float32, Float64]
+    for T1 in (Float32, Float64)
         x = Node(T1; feature=1)
         c = Node(T1; val=T1(1.0))
 

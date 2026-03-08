@@ -102,9 +102,9 @@ let
     @extend_operators operators
     x1 = Node(Float64; feature=1)
 
-    nan_forward = bad_op(x1 + 0.5)
-    undefined_grad = undefined_grad_op(x1 + 0.5)
-    nan_grad = bad_grad_op(x1)
+    nan_forward = @eval bad_op($(x1 + 0.5))
+    undefined_grad = @eval undefined_grad_op($(x1 + 0.5))
+    nan_grad = @eval bad_grad_op($x1)
 
     function eval_tree(X, tree)
         y, _ = eval_tree_array(tree, X, operators)
