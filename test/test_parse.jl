@@ -44,6 +44,51 @@
     end
 end
 
+@testitem "String parse treats Julia imaginary unit `im` as a constant" begin
+    using DynamicExpressions
+    using Test
+
+    operators = OperatorEnum(;
+        binary_operators=[+, -, *, /], unary_operators=[], define_helper_functions=false
+    )
+
+    ex = parse_expression("0.1im + x"; operators, variable_names=["x"])
+    @test typeof(ex) <: Expression{ComplexF64}
+
+    function count_vars(n)
+        if n.degree == 0
+            return n.constant ? 0 : 1
+        elseif n.degree == 1
+            return count_vars(n.l)
+        else
+            return count_vars(n.l) + count_vars(n.r)
+        end
+    end
+
+    @test count_vars(ex.tree) == 1
+
+    # Check evaluation + eltype
+    Xr = reshape([1.0], 1, :)
+    yr = ex(Xr)
+    @test eltype(yr) == ComplexF64
+    @test yr[1] ≈ 1.0 + 0.1im
+
+    Xc = reshape([1.0 + 2.0im], 1, :)
+    yc = ex(Xc)
+    @test eltype(yc) == ComplexF64
+    @test yc[1] ≈ 1.0 + 2.1im
+
+    # If `"im"` is in `variable_names`, it should be treated as a variable
+    ex2 = parse_expression("im + x2"; operators, variable_names=["im", "x2"])
+    @test typeof(ex2) <: Expression
+    @test count_vars(ex2.tree) == 2
+
+    X2 = reshape(Float32[2, 3], 2, :)
+    y2 = ex2(X2)
+    @test eltype(y2) == Float32
+    @test y2[1] == 5.0f0
+end
+
 @testitem "Can also parse just a float" begin
     using DynamicExpressions
     operators = OperatorEnum()  # Tests empty operators
