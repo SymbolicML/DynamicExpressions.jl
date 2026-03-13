@@ -149,9 +149,17 @@ end
     expr_custom = parse_expression(
         :(myop(x)); unary_operators=[myop], binary_operators=[+, *, /], variable_names=["x"]
     )
-    @test_throws ErrorException node_to_symbolic(
-        expr_custom, operators_custom; index_functions=false
+
+    # If the custom operator is traceable (i.e. it operates on symbolic inputs),
+    # `index_functions=false` should still work by tracing it.
+    eqn_custom_traced = node_to_symbolic(expr_custom, operators_custom; index_functions=false)
+    expr_custom_traced_rt = symbolic_to_node(
+        eqn_custom_traced, operators_custom; variable_names=["x"]
     )
+    @test eval_expr(expr_custom_traced_rt, operators_custom, ["x"], X1) == [3.0]
+
+    # If you want to preserve the custom operator itself for round-tripping, use
+    # `index_functions=true`.
     eqn_custom = node_to_symbolic(expr_custom, operators_custom; index_functions=true)
     expr_custom_rt = symbolic_to_node(eqn_custom, operators_custom; variable_names=["x"])
     @test eval_expr(expr_custom_rt, operators_custom, ["x"], X1) == [3.0]
