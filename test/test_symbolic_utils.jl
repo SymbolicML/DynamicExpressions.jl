@@ -152,7 +152,9 @@ end
 
     # If the custom operator is traceable (i.e. it operates on symbolic inputs),
     # `index_functions=false` should still work by tracing it.
-    eqn_custom_traced = node_to_symbolic(expr_custom, operators_custom; index_functions=false)
+    eqn_custom_traced = node_to_symbolic(
+        expr_custom, operators_custom; index_functions=false
+    )
     expr_custom_traced_rt = symbolic_to_node(
         eqn_custom_traced, operators_custom; variable_names=["x"]
     )
@@ -163,4 +165,31 @@ end
     eqn_custom = node_to_symbolic(expr_custom, operators_custom; index_functions=true)
     expr_custom_rt = symbolic_to_node(eqn_custom, operators_custom; variable_names=["x"])
     @test eval_expr(expr_custom_rt, operators_custom, ["x"], X1) == [3.0]
+
+    # If a custom operator cannot be traced (e.g. no method for symbolic inputs),
+    # `index_functions=false` should throw a clear error rather than a MethodError.
+    float_only(x::Float64) = x + 1
+    operators_float_only = OperatorEnum(;
+        unary_operators=(float_only,), binary_operators=(+, *, /)
+    )
+    expr_float_only = parse_expression(
+        :(float_only(x));
+        unary_operators=[float_only],
+        binary_operators=[+, *, /],
+        variable_names=["x"],
+    )
+    @test_throws ErrorException node_to_symbolic(
+        expr_float_only, operators_float_only; index_functions=false
+    )
+
+    # Non-MethodError exceptions should be rethrown, so downstream code sees the
+    # original failure.
+    boom(x) = throw(ArgumentError("boom"))
+    operators_boom = OperatorEnum(; unary_operators=(boom,), binary_operators=(+, *, /))
+    expr_boom = parse_expression(
+        :(boom(x)); unary_operators=[boom], binary_operators=[+, *, /], variable_names=["x"]
+    )
+    @test_throws ArgumentError node_to_symbolic(
+        expr_boom, operators_boom; index_functions=false
+    )
 end
