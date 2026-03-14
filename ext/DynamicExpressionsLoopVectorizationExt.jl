@@ -215,7 +215,13 @@ function bumper_kern!(
     op::F, cumulators::Tuple{Vararg{Any,degree}}, ::EvalOptions{true,true,early_exit}
 ) where {F,degree,early_exit}
     cumulator_1 = first(cumulators)
-    @turbo @. cumulator_1 = op(cumulators...)
+
+    # Avoid `@turbo @.` here: older LoopVectorization versions (used by downgrade-compat)
+    # can error during macro expansion on vararg tuple construction.
+    @inbounds for j in eachindex(cumulator_1)
+        cumulator_1[j] = op(map(c -> c[j], cumulators)...)
+    end
+
     return cumulator_1
 end
 

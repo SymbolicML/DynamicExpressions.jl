@@ -98,19 +98,30 @@ function parse_tree_to_eqs(
     # Convert children to symbolic form
     sym_children = map(x -> parse_tree_to_eqs(x, operators, index_functions), children)
 
-    # Only a small subset of functions have symbolic methods in SymbolicUtils.
-    # For unsupported operators:
-    # - when `index_functions=true`, we encode them as function-like symbols so they
-    #   can be round-tripped back to operators via their name/arity.
-    # - when `index_functions=false`, we throw a clear error, since attempting to
-    #   construct a SymbolicUtils term headed by an arbitrary function object can
-    #   fail with a MethodError.
+    # SymbolicUtils only defines methods for some Base/stdlib functions, but
+    # user-defined operators may still be traceable if they are written in terms
+    # of symbolic-friendly primitives (e.g. `pow2(x) = x*x`).
+    #
+    # Strategy:
+    # - when `index_functions=true`, we encode operators as function-like symbols so
+    #   they can be round-tripped back to operators via their name/arity.
+    # - when `index_functions=false`, we attempt to *trace* the operator by calling
+    #   it on symbolic children. If this fails with a MethodError, throw a clear
+    #   error instead of a cryptic MethodError.
     if !(op ∈ SUPPORTED_OPS)
         if index_functions
             op = _sym_fn(Symbol(op), tree.degree)
             return subs_bad(op(sym_children...))
         else
-            throw(error("Unsupported operation $(op) in SymbolicUtils conversion"))
+            traced = try
+                op(sym_children...)
+            catch e
+                if e isa MethodError
+                    throw(error("Unsupported operation $(op) in SymbolicUtils conversion"))
+                end
+                rethrow()
+            end
+            return subs_bad(traced)
         end
     end
 
