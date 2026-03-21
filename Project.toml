@@ -1,7 +1,7 @@
 name = "DynamicExpressions"
 uuid = "a40a106e-89c9-4ca8-8020-a735e8728b6b"
+version = "1.10.5"
 authors = ["MilesCranmer <miles.cranmer@gmail.com>"]
-version = "1.10.4"
 
 [deps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
@@ -16,6 +16,7 @@ TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 [weakdeps]
 Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
+NLSolversBase = "d41bc354-129a-5804-8e4c-c37616107c6c"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
@@ -23,7 +24,7 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 [extensions]
 DynamicExpressionsBumperExt = "Bumper"
 DynamicExpressionsLoopVectorizationExt = "LoopVectorization"
-DynamicExpressionsOptimExt = "Optim"
+DynamicExpressionsOptimExt = ["Optim", "NLSolversBase"]
 DynamicExpressionsSymbolicUtilsExt = "SymbolicUtils"
 DynamicExpressionsZygoteExt = "Zygote"
 
@@ -34,7 +35,8 @@ DispatchDoctor = "0.4"
 Interfaces = "0.3"
 LoopVectorization = "0.12"
 MacroTools = "0.4, 0.5"
-Optim = "0.19, 1"
+NLSolversBase = "7, 8"
+Optim = "1, 2"
 PrecompileTools = "1"
 Reexport = "1"
 SymbolicUtils = "4"
@@ -44,6 +46,7 @@ julia = "1.10"
 [extras]
 Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
+NLSolversBase = "d41bc354-129a-5804-8e4c-c37616107c6c"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
