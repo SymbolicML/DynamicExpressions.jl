@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.2](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.5.1...v2.5.2) (2026-03-23)
+
+
+### Bug Fixes
+
+* treat im as imaginary unit in string parsing ([#168](https://github.com/SymbolicML/DynamicExpressions.jl/issues/168)) ([29ebdab](https://github.com/SymbolicML/DynamicExpressions.jl/commit/29ebdab9123f35ee5820799957f39612850baf57))
+
 ## [1.11.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v1.10.4...v1.11.0) (2026-03-21)
 
 ## [1.10.4](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v1.10.3...v1.10.4) (2026-03-08)
