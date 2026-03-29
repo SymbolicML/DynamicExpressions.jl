@@ -25,7 +25,7 @@ jobs:
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          echo "$PR_TITLE" | npx --yes -p @commitlint/cli -p @commitlint/config-conventional commitlint --config commitlint.config.mjs
+          echo "$PR_TITLE" | npx --yes -p @commitlint/cli -p @commitlint/config-conventional commitlint --config .github/commitlint.config.mjs
 
   commits:
     name: commits
@@ -34,4 +34,4 @@ jobs:
       - uses: actions/checkout@v4
       - uses: wagoid/commitlint-github-action@v6
         with:
-          configFile: commitlint.config.mjs
+          configFile: .github/commitlint.config.mjs
