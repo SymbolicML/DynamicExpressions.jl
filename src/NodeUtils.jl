@@ -8,6 +8,7 @@ import ..NodeModule:
     Node,
     preserve_sharing,
     constructorof,
+    with_type_parameters,
     set_children!,
     copy_node,
     count_nodes,
@@ -140,6 +141,29 @@ function set_scalar_constants!(tree::AbstractExpressionNode{T}, constants, refs)
         end
     end
     return tree
+end
+
+"""
+    set_scalar_constants(tree::AbstractExpressionNode{T}, constants) where {T}
+
+Return a *new* tree with scalar constants set (non-mutating).
+
+This is equivalent to `copy(tree)` followed by [`set_scalar_constants!`](@ref),
+but will also promote the tree's number type to accommodate `eltype(constants)`.
+This makes it possible to forward-mode differentiate through constant-setting
+(e.g. with `ForwardDiff.Dual` constants).
+"""
+function set_scalar_constants(tree::AbstractExpressionNode{T}, constants) where {T}
+    Tc = eltype(constants)
+    Tout = promote_type(T, Tc)
+    newtree = if Tout === T
+        copy(tree)
+    else
+        convert(with_type_parameters(typeof(tree), Tout), tree)
+    end
+    _, refs = get_scalar_constants(newtree)
+    set_scalar_constants!(newtree, constants, refs)
+    return newtree
 end
 
 ## Assign index to nodes of a tree
