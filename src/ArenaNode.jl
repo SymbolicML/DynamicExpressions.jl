@@ -63,8 +63,7 @@ struct ArenaNode{T,D} <: AbstractExpressionNode{T,D}
     end
 end
 
-@inline ArenaNode(arena::Arena{T,D}, idx::Int32) where {T,D} =
-    ArenaNode{T,D}(arena, idx)
+@inline ArenaNode(arena::Arena{T,D}, idx::Int32) where {T,D} = ArenaNode{T,D}(arena, idx)
 
 @inline function _zero_children(::Val{D}) where {D}
     return ntuple(_ -> Int32(0), Val(D))
@@ -102,13 +101,7 @@ end
 
 @inline function push_feature!(arena::Arena{T,D}, feature::Integer) where {T,D}
     return _push_node!(
-        arena,
-        UInt8(0),
-        false,
-        zero(T),
-        UInt16(feature),
-        UInt8(0),
-        _zero_children(Val(D)),
+        arena, UInt8(0), false, zero(T), UInt16(feature), UInt8(0), _zero_children(Val(D))
     )
 end
 
@@ -117,15 +110,7 @@ end
 ) where {T,D,N}
     @assert N <= D
     children = ntuple(i -> (i <= N ? child_idxs[i] : Int32(0)), Val(D))
-    return _push_node!(
-        arena,
-        UInt8(N),
-        false,
-        zero(T),
-        UInt16(0),
-        UInt8(op),
-        children,
-    )
+    return _push_node!(arena, UInt8(N), false, zero(T), UInt16(0), UInt8(op), children)
 end
 
 """Create a default node (a `0` constant leaf) in its own fresh arena."""
@@ -196,9 +181,7 @@ end
     @inbounds return arena_a.op[ia] == arena_b.op[ib]
 end
 
-@inline function leaf_equal(
-    a::ArenaNode{T1,D}, b::ArenaNode{T2,D}
-)::Bool where {T1,T2,D}
+@inline function leaf_equal(a::ArenaNode{T1,D}, b::ArenaNode{T2,D})::Bool where {T1,T2,D}
     arena_a = getfield(a, :arena)
     arena_b = getfield(b, :arena)
     ia = Int(getfield(a, :idx))
@@ -216,21 +199,25 @@ end
     end
 end
 
+@inline function _nullable_child(
+    n::ArenaNode{T,D}, c::Int32
+)::Nullable{ArenaNode{T,D}} where {T,D}
+    child = ArenaNode{T,D}(n.arena, c)
+    return Nullable{ArenaNode{T,D}}(c == 0, child)
+end
+
 """Return an `NTuple{D,Nullable{ArenaNode}}` of children wrappers.
 
 Unused slots are represented as poison nodes (mirroring `Node`), so that
 accessing them throws an `UndefRefError`.
 """
-@inline function unsafe_get_children(n::ArenaNode{T,D}) where {T,D}
-    idxs = @inbounds n.arena.children[Int(n.idx)]
-    return ntuple(Val(D)) do j
-        c = idxs[j]
-        if c == 0
-            return poison_node(n)
-        else
-            return Nullable(false, ArenaNode(n.arena, c))
-        end
-    end
+@generated function unsafe_get_children(n::ArenaNode{T,D}) where {T,D}
+    children = [
+        :(_nullable_child(
+            n, @inbounds getfield(n, :arena).children[Int(getfield(n, :idx))][$j]
+        )) for j in 1:D
+    ]
+    return Expr(:tuple, children...)
 end
 
 @inline function get_child(n::ArenaNode{T,D}, i::Int) where {T,D}
@@ -239,15 +226,12 @@ end
     return ArenaNode(n.arena, c)
 end
 
-@inline function set_child!(
-    n::ArenaNode{T,D}, child::AbstractNode{D}, i::Int
-) where {T,D}
-    child isa AbstractExpressionNode{T,D} ||
-        throw(
-            ArgumentError(
-                "ArenaNode children must be AbstractExpressionNode{$T,$D} (got $(typeof(child)))",
-            ),
-        )
+@inline function set_child!(n::ArenaNode{T,D}, child::AbstractNode{D}, i::Int) where {T,D}
+    child isa AbstractExpressionNode{T,D} || throw(
+        ArgumentError(
+            "ArenaNode children must be AbstractExpressionNode{$T,$D} (got $(typeof(child)))",
+        ),
+    )
 
     # We cannot directly link across arenas, so we copy the subtree into `n`'s arena.
     idx = if child isa ArenaNode{T,D} && child.arena === n.arena
@@ -427,9 +411,7 @@ function emit_postfix(tree::ArenaNode{T,D}) where {T,D}
     return PostfixExpr{T,D}(degree, constant, val, feature, op)
 end
 
-@generated function _postfix_pop_children(
-    ::Val{D}, stack::Vector{Int32}, a::Int
-) where {D}
+@generated function _postfix_pop_children(::Val{D}, stack::Vector{Int32}, a::Int) where {D}
     branches = Expr[]
     for k in 1:D
         vars = [Symbol(:c, j) for j in 1:k]
@@ -439,7 +421,12 @@ end
             push!(stmts, :($(vars[j]) = pop!(stack)))
         end
         tup = Expr(:tuple, vars...)
-        push!(branches, :(a == $k && (begin $(stmts...); return $tup; end)))
+        push!(branches, :(a == $k && (
+            begin
+                $(stmts...)
+                return $tup
+            end
+        )))
     end
     return quote
         $(branches...)
@@ -644,12 +631,7 @@ Note: This operates on the implicit postfix order `1:root_idx` and does *not*
 use child pointers.
 """
 @generated function _postfix_apply_op(
-    ::Val{D},
-    op,
-    parent,
-    stack::Vector{R},
-    start::Int,
-    a::Int,
+    ::Val{D}, op, parent, stack::Vector{R}, start::Int, a::Int
 ) where {D,R}
     branches = Expr[]
     for k in 1:D
@@ -664,11 +646,7 @@ use child pointers.
 end
 
 function tree_mapreduce_postfix_with_stack(
-    tree::ArenaNode{T,D},
-    f_leaf,
-    f_branch,
-    op,
-    stack::Vector{R},
+    tree::ArenaNode{T,D}, f_leaf, f_branch, op, stack::Vector{R}
 ) where {T,D,R}
     root_idx = Int(tree.idx)
     empty!(stack)

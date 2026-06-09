@@ -101,11 +101,7 @@ const AN = DynamicExpressions.ArenaNodeModule
 
         depth_stack = Int[]
         depth_postfix = AN.tree_mapreduce_postfix_with_stack(
-            atree,
-            _ -> 1,
-            _ -> 0,
-            (_, children) -> maximum(children) + 1,
-            depth_stack,
+            atree, _ -> 1, _ -> 0, (_, children) -> maximum(children) + 1, depth_stack
         )
         @test depth_postfix == count_depth(atree)
 
@@ -138,8 +134,8 @@ const AN = DynamicExpressions.ArenaNodeModule
     @testset "Arena allocations" begin
         # DispatchDoctor checks in the test environment can dominate allocation counts.
         # Measure these low-level allocation properties in a fresh process using the
-        # package project (dispatch doctor disabled by default there).
-        project_root = normpath(joinpath(@__DIR__, ".."))
+        # active test project with dispatch doctor disabled locally.
+        active_project_dir = dirname(Base.active_project())
 
         alloc_script = raw"""
             local_prefs = joinpath(dirname(Base.active_project()), "LocalPreferences.toml")
@@ -198,7 +194,7 @@ const AN = DynamicExpressions.ArenaNodeModule
         """
 
         julia_bin = joinpath(Sys.BINDIR, Base.julia_exename())
-        cmd = `$(julia_bin) --startup-file=no --project=$(project_root) -e $(alloc_script)`
+        cmd = `$(julia_bin) --startup-file=no --project=$(active_project_dir) -e $(alloc_script)`
         out = read(cmd, String)
 
         allocs = Dict{String,Int}()
@@ -211,5 +207,4 @@ const AN = DynamicExpressions.ArenaNodeModule
         @test allocs["set_child"] <= 1024
         @test allocs["copy_tree"] <= 1024
     end
-
 end

@@ -23,8 +23,14 @@ for _ in 1:5
     eval_tree_array(atree, X, operators)
 end
 
-println("@allocated eval_tree_array(Node):      ", @allocated(eval_tree_array(tree, X, operators)))
-println("@allocated eval_tree_array(ArenaNode): ", @allocated(eval_tree_array(atree, X, operators)))
+println(
+    "@allocated eval_tree_array(Node):      ",
+    @allocated(eval_tree_array(tree, X, operators))
+)
+println(
+    "@allocated eval_tree_array(ArenaNode): ",
+    @allocated(eval_tree_array(atree, X, operators))
+)
 println("@allocated copy(Node):                 ", @allocated(copy(tree)))
 println("@allocated copy(ArenaNode):            ", @allocated(copy(atree)))
 

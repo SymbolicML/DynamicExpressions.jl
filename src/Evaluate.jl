@@ -4,6 +4,7 @@ using DispatchDoctor: @stable, @unstable
 
 import ..NodeModule:
     AbstractExpressionNode, constructorof, get_children, get_child, with_type_parameters
+import ..ArenaNodeModule: ArenaNode, tree_from_arena
 import ..StringsModule: string_tree
 import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperatorEnum
 import ..UtilsModule: fill_similar, counttuple, ResultOk
@@ -240,6 +241,12 @@ function eval_tree_array(
         result.x,
         result.ok && (_eval_options.early_exit isa Val{false} || is_valid_array(result.x)),
     )
+end
+
+function eval_tree_array(
+    tree::ArenaNode{T}, cX::AbstractMatrix{T}, operators::OperatorEnum; kws...
+) where {T}
+    return eval_tree_array(tree_from_arena(tree), cX, operators; kws...)
 end
 
 function eval_tree_array(
