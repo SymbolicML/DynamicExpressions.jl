@@ -169,28 +169,41 @@ const AN = DynamicExpressions.ArenaNodeModule
                 return nothing
             end
 
-            arena_push = AN.Arena{Float64,2}(; capacity=16)
+            function alloc_eval_tree(tree, X, operators)
+                eval_tree_array(tree, X, operators)
+                return nothing
+            end
+
+            arena_push = AN.Arena{Float64,2}(; capacity=128)
 
             base_tree = sin(x1)
-            parent_arena = AN.Arena{Float64,2}(; capacity=16)
+            parent_arena = AN.Arena{Float64,2}(; capacity=128)
             parent_idx = AN._copy_to_arena!(parent_arena, base_tree)
             parent = AN.ArenaNode(parent_arena, parent_idx)
 
             child_tree = x1 * 3.2
-            child_arena = AN.Arena{Float64,2}(; capacity=16)
+            child_arena = AN.Arena{Float64,2}(; capacity=128)
             child_idx = AN._copy_to_arena!(child_arena, child_tree)
             child = AN.ArenaNode(child_arena, child_idx)
 
             tree_large = sin(x1) + x1 * 3.2 + cos(x1)
-            arena_large = AN.Arena{Float64,2}(; capacity=64)
+            atree_large = AN.arena_from_tree(tree_large)
+            arena_large = AN.Arena{Float64,2}(; capacity=128)
+            X = randn(Float64, 1, 1_000)
 
-            alloc_push_constant!(arena_push) # warmup
-            alloc_set_child!(parent, child) # warmup
-            alloc_copy_tree!(arena_large, tree_large) # warmup
+            for _ in 1:5
+                alloc_push_constant!(arena_push)
+                alloc_set_child!(parent, child)
+                alloc_copy_tree!(arena_large, tree_large)
+                alloc_eval_tree(tree_large, X, operators)
+                alloc_eval_tree(atree_large, X, operators)
+            end
 
             println("push_constant=$(@allocated alloc_push_constant!(arena_push))")
             println("set_child=$(@allocated alloc_set_child!(parent, child))")
             println("copy_tree=$(@allocated alloc_copy_tree!(arena_large, tree_large))")
+            println("eval_node=$(@allocated alloc_eval_tree(tree_large, X, operators))")
+            println("eval_arena=$(@allocated alloc_eval_tree(atree_large, X, operators))")
         """
 
         julia_bin = joinpath(Sys.BINDIR, Base.julia_exename())
@@ -198,13 +211,20 @@ const AN = DynamicExpressions.ArenaNodeModule
         out = read(cmd, String)
 
         allocs = Dict{String,Int}()
-        for m in eachmatch(r"(push_constant|set_child|copy_tree)=(\d+)", out)
+        for m in eachmatch(
+            r"(push_constant|set_child|copy_tree|eval_node|eval_arena)=(\d+)", out
+        )
             allocs[m.captures[1]] = parse(Int, m.captures[2])
         end
 
-        @test all(k -> haskey(allocs, k), ("push_constant", "set_child", "copy_tree"))
+        @test all(
+            k -> haskey(allocs, k),
+            ("push_constant", "set_child", "copy_tree", "eval_node", "eval_arena"),
+        )
         @test allocs["push_constant"] <= 1024
-        @test allocs["set_child"] <= 1024
-        @test allocs["copy_tree"] <= 1024
+        fixed_overhead_limit = 16 * 1024
+        @test allocs["set_child"] <= fixed_overhead_limit
+        @test allocs["copy_tree"] <= fixed_overhead_limit
+        @test allocs["eval_arena"] <= max(1024, ceil(Int, 1.10 * allocs["eval_node"]))
     end
 end

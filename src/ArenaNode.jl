@@ -120,27 +120,30 @@ function ArenaNode{T,D}() where {T,D}
     return ArenaNode{T,D}(arena, idx)
 end
 
-@inline function Base.getproperty(n::ArenaNode{T,D}, k::Symbol) where {T,D}
-    if k === :degree
-        return @inbounds n.arena.degree[Int(n.idx)]
-    elseif k === :constant
-        return @inbounds n.arena.constant[Int(n.idx)]
-    elseif k === :val
-        return @inbounds n.arena.val[Int(n.idx)]
-    elseif k === :feature
-        return @inbounds n.arena.feature[Int(n.idx)]
-    elseif k === :op
-        return @inbounds n.arena.op[Int(n.idx)]
-    elseif k === :children
-        return unsafe_get_children(n)
-    elseif k === :l
-        return get_child(n, 1)
-    elseif k === :r
-        return get_child(n, 2)
-    else
-        return getfield(n, k)
-    end
+Base.@constprop :aggressive @inline function Base.getproperty(n::ArenaNode, k::Symbol)
+    return _arena_getproperty(n, Val(k))
 end
+@inline _arena_getproperty(n::ArenaNode, ::Val{:arena}) = getfield(n, :arena)
+@inline _arena_getproperty(n::ArenaNode, ::Val{:idx}) = getfield(n, :idx)
+@inline function _arena_getproperty(n::ArenaNode, ::Val{:degree})
+    return @inbounds getfield(n, :arena).degree[Int(getfield(n, :idx))]
+end
+@inline function _arena_getproperty(n::ArenaNode, ::Val{:constant})
+    return @inbounds getfield(n, :arena).constant[Int(getfield(n, :idx))]
+end
+@inline function _arena_getproperty(n::ArenaNode{T}, ::Val{:val}) where {T}
+    return @inbounds getfield(n, :arena).val[Int(getfield(n, :idx))]::T
+end
+@inline function _arena_getproperty(n::ArenaNode, ::Val{:feature})
+    return @inbounds getfield(n, :arena).feature[Int(getfield(n, :idx))]
+end
+@inline function _arena_getproperty(n::ArenaNode, ::Val{:op})
+    return @inbounds getfield(n, :arena).op[Int(getfield(n, :idx))]
+end
+@inline _arena_getproperty(n::ArenaNode, ::Val{:children}) = unsafe_get_children(n)
+@inline _arena_getproperty(n::ArenaNode, ::Val{:l}) = get_child(n, 1)
+@inline _arena_getproperty(n::ArenaNode, ::Val{:r}) = get_child(n, 2)
+@inline _arena_getproperty(n::ArenaNode, ::Val{k}) where {k} = getfield(n, k)
 
 @inline function Base.setproperty!(n::ArenaNode{T,D}, k::Symbol, v) where {T,D}
     i = Int(n.idx)
@@ -538,19 +541,6 @@ end
 ################################################################################
 # Stack-based traversal/reduction (mirrors symbolic_regression.rs patterns)
 ################################################################################
-
-"""Reusable scratch buffers for stack-based operations on an arena-backed tree."""
-mutable struct ArenaScratch{T,D}
-    # For reductions over nodes (generic element type set by caller).
-    any_stack::Vector{Any}
-    # For subtree size computations (postfix-only utilities).
-    sizes::Vector{Int}
-    size_stack::Vector{Int}
-
-    function ArenaScratch{T,D}() where {T,D}
-        return new{T,D}(Any[], Int[], Int[])
-    end
-end
 
 """Check whether `tree`'s arena prefix `1:tree.idx` is a valid postfix encoding.
 

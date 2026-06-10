@@ -17,7 +17,7 @@ import ..NodeModule:
 import ..ValueInterfaceModule:
     pack_scalar_constants!, unpack_scalar_constants, count_scalar_constants, get_number_type
 
-import ..ArenaNodeModule: ArenaNode, ArenaCursor, reset!, next!
+import ..ArenaNodeModule: ArenaNode
 
 """
     count_depth(tree::AbstractNode)::Int
@@ -74,19 +74,22 @@ whether it depends on input features.
 """
 is_constant(tree::AbstractExpressionNode) = !any(t -> t.degree == 0 && !t.constant, tree)
 
-# Specialized implementation for arena-backed nodes to keep DispatchDoctor inference concrete.
 function is_constant(tree::ArenaNode{T,D}) where {T,D}
-    cursor = ArenaCursor(tree; capacity=Int(getfield(tree, :idx)))
-    reset!(cursor, tree)
-    while true
-        maybe_n = next!(cursor)
-        maybe_n.null && break
-        n = maybe_n[]
-        arena = getfield(n, :arena)
-        i = Int(getfield(n, :idx))
+    arena = getfield(tree, :arena)
+    stack = Int32[getfield(tree, :idx)]
+
+    while !isempty(stack)
+        idx = pop!(stack)
+        i = Int(idx)
         d = @inbounds arena.degree[i]
         if d == 0
             @inbounds arena.constant[i] || return false
+        else
+            child_idxs = @inbounds arena.children[i]
+            @inbounds for j in Int(d):-1:1
+                child_idx = child_idxs[j]
+                child_idx != 0 && push!(stack, child_idx)
+            end
         end
     end
     return true
