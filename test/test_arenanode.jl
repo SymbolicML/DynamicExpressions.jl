@@ -151,6 +151,65 @@
             @test y_after ≈ y_before
         end
 
+        @testset "Expression with ArenaNode" begin
+            using DynamicExpressions: ExpressionInterface, Expression, get_tree
+            using Interfaces: test
+
+            expr = Expression(atree; operators, variable_names=["x"])
+            @test get_tree(expr) === atree
+            @test test(ExpressionInterface, Expression, [expr])
+
+            # Also test with a simpler expression
+            simple_atree = AN.arena_from_tree(x1)
+            simple_expr = Expression(simple_atree; operators, variable_names=["x"])
+            @test test(ExpressionInterface, Expression, [simple_expr])
+        end
+
+        @testset "Derivatives with ArenaNode-based Expression" begin
+            using Zygote
+            using DynamicExpressions: eval_grad_tree_array, extract_gradient
+            using DifferentiationInterface: AutoZygote, gradient
+
+            operators_grad = OperatorEnum(;
+                binary_operators=[+, -, *, /], unary_operators=[sin, cos, exp]
+            )
+            x1g = Node{Float64}(; feature=1)
+            x2g = Node{Float64}(; feature=2)
+            tree_grad = sin(2.0 * x1g + exp(x2g + 5.0))
+            atree_grad = AN.arena_from_tree(tree_grad)
+            expr_grad = Expression(atree_grad; operators=operators_grad, variable_names=[:x1, :x2])
+
+            Xg = rand(Float64, 2, 10) .+ 1
+            expected = @. sin(2.0 * Xg[1, :] + exp(Xg[2, :] + 5.0))
+            expected_dy_dx1 = @. 2.0 * cos(2.0 * Xg[1, :] + exp(Xg[2, :] + 5.0))
+
+            result, ok = eval_tree_array(expr_grad, Xg)
+            @test ok
+            @test result ≈ expected
+
+            # Variable gradients via eval_grad_tree_array
+            result2, grad2, ok2 = eval_grad_tree_array(expr_grad, Xg; variable=Val(true))
+            @test ok2
+            @test grad2[1, :] ≈ expected_dy_dx1
+
+            # Variable gradients via Zygote
+            grad_zygote = expr_grad'(Xg)
+            @test grad_zygote[1, :] ≈ expected_dy_dx1
+
+            # Constant gradients via eval_grad_tree_array
+            arena_const = AN.arena_from_tree(x1g + 1.5)
+            expr_const = Expression(arena_const; operators=OperatorEnum(; binary_operators=[+]), variable_names=["x1"])
+            result3, grad3, ok3 = eval_grad_tree_array(expr_const, ones(1, 5); variable=Val(false))
+            @test ok3
+            @test grad3[1, :] ≈ fill(1.0, 5)
+
+            # Constant gradients via Zygote + DifferentiationInterface
+            d_ex = gradient(AutoZygote(), expr_const) do ex
+                sum(ex(ones(1, 5)))
+            end
+            @test extract_gradient(d_ex, expr_const) ≈ [5.0]
+        end
+
         @testset "Arena allocations" begin
             using PerformanceTestTools
             PerformanceTestTools.include_foreach(
