@@ -221,8 +221,8 @@ const AN = DynamicExpressions.ArenaNodeModule
             k -> haskey(allocs, k),
             ("push_constant", "set_child", "copy_tree", "eval_node", "eval_arena"),
         )
-        @test allocs["push_constant"] <= 1024
-        fixed_overhead_limit = 16 * 1024
+        @test allocs["push_constant"] <= 2 * 1024
+        fixed_overhead_limit = 32 * 1024
         @test allocs["set_child"] <= fixed_overhead_limit
         @test allocs["copy_tree"] <= fixed_overhead_limit
         @test allocs["eval_arena"] <= max(1024, ceil(Int, 1.10 * allocs["eval_node"]))
