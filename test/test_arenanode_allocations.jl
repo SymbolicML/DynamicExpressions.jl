@@ -1,9 +1,6 @@
 local_prefs = joinpath(dirname(Base.active_project()), "LocalPreferences.toml")
 prefs_text = string(
-    "[DynamicExpressions]\n",
-    "dispatch_doctor_mode = ",
-    repr("disable"),
-    "\n",
+    "[DynamicExpressions]\n", "dispatch_doctor_mode = ", repr("disable"), "\n"
 )
 write(local_prefs, prefs_text)
 atexit(() -> rm(local_prefs; force=true))

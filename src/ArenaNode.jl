@@ -109,7 +109,9 @@ end
 ) where {T,D,N}
     @assert N <= D
     children = ntuple(i -> (i <= N ? child_idxs[i] : Int32(0)), Val(D))
-    return _push_node!(arena, UInt8(N), false, _init_value(T), UInt16(0), UInt8(op), children)
+    return _push_node!(
+        arena, UInt8(N), false, _init_value(T), UInt16(0), UInt8(op), children
+    )
 end
 
 """Create a default node (a `0` constant leaf) in its own fresh arena."""
@@ -119,7 +121,9 @@ function ArenaNode{T,D}() where {T,D}
     return ArenaNode{T,D}(arena, idx)
 end
 
-Base.@constprop :aggressive @inline function Base.getproperty(n::ArenaNode{T}, k::Symbol) where {T}
+Base.@constprop :aggressive @inline function Base.getproperty(
+    n::ArenaNode{T}, k::Symbol
+) where {T}
     if k === :arena
         return getfield(n, :arena)
     elseif k === :idx
