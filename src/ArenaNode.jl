@@ -6,7 +6,6 @@ import ..NodeModule:
     AbstractNode,
     AbstractExpressionNode,
     Node,
-    poison_node,
     unsafe_get_children,
     get_child,
     set_child!,
@@ -31,20 +30,12 @@ mutable struct Arena{T,D}
     children::Vector{NTuple{D,Int32}}
 
     function Arena{T,D}(; capacity::Integer=0) where {T,D}
-        degree = UInt8[]
-        constant = Bool[]
-        val = T[]
-        feature = UInt16[]
-        op = UInt8[]
-        children = NTuple{D,Int32}[]
-        if capacity > 0
-            sizehint!(degree, capacity)
-            sizehint!(constant, capacity)
-            sizehint!(val, capacity)
-            sizehint!(feature, capacity)
-            sizehint!(op, capacity)
-            sizehint!(children, capacity)
-        end
+        degree = sizehint!(UInt8[], capacity)
+        constant = sizehint!(Bool[], capacity)
+        val = sizehint!(T[], capacity)
+        feature = sizehint!(UInt16[], capacity)
+        op = sizehint!(UInt8[], capacity)
+        children = sizehint!(NTuple{D,Int32}[], capacity)
         return new{T,D}(degree, constant, val, feature, op, children)
     end
 end
@@ -68,6 +59,8 @@ end
 @inline function _zero_children(::Val{D}) where {D}
     return ntuple(_ -> Int32(0), Val(D))
 end
+
+@inline _init_value(::Type{T}) where {T} = zero(T)
 
 @inline function _push_node!(
     arena::Arena{T,D},
@@ -101,7 +94,13 @@ end
 
 @inline function push_feature!(arena::Arena{T,D}, feature::Integer) where {T,D}
     return _push_node!(
-        arena, UInt8(0), false, zero(T), UInt16(feature), UInt8(0), _zero_children(Val(D))
+        arena,
+        UInt8(0),
+        false,
+        _init_value(T),
+        UInt16(feature),
+        UInt8(0),
+        _zero_children(Val(D)),
     )
 end
 
@@ -110,40 +109,41 @@ end
 ) where {T,D,N}
     @assert N <= D
     children = ntuple(i -> (i <= N ? child_idxs[i] : Int32(0)), Val(D))
-    return _push_node!(arena, UInt8(N), false, zero(T), UInt16(0), UInt8(op), children)
+    return _push_node!(arena, UInt8(N), false, _init_value(T), UInt16(0), UInt8(op), children)
 end
 
 """Create a default node (a `0` constant leaf) in its own fresh arena."""
 function ArenaNode{T,D}() where {T,D}
     arena = Arena{T,D}()
-    idx = push_constant!(arena, zero(T))
+    idx = push_constant!(arena, _init_value(T))
     return ArenaNode{T,D}(arena, idx)
 end
 
-Base.@constprop :aggressive @inline function Base.getproperty(n::ArenaNode, k::Symbol)
-    return _arena_getproperty(n, Val(k))
+Base.@constprop :aggressive @inline function Base.getproperty(n::ArenaNode{T}, k::Symbol) where {T}
+    if k === :arena
+        return getfield(n, :arena)
+    elseif k === :idx
+        return getfield(n, :idx)
+    elseif k === :degree
+        return @inbounds getfield(n, :arena).degree[Int(getfield(n, :idx))]
+    elseif k === :constant
+        return @inbounds getfield(n, :arena).constant[Int(getfield(n, :idx))]
+    elseif k === :val
+        return @inbounds getfield(n, :arena).val[Int(getfield(n, :idx))]::T
+    elseif k === :feature
+        return @inbounds getfield(n, :arena).feature[Int(getfield(n, :idx))]
+    elseif k === :op
+        return @inbounds getfield(n, :arena).op[Int(getfield(n, :idx))]
+    elseif k === :children
+        return unsafe_get_children(n)
+    elseif k === :l
+        return get_child(n, 1)
+    elseif k === :r
+        return get_child(n, 2)
+    else
+        return getfield(n, k)
+    end
 end
-@inline _arena_getproperty(n::ArenaNode, ::Val{:arena}) = getfield(n, :arena)
-@inline _arena_getproperty(n::ArenaNode, ::Val{:idx}) = getfield(n, :idx)
-@inline function _arena_getproperty(n::ArenaNode, ::Val{:degree})
-    return @inbounds getfield(n, :arena).degree[Int(getfield(n, :idx))]
-end
-@inline function _arena_getproperty(n::ArenaNode, ::Val{:constant})
-    return @inbounds getfield(n, :arena).constant[Int(getfield(n, :idx))]
-end
-@inline function _arena_getproperty(n::ArenaNode{T}, ::Val{:val}) where {T}
-    return @inbounds getfield(n, :arena).val[Int(getfield(n, :idx))]::T
-end
-@inline function _arena_getproperty(n::ArenaNode, ::Val{:feature})
-    return @inbounds getfield(n, :arena).feature[Int(getfield(n, :idx))]
-end
-@inline function _arena_getproperty(n::ArenaNode, ::Val{:op})
-    return @inbounds getfield(n, :arena).op[Int(getfield(n, :idx))]
-end
-@inline _arena_getproperty(n::ArenaNode, ::Val{:children}) = unsafe_get_children(n)
-@inline _arena_getproperty(n::ArenaNode, ::Val{:l}) = get_child(n, 1)
-@inline _arena_getproperty(n::ArenaNode, ::Val{:r}) = get_child(n, 2)
-@inline _arena_getproperty(n::ArenaNode, ::Val{k}) where {k} = getfield(n, k)
 
 @inline function Base.setproperty!(n::ArenaNode{T,D}, k::Symbol, v) where {T,D}
     i = Int(n.idx)
@@ -301,7 +301,7 @@ function _copy_to_arena!(arena::Arena{T,D}, tree::AbstractExpressionNode{T,D}) w
     @inbounds for i in 1:Int(d)
         idxs = Base.setindex(idxs, _copy_to_arena!(arena, get_child(tree, i)), i)
     end
-    return _push_node!(arena, UInt8(d), false, zero(T), UInt16(0), tree.op, idxs)
+    return _push_node!(arena, UInt8(d), false, _init_value(T), UInt16(0), tree.op, idxs)
 end
 
 """Convert an existing tree into an arena-backed representation.
