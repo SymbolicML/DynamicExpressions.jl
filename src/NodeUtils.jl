@@ -70,15 +70,7 @@ has_operators(tree::AbstractExpressionNode) = tree.degree != 0
 Check if an expression is a constant numerical value, or
 whether it depends on input features.
 """
-function is_constant(tree::AbstractExpressionNode)
-    return tree_mapreduce(
-        leaf -> leaf.constant,
-        Returns(true),
-        (branch, children...) -> branch && all(children),
-        tree,
-        Bool,
-    )
-end
+is_constant(tree::AbstractExpressionNode) = all(t -> t.degree != 0 || t.constant, tree)
 
 """
     count_scalar_constants(tree::AbstractExpressionNode{T})::Int64 where {T}
