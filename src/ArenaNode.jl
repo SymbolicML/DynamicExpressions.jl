@@ -268,16 +268,12 @@ end
 
 This copies the entire tree into a fresh arena.
 """
-function arena_from_tree(tree::AbstractExpressionNode{T,D}) where {T,D}
-    arena = Arena{T,D}(; capacity=length(tree; break_sharing=Val(true)))
-    idx = _copy_to_arena!(arena, tree)
-    return ArenaNode{T,D}(arena, idx)
-end
-
 @inline function Base.convert(
     ::Type{ArenaNode{T,D}}, tree::AbstractExpressionNode{T,D}
 ) where {T,D}
-    return arena_from_tree(tree)
+    arena = Arena{T,D}(; capacity=length(tree; break_sharing=Val(true)))
+    idx = _copy_to_arena!(arena, tree)
+    return ArenaNode{T,D}(arena, idx)
 end
 @inline function Base.convert(
     ::Type{ArenaNode{T}}, tree::AbstractExpressionNode{T,D}

@@ -39,7 +39,7 @@ child_idx = AN._copy_to_arena!(child_arena, child_tree)
 child = AN.ArenaNode(child_arena, child_idx)
 
 tree_large = sin(x1) + x1 * 3.2 + cos(x1)
-atree_large = AN.arena_from_tree(tree_large)
+atree_large = convert(AN.ArenaNode{Float64}, tree_large)
 arena_large = AN.Arena{Float64,2}(; capacity=128)
 X = randn(Float64, 1, 1_000)
 

@@ -211,16 +211,12 @@ function deg2_r0_eval(
 end
 
 # Interface with Bumper.jl
-@generated function bumper_kern!(
+function bumper_kern!(
     op::F, cumulators::Tuple{Vararg{Any,degree}}, ::EvalOptions{true,true,early_exit}
 ) where {F,degree,early_exit}
-    quote
-        Base.Cartesian.@nexprs($degree, i -> cumulator_i = cumulators[i])
-        @turbo for j in eachindex(cumulator_1)
-            cumulator_1[j] = Base.Cartesian.@ncall($degree, op, i -> cumulator_i[j])
-        end
-        return cumulator_1
-    end
+    cumulator_1 = first(cumulators)
+    @turbo @. cumulator_1 = op(cumulators...)
+    return cumulator_1
 end
 
 end

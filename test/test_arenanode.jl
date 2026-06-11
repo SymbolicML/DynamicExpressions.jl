@@ -85,6 +85,21 @@ end
     set_node!(atree_setnode, atree_setnode2)
     @test string_tree(atree_setnode, operators) == string_tree(atree_setnode2, operators)
 
+    default = AN.ArenaNode{Float64,2}()
+    @test default.degree == 0
+    @test default.constant
+    @test default.val == 0.0
+    default.val = 2
+    default.feature = 1
+    default.op = 2
+    default.constant = false
+    default.degree = 0
+    @test default.val == 2.0
+    @test default.feature == 1
+    @test default.op == 2
+    @test !default.constant
+    @test_throws ArgumentError default.foo = 1
+
     parent = convert(AN.ArenaNode{Float64}, sin(x1))
     other = convert(AN.ArenaNode{Float64}, x1 * 3.2)
     set_child!(parent, other, 1)
@@ -94,12 +109,28 @@ end
     @test ok_parent
     @test y_parent ≈ sin.(X[1, :] .* 3.2)
 
+    @test_throws ArgumentError set_child!(parent, Node{Float32}(; val=1.0f0), 1)
+    @test_throws UndefRefError get_child(convert(AN.ArenaNode{Float64}, x1), 1)
+
+    rewritten = convert(AN.ArenaNode{Float64}, sin(x1))
+    set_children!(rewritten, (convert(AN.ArenaNode{Float64}, x1 * 2.0),))
+    @test get_child(rewritten, 1).arena === rewritten.arena
+    @test string_tree(rewritten, operators) == "sin(x1 * 2.0)"
+
+    bad_children = (
+        DynamicExpressions.Nullable{Node{Float64,2}}(true), Node{Float32}(; val=1.0f0)
+    )
+    @test_throws ArgumentError set_children!(rewritten, bad_children)
+
     tree_fold = Node{Float64}(; val=2.0) + Node{Float64}(; val=3.0)
     atree_fold = convert(AN.ArenaNode{Float64}, tree_fold)
     simplify_tree!(atree_fold, operators)
     @test atree_fold.degree == 0
     @test atree_fold.constant
     @test atree_fold.val == 5.0
+
+    other_cursor = AN.ArenaCursor(convert(AN.ArenaNode{Float64}, x1))
+    @test_throws ArgumentError AN.foreach_preorder!(identity, atree_fold, other_cursor)
 end
 
 @testitem "Expression with ArenaNode" begin
