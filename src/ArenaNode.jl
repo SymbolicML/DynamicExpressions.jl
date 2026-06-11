@@ -92,13 +92,7 @@ end
 
 @inline function push_feature!(arena::Arena{T,D}, feature::Integer) where {T,D}
     return _push_node!(
-        arena,
-        UInt8(0),
-        false,
-        zero(T),
-        UInt16(feature),
-        UInt8(0),
-        _zero_children(Val(D)),
+        arena, UInt8(0), false, zero(T), UInt16(feature), UInt8(0), _zero_children(Val(D))
     )
 end
 
@@ -107,9 +101,7 @@ end
 ) where {T,D,N}
     @assert N <= D
     children = ntuple(i -> (i <= N ? child_idxs[i] : Int32(0)), Val(D))
-    return _push_node!(
-        arena, UInt8(N), false, zero(T), UInt16(0), UInt8(op), children
-    )
+    return _push_node!(arena, UInt8(N), false, zero(T), UInt16(0), UInt8(op), children)
 end
 
 """Create a default node (a `0` constant leaf) in its own fresh arena."""
