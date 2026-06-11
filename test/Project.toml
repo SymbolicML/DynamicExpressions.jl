@@ -29,7 +29,7 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 [compat]
 Aqua = "0.8"
 JET = "0.9, 0.10"
-LoweredCodeUtils = "3.5 - 3.5.99"
+LoweredCodeUtils = "2, 3.4 - 3.5.99"
 TestItems = "1"
 TestItemRunner = "1"
 
