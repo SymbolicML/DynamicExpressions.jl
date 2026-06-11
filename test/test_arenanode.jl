@@ -177,7 +177,9 @@
             x2g = Node{Float64}(; feature=2)
             tree_grad = sin(2.0 * x1g + exp(x2g + 5.0))
             atree_grad = AN.arena_from_tree(tree_grad)
-            expr_grad = Expression(atree_grad; operators=operators_grad, variable_names=[:x1, :x2])
+            expr_grad = Expression(
+                atree_grad; operators=operators_grad, variable_names=[:x1, :x2]
+            )
 
             Xg = rand(Float64, 2, 10) .+ 1
             expected = @. sin(2.0 * Xg[1, :] + exp(Xg[2, :] + 5.0))
@@ -198,8 +200,14 @@
 
             # Constant gradients via eval_grad_tree_array
             arena_const = AN.arena_from_tree(x1g + 1.5)
-            expr_const = Expression(arena_const; operators=OperatorEnum(; binary_operators=[+]), variable_names=["x1"])
-            result3, grad3, ok3 = eval_grad_tree_array(expr_const, ones(1, 5); variable=Val(false))
+            expr_const = Expression(
+                arena_const;
+                operators=OperatorEnum(; binary_operators=[+]),
+                variable_names=["x1"],
+            )
+            result3, grad3, ok3 = eval_grad_tree_array(
+                expr_const, ones(1, 5); variable=Val(false)
+            )
             @test ok3
             @test grad3[1, :] ≈ fill(1.0, 5)
 
