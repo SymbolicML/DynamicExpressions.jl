@@ -33,7 +33,7 @@ JET = "0.9, 0.10, 0.11"
 LoweredCodeUtils = "2, 3.4 - 3.5.99"
 LoopVectorization = "0.12"
 PerformanceTestTools = "0.1"
-SymbolicUtils = "4"
+SymbolicUtils = "4.35"
 TestItems = "1"
 TestItemRunner = "1"
 
