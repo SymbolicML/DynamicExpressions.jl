@@ -120,7 +120,8 @@ end
     @test string_tree(rewritten, operators) == "sin(x1 * 2.0)"
 
     bad_children = (
-        DynamicExpressions.Nullable{Node{Float64,2}}(true), Node{Float32}(; val=1.0f0)
+        DynamicExpressions.Nullable(true, Node{Float64}(; val=0.0)),
+        Node{Float32}(; val=1.0f0),
     )
     @test_throws ArgumentError set_children!(rewritten, bad_children)
 
@@ -205,7 +206,7 @@ end
     @test grad3[1, :] ≈ fill(1.0, 5)
 
     d_ex = gradient(AutoZygote(), expr_const) do ex
-        sum(ex(ones(1, 5)))
+        return sum(ex(ones(1, 5)))
     end
     @test extract_gradient(d_ex, expr_const) ≈ [5.0]
 end
@@ -232,5 +233,123 @@ end
         else
             write(local_prefs, old_prefs)
         end
+    end
+end
+
+@testitem "ArenaNode flat copy and whole-tree fast paths" begin
+    using DynamicExpressions
+    using DynamicExpressions: Node, copy_node
+    using DynamicExpressions.NodePreallocationModule: allocate_container, copy_into!
+
+    const AN = DynamicExpressions.ArenaNodeModule
+
+    operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[sin, cos])
+    x1 = Node{Float64}(; feature=1)
+    x2 = Node{Float64}(; feature=2)
+    tree = sin(x1 * 3.2 - 0.9) + x2 * (x1 - 0.5)
+    atree = convert(AN.ArenaNode{Float64}, tree)
+
+    @testset "compact flat copy" begin
+        @test AN.is_compact_root(atree)
+        c = copy(atree)
+        @test c.arena !== atree.arena
+        @test convert(Node, c) == tree
+        c.l.l.r.val = 99.0
+        @test convert(Node, atree) == tree
+        @test convert(Node, c) != tree
+    end
+
+    @testset "subtree copy falls back and re-compacts" begin
+        sub = atree.l
+        @test !AN.is_compact_root(sub)
+        csub = copy(sub)
+        @test AN.is_compact_root(csub)
+        @test convert(Node, csub) == tree.l
+    end
+
+    @testset "structural mutation invalidates fast paths" begin
+        mutated = convert(AN.ArenaNode{Float64}, tree)
+        set_child!(mutated, convert(AN.ArenaNode{Float64}, cos(x2)), 2)
+        @test !mutated.arena.compact[]
+        expected = copy(tree)
+        set_child!(expected, cos(x2), 2)
+        @test convert(Node, mutated) == expected
+        @test count_nodes(mutated) == count_nodes(expected)
+        @test has_constants(mutated) == has_constants(expected)
+        recompacted = copy(mutated)
+        @test AN.is_compact_root(recompacted)
+        @test count_nodes(recompacted) == count_nodes(expected)
+
+        leafed = convert(AN.ArenaNode{Float64}, tree)
+        node = leafed.r
+        node.degree = 0
+        node.constant = true
+        node.val = 1.0
+        @test !leafed.arena.compact[]
+        expected2 = copy(tree)
+        expected2.r = Node{Float64}(; val=1.0)
+        @test convert(Node, leafed) == expected2
+        @test count_nodes(leafed) == count_nodes(expected2)
+        @test has_constants(leafed) == has_constants(expected2)
+    end
+
+    @testset "preallocated copy_into!" begin
+        dest = allocate_container(atree)
+        out = copy_into!(dest, atree)
+        @test out.arena === dest
+        @test convert(Node, out) == tree
+        out2 = copy_into!(dest, atree)
+        @test convert(Node, out2) == tree
+    end
+
+    @testset "copy_node entry point" begin
+        c = copy_node(atree)
+        @test c.arena !== atree.arena
+        @test convert(Node, c) == tree
+    end
+
+    @testset "Expression-level preallocated copy (SR mutation path)" begin
+        ex = Expression(
+            convert(AN.ArenaNode{Float64}, tree);
+            operators=operators,
+            variable_names=["x1", "x2"],
+        )
+        container = allocate_container(ex)
+        ex2 = copy_into!(container, ex)
+        @test convert(Node, DynamicExpressions.get_tree(ex2)) == tree
+    end
+
+    @testset "whole-tree scans match Node" begin
+        @test count_nodes(atree) == count_nodes(tree)
+        @test count(t -> t.degree == 2, atree) == count(t -> t.degree == 2, tree)
+        @test count(t -> t.degree == 0, atree.l) == count(t -> t.degree == 0, tree.l)
+        @test length(atree) == length(tree)
+        @test count_constant_nodes(atree) == count_constant_nodes(tree)
+        @test has_constants(atree) == has_constants(tree)
+        leaf = convert(AN.ArenaNode{Float64}, Node{Float64}(; feature=1))
+        @test !has_constants(leaf)
+        @test count_constant_nodes(leaf) == 0
+    end
+
+    @testset "scalar constants via arena indices" begin
+        fresh = convert(AN.ArenaNode{Float64}, tree)
+        vals, refs = get_scalar_constants(fresh)
+        @test refs isa Vector{Int32}
+        @test DynamicExpressions.count_scalar_constants(fresh) == length(vals)
+        @test vals == first(get_scalar_constants(tree))
+        set_scalar_constants!(fresh, vals .* 2, refs)
+        @test first(get_scalar_constants(fresh)) == vals .* 2
+
+        # Indices remain valid in flat copies of the tree:
+        c = copy(fresh)
+        set_scalar_constants!(c, vals, refs)
+        @test first(get_scalar_constants(c)) == vals
+
+        # Non-compact trees fall back to the generic Ref-based path:
+        sub = fresh.l
+        vsub, rsub = get_scalar_constants(sub)
+        @test vsub == first(get_scalar_constants(convert(Node, sub)))
+        set_scalar_constants!(sub, vsub .+ 1, rsub)
+        @test first(get_scalar_constants(sub)) == vsub .+ 1
     end
 end
