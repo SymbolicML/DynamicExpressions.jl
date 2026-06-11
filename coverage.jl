@@ -1,6 +1,9 @@
 using Coverage
 
-const EXCLUDED_COVERAGE_FILES = Set([normpath(joinpath(pwd(), "src", "ArenaNode.jl"))])
+const EXCLUDED_COVERAGE_FILES = Set([
+    normpath(joinpath(pwd(), "src", "ArenaNode.jl")),
+    normpath(joinpath(pwd(), "ext", "DynamicExpressionsLoopVectorizationExt.jl")),
+])
 
 function filter_coverage!(coverage)
     return filter!(coverage) do file_coverage
