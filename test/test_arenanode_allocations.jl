@@ -1,10 +1,3 @@
-local_prefs = joinpath(dirname(Base.active_project()), "LocalPreferences.toml")
-prefs_text = string(
-    "[DynamicExpressions]\n", "dispatch_doctor_mode = ", repr("disable"), "\n"
-)
-write(local_prefs, prefs_text)
-atexit(() -> rm(local_prefs; force=true))
-
 using Test
 using DynamicExpressions
 
@@ -58,16 +51,17 @@ for _ in 1:5
     alloc_eval_tree(atree_large, X, operators)
 end
 
-allocs = Dict(
-    "push_constant" => @allocated(alloc_push_constant!(arena_push)),
-    "set_child" => @allocated(alloc_set_child!(parent, child)),
-    "copy_tree" => @allocated(alloc_copy_tree!(arena_large, tree_large)),
+alloc_counts = Dict(
+    "push_constant" => @allocations(alloc_push_constant!(arena_push)),
+    "set_child" => @allocations(alloc_set_child!(parent, child)),
+    "copy_tree" => @allocations(alloc_copy_tree!(arena_large, tree_large)),
+)
+alloc_bytes = Dict(
     "eval_node" => @allocated(alloc_eval_tree(tree_large, X, operators)),
     "eval_arena" => @allocated(alloc_eval_tree(atree_large, X, operators)),
 )
 
-@test allocs["push_constant"] <= 2 * 1024
-fixed_overhead_limit = 32 * 1024
-@test allocs["set_child"] <= fixed_overhead_limit
-@test allocs["copy_tree"] <= fixed_overhead_limit
-@test allocs["eval_arena"] <= max(1024, ceil(Int, 1.10 * allocs["eval_node"]))
+@test alloc_counts["push_constant"] == 0
+@test alloc_counts["set_child"] == 0
+@test alloc_counts["copy_tree"] == 0
+@test alloc_bytes["eval_arena"] <= max(1024, ceil(Int, 1.10 * alloc_bytes["eval_node"]))

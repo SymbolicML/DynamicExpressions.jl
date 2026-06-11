@@ -9,9 +9,7 @@ import ..NodeModule:
     unsafe_get_children,
     get_child,
     set_child!,
-    set_children!,
-    branch_equal,
-    leaf_equal
+    set_children!
 
 """Array-backed arena storing the fields of a tree node in a struct-of-arrays form.
 
@@ -119,15 +117,15 @@ Base.@constprop :aggressive @inline function Base.getproperty(
     elseif k === :idx
         return getfield(n, :idx)
     elseif k === :degree
-        return @inbounds getfield(n, :arena).degree[Int(getfield(n, :idx))]
+        return @inbounds getfield(n, :arena).degree[getfield(n, :idx)]
     elseif k === :constant
-        return @inbounds getfield(n, :arena).constant[Int(getfield(n, :idx))]
+        return @inbounds getfield(n, :arena).constant[getfield(n, :idx)]
     elseif k === :val
-        return @inbounds getfield(n, :arena).val[Int(getfield(n, :idx))]::T
+        return @inbounds getfield(n, :arena).val[getfield(n, :idx)]::T
     elseif k === :feature
-        return @inbounds getfield(n, :arena).feature[Int(getfield(n, :idx))]
+        return @inbounds getfield(n, :arena).feature[getfield(n, :idx)]
     elseif k === :op
-        return @inbounds getfield(n, :arena).op[Int(getfield(n, :idx))]
+        return @inbounds getfield(n, :arena).op[getfield(n, :idx)]
     elseif k === :children
         return unsafe_get_children(n)
     elseif k === :l
@@ -140,7 +138,7 @@ Base.@constprop :aggressive @inline function Base.getproperty(
 end
 
 @inline function Base.setproperty!(n::ArenaNode{T,D}, k::Symbol, v) where {T,D}
-    i = Int(n.idx)
+    i = n.idx
     if k === :degree
         @inbounds n.arena.degree[i] = UInt8(v)
         return v
@@ -167,35 +165,6 @@ end
     end
 end
 
-# DispatchDoctor's `@stable` checking is based on type inference from argument *types*,
-# and does not consider constant propagation of `getproperty(x, ::Symbol)`. Define
-# ArenaNode-specific equality helpers that access the underlying arena directly.
-@inline function branch_equal(a::ArenaNode{T,D}, b::ArenaNode{T,D})::Bool where {T,D}
-    arena_a = getfield(a, :arena)
-    arena_b = getfield(b, :arena)
-    ia = Int(getfield(a, :idx))
-    ib = Int(getfield(b, :idx))
-    @inbounds return arena_a.op[ia] == arena_b.op[ib]
-end
-
-@inline function leaf_equal(a::ArenaNode{T1,D}, b::ArenaNode{T2,D})::Bool where {T1,T2,D}
-    arena_a = getfield(a, :arena)
-    arena_b = getfield(b, :arena)
-    ia = Int(getfield(a, :idx))
-    ib = Int(getfield(b, :idx))
-
-    @inbounds begin
-        const_a = arena_a.constant[ia]
-        const_b = arena_b.constant[ib]
-        const_a == const_b || return false
-        if const_a
-            return arena_a.val[ia]::T1 == arena_b.val[ib]::T2
-        else
-            return arena_a.feature[ia] == arena_b.feature[ib]
-        end
-    end
-end
-
 @inline function _nullable_child(
     n::ArenaNode{T,D}, c::Int32
 )::Nullable{ArenaNode{T,D}} where {T,D}
@@ -210,16 +179,17 @@ accessing them throws an `UndefRefError`.
 """
 @generated function unsafe_get_children(n::ArenaNode{T,D}) where {T,D}
     quote
-        children = @inbounds getfield(n, :arena).children[Int(getfield(n, :idx))]
+        children = @inbounds getfield(n, :arena).children[getfield(n, :idx)]
         return Base.Cartesian.@ntuple($D, j -> _nullable_child(n, children[j]))
     end
 end
 
 @inline function get_child(n::ArenaNode{T,D}, i::Int) where {T,D}
-    c = @inbounds n.arena.children[Int(n.idx)][i]
+    c = @inbounds n.arena.children[n.idx][i]
     c == 0 && throw(UndefRefError())
     return ArenaNode(n.arena, c)
 end
+@inline get_child(n::ArenaNode, i::Integer) = get_child(n, Int(i))
 
 @inline function set_child!(n::ArenaNode{T,D}, child::AbstractNode{D}, i::Int) where {T,D}
     child isa AbstractExpressionNode{T,D} || throw(
@@ -235,8 +205,8 @@ end
         _copy_to_arena!(n.arena, child)
     end
 
-    old = @inbounds n.arena.children[Int(n.idx)]
-    @inbounds n.arena.children[Int(n.idx)] = Base.setindex(old, idx, i)
+    old = @inbounds n.arena.children[n.idx]
+    @inbounds n.arena.children[n.idx] = Base.setindex(old, idx, i)
     return ArenaNode(n.arena, idx)
 end
 
@@ -266,13 +236,12 @@ end
         idxs = Base.setindex(idxs, idx, i)
     end
 
-    @inbounds n.arena.children[Int(n.idx)] = idxs
+    @inbounds n.arena.children[n.idx] = idxs
     return nothing
 end
 
 """Copy a tree into a new arena and return the new root node."""
 function Base.copy(tree::ArenaNode{T,D}; break_sharing::Val{BS}=Val(false)) where {T,D,BS}
-    # Sharing is not supported in ArenaNode; ignore `break_sharing`.
     arena = Arena{T,D}(; capacity=length(tree; break_sharing=Val(true)))
     idx = _copy_to_arena!(arena, tree)
     return ArenaNode{T,D}(arena, idx)
@@ -288,9 +257,8 @@ function _copy_to_arena!(arena::Arena{T,D}, tree::AbstractExpressionNode{T,D}) w
         end
     end
 
-    # Build a full `NTuple{D,Int32}` of copied child indices.
     idxs = _zero_children(Val(D))
-    @inbounds for i in 1:Int(d)
+    @inbounds for i in 1:d
         idxs = Base.setindex(idxs, _copy_to_arena!(arena, get_child(tree, i)), i)
     end
     return _push_node!(arena, UInt8(d), false, zero(T), UInt16(0), tree.op, idxs)
@@ -306,322 +274,15 @@ function arena_from_tree(tree::AbstractExpressionNode{T,D}) where {T,D}
     return ArenaNode{T,D}(arena, idx)
 end
 
-################################################################################
-# Postfix serialization / parsing (debug/roundtrip utilities)
-################################################################################
-
-"""A minimal postfix encoding of a tree.
-
-This stores per-node fields for nodes `1:n` in postfix order (postorder traversal).
-Child pointers are *not* stored; they can be reconstructed deterministically from
-`degree` via a stack-based parse.
-
-Note: these utilities are for round-tripping / debugging and for exploring
-postfix-specific algorithms. They are *not* intended as a core implementation
-strategy (i.e. we should not repeatedly convert between representations to make
-normal operations work).
-"""
-struct PostfixExpr{T,D}
-    degree::Vector{UInt8}
-    constant::Vector{Bool}
-    val::Vector{T}
-    feature::Vector{UInt16}
-    op::Vector{UInt8}
-end
-
-"""Emit a [`PostfixExpr`](@ref) (postorder / postfix) encoding of `tree`.
-
-This traverses the tree via child pointers and emits nodes in postorder, with the
-root last.
-
-!!! note
-    This is intended as a **serialization/debug utility**. It is *not* an execution
-    strategy (i.e. we should not repeatedly convert between representations to make
-    algorithms work).
-"""
-function emit_postfix(tree::ArenaNode{T,D}) where {T,D}
-    a = tree.arena
-
-    # Preallocate using the reachable node count (ignoring potential sharing).
-    n = length(tree; break_sharing=Val(true))
-    degree = sizehint!(UInt8[], n)
-    constant = sizehint!(Bool[], n)
-    val = sizehint!(T[], n)
-    feature = sizehint!(UInt16[], n)
-    op = sizehint!(UInt8[], n)
-
-    # Iterative postorder traversal: (idx, expanded_children?).
-    stack = sizehint!(Tuple{Int32,Bool}[], n)
-    push!(stack, (tree.idx, false))
-
-    while !isempty(stack)
-        idx, expanded = pop!(stack)
-        i = Int(idx)
-        if expanded
-            @inbounds begin
-                push!(degree, a.degree[i])
-                push!(constant, a.constant[i])
-                push!(val, a.val[i])
-                push!(feature, a.feature[i])
-                push!(op, a.op[i])
-            end
-        else
-            push!(stack, (idx, true))
-            d = @inbounds a.degree[i]
-            if d != 0
-                child_idxs = @inbounds a.children[i]
-                @inbounds for j in Int(d):-1:1
-                    c = child_idxs[j]
-                    c != 0 && push!(stack, (c, false))
-                end
-            end
-        end
-    end
-
-    return PostfixExpr{T,D}(degree, constant, val, feature, op)
-end
-
-@generated function _postfix_pop_children(::Val{D}, stack::Vector{Int32}, a::Int) where {D}
-    quote
-        Base.Cartesian.@nif(
-            $D,
-            k -> a == k,
-            k -> begin
-                start = length(stack) - k + 1
-                children = Base.Cartesian.@ntuple(k, j -> stack[start + j - 1])
-                resize!(stack, start - 1)
-                return children
-            end
-        )
-        throw(ArgumentError("invalid arity $a for D=$D"))
-    end
-end
-
-"""Parse a [`PostfixExpr`](@ref) into a fresh arena and return the root `ArenaNode`.
-
-This reconstructs child pointers by replaying the postfix encoding with a stack of
-node indices.
-"""
-function parse_postfix_to_arena(postfix::PostfixExpr{T,D}) where {T,D}
-    n = length(postfix.degree)
-    length(postfix.constant) == n || throw(ArgumentError("mismatched vector lengths"))
-    length(postfix.val) == n || throw(ArgumentError("mismatched vector lengths"))
-    length(postfix.feature) == n || throw(ArgumentError("mismatched vector lengths"))
-    length(postfix.op) == n || throw(ArgumentError("mismatched vector lengths"))
-
-    arena = Arena{T,D}(; capacity=n)
-    stack = Int32[]
-    sizehint!(stack, n)
-
-    @inbounds for i in 1:n
-        d = postfix.degree[i]
-        if d == 0
-            # Leaf nodes.
-            idx = _push_node!(
-                arena,
-                UInt8(0),
-                postfix.constant[i],
-                postfix.val[i],
-                postfix.feature[i],
-                postfix.op[i],
-                _zero_children(Val(D)),
-            )
-            push!(stack, idx)
-        else
-            a = Int(d)
-            (1 <= a <= D) || throw(ArgumentError("invalid arity $a for D=$D"))
-            length(stack) >= a || throw(ArgumentError("invalid postfix encoding"))
-
-            child_idxs = _postfix_pop_children(Val(D), stack, a)
-            idx = push_branch!(arena, postfix.op[i], child_idxs)
-
-            # Preserve any extra fields from the encoding.
-            @inbounds begin
-                arena.constant[Int(idx)] = postfix.constant[i]
-                arena.val[Int(idx)] = postfix.val[i]
-                arena.feature[Int(idx)] = postfix.feature[i]
-            end
-
-            push!(stack, idx)
-        end
-    end
-
-    length(stack) == 1 || throw(ArgumentError("invalid postfix encoding"))
-    root = stack[1]
-    root == Int32(n) || throw(ArgumentError("invalid postfix encoding"))
-    return ArenaNode{T,D}(arena, root)
-end
-
-################################################################################
-# Minimal rewrite prototypes
-################################################################################
-
-# Keep these local to avoid depending on `SimplifyModule` (included later).
-# COV_EXCL_START
-is_commutative(::typeof(*)) = true
-is_commutative(::typeof(+)) = true
-is_commutative(_) = false
-# COV_EXCL_STOP
-
-"""Rewrite commutative binary operators so that constants appear on the right.
-
-This is a minimal in-place rewrite that only swaps child pointers.
-
-!!! note
-    This does **not** rely on any arena index ordering (e.g. postfix layout). It traverses
-    the tree via child pointers.
-
-Since it does not change degrees, any postfix encoding that depends only on `degree`
-(e.g. [`emit_postfix`](@ref)) is preserved.
-"""
-function rewrite_commutative_constants_right!(tree::ArenaNode{T,D}, operators) where {T,D}
-    cursor = ArenaCursor(tree)
-    reset!(cursor, tree)
-
-    while true
-        maybe_node = next!(cursor)
-        maybe_node.null && break
-        node = maybe_node[]
-
-        node.degree == 2 || continue
-        any(pairs(operators.binops)) do (i, op)
-            i == node.op && is_commutative(op)
-        end || continue
-
-        l = get_child(node, 1)
-        r = get_child(node, 2)
-        if l.degree == 0 && l.constant && !(r.degree == 0 && r.constant)
-            set_child!(node, r, 1)
-            set_child!(node, l, 2)
-        end
-    end
-
-    return tree
-end
-
-################################################################################
-# Stack-based traversal/reduction (mirrors symbolic_regression.rs patterns)
-################################################################################
-
-"""Check whether `tree`'s arena prefix `1:tree.idx` is a valid postfix encoding.
-
-This mirrors `is_valid_postfix` in symbolic_regression.rs.
-"""
-function is_valid_postfix(tree::ArenaNode{T,D}) where {T,D}
-    stack::Int = 0
-    @inbounds for i in 1:Int(tree.idx)
-        d = tree.arena.degree[i]
-        if d == 0
-            stack += 1
-        else
-            a = Int(d)
-            a <= 0 && return false
-            stack < a && return false
-            stack = stack - a + 1
-        end
-    end
-    return stack == 1
-end
-
-"""Compute subtree sizes for an arena that is stored in *postfix order*.
-
-This mirrors `subtree_sizes_into` in symbolic_regression.rs.
-
-Assumptions:
-- nodes `1:root_idx` form a valid postfix expression where each operator node
-  consumes `degree` children and produces one result.
-
-Returns `sizes` (also mutated in place).
-"""
-function subtree_sizes_into!(
-    tree::ArenaNode{T,D}, sizes::Vector{Int}, stack::Vector{Int}
+@inline function Base.convert(
+    ::Type{ArenaNode{T,D}}, tree::AbstractExpressionNode{T,D}
 ) where {T,D}
-    root_idx = Int(tree.idx)
-    resize!(sizes, root_idx)
-    empty!(stack)
-    sizehint!(stack, root_idx)
-
-    @inbounds for i in 1:root_idx
-        d = tree.arena.degree[i]
-        if d == 0
-            sizes[i] = 1
-            push!(stack, 1)
-        else
-            a = Int(d)
-            sum = 1
-            for _ in 1:a
-                sum += pop!(stack)
-            end
-            sizes[i] = sum
-            push!(stack, sum)
-        end
-    end
-
-    @assert length(stack) == 1
-    return sizes
+    return arena_from_tree(tree)
 end
-
-"""Return the (start, end) indices (inclusive) of the subtree rooted at `root_idx`.
-
-Indices are 1-based, and assume `sizes` was computed by [`subtree_sizes_into!`](@ref).
-"""
-@inline function subtree_range(sizes::AbstractVector{Int}, root_idx::Int)
-    sz = sizes[root_idx]
-    return (root_idx + 1 - sz, root_idx)
-end
-
-"""Postfix map-reduce over an arena-backed tree with a reusable stack.
-
-This mirrors `tree_mapreduce_with_stack` in symbolic_regression.rs.
-
-- `f_leaf(node)::R`
-- `f_branch(node)::B`
-- `op(parent::B, children::NTuple{n,R})::R` for `n = node.degree`
-
-Note: This operates on the implicit postfix order `1:root_idx` and does *not*
-use child pointers.
-"""
-@generated function _postfix_apply_op(
-    ::Val{D}, op, parent, stack::Vector{R}, start::Int, a::Int
-) where {D,R}
-    quote
-        Base.Cartesian.@nif(
-            $D,
-            k -> a == k,
-            k -> begin
-                children = Base.Cartesian.@ntuple(k, j -> stack[start + j - 1])
-                return op(parent, children)
-            end
-        )
-        throw(ArgumentError("invalid arity $a for D=$D"))
-    end
-end
-
-function tree_mapreduce_postfix_with_stack(
-    tree::ArenaNode{T,D}, f_leaf, f_branch, op, stack::Vector{R}
-) where {T,D,R}
-    root_idx = Int(tree.idx)
-    empty!(stack)
-    sizehint!(stack, root_idx)
-
-    @inbounds for i in 1:root_idx
-        node = ArenaNode(tree.arena, Int32(i))
-        d = node.degree
-        if d == 0
-            push!(stack, f_leaf(node)::R)
-        else
-            a = Int(d)
-            @assert 1 <= a <= D
-            start = length(stack) - a + 1
-            parent = f_branch(node)
-            out = _postfix_apply_op(Val(D), op, parent, stack, start, a)
-            resize!(stack, start - 1)
-            push!(stack, out::R)
-        end
-    end
-
-    @assert length(stack) == 1
-    return pop!(stack)
+@inline function Base.convert(
+    ::Type{ArenaNode{T}}, tree::AbstractExpressionNode{T,D}
+) where {T,D}
+    return convert(ArenaNode{T,D}, tree)
 end
 
 ################################################################################
@@ -668,10 +329,10 @@ function next!(c::ArenaCursor{T,D})::Nullable{ArenaNode{T,D}} where {T,D}
     node = ArenaNode{T,D}(c.arena, idx)
 
     # Push children in reverse order so the leftmost child is visited next.
-    d = @inbounds c.arena.degree[Int(idx)]
+    d = @inbounds c.arena.degree[idx]
     if d != 0
-        child_idxs = @inbounds c.arena.children[Int(idx)]
-        @inbounds for i in Int(d):-1:1
+        child_idxs = @inbounds c.arena.children[idx]
+        @inbounds for i in d:-1:1
             child = child_idxs[i]
             child != 0 && push!(c.stack, child)
         end
