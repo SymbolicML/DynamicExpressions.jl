@@ -31,6 +31,8 @@
         cs = DynamicExpressions.NodeModule.unsafe_get_children(atree)
         @test cs isa NTuple{2,DynamicExpressions.Nullable{typeof(atree)}}
         @test length(get_children(atree, atree.degree)) == atree.degree
+        @test get_child(tree, UInt8(1)) == get_child(tree, 1)
+        @test get_child(atree, UInt8(1)) == get_child(atree, 1)
     end
 
     cursor = AN.ArenaCursor(atree; capacity=count_nodes(atree))

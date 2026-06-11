@@ -184,12 +184,11 @@ accessing them throws an `UndefRefError`.
     end
 end
 
-@inline function get_child(n::ArenaNode{T,D}, i::Int) where {T,D}
+@inline function get_child(n::ArenaNode{T,D}, i::Integer) where {T,D}
     c = @inbounds n.arena.children[n.idx][i]
     c == 0 && throw(UndefRefError())
     return ArenaNode(n.arena, c)
 end
-@inline get_child(n::ArenaNode, i::Integer) = get_child(n, Int(i))
 
 @inline function set_child!(n::ArenaNode{T,D}, child::AbstractNode{D}, i::Int) where {T,D}
     child isa AbstractExpressionNode{T,D} || throw(
