@@ -21,7 +21,7 @@ This is an *experimental prototype* intended to provide an arena-backed represen
 with a `Node`-like facade (`ArenaNode`) that supports existing tree algorithms that are
 written against `AbstractExpressionNode`.
 """
-mutable struct Arena{T,D}
+struct Arena{T,D}
     degree::Vector{UInt8}
     constant::Vector{Bool}
     val::Vector{T}
@@ -60,8 +60,6 @@ end
     return ntuple(_ -> Int32(0), Val(D))
 end
 
-@inline _init_value(::Type{T}) where {T} = zero(T)
-
 @inline function _push_node!(
     arena::Arena{T,D},
     degree::UInt8,
@@ -97,7 +95,7 @@ end
         arena,
         UInt8(0),
         false,
-        _init_value(T),
+        zero(T),
         UInt16(feature),
         UInt8(0),
         _zero_children(Val(D)),
@@ -110,14 +108,14 @@ end
     @assert N <= D
     children = ntuple(i -> (i <= N ? child_idxs[i] : Int32(0)), Val(D))
     return _push_node!(
-        arena, UInt8(N), false, _init_value(T), UInt16(0), UInt8(op), children
+        arena, UInt8(N), false, zero(T), UInt16(0), UInt8(op), children
     )
 end
 
 """Create a default node (a `0` constant leaf) in its own fresh arena."""
 function ArenaNode{T,D}() where {T,D}
     arena = Arena{T,D}()
-    idx = push_constant!(arena, _init_value(T))
+    idx = push_constant!(arena, zero(T))
     return ArenaNode{T,D}(arena, idx)
 end
 
@@ -219,12 +217,10 @@ Unused slots are represented as poison nodes (mirroring `Node`), so that
 accessing them throws an `UndefRefError`.
 """
 @generated function unsafe_get_children(n::ArenaNode{T,D}) where {T,D}
-    children = [
-        :(_nullable_child(
-            n, @inbounds getfield(n, :arena).children[Int(getfield(n, :idx))][$j]
-        )) for j in 1:D
-    ]
-    return Expr(:tuple, children...)
+    quote
+        children = @inbounds getfield(n, :arena).children[Int(getfield(n, :idx))]
+        return Base.Cartesian.@ntuple($D, j -> _nullable_child(n, children[j]))
+    end
 end
 
 @inline function get_child(n::ArenaNode{T,D}, i::Int) where {T,D}
@@ -305,7 +301,7 @@ function _copy_to_arena!(arena::Arena{T,D}, tree::AbstractExpressionNode{T,D}) w
     @inbounds for i in 1:Int(d)
         idxs = Base.setindex(idxs, _copy_to_arena!(arena, get_child(tree, i)), i)
     end
-    return _push_node!(arena, UInt8(d), false, _init_value(T), UInt16(0), tree.op, idxs)
+    return _push_node!(arena, UInt8(d), false, zero(T), UInt16(0), tree.op, idxs)
 end
 
 """Convert an existing tree into an arena-backed representation.
@@ -316,25 +312,6 @@ function arena_from_tree(tree::AbstractExpressionNode{T,D}) where {T,D}
     arena = Arena{T,D}(; capacity=length(tree; break_sharing=Val(true)))
     idx = _copy_to_arena!(arena, tree)
     return ArenaNode{T,D}(arena, idx)
-end
-
-"""Convert an arena-backed node back into a heap-allocated `Node` tree."""
-@inline function _tree_from_arena(n::ArenaNode{T,D})::Node{T,D} where {T,D}
-    d = n.degree
-    if d == 0
-        return n.constant ? Node{T,D}(; val=n.val) : Node{T,D}(T; feature=n.feature)
-    else
-        # Use a vector here to avoid `Val(d)` with runtime `d`.
-        cs = Vector{Node{T,D}}(undef, Int(d))
-        @inbounds for i in 1:Int(d)
-            cs[i] = _tree_from_arena(get_child(n, i))
-        end
-        return Node{T,D}(T; op=n.op, children=cs)
-    end
-end
-
-function tree_from_arena(tree::ArenaNode{T,D}) where {T,D}
-    return _tree_from_arena(tree)
 end
 
 ################################################################################
@@ -375,20 +352,14 @@ function emit_postfix(tree::ArenaNode{T,D}) where {T,D}
 
     # Preallocate using the reachable node count (ignoring potential sharing).
     n = length(tree; break_sharing=Val(true))
-    degree = UInt8[]
-    constant = Bool[]
-    val = T[]
-    feature = UInt16[]
-    op = UInt8[]
-    sizehint!(degree, n)
-    sizehint!(constant, n)
-    sizehint!(val, n)
-    sizehint!(feature, n)
-    sizehint!(op, n)
+    degree = sizehint!(UInt8[], n)
+    constant = sizehint!(Bool[], n)
+    val = sizehint!(T[], n)
+    feature = sizehint!(UInt16[], n)
+    op = sizehint!(UInt8[], n)
 
     # Iterative postorder traversal: (idx, expanded_children?).
-    stack = Tuple{Int32,Bool}[]
-    sizehint!(stack, n)
+    stack = sizehint!(Tuple{Int32,Bool}[], n)
     push!(stack, (tree.idx, false))
 
     while !isempty(stack)
@@ -419,24 +390,17 @@ function emit_postfix(tree::ArenaNode{T,D}) where {T,D}
 end
 
 @generated function _postfix_pop_children(::Val{D}, stack::Vector{Int32}, a::Int) where {D}
-    branches = Expr[]
-    for k in 1:D
-        vars = [Symbol(:c, j) for j in 1:k]
-        stmts = Expr[]
-        # Pop in reverse to preserve left-to-right operand ordering.
-        for j in k:-1:1
-            push!(stmts, :($(vars[j]) = pop!(stack)))
-        end
-        tup = Expr(:tuple, vars...)
-        push!(branches, :(a == $k && (
-            begin
-                $(stmts...)
-                return $tup
+    quote
+        Base.Cartesian.@nif(
+            $D,
+            k -> a == k,
+            k -> begin
+                start = length(stack) - k + 1
+                children = Base.Cartesian.@ntuple(k, j -> stack[start + j - 1])
+                resize!(stack, start - 1)
+                return children
             end
-        )))
-    end
-    return quote
-        $(branches...)
+        )
         throw(ArgumentError("invalid arity $a for D=$D"))
     end
 end
@@ -528,8 +492,9 @@ function rewrite_commutative_constants_right!(tree::ArenaNode{T,D}, operators) w
         node = maybe_node[]
 
         node.degree == 2 || continue
-        f = operators.binops[node.op]
-        is_commutative(f) || continue
+        any(pairs(operators.binops)) do (i, op)
+            i == node.op && is_commutative(op)
+        end || continue
 
         l = get_child(node, 1)
         r = get_child(node, 2)
@@ -627,14 +592,15 @@ use child pointers.
 @generated function _postfix_apply_op(
     ::Val{D}, op, parent, stack::Vector{R}, start::Int, a::Int
 ) where {D,R}
-    branches = Expr[]
-    for k in 1:D
-        # Construct a literal tuple (stack[start], stack[start+1], ..., stack[start+k-1]).
-        tup = Expr(:tuple, [:(stack[start + $(j - 1)]) for j in 1:k]...)
-        push!(branches, :(a == $k && return op(parent, $tup)))
-    end
-    return quote
-        $(branches...)
+    quote
+        Base.Cartesian.@nif(
+            $D,
+            k -> a == k,
+            k -> begin
+                children = Base.Cartesian.@ntuple(k, j -> stack[start + j - 1])
+                return op(parent, children)
+            end
+        )
         throw(ArgumentError("invalid arity $a for D=$D"))
     end
 end
@@ -678,13 +644,12 @@ For now, it implements a simple *preorder* traversal using an explicit stack.
 The stack is reusable: call [`reset!`](@ref) to traverse a new root without
 reallocating the stack storage.
 """
-mutable struct ArenaCursor{T,D}
+struct ArenaCursor{T,D}
     arena::Arena{T,D}
     stack::Vector{Int32}
 
     function ArenaCursor(arena::Arena{T,D}; capacity::Integer=0) where {T,D}
-        stack = Int32[]
-        capacity > 0 && sizehint!(stack, capacity)
+        stack = sizehint!(Int32[], capacity)
         return new{T,D}(arena, stack)
     end
 end
@@ -724,7 +689,9 @@ function next!(c::ArenaCursor{T,D})::Nullable{ArenaNode{T,D}} where {T,D}
 end
 
 """Traverse a tree in preorder using a reusable cursor."""
-function foreach_preorder!(f, root::ArenaNode{T,D}, cursor::ArenaCursor{T,D}) where {T,D}
+function foreach_preorder!(
+    f::F, root::ArenaNode{T,D}, cursor::ArenaCursor{T,D}
+) where {F,T,D}
     cursor.arena === root.arena ||
         throw(ArgumentError("Cursor arena does not match root arena"))
 

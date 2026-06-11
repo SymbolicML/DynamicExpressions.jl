@@ -103,7 +103,7 @@
         @test atree2 != atree
 
         # Roundtrip conversion back to heap nodes should preserve semantics:
-        tree2 = AN.tree_from_arena(atree)
+        tree2 = convert(Node, atree)
         y_tree2, ok_tree2 = eval_tree_array(tree2, X, operators)
         @test ok_tree2
         @test y_tree2 ≈ y_mut
