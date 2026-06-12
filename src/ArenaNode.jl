@@ -1,6 +1,6 @@
 module ArenaNodeModule
 
-using ..UtilsModule: Nullable, Undefined, ResultOk
+using ..UtilsModule: Nullable
 
 import ..NodeModule:
     AbstractNode,
@@ -12,14 +12,11 @@ import ..NodeModule:
     set_children!,
     count_nodes,
     copy_node,
-    filter_map,
-    tree_mapreduce
-import ..NodeUtilsModule:
-    get_scalar_constants, set_scalar_constants!, is_node_constant, is_constant
+    filter_map
+import ..NodeUtilsModule: get_scalar_constants, set_scalar_constants!, is_node_constant
 import ..NodePreallocationModule: allocate_container, copy_into!
 import ..ValueInterfaceModule: get_number_type, is_valid, is_valid_array
 import ..OperatorEnumModule: OperatorEnum
-import ..EvaluateModule: _eval_tree_array, EvalOptions, ArrayBuffer, get_nops
 
 """All per-node fields packed into a single isbits struct.
 
@@ -83,8 +80,8 @@ struct Arena{T<:Number,D} <: AbstractVector{ArenaEntry{T,D}}
 end
 
 # Mark/clear the one-postfix-tree invariant (root last, no orphans):
-mark_compact!(arena::Arena) = (arena.compact[]=true; arena)
-invalidate_compact!(arena::Arena) = (arena.compact[]=false; arena)
+mark_compact!(arena::Arena) = (arena.compact[] = true; arena)
+invalidate_compact!(arena::Arena) = (arena.compact[] = false; arena)
 is_compact(arena::Arena) = arena.compact[]
 
 Base.size(arena::Arena) = size(arena.nodes)
@@ -143,6 +140,13 @@ ArenaNode(arena::Arena{T,D}, idx::Int32) where {T,D} = ArenaNode{T,D}(arena, idx
 get_arena(node::ArenaNode) = getfield(node, :arena)
 get_index(node::ArenaNode) = getfield(node, :idx)
 
+# Entry behind a facade. A zero index is a poison facade (an unset child
+# slot); accessing it throws like reading an undefined `Node` field.
+function _load_entry(arena::Arena, idx::Int32)
+    iszero(idx) && throw(UndefRefError())
+    return @inbounds arena.nodes[idx]
+end
+
 # True when the arena contents *are* `tree`: compact, rooted at the last entry.
 function is_compact_root(tree::ArenaNode)
     arena = get_arena(tree)
@@ -193,7 +197,7 @@ Base.@constprop :aggressive function Base.getproperty(
     elseif property_name === :r
         return get_child(node, UInt8(2))
     end
-    entry = @inbounds get_arena(node).nodes[get_index(node)]
+    entry = _load_entry(get_arena(node), get_index(node))
     if property_name === :degree
         return entry.degree
     elseif property_name === :constant
@@ -214,7 +218,7 @@ end
 ) where {T,D}
     arena = get_arena(node)
     i = get_index(node)
-    entry = @inbounds arena[i]
+    entry = _load_entry(arena, i)
     if property_name === :degree
         @inbounds arena[i] = _replace(entry; degree=UInt8(value))
     elseif property_name === :constant
@@ -247,7 +251,7 @@ end
 @generated function unsafe_get_children(node::ArenaNode{T,D}) where {T,D}
     quote
         $(Expr(:meta, :inline))
-        children = @inbounds get_arena(node).nodes[get_index(node)].children
+        children = _load_entry(get_arena(node), get_index(node)).children
         return Base.Cartesian.@ntuple($D, j -> _nullable_child(node, children[j]))
     end
 end
@@ -256,7 +260,7 @@ function get_child(node::ArenaNode{T,D}, i::Integer) where {T,D}
     # Avoid routing through getproperty here: the :l/:r property branches call
     # get_child, and the resulting inference cycle widens property access.
     arena = get_arena(node)
-    entry = @inbounds arena.nodes[get_index(node)]
+    entry = _load_entry(arena, get_index(node))
     child_idx = entry.children[i]  # bounds-checked: i > D must throw, not crash
     iszero(child_idx) && throw(UndefRefError())
     return ArenaNode{T,D}(arena, child_idx)
@@ -309,14 +313,54 @@ function set_children!(
     return nothing
 end
 
-# Compact arenas copy as one flat array copy (child indices stay valid
-# verbatim); otherwise fall back to a structural copy, which re-compacts.
-# Overloads `copy_node` (not `Base.copy`) since that is the generic entry point.
-function copy_node(tree::ArenaNode{T,D}; break_sharing::Val{BS}=Val(false)) where {T,D,BS}
-    if is_compact_root(tree)
-        return ArenaNode{T,D}(Arena{T,D}(copy(tree.arena.nodes), true), tree.idx)
+# Append `idx`'s subtree (children first, root last) to `dest`, returning the
+# root's new index. Works directly on entries -- no facade traversal -- so
+# copying out of a non-compact arena stays an array operation. `dest` is
+# grown to `length(dest) + count(subtree)`; the caller may oversize it first
+# to skip per-entry growth (see `_append_subtree!`'s wrapper below).
+function _write_subtree!(
+    dest::Vector{ArenaEntry{T,D}}, src::Vector{ArenaEntry{T,D}}, idx::Int32, cursor::Int
+) where {T,D}
+    iszero(idx) && throw(UndefRefError())  # unset child slot, like Node
+    entry = @inbounds src[idx]
+    if !iszero(entry.degree)
+        children = _zero_children(Val(D))
+        @inbounds for j in 1:(entry.degree)
+            child_idx, cursor = _write_subtree!(dest, src, entry.children[j], cursor)
+            children = Base.setindex(children, child_idx, j)
+        end
+        entry = _replace(entry; children)
     end
-    return convert(ArenaNode{T,D}, tree)
+    cursor += 1
+    @inbounds dest[cursor] = entry
+    return Int32(cursor), cursor
+end
+
+# `src` and `dest` may be the same vector: reads are below the original
+# length, writes at or above `cursor`, and the subtree size never exceeds
+# the source length, so the regions cannot overlap incorrectly.
+function _append_subtree!(
+    dest::Vector{ArenaEntry{T,D}}, src::Vector{ArenaEntry{T,D}}, idx::Int32
+) where {T,D}
+    cursor = length(dest)
+    resize!(dest, cursor + length(src))  # upper bound; trimmed below
+    root_idx, cursor = _write_subtree!(dest, src, idx, cursor)
+    resize!(dest, cursor)
+    return root_idx
+end
+
+# Compact arenas copy as one flat array copy (child indices stay valid
+# verbatim); otherwise the subtree is appended entry-by-entry into a fresh
+# arena, which also re-compacts. Overloads `copy_node` (not `Base.copy`)
+# since that is the generic entry point.
+function copy_node(tree::ArenaNode{T,D}; break_sharing::Val{BS}=Val(false)) where {T,D,BS}
+    arena = get_arena(tree)
+    if is_compact_root(tree)
+        return ArenaNode{T,D}(Arena{T,D}(copy(arena.nodes), true), get_index(tree))
+    end
+    nodes = sizehint!(ArenaEntry{T,D}[], length(arena.nodes))
+    idx = _append_subtree!(nodes, arena.nodes, get_index(tree))
+    return ArenaNode{T,D}(Arena{T,D}(nodes, true), idx)
 end
 
 # Preallocated arena for `copy_into!`, enabling zero-allocation copies.
@@ -347,11 +391,15 @@ function copy_into!(
         return ArenaNode{T,D}(dest, src.idx)
     end
     empty!(dest.nodes)
-    idx = _copy_to_arena!(dest, src)
+    idx = _append_subtree!(dest.nodes, get_arena(src).nodes, get_index(src))
     mark_compact!(dest)
     return ArenaNode{T,D}(dest, idx)
 end
 
+function _copy_to_arena!(arena::Arena{T,D}, tree::ArenaNode{T,D}) where {T,D}
+    invalidate_compact!(arena)
+    return _append_subtree!(arena.nodes, get_arena(tree).nodes, get_index(tree))
+end
 function _copy_to_arena!(
     arena::Arena{T,D}, tree::AbstractExpressionNode{T2,D}
 ) where {T,T2,D}
@@ -411,59 +459,18 @@ function count_nodes(tree::ArenaNode; break_sharing::Val{BS}=Val(false)) where {
 end
 
 function Base.any(f::F, tree::ArenaNode{T,D}) where {F<:Function,T,D}
-    return _arena_any(f, get_arena(tree), get_index(tree))
-end
-function _arena_any(f::F, arena::Arena{T,D}, idx::Int32) where {F<:Function,T,D}
-    iszero(idx) && throw(UndefRefError())  # unset child slot, like Node
-    entry = @inbounds arena.nodes[idx]
-    @inline(f(ArenaNode{T,D}(arena, idx))) && return true
-    @inbounds for j in 1:entry.degree
-        _arena_any(f, arena, entry.children[j]) && return true
-    end
-    return false
-end
-
-function is_constant(tree::ArenaNode)
-    return !_arena_any(
-        node -> iszero(node.degree) && !node.constant, get_arena(tree), get_index(tree)
-    )
-end
-
-function tree_mapreduce(
-    f_leaf::F1,
-    f_branch::F2,
-    op::G,
-    tree::ArenaNode{T,D},
-    result_type::Type{RT}=Undefined;
-    f_on_shared::H=(result, is_shared) -> result,
-    break_sharing::Val{BS}=Val(false),
-) where {T,D,F1<:Function,F2<:Function,G<:Function,H<:Function,RT,BS}
-    return _arena_mapreduce(f_leaf, f_branch, op, get_arena(tree), get_index(tree))
-end
-
-@generated function _arena_mapreduce(
-    f_leaf::F1, f_branch::F2, op::G, arena::Arena{T,D}, idx::Int32
-) where {F1<:Function,F2<:Function,G<:Function,T,D}
-    quote
-        iszero(idx) && throw(UndefRefError())  # unset child slot, like Node
-        entry = @inbounds arena.nodes[idx]
-        degree = entry.degree
-        if iszero(degree)
-            return f_leaf(ArenaNode{T,D}(arena, idx))
+    arena = get_arena(tree)
+    if is_compact_root(tree)
+        # The arena contents are exactly the tree: a flat scan beats any
+        # traversal (visit order is unspecified for `any`).
+        @inbounds for i in eachindex(arena.nodes)
+            @inline(f(ArenaNode{T,D}(arena, Int32(i)))) && return true
         end
-        branch = f_branch(ArenaNode{T,D}(arena, idx))
-        children = entry.children
-        return Base.Cartesian.@nif(
-            $D,
-            i -> i == degree,  # COV_EXCL_LINE
-            i -> Base.Cartesian.@ncall(
-                i,
-                op,
-                branch,
-                j -> _arena_mapreduce(f_leaf, f_branch, op, arena, children[j])
-            ),
-        )
+        return false
     end
+    # The generic early-exit traversal benches the same as a hand-written
+    # recursion here; no specialization needed.
+    return invoke(any, Tuple{F,AbstractNode{D}}, f, tree)
 end
 
 # Constants as plain Int32 arena indices (also valid in flat copies): a
@@ -474,18 +481,10 @@ function get_scalar_constants(
     arena = tree.arena
     if is_compact_root(tree)
         nodes = arena.nodes
-        n_constants = count(entry -> iszero(entry.degree) && entry.constant, nodes)
-        vals = Vector{T}(undef, n_constants)
-        refs = Vector{Int32}(undef, n_constants)
-        j = 0
-        @inbounds for i in eachindex(nodes)
-            entry = nodes[i]
-            if iszero(entry.degree) && entry.constant
-                j += 1
-                vals[j] = entry.val
-                refs[j] = Int32(i)
-            end
-        end
+        refs = Int32[
+            i for i in eachindex(nodes) if iszero(nodes[i].degree) && nodes[i].constant
+        ]
+        vals = T[@inbounds(nodes[i].val) for i in refs]
         return vals, refs
     end
     refs = filter_map(is_node_constant, node -> node.idx, tree, Int32)
@@ -503,7 +502,5 @@ function set_scalar_constants!(
     end
     return nothing
 end
-
-include("ArenaNodeEval.jl")
 
 end

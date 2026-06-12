@@ -1,3 +1,13 @@
+module ArenaNodeEvalModule
+
+using ..UtilsModule: ResultOk
+import ..NodeModule: AbstractExpressionNode
+using ..ValueInterfaceModule: is_valid
+import ..OperatorEnumModule: OperatorEnum
+import ..EvaluateModule: _eval_tree_array, EvalOptions, ArrayBuffer, get_nops
+import ..ArenaNodeModule:
+    ArenaNode, Arena, ArenaEntry, get_arena, get_index, is_compact_root
+
 ################################################################################
 # Plan-style buffered evaluation
 ################################################################################
@@ -163,9 +173,13 @@ function _plan_scratch(arena::Arena{T,D}) where {T,D}
     return (stack_top == 1, num_slots, max_stack, feature_mask)
 end
 
+# `args` is `Tuple{T,Vararg{T}}` (not `NTuple{A,T}`) so that `T` stays bound
+# for empty tuples (Aqua's unbound-args check); the arity comes from the
+# tuple type itself.
 @generated function _scalar_degn(
-    ::Val{A}, op_idx::UInt8, args::NTuple{A,T}, operators::O
-) where {A,T,O<:OperatorEnum}
+    op_idx::UInt8, args::Tuple{T,Vararg{T}}, operators::O
+) where {T,O<:OperatorEnum}
+    A = length(args.parameters)
     nops = get_nops(O, Val(A))
     nops == 0 && return :(throw(ArgumentError("no operators of arity " * string($A))))
     return quote
@@ -345,7 +359,7 @@ function _fold_constant_args!(
     operators::OperatorEnum,
 ) where {A,T}
     all(is_valid, scalar_args) || return (regs, false)
-    value = _scalar_degn(Val(A), op_idx, scalar_args, operators)
+    value = _scalar_degn(op_idx, scalar_args, operators)
     is_valid(value) || return (regs, false)
     @inbounds state.descriptors[regs.stack_top] = _pack_descriptor(_K_SCALAR)
     @inbounds state.scalar_vals[regs.stack_top] = value
@@ -525,4 +539,6 @@ function _arena_eval(
 
     _write_root_to_output!(pool, descriptors, scalar_vals, nrows)
     return ResultOk(output, true)
+end
+
 end

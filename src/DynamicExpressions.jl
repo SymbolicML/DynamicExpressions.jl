@@ -13,6 +13,7 @@ using DispatchDoctor: @stable, @unstable
     include("Strings.jl")
     include("Evaluate.jl")
     include("ArenaNode.jl")
+    include("ArenaNodeEval.jl")
     include("EvaluateDerivative.jl")
     include("ChainRules.jl")
     include("EvaluationHelpers.jl")

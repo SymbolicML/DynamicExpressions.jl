@@ -74,7 +74,7 @@ for treesize in (7, 15, 31)
         end
         best
     end
-    bench_nobuf(trees[1:2]);
+    bench_nobuf(trees[1:2])
     bench_nobuf(atrees[1:2])  # warmup
     tn_nb = bench_nobuf(trees)
     ta_nb = bench_nobuf(atrees)
