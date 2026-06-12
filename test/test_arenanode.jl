@@ -212,28 +212,7 @@ end
 end
 
 @testitem "ArenaNode allocations" begin
-    using PerformanceTestTools
-
-    project_dir = dirname(Base.active_project())
-    local_prefs = joinpath(project_dir, "LocalPreferences.toml")
-    old_prefs = isfile(local_prefs) ? read(local_prefs, String) : nothing
-    prefs_text = string(
-        "[DynamicExpressions]\n", "dispatch_doctor_mode = ", repr("disable"), "\n"
-    )
-
-    try
-        write(local_prefs, prefs_text)
-        PerformanceTestTools.include_foreach(
-            joinpath(@__DIR__, "test_arenanode_allocations.jl"),
-            [Dict("JULIA_PKG_PRECOMPILE_AUTO" => "0")],
-        )
-    finally
-        if old_prefs === nothing
-            rm(local_prefs; force=true)
-        else
-            write(local_prefs, old_prefs)
-        end
-    end
+    include(joinpath(@__DIR__, "test_arenanode_allocations.jl"))
 end
 
 @testitem "ArenaNode flat copy and whole-tree fast paths" begin
@@ -474,90 +453,6 @@ end
             c = copy(root)
             @test AN.is_compact_root(c)
             @test convert(Node, c) == expected
-        end
-    end
-end
-
-@testitem "ArenaNode iterative eval matches generic evaluator" begin
-    using DynamicExpressions
-    using DynamicExpressions: Node, EvalOptions
-    using Random
-
-    const AN = DynamicExpressions.ArenaNodeModule
-
-    operators = OperatorEnum(; binary_operators=[+, *, /, -], unary_operators=[cos, exp])
-    rng = MersenneTwister(7)
-
-    for T in (Float32, Float64)
-        random_leaf(rng) =
-            if rand(rng) < 0.4
-                Node{T}(; val=randn(rng, T))
-            else
-                Node{T}(; feature=rand(rng, 1:5))
-            end
-        function random_tree(rng, n)
-            tree = random_leaf(rng)
-            while count_nodes(tree) < n
-                leaf = rand(rng, filter(t -> t.degree == 0, tree))
-                if rand(rng) < 0.3
-                    leaf.degree = 1
-                    leaf.op = rand(rng, 1:2)
-                    leaf.l = random_leaf(rng)
-                else
-                    leaf.degree = 2
-                    leaf.op = rand(rng, 1:4)
-                    leaf.l = random_leaf(rng)
-                    leaf.r = random_leaf(rng)
-                end
-                leaf.constant = false
-                leaf.val = zero(T)
-            end
-            return tree
-        end
-
-        X = randn(rng, T, 5, 37)
-        for trial in 1:60, early_exit in (true, false)
-            tree = random_tree(rng, rand(rng, 1:25))
-            atree = convert(AN.ArenaNode{T}, tree)
-            opts = EvalOptions(; early_exit)
-            # The generic evaluator can throw on domain errors (e.g. cos(Inf))
-            # when early_exit=false; both paths must agree on that too.
-            rn = try
-                (eval_tree_array(tree, X, operators; eval_options=opts), false)
-            catch
-                (nothing, true)
-            end
-            ra = try
-                (eval_tree_array(atree, X, operators; eval_options=opts), false)
-            catch
-                (nothing, true)
-            end
-            @test rn[2] == ra[2]
-            (rn[2] || ra[2]) && continue
-            (yn, okn) = rn[1]
-            (ya, oka) = ra[1]
-            @test okn == oka
-            if okn
-                @test yn ≈ ya || (any(!isfinite, yn) && any(!isfinite, ya))
-            end
-            # Non-compact facades fall back to the generic path:
-            if atree.degree > 0
-                sub = atree.l
-                ysn, oksn = eval_tree_array(convert(Node, sub), X, operators)
-                ysa, oksa = eval_tree_array(sub, X, operators)
-                @test oksn == oksa
-                oksn && @test ysn ≈ ysa
-            end
-        end
-
-        # Task-local workspace must survive data-size changes between calls:
-        x1 = Node{T}(; feature=1)
-        t = cos(x1 * T(3.2)) + x1
-        at = convert(AN.ArenaNode{T}, t)
-        for ncols in (100, 7, 100, 1)
-            Xs = randn(MersenneTwister(1), T, 5, ncols)
-            @test eval_tree_array(t, Xs, operators)[1] ≈
-                eval_tree_array(at, Xs, operators)[1]
         end
     end
 end

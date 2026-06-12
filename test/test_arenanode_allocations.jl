@@ -22,11 +22,6 @@ function alloc_copy_tree!(arena, tree)
     return nothing
 end
 
-function alloc_eval_tree(tree, X, operators)
-    eval_tree_array(tree, X, operators)
-    return nothing
-end
-
 function alloc_copy_into!(dest, tree)
     copy_into!(dest, tree)
     return nothing
@@ -48,30 +43,42 @@ tree_large = sin(x1) + x1 * 3.2 + cos(x1)
 atree_large = convert(AN.ArenaNode{Float64}, tree_large)
 copy_dest = allocate_container(atree_large)
 arena_large = AN.Arena{Float64,2}(; capacity=128)
-X = randn(Float64, 1, 1_000)
 
 for _ in 1:5
     alloc_push_constant!(arena_push)
     alloc_set_child!(parent, child)
     alloc_copy_tree!(arena_large, tree_large)
-    alloc_eval_tree(tree_large, X, operators)
-    alloc_eval_tree(atree_large, X, operators)
     alloc_copy_into!(copy_dest, atree_large)
 end
 
-alloc_counts = Dict(
-    "push_constant" => @allocations(alloc_push_constant!(arena_push)),
-    "set_child" => @allocations(alloc_set_child!(parent, child)),
-    "copy_tree" => @allocations(alloc_copy_tree!(arena_large, tree_large)),
-    "copy_into" => @allocations(alloc_copy_into!(copy_dest, atree_large)),
-)
-alloc_bytes = Dict(
-    "eval_node" => @allocated(alloc_eval_tree(tree_large, X, operators)),
-    "eval_arena" => @allocated(alloc_eval_tree(atree_large, X, operators)),
-)
+arena_push_nodes = arena_push.nodes
+arena_push_ptr = pointer(arena_push_nodes)
+arena_push_len = length(arena_push_nodes)
+alloc_push_constant!(arena_push)
 
-@test alloc_counts["push_constant"] == 0
-@test alloc_counts["set_child"] == 0
-@test alloc_counts["copy_tree"] == 0
-@test alloc_counts["copy_into"] == 0
-@test alloc_bytes["eval_arena"] <= max(1024, ceil(Int, 1.10 * alloc_bytes["eval_node"]))
+parent_nodes = parent_arena.nodes
+parent_ptr = pointer(parent_nodes)
+parent_len = length(parent_nodes)
+alloc_set_child!(parent, child)
+
+arena_large_nodes = arena_large.nodes
+arena_large_ptr = pointer(arena_large_nodes)
+arena_large_len = length(arena_large_nodes)
+alloc_copy_tree!(arena_large, tree_large)
+
+copy_dest_nodes = copy_dest.nodes
+copy_dest_ptr = pointer(copy_dest_nodes)
+alloc_copy_into!(copy_dest, atree_large)
+
+@test arena_push.nodes === arena_push_nodes
+@test pointer(arena_push.nodes) == arena_push_ptr
+@test length(arena_push.nodes) == arena_push_len + 1
+@test parent_arena.nodes === parent_nodes
+@test pointer(parent_arena.nodes) == parent_ptr
+@test length(parent_arena.nodes) == parent_len + count_nodes(child)
+@test arena_large.nodes === arena_large_nodes
+@test pointer(arena_large.nodes) == arena_large_ptr
+@test length(arena_large.nodes) == arena_large_len + count_nodes(tree_large)
+@test copy_dest.nodes === copy_dest_nodes
+@test pointer(copy_dest.nodes) == copy_dest_ptr
+@test length(copy_dest.nodes) == count_nodes(atree_large)

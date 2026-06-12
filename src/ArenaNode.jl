@@ -1,6 +1,6 @@
 module ArenaNodeModule
 
-using ..UtilsModule: Nullable, Undefined, ResultOk
+using ..UtilsModule: Nullable, Undefined
 
 import ..NodeModule:
     AbstractNode,
@@ -14,11 +14,10 @@ import ..NodeModule:
     copy_node,
     filter_map,
     tree_mapreduce
-import ..NodeUtilsModule: get_scalar_constants, set_scalar_constants!, is_node_constant
+import ..NodeUtilsModule:
+    get_scalar_constants, set_scalar_constants!, is_node_constant, is_constant
 import ..NodePreallocationModule: allocate_container, copy_into!
-import ..ValueInterfaceModule: get_number_type, is_valid, is_valid_array
-import ..OperatorEnumModule: OperatorEnum
-import ..EvaluateModule: _eval_tree_array, EvalOptions
+import ..ValueInterfaceModule: get_number_type
 
 """All per-node fields packed into a single isbits struct.
 
@@ -253,9 +252,12 @@ accessing them throws an `UndefRefError`.
 end
 
 @inline function get_child(n::ArenaNode{T,D}, i::Integer) where {T,D}
-    c = @inbounds n.arena.nodes[n.idx].children[i]
+    # Avoid routing through getproperty here: the :l/:r property branches call
+    # get_child, and the resulting inference cycle widens property access.
+    a = getfield(n, :arena)
+    c = @inbounds getfield(a, :nodes)[Int(getfield(n, :idx))].children[i]
     c == 0 && throw(UndefRefError())
-    return ArenaNode{T,D}(n.arena, c)
+    return ArenaNode{T,D}(a, c)
 end
 
 @inline function set_child!(n::ArenaNode{T,D}, child::AbstractNode{D}, i::Int) where {T,D}
@@ -413,6 +415,30 @@ function count_nodes(tree::ArenaNode; break_sharing::Val{BS}=Val(false)) where {
     return invoke(count_nodes, Tuple{AbstractNode}, tree; break_sharing=Val(BS))::Int64
 end
 
+function Base.any(f::F, tree::ArenaNode{T,D}) where {F<:Function,T,D}
+    return _arena_any(f, getfield(tree, :arena), getfield(tree, :idx))
+end
+function _arena_any(f::F, a::Arena{T,D}, idx::Int32) where {F<:Function,T,D}
+    e = @inbounds getfield(a, :nodes)[Int(idx)]
+    @inline(f(ArenaNode{T,D}(a, idx))) && return true
+    @inbounds for j in 1:Int(e.degree)
+        _arena_any(f, a, e.children[j]) && return true
+    end
+    return false
+end
+
+function is_constant(tree::ArenaNode)
+    return _is_constant(getfield(getfield(tree, :arena), :nodes), getfield(tree, :idx))
+end
+function _is_constant(nodes::Vector{ArenaEntry{T,D}}, idx::Int32) where {T,D}
+    e = @inbounds nodes[Int(idx)]
+    e.degree == 0x00 && return e.constant
+    @inbounds for j in 1:Int(e.degree)
+        _is_constant(nodes, e.children[j]) || return false
+    end
+    return true
+end
+
 function tree_mapreduce(
     f_leaf::F1,
     f_branch::F2,
@@ -488,232 +514,6 @@ function set_scalar_constants!(
         a[i] = _replace(a[i]; val=constants[j]::T)
     end
     return nothing
-end
-
-################################################################################
-# Iterative postfix evaluation
-################################################################################
-
-"""Iterative postfix evaluation over the flat entry array.
-
-For a compact arena the entries are already in children-before-parent order,
-so evaluation is a single left-to-right pass with a value stack: no recursion
-and no per-node facade traversal. Stack slots are tagged scalar-or-buffer;
-constant subtrees stay in the scalar lane (one flop per node) until they meet
-a vector operand, which reproduces the generic evaluator's constant-folding
-"speed hack" without its per-call `is_constant` traversals. Buffers are
-recycled through a free list, so the number of allocated buffers is the
-maximum number of simultaneously live vector operands (~tree depth), not the
-node count.
-
-Applies for `D == 2`, numeric `T`, and default options; anything else falls
-back to the generic recursive evaluator.
-"""
-function _eval_tree_array(
-    tree::ArenaNode{T,D},
-    cX::AbstractMatrix{T},
-    operators::OperatorEnum,
-    eval_options::EvalOptions,
-)::ResultOk where {T<:Number,D}
-    if !(
-        D == 2 &&
-        cX isa Matrix{T} &&
-        is_compact_root(tree) &&
-        eval_options.turbo isa Val{false} &&
-        eval_options.buffer === nothing
-    )
-        return invoke(
-            _eval_tree_array,
-            Tuple{AbstractExpressionNode{T,D},AbstractMatrix{T},OperatorEnum,EvalOptions},
-            tree,
-            cX,
-            operators,
-            eval_options,
-        )
-    end
-    return _arena_eval(getfield(tree, :arena), cX, operators, eval_options.early_exit)
-end
-
-@generated function _scalar_deg1(
-    op_idx::UInt8, x::T, operators::O
-) where {T,O<:OperatorEnum}
-    nops = length(O.parameters[1].parameters[1].parameters)
-    return quote
-        Base.Cartesian.@nif(
-            $nops,
-            i -> i == Int(op_idx),  # COV_EXCL_LINE
-            i -> operators.unaops[i](x)::T,
-        )
-    end
-end
-@generated function _scalar_deg2(
-    op_idx::UInt8, x::T, y::T, operators::O
-) where {T,O<:OperatorEnum}
-    nops = length(O.parameters[1].parameters[2].parameters)
-    return quote
-        Base.Cartesian.@nif(
-            $nops,
-            i -> i == Int(op_idx),  # COV_EXCL_LINE
-            i -> operators.binops[i](x, y)::T,
-        )
-    end
-end
-@generated function _kern_deg1!(
-    dest::AbstractVector{T}, op_idx::UInt8, x, operators::O
-) where {T,O<:OperatorEnum}
-    nops = length(O.parameters[1].parameters[1].parameters)
-    quote
-        Base.Cartesian.@nif(
-            $nops,
-            i -> i == Int(op_idx),  # COV_EXCL_LINE
-            i -> (dest.=operators.unaops[i].(x); nothing),
-        )
-        return nothing
-    end
-end
-@generated function _kern_deg2!(
-    dest::AbstractVector{T}, op_idx::UInt8, x, y, operators::O
-) where {T,O<:OperatorEnum}
-    nops = length(O.parameters[1].parameters[2].parameters)
-    quote
-        Base.Cartesian.@nif(
-            $nops,
-            i -> i == Int(op_idx),  # COV_EXCL_LINE
-            i -> (dest.=operators.binops[i].(x, y); nothing),
-        )
-        return nothing
-    end
-end
-
-"""Per-task reusable evaluation workspace. Stored in task-local storage, so
-concurrent evaluations from different tasks never share state. Buffers in
-`free` persist across calls; the returned output array always escapes to the
-caller, so steady-state evaluation allocates exactly one array per call."""
-mutable struct ArenaEvalWorkspace{T}
-    tags::Vector{Bool}
-    svals::Vector{T}
-    bufs::Vector{Vector{T}}
-    free::Vector{Vector{T}}
-end
-function ArenaEvalWorkspace{T}() where {T}
-    return ArenaEvalWorkspace{T}(Bool[], T[], Vector{T}[], Vector{T}[])
-end
-
-@inline function _eval_workspace(::Type{T}) where {T}
-    tls = task_local_storage()
-    ws = get!(() -> ArenaEvalWorkspace{T}(), tls, (:__de_arena_eval_workspace, T))
-    return ws::ArenaEvalWorkspace{T}
-end
-
-@inline function _acquire!(ws::ArenaEvalWorkspace{T}, nrows::Int) where {T}
-    isempty(ws.free) && return Vector{T}(undef, nrows)
-    buf = pop!(ws.free)
-    length(buf) == nrows || resize!(buf, nrows)
-    return buf
-end
-
-"""Move all remaining stack buffers (except the escaping `out`) to the free
-list for reuse by the next call."""
-@inline function _release_except!(ws::ArenaEvalWorkspace, out)
-    for b in ws.bufs
-        b === out || push!(ws.free, b)
-    end
-    empty!(ws.bufs)
-    return nothing
-end
-
-function _arena_eval(
-    a::Arena{T,D}, cX::Matrix{T}, operators::OperatorEnum, ::Val{early_exit}
-)::ResultOk{Vector{T}} where {T,D,early_exit}
-    nodes = getfield(a, :nodes)
-    n = length(nodes)
-    nrows = size(cX, 2)
-    rows = 1:nrows
-
-    ws = _eval_workspace(T)
-    tags = ws.tags
-    svals = ws.svals
-    bufs = ws.bufs
-    empty!(tags)
-    empty!(svals)
-    empty!(bufs)
-
-    @inbounds for i in 1:n
-        e = nodes[i]
-        d = e.degree
-        if d == 0x00
-            if e.constant
-                push!(tags, true)
-                push!(svals, e.val)
-            else
-                buf = _acquire!(ws, nrows)
-                feat = Int(e.feature)
-                @simd for j in rows
-                    buf[j] = cX[feat, j]
-                end
-                push!(tags, false)
-                push!(bufs, buf)
-            end
-        elseif d == 0x01
-            if tags[end]
-                v = _scalar_deg1(e.op, svals[end], operators)
-                if !is_valid(v)
-                    out = _acquire!(ws, nrows)
-                    _release_except!(ws, out)
-                    return ResultOk(out, false)
-                end
-                svals[end] = v
-            else
-                buf = bufs[end]
-                _kern_deg1!(buf, e.op, buf, operators)
-                if early_exit && !is_valid_array(buf)
-                    _release_except!(ws, buf)
-                    return ResultOk(buf, false)
-                end
-            end
-        else
-            rscal = pop!(tags)
-            lscal = tags[end]
-            if lscal & rscal
-                v = _scalar_deg2(e.op, svals[end - 1], svals[end], operators)
-                if !is_valid(v)
-                    out = _acquire!(ws, nrows)
-                    _release_except!(ws, out)
-                    return ResultOk(out, false)
-                end
-                pop!(svals)
-                svals[end] = v
-            else
-                if lscal  # scalar op buffer
-                    buf = bufs[end]
-                    _kern_deg2!(buf, e.op, pop!(svals), buf, operators)
-                elseif rscal  # buffer op scalar
-                    buf = bufs[end]
-                    _kern_deg2!(buf, e.op, buf, pop!(svals), operators)
-                else  # buffer op buffer
-                    r = pop!(bufs)
-                    buf = bufs[end]
-                    _kern_deg2!(buf, e.op, buf, r, operators)
-                    push!(ws.free, r)
-                end
-                tags[end] = false
-                if early_exit && !is_valid_array(buf)
-                    _release_except!(ws, buf)
-                    return ResultOk(buf, false)
-                end
-            end
-        end
-    end
-
-    if tags[end]
-        out = _acquire!(ws, nrows)
-        fill!(out, svals[end])
-        _release_except!(ws, out)
-        return ResultOk(out, true)
-    end
-    out = bufs[end]
-    _release_except!(ws, out)
-    return ResultOk(out, true)
 end
 
 ################################################################################
