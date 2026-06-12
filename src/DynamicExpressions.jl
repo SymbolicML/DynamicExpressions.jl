@@ -52,6 +52,7 @@ import .ValueInterfaceModule:
     filter_map,
     filter_map!
 import .NodePreallocationModule: allocate_container, copy_into!
+import .ArenaNodeModule: ArenaNode, Arena
 import .NodeModule:
     constructorof,
     with_type_parameters,

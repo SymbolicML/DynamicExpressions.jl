@@ -29,7 +29,7 @@ touch one contiguous stream of memory.
 
 Indices are `Int32` and are 1-based. A child index of `0` indicates an empty slot.
 """
-struct ArenaEntry{T,D}
+struct ArenaEntry{T<:Number,D}
     val::T
     children::NTuple{D,Int32}
     feature::UInt16
@@ -70,7 +70,7 @@ and new entry and automatically clears `compact` whenever the structural fields
 paths. Do not write `arena.nodes` directly outside this file's bulk-copy
 internals.
 """
-struct Arena{T,D} <: AbstractVector{ArenaEntry{T,D}}
+struct Arena{T<:Number,D} <: AbstractVector{ArenaEntry{T,D}}
     nodes::Vector{ArenaEntry{T,D}}
     compact::Base.RefValue{Bool}
 
@@ -122,7 +122,7 @@ Core fields are accessed and mutated via `getproperty`/`setproperty!`.
     own arena, so later mutations through it do not affect the new parent.
     Same-arena attachments keep reference semantics.
 """
-struct ArenaNode{T,D} <: AbstractExpressionNode{T,D}
+struct ArenaNode{T<:Number,D} <: AbstractExpressionNode{T,D}
     arena::Arena{T,D}
     idx::Int32
 
@@ -145,34 +145,24 @@ end
 end
 
 @inline function _push_node!(
-    arena::Arena{T,D},
-    degree::UInt8,
-    constant::Bool,
-    val::T,
-    feature::UInt16,
-    op::UInt8,
-    children::NTuple{D,Int32},
+    arena::Arena{T,D};
+    degree::UInt8=UInt8(0),
+    constant::Bool=false,
+    val::T=zero(T),
+    feature::UInt16=UInt16(0),
+    op::UInt8=UInt8(0),
+    children::NTuple{D,Int32}=_zero_children(Val(D)),
 ) where {T,D}
     push!(arena, ArenaEntry{T,D}(val, children, feature, degree, op, constant))
     return Int32(length(arena))
 end
 
 @inline function push_constant!(arena::Arena{T,D}, value) where {T,D}
-    return _push_node!(
-        arena,
-        UInt8(0),
-        true,
-        convert(T, value),
-        UInt16(0),
-        UInt8(0),
-        _zero_children(Val(D)),
-    )
+    return _push_node!(arena; constant=true, val=convert(T, value))
 end
 
 @inline function push_feature!(arena::Arena{T,D}, feature::Integer) where {T,D}
-    return _push_node!(
-        arena, UInt8(0), false, zero(T), UInt16(feature), UInt8(0), _zero_children(Val(D))
-    )
+    return _push_node!(arena; feature=UInt16(feature))
 end
 
 """Create a default node (a `0` constant leaf) in its own fresh arena."""
@@ -246,7 +236,7 @@ end
     node::ArenaNode{T,D}, child_idx::Int32
 )::Nullable{ArenaNode{T,D}} where {T,D}
     child = ArenaNode{T,D}(node.arena, child_idx)
-    return Nullable{ArenaNode{T,D}}(child_idx == 0, child)
+    return Nullable{ArenaNode{T,D}}(iszero(child_idx), child)
 end
 
 """Return an `NTuple{D,Nullable{ArenaNode}}` of children wrappers.
@@ -268,7 +258,7 @@ end
     arena = getfield(node, :arena)
     entry = @inbounds getfield(arena, :nodes)[getfield(node, :idx)]
     child_idx = entry.children[i]  # bounds-checked: i > D must throw, not crash
-    child_idx == 0 && throw(UndefRefError())
+    iszero(child_idx) && throw(UndefRefError())
     return ArenaNode{T,D}(arena, child_idx)
 end
 
@@ -401,7 +391,7 @@ function _copy_to_arena!(
     @inbounds for i in 1:degree
         idxs = Base.setindex(idxs, _copy_to_arena!(arena, get_child(tree, i)), i)
     end
-    return _push_node!(arena, UInt8(degree), false, zero(T), UInt16(0), tree.op, idxs)
+    return _push_node!(arena; degree=UInt8(degree), op=tree.op, children=idxs)
 end
 
 """Convert an existing tree into an arena-backed representation.
@@ -575,17 +565,17 @@ function _eval_tree_array(
         is_compact_root(tree) &&
         eval_options.turbo isa Val{false} &&
         eval_options.use_fused isa Val{true}
-        ok_plan, n_slots, max_stack, fmask = _plan_scratch(getfield(tree, :arena))
+        ok_plan, num_slots, max_stack, feature_mask = _plan_scratch(getfield(tree, :arena))
         # +1 for the output slot; capacity is the buffer's row count
-        if ok_plan && n_slots + 1 <= size(buffer.array, 1)
+        if ok_plan && num_slots + 1 <= size(buffer.array, 1)
             return _arena_eval(
                 getfield(tree, :arena),
                 cX,
                 operators,
                 eval_options.early_exit,
-                n_slots,
+                num_slots,
                 max_stack,
-                fmask,
+                feature_mask,
                 buffer.array,
             )
         end
@@ -600,6 +590,12 @@ function _eval_tree_array(
     )
 end
 
+"""Pool slot holding materialized `feature`: slot 1 is the output, and used
+features occupy slots 2, 3, ... in ascending feature order."""
+@inline function _feature_slot(feature_mask::UInt64, feature::Integer)
+    return count_ones(feature_mask & ((UInt64(1) << (feature - 1)) - 1)) + 2
+end
+
 # Descriptor kinds for evaluation stack slots:
 const _K_SCALAR = 0x00  # folded constant; value lives in the scalar lane
 const _K_PSLOT = 0x01   # permanent slot (output or a materialized feature)
@@ -612,14 +608,14 @@ so trees deeper than 64 or features beyond 64 report failure and take the
 generic path."""
 function _plan_scratch(arena::Arena{T,D}) where {T,D}
     nodes = getfield(arena, :nodes)
-    fmask = UInt64(0)
-    scalar_mask = UInt64(0)
-    perm_mask = UInt64(0)
+    feature_mask = UInt64(0)
+    scalar_stack = UInt64(0)
+    permanent_stack = UInt64(0)
     stack_top = 0
     max_stack = 0
-    live = 0
+    num_live = 0
     num_free = 0
-    max_int_slots = 0
+    max_live_intermediates = 0
     @inbounds for i in eachindex(nodes)
         entry = nodes[i]
         degree = entry.degree
@@ -627,41 +623,41 @@ function _plan_scratch(arena::Arena{T,D}) where {T,D}
             stack_top >= 64 && return (false, 0, 0, UInt64(0))
             stack_top += 1
             max_stack = max(max_stack, stack_top)
-            scalar_mask = (scalar_mask << 1) | (entry.constant ? 1 : 0)
-            perm_mask <<= 1
+            scalar_stack = (scalar_stack << 1) | (entry.constant ? 1 : 0)
+            permanent_stack <<= 1
             if !entry.constant
                 feature = entry.feature
                 (1 <= feature <= 64) || return (false, 0, 0, UInt64(0))
-                fmask |= UInt64(1) << (feature - 1)
-                perm_mask |= 1
+                feature_mask |= UInt64(1) << (feature - 1)
+                permanent_stack |= 1
             end
         else
-            window = (UInt64(1) << degree) - 1
-            all_scalar = (scalar_mask & window) == window
-            n_free_args = count_ones(~perm_mask & ~scalar_mask & window)
-            scalar_mask >>= (degree - 1)
-            perm_mask >>= (degree - 1)
+            arity_mask = (UInt64(1) << degree) - 1
+            all_args_scalar = (scalar_stack & arity_mask) == arity_mask
+            num_recyclable_args = count_ones(~permanent_stack & ~scalar_stack & arity_mask)
+            scalar_stack >>= (degree - 1)
+            permanent_stack >>= (degree - 1)
             stack_top -= degree - 1
-            if all_scalar
-                scalar_mask |= 1
-                perm_mask &= ~UInt64(1)
+            if all_args_scalar
+                scalar_stack |= 1
+                permanent_stack &= ~UInt64(1)
             else
-                num_free += n_free_args
+                num_free += num_recyclable_args
                 if num_free > 0
                     num_free -= 1
                 else
-                    live += 1
-                    max_int_slots = max(max_int_slots, live)
+                    num_live += 1
+                    max_live_intermediates = max(max_live_intermediates, num_live)
                 end
-                scalar_mask &= ~UInt64(1)
-                perm_mask &= ~UInt64(1)
+                scalar_stack &= ~UInt64(1)
+                permanent_stack &= ~UInt64(1)
             end
         end
     end
-    n_slots = count_ones(fmask) + max_int_slots
+    num_slots = count_ones(feature_mask) + max_live_intermediates
     # A well-formed postfix tree collapses the stack to exactly the root;
     # anything else (e.g. orphaned roots) must fail closed.
-    return (stack_top == 1, n_slots, max_stack, fmask)
+    return (stack_top == 1, num_slots, max_stack, feature_mask)
 end
 
 @generated function _scalar_degn(
@@ -744,7 +740,7 @@ end
 """Loop-invariant evaluation state: the slot pool, the descriptor/scalar
 stacks, and the free-list base. Immutable, so passing it compiles to the
 same code as passing the fields separately."""
-struct _PlanState{T}
+struct PlanState{T}
     pool::Matrix{T}
     descriptors::Vector{Int64}
     scalar_vals::Vector{T}
@@ -754,24 +750,24 @@ end
 
 """The evaluator's register-like counters: descriptor stack top, free-list
 length, and high-water slot. Threaded through `_push_leaf!`/`_exec_op!`."""
-struct _PlanRegs
+struct PlanRegisters
     stack_top::Int
     num_free::Int
     next_slot::Int32
 end
 
 @inline function _push_leaf!(
-    state::_PlanState{T}, regs::_PlanRegs, entry::ArenaEntry{T}, fmask::UInt64
+    state::PlanState{T}, regs::PlanRegisters, entry::ArenaEntry{T}, feature_mask::UInt64
 ) where {T}
     stack_top = regs.stack_top + 1
     @inbounds if entry.constant
         state.descriptors[stack_top] = Int64(_K_SCALAR)
         state.scalar_vals[stack_top] = entry.val
     else
-        fslot = count_ones(fmask & ((UInt64(1) << (entry.feature - 1)) - 1)) + 2
-        state.descriptors[stack_top] = Int64(_K_PSLOT) | (Int64(fslot) << 2)
+        feature_slot = _feature_slot(feature_mask, entry.feature)
+        state.descriptors[stack_top] = Int64(_K_PSLOT) | (Int64(feature_slot) << 2)
     end
-    return _PlanRegs(stack_top, regs.num_free, regs.next_slot)
+    return PlanRegisters(stack_top, regs.num_free, regs.next_slot)
 end
 
 """Execute one operator node of runtime degree `d` (dispatched to a
@@ -780,8 +776,8 @@ descriptors, fold if all are scalars, otherwise free recyclable argument
 slots, allocate the destination (slot 1 when at the root), and run the
 kernel. Returns `(regs, ok)`."""
 @generated function _exec_op!(
-    state::_PlanState{T},
-    regs::_PlanRegs,
+    state::PlanState{T},
+    regs::PlanRegisters,
     op_idx::UInt8,
     degree::UInt8,
     is_root::Bool,
@@ -803,8 +799,7 @@ kernel. Returns `(regs, ok)`."""
                     A, k -> Int32(descriptors[stack_top - A + k] >> 2)
                 )
                 scalar_args = Base.Cartesian.@ntuple(
-                    A,
-                    k -> if kinds[k] == _K_SCALAR
+                    A, k -> if kinds[k] == _K_SCALAR
                         scalar_vals[stack_top - A + k]
                     else
                         zero(T)
@@ -823,9 +818,9 @@ kernel. Returns `(regs, ok)`."""
                             descriptors[stack_top] = Int64(_K_SCALAR)
                             scalar_vals[stack_top] = value
                         end
-                        (_PlanRegs(stack_top, num_free, next_slot), ok)
+                        (PlanRegisters(stack_top, num_free, next_slot), ok)
                     else
-                        (_PlanRegs(stack_top, num_free, next_slot), false)
+                        (PlanRegisters(stack_top, num_free, next_slot), false)
                     end
                 else
                     # free recyclable argument slots first; the destination
@@ -865,7 +860,7 @@ kernel. Returns `(regs, ok)`."""
                             _valid_slot(pool, offsets[k], nrows)
                         end,
                     )
-                        (_PlanRegs(stack_top, num_free, next_slot), false)
+                        (PlanRegisters(stack_top, num_free, next_slot), false)
                     else
                         _dispatch_degn!(
                             Val(A),
@@ -878,7 +873,7 @@ kernel. Returns `(regs, ok)`."""
                             nrows,
                             operators,
                         )
-                        (_PlanRegs(stack_top, num_free, next_slot), true)
+                        (PlanRegisters(stack_top, num_free, next_slot), true)
                     end
                 end
             end
@@ -886,48 +881,90 @@ kernel. Returns `(regs, ok)`."""
     end
 end
 
+"""Copy each used feature column of `cX` into its permanent pool slot.
+Slot layout in the pool: 1 = output; 2 .. 1+num_features = materialized
+features (ascending feature order); intermediates after that."""
+function _materialize_features!(
+    pool::Matrix{T}, cX::Matrix{T}, feature_mask::UInt64, nrows::Int
+) where {T}
+    slot = 1
+    remaining = feature_mask
+    while !iszero(remaining)
+        feature = trailing_zeros(remaining) + 1
+        slot += 1
+        offset = (slot - 1) * nrows
+        @inbounds @simd for j in 1:nrows
+            pool[offset + j] = cX[feature, j]
+        end
+        remaining &= remaining - 1
+    end
+    return nothing
+end
+
+"""Normalize the finished evaluation so the result lands in pool row 1: copy
+a scalar/passthrough root into the output chunk if needed, then convert the
+contiguous output chunk into the strided row the generic buffered evaluator
+returns (`@view(buffer.array[1, :])`), keeping `eval_tree_array` type stable."""
+function _write_root_to_output!(
+    pool::Matrix{T}, descriptors::Vector{Int64}, scalar_vals::Vector{T}, nrows::Int
+) where {T}
+    # Root never went through a kernel (bare leaf or fully folded scalar), or
+    # an op-root wrote into a non-output slot via in-place deg1 reuse. A bare
+    # leaf root is never validity-checked (`deg0_eval` semantics); a folded
+    # scalar root is already valid by induction.
+    root_kind = UInt8(descriptors[1] & 3)
+    root_slot = Int32(descriptors[1] >> 2)
+    if root_kind == _K_SCALAR
+        value = scalar_vals[1]
+        @inbounds @simd for j in 1:nrows
+            pool[j] = value
+        end
+    elseif !isone(root_slot)
+        root_offset = _slotoff(root_slot, nrows)
+        @inbounds @simd for j in 1:nrows
+            pool[j] = pool[root_offset + j]
+        end
+    end
+    # The chunk and row 1 overlap in memory; iterating downward is safe: when
+    # reading chunk index j, every already-written row position (j''-1)*B+1
+    # with j'' > j exceeds j for B = size(pool, 1) >= 2, and for B == 1 the
+    # chunk and row coincide elementwise.
+    if size(pool, 1) > 1
+        @inbounds for j in nrows:-1:1
+            pool[1, j] = pool[j]
+        end
+    end
+    return nothing
+end
+
 function _arena_eval(
     arena::Arena{T,D},
     cX::Matrix{T},
     operators::OperatorEnum,
     ::Val{early_exit},
-    n_slots::Int,
+    num_slots::Int,
     max_stack::Int,
-    fmask::UInt64,
+    feature_mask::UInt64,
     pool::Matrix{T},
 ) where {T,D,early_exit}
     nodes = getfield(arena, :nodes)
     num_nodes = length(nodes)
     nrows = size(cX, 2)
+    num_features = count_ones(feature_mask)
 
-    # Slot layout in the pool: 1 = output; 2 .. 1+n_perm = materialized
-    # features; intermediates after that. Slots are addressed by offset; the
-    # output view is constructed once, at return.
-    n_perm = count_ones(fmask)
-    let slot = 1
-        remaining = fmask
-        while remaining != 0
-            feature = trailing_zeros(remaining) + 1
-            slot += 1
-            offset = (slot - 1) * nrows
-            @inbounds @simd for j in 1:nrows
-                pool[offset + j] = cX[feature, j]
-            end
-            remaining &= remaining - 1
-        end
-    end
+    _materialize_features!(pool, cX, feature_mask, nrows)
 
     # Per-call descriptor state (tiny; the pool itself is caller-owned):
-    descriptors = Vector{Int64}(undef, max_stack + n_slots)
+    descriptors = Vector{Int64}(undef, max_stack + num_slots)
     scalar_vals = Vector{T}(undef, max_stack)
-    state = _PlanState(pool, descriptors, scalar_vals, max_stack, nrows)
-    regs = _PlanRegs(0, 0, Int32(1 + n_perm))
+    state = PlanState(pool, descriptors, scalar_vals, max_stack, nrows)
+    regs = PlanRegisters(0, 0, Int32(1 + num_features))
     out() = @inbounds @view(pool[1, :])
 
     @inbounds for i in 1:num_nodes
         entry = nodes[i]
         if iszero(entry.degree)
-            regs = _push_leaf!(state, regs, entry, fmask)
+            regs = _push_leaf!(state, regs, entry, feature_mask)
         else
             is_root = i == num_nodes
             regs, ok = _exec_op!(
@@ -937,35 +974,7 @@ function _arena_eval(
         end
     end
 
-    # Root never went through a kernel (bare leaf or fully folded scalar), or
-    # an op-root wrote into a non-output slot via in-place deg1 reuse. A bare
-    # leaf root is never validity-checked (`deg0_eval` semantics); a folded
-    # scalar root is already valid by induction.
-    kroot = UInt8(descriptors[1] & 3)
-    if kroot == _K_SCALAR
-        value = scalar_vals[1]
-        @inbounds @simd for j in 1:nrows
-            pool[j] = value
-        end
-    elseif Int32(descriptors[1] >> 2) != Int32(1)
-        soff = _slotoff(Int32(descriptors[1] >> 2), nrows)
-        @inbounds @simd for j in 1:nrows
-            pool[j] = pool[soff + j]
-        end
-    end
-    # Move the result from chunk 1 (linear 1:nrows) into row 1, so the
-    # returned view has the same type as the generic buffered evaluator's
-    # `@view(buffer.array[i, :])` (keeping `eval_tree_array` type stable).
-    # Chunk and row overlap in memory; iterating downward is safe: when
-    # reading chunk index j, every already-written row position (j''-1)*B+1
-    # with j'' > j exceeds j for buffer_rows >= 2, and for buffer_rows == 1 chunk and row
-    # coincide elementwise.
-    buffer_rows = size(pool, 1)
-    if buffer_rows > 1
-        @inbounds for j in nrows:-1:1
-            pool[1, j] = pool[j]
-        end
-    end
+    _write_root_to_output!(pool, descriptors, scalar_vals, nrows)
     return ResultOk(out(), true)
 end
 

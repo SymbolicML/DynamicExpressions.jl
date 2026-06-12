@@ -47,26 +47,28 @@ end
     using DynamicExpressions: NodeInterface
     using Interfaces: Interfaces
 
-    const AN = DynamicExpressions.ArenaNodeModule
+    using DynamicExpressions: ArenaNode, Arena
+    using DynamicExpressions.ArenaNodeModule:
+        ArenaEntry, _replace, is_compact_root, push_constant!, push_feature!
 
     operators = OperatorEnum(1 => (sin, cos), 2 => (+, *))
     x1 = Node{Float64}(; feature=1)
     tree = sin(x1) + x1 * 3.2
-    atree = convert(AN.ArenaNode{Float64}, tree)
+    atree = convert(ArenaNode{Float64}, tree)
 
-    @test atree isa AN.ArenaNode{Float64,2}
+    @test atree isa ArenaNode{Float64,2}
     @test count_nodes(atree) == count_nodes(tree)
     @test string_tree(atree, operators) == string_tree(tree, operators)
     @test tree_mapreduce(_ -> 1, +, atree, Int) == count_nodes(atree)
 
     @test Interfaces.test(
         NodeInterface,
-        AN.ArenaNode,
+        ArenaNode,
         [
             atree,
-            convert(AN.ArenaNode{Float64}, sin(x1)),
-            convert(AN.ArenaNode{Float64}, x1),
-            convert(AN.ArenaNode{Float64}, Node{Float64}(; val=1.0)),
+            convert(ArenaNode{Float64}, sin(x1)),
+            convert(ArenaNode{Float64}, x1),
+            convert(ArenaNode{Float64}, Node{Float64}(; val=1.0)),
         ],
     )
 
@@ -111,19 +113,21 @@ end
     using Test
     using DynamicExpressions
 
-    const AN = DynamicExpressions.ArenaNodeModule
+    using DynamicExpressions: ArenaNode, Arena
+    using DynamicExpressions.ArenaNodeModule:
+        ArenaEntry, _replace, is_compact_root, push_constant!, push_feature!
 
     operators = OperatorEnum(1 => (sin, cos), 2 => (+, *))
     x1 = Node{Float64}(; feature=1)
     tree = sin(x1) + x1 * 3.2
     X = randn(Float64, 1, 50)
 
-    atree_setnode = convert(AN.ArenaNode{Float64}, tree)
+    atree_setnode = convert(ArenaNode{Float64}, tree)
     atree_setnode2 = copy(atree_setnode)
     set_node!(atree_setnode, atree_setnode2)
     @test string_tree(atree_setnode, operators) == string_tree(atree_setnode2, operators)
 
-    default = AN.ArenaNode{Float64,2}()
+    default = ArenaNode{Float64,2}()
     @test default.degree == 0
     @test default.constant
     @test default.val == 0.0
@@ -138,8 +142,8 @@ end
     @test !default.constant
     @test_throws ArgumentError default.foo = 1
 
-    parent = convert(AN.ArenaNode{Float64}, sin(x1))
-    other = convert(AN.ArenaNode{Float64}, x1 * 3.2)
+    parent = convert(ArenaNode{Float64}, sin(x1))
+    other = convert(ArenaNode{Float64}, x1 * 3.2)
     set_child!(parent, other, 1)
     @test get_child(parent, 1).arena === parent.arena
     other.r.val = 99.0
@@ -148,10 +152,10 @@ end
     @test y_parent ≈ sin.(X[1, :] .* 3.2)
 
     @test_throws ArgumentError set_child!(parent, Node{Float32}(; val=1.0f0), 1)
-    @test_throws UndefRefError get_child(convert(AN.ArenaNode{Float64}, x1), 1)
+    @test_throws UndefRefError get_child(convert(ArenaNode{Float64}, x1), 1)
 
-    rewritten = convert(AN.ArenaNode{Float64}, sin(x1))
-    set_children!(rewritten, (convert(AN.ArenaNode{Float64}, x1 * 2.0),))
+    rewritten = convert(ArenaNode{Float64}, sin(x1))
+    set_children!(rewritten, (convert(ArenaNode{Float64}, x1 * 2.0),))
     @test get_child(rewritten, 1).arena === rewritten.arena
     @test string_tree(rewritten, operators) == "sin(x1 * 2.0)"
 
@@ -162,7 +166,7 @@ end
     @test_throws ArgumentError set_children!(rewritten, bad_children)
 
     tree_fold = Node{Float64}(; val=2.0) + Node{Float64}(; val=3.0)
-    atree_fold = convert(AN.ArenaNode{Float64}, tree_fold)
+    atree_fold = convert(ArenaNode{Float64}, tree_fold)
     simplify_tree!(atree_fold, operators)
     @test atree_fold.degree == 0
     @test atree_fold.constant
@@ -175,17 +179,19 @@ end
     using DynamicExpressions: ExpressionInterface, get_tree
     using Interfaces: test
 
-    const AN = DynamicExpressions.ArenaNodeModule
+    using DynamicExpressions: ArenaNode, Arena
+    using DynamicExpressions.ArenaNodeModule:
+        ArenaEntry, _replace, is_compact_root, push_constant!, push_feature!
 
     operators = OperatorEnum(1 => (sin, cos), 2 => (+, *))
     x1 = Node{Float64}(; feature=1)
-    atree = convert(AN.ArenaNode{Float64}, sin(x1) + x1 * 3.2)
+    atree = convert(ArenaNode{Float64}, sin(x1) + x1 * 3.2)
     expr = Expression(atree; operators, variable_names=["x"])
     @test get_tree(expr) === atree
     @test test(ExpressionInterface, Expression, [expr])
 
     simple_expr = Expression(
-        convert(AN.ArenaNode{Float64}, x1); operators, variable_names=["x"]
+        convert(ArenaNode{Float64}, x1); operators, variable_names=["x"]
     )
     @test test(ExpressionInterface, Expression, [simple_expr])
 end
@@ -197,16 +203,18 @@ end
     using DifferentiationInterface: AutoZygote, gradient
     using Zygote
 
-    const AN = DynamicExpressions.ArenaNodeModule
+    using DynamicExpressions: ArenaNode, Arena
+    using DynamicExpressions.ArenaNodeModule:
+        ArenaEntry, _replace, is_compact_root, push_constant!, push_feature!
 
     operators_grad = OperatorEnum(1 => (sin, cos, exp), 2 => (+, -, *, /))
     x1 = Expression(
-        convert(AN.ArenaNode{Float64}, Node{Float64}(; feature=1));
+        convert(ArenaNode{Float64}, Node{Float64}(; feature=1));
         operators=operators_grad,
         variable_names=[:x1, :x2],
     )
     x2 = Expression(
-        convert(AN.ArenaNode{Float64}, Node{Float64}(; feature=2));
+        convert(ArenaNode{Float64}, Node{Float64}(; feature=2));
         operators=operators_grad,
         variable_names=[:x1, :x2],
     )
@@ -229,7 +237,7 @@ end
 
     operators_const = OperatorEnum(2 => (+,))
     x1c = Expression(
-        convert(AN.ArenaNode{Float64}, Node{Float64}(; feature=1));
+        convert(ArenaNode{Float64}, Node{Float64}(; feature=1));
         operators=operators_const,
         variable_names=["x1"],
     )
@@ -253,16 +261,18 @@ end
     using DynamicExpressions: Node, copy_node
     using DynamicExpressions.NodePreallocationModule: allocate_container, copy_into!
 
-    const AN = DynamicExpressions.ArenaNodeModule
+    using DynamicExpressions: ArenaNode, Arena
+    using DynamicExpressions.ArenaNodeModule:
+        ArenaEntry, _replace, is_compact_root, push_constant!, push_feature!
 
     operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[sin, cos])
     x1 = Node{Float64}(; feature=1)
     x2 = Node{Float64}(; feature=2)
     tree = sin(x1 * 3.2 - 0.9) + x2 * (x1 - 0.5)
-    atree = convert(AN.ArenaNode{Float64}, tree)
+    atree = convert(ArenaNode{Float64}, tree)
 
     @testset "compact flat copy" begin
-        @test AN.is_compact_root(atree)
+        @test is_compact_root(atree)
         c = copy(atree)
         @test c.arena !== atree.arena
         @test convert(Node, c) == tree
@@ -273,15 +283,15 @@ end
 
     @testset "subtree copy falls back and re-compacts" begin
         sub = atree.l
-        @test !AN.is_compact_root(sub)
+        @test !is_compact_root(sub)
         csub = copy(sub)
-        @test AN.is_compact_root(csub)
+        @test is_compact_root(csub)
         @test convert(Node, csub) == tree.l
     end
 
     @testset "structural mutation invalidates fast paths" begin
-        mutated = convert(AN.ArenaNode{Float64}, tree)
-        set_child!(mutated, convert(AN.ArenaNode{Float64}, cos(x2)), 2)
+        mutated = convert(ArenaNode{Float64}, tree)
+        set_child!(mutated, convert(ArenaNode{Float64}, cos(x2)), 2)
         @test !mutated.arena.compact[]
         expected = copy(tree)
         set_child!(expected, cos(x2), 2)
@@ -289,10 +299,10 @@ end
         @test count_nodes(mutated) == count_nodes(expected)
         @test has_constants(mutated) == has_constants(expected)
         recompacted = copy(mutated)
-        @test AN.is_compact_root(recompacted)
+        @test is_compact_root(recompacted)
         @test count_nodes(recompacted) == count_nodes(expected)
 
-        leafed = convert(AN.ArenaNode{Float64}, tree)
+        leafed = convert(ArenaNode{Float64}, tree)
         node = leafed.r
         node.degree = 0
         node.constant = true
@@ -322,7 +332,7 @@ end
 
     @testset "Expression-level preallocated copy (SR mutation path)" begin
         ex = Expression(
-            convert(AN.ArenaNode{Float64}, tree);
+            convert(ArenaNode{Float64}, tree);
             operators=operators,
             variable_names=["x1", "x2"],
         )
@@ -338,13 +348,13 @@ end
         @test length(atree) == length(tree)
         @test count_constant_nodes(atree) == count_constant_nodes(tree)
         @test has_constants(atree) == has_constants(tree)
-        leaf = convert(AN.ArenaNode{Float64}, Node{Float64}(; feature=1))
+        leaf = convert(ArenaNode{Float64}, Node{Float64}(; feature=1))
         @test !has_constants(leaf)
         @test count_constant_nodes(leaf) == 0
     end
 
     @testset "scalar constants via arena indices" begin
-        fresh = convert(AN.ArenaNode{Float64}, tree)
+        fresh = convert(ArenaNode{Float64}, tree)
         vals, refs = get_scalar_constants(fresh)
         @test refs isa Vector{Int32}
         @test DynamicExpressions.count_scalar_constants(fresh) == length(vals)
@@ -367,56 +377,58 @@ end
     end
 end
 
-@testitem "Arena array interface guards compactness automatically" begin
+@testitem "Arena array interface guards compactness" begin
     using DynamicExpressions
     using DynamicExpressions: Node
 
-    const AN = DynamicExpressions.ArenaNodeModule
+    using DynamicExpressions: ArenaNode, Arena
+    using DynamicExpressions.ArenaNodeModule:
+        ArenaEntry, _replace, is_compact_root, push_constant!, push_feature!
 
     operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
     x1 = Node{Float64}(; feature=1)
     tree = sin(x1 * 3.2) + 0.5
-    atree = convert(AN.ArenaNode{Float64}, tree)
+    atree = convert(ArenaNode{Float64}, tree)
     a = atree.arena
-    @test a isa AbstractVector{AN.ArenaEntry{Float64,2}}
+    @test a isa AbstractVector{ArenaEntry{Float64,2}}
     @test length(a) == count_nodes(tree)
 
     e = a[1]
-    a[1] = AN._replace(e; val=42.0)
-    @test AN.is_compact_root(atree)
+    a[1] = _replace(e; val=42.0)
+    @test is_compact_root(atree)
 
     vals, refs = get_scalar_constants(atree)
     set_scalar_constants!(atree, vals .* 2, refs)
-    @test AN.is_compact_root(atree)
+    @test is_compact_root(atree)
 
     bi = findfirst(e -> e.degree == 0x02, collect(a))
     e = a[bi]
-    a[bi] = AN._replace(e; degree=0x00)
+    a[bi] = _replace(e; degree=0x00)
     @test !a.compact[]
 
-    b = convert(AN.ArenaNode{Float64}, tree).arena
+    b = convert(ArenaNode{Float64}, tree).arena
     scrambled = reverse(collect(b))
     copyto!(b, scrambled)
     @test !b.compact[]
 
-    c = convert(AN.ArenaNode{Float64}, tree).arena
+    c = convert(ArenaNode{Float64}, tree).arena
     copyto!(c, collect(c))
     @test c.compact[]
 end
 
-@testitem "ArenaNode fast paths agree with Node under random mutations" setup = [
-    ArenaTreeGen
-] begin
+@testitem "ArenaNode fast paths match Node" setup = [ArenaTreeGen] begin
     using DynamicExpressions
     using DynamicExpressions: Node
     using Random
 
-    const AN = DynamicExpressions.ArenaNodeModule
+    using DynamicExpressions: ArenaNode, Arena
+    using DynamicExpressions.ArenaNodeModule:
+        ArenaEntry, _replace, is_compact_root, push_constant!, push_feature!
 
     operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[sin, cos])
     rng = MersenneTwister(42)
 
-    function all_facades(n, acc=AN.ArenaNode{Float64,2}[])
+    function all_facades(n, acc=ArenaNode{Float64,2}[])
         push!(acc, n)
         for i in 1:(n.degree)
             all_facades(get_child(n, i), acc)
@@ -425,9 +437,7 @@ end
     end
 
     for _ in 1:20
-        root = convert(
-            AN.ArenaNode{Float64}, ArenaTreeGen.random_tree(rng, rand(rng, 5:25))
-        )
+        root = convert(ArenaNode{Float64}, ArenaTreeGen.random_tree(rng, rand(rng, 5:25)))
         for _ in 1:8
             nodes = all_facades(root)
             node = rand(rng, nodes)
@@ -444,7 +454,7 @@ end
                 set_child!(
                     node,
                     convert(
-                        AN.ArenaNode{Float64}, ArenaTreeGen.random_tree(rng, rand(rng, 1:5))
+                        ArenaNode{Float64}, ArenaTreeGen.random_tree(rng, rand(rng, 1:5))
                     ),
                     rand(rng, 1:(node.degree)),
                 )
@@ -463,20 +473,20 @@ end
             @test count(t -> t.degree == 2, root) == count(t -> t.degree == 2, expected)
             @test first(get_scalar_constants(root)) == first(get_scalar_constants(expected))
             c = copy(root)
-            @test AN.is_compact_root(c)
+            @test is_compact_root(c)
             @test convert(Node, c) == expected
         end
     end
 end
 
-@testitem "ArenaNode buffered plan evaluation matches generic evaluator" setup = [
-    ArenaTreeGen
-] begin
+@testitem "ArenaNode buffered plan eval" setup = [ArenaTreeGen] begin
     using DynamicExpressions
     using DynamicExpressions: Node, EvalOptions, ArrayBuffer
     using Random
 
-    const AN = DynamicExpressions.ArenaNodeModule
+    using DynamicExpressions: ArenaNode, Arena
+    using DynamicExpressions.ArenaNodeModule:
+        ArenaEntry, _replace, is_compact_root, push_constant!, push_feature!
 
     operators = OperatorEnum(; binary_operators=[+, *, /, -], unary_operators=[cos, exp])
     rng = MersenneTwister(11)
@@ -487,7 +497,7 @@ end
         buf_n = zeros(T, 40, 37)
         for trial in 1:60, early_exit in (true, false)
             tree = ArenaTreeGen.random_tree(rng, rand(rng, 1:30); T, nfeat=5, const_p=0.4)
-            atree = convert(AN.ArenaNode{T}, tree)
+            atree = convert(ArenaNode{T}, tree)
             opts_a = EvalOptions(; early_exit, buffer=ArrayBuffer(buf_a, Ref(0)))
             opts_n = EvalOptions(; early_exit, buffer=ArrayBuffer(buf_n, Ref(0)))
             # Unbuffered ground truth; results of buffered evals are views, so
@@ -525,7 +535,7 @@ end
         for _ in 1:70
             deep = Node{T}(; op=1, l=Node{T}(; feature=1), r=deep)
         end
-        adeep = convert(AN.ArenaNode{T}, deep)
+        adeep = convert(ArenaNode{T}, deep)
         big = zeros(T, 80, 37)
         o = EvalOptions(; buffer=ArrayBuffer(big, Ref(0)))
         y1, ok1 = eval_tree_array(copy(deep), X, operators)
@@ -535,14 +545,14 @@ end
     end
 end
 
-@testitem "ArenaNode buffered evaluation with arbitrary-degree operators" setup = [
-    ArenaTreeGen
-] begin
+@testitem "ArenaNode buffered eval, degree 3" setup = [ArenaTreeGen] begin
     using DynamicExpressions
     using DynamicExpressions: Node, EvalOptions, ArrayBuffer
     using Random
 
-    const AN = DynamicExpressions.ArenaNodeModule
+    using DynamicExpressions: ArenaNode, Arena
+    using DynamicExpressions.ArenaNodeModule:
+        ArenaEntry, _replace, is_compact_root, push_constant!, push_feature!
 
     my3(x, y, z) = x * y + z
     operators = OperatorEnum(1 => (cos, exp), 2 => (+, *, -, /), 3 => (fma, my3))
@@ -561,7 +571,7 @@ end
             arity_cdf=(0.25, 0.6, 1.0),
             const_p=0.4,
         )
-        atree = convert(AN.ArenaNode{T,3}, tree)
+        atree = convert(ArenaNode{T,3}, tree)
         o = EvalOptions(; early_exit, buffer=ArrayBuffer(buf, Ref(0)))
         rt = try
             (
@@ -594,23 +604,25 @@ end
     using DynamicExpressions: Node, EvalOptions, ArrayBuffer
     using DynamicExpressions.NodePreallocationModule: allocate_container, copy_into!
 
-    const AN = DynamicExpressions.ArenaNodeModule
+    using DynamicExpressions: ArenaNode, Arena
+    using DynamicExpressions.ArenaNodeModule:
+        ArenaEntry, _replace, is_compact_root, push_constant!, push_feature!
 
     operators = OperatorEnum(1 => (cos, exp), 2 => (+, *, -, /))
     T = Float64
     X = T[1.0 2.0 3.0; 0.5 1.5 2.5]
     nrows = size(X, 2)
     buf() = ArrayBuffer(zeros(T, 16, nrows), Ref(0))
-    to_arena(t) = convert(AN.ArenaNode{T,2}, t)
+    to_arena(t) = convert(ArenaNode{T,2}, t)
     x1 = Node{T}(; feature=1)
     x2 = Node{T}(; feature=2)
 
     @testset "multi-root arenas fail closed" begin
-        a = AN.Arena{T,2}()
-        AN.push_constant!(a, 1.0)
-        i2 = AN.push_feature!(a, 2)
-        n2 = AN.ArenaNode(a, i2)
-        @test !AN.is_compact_root(n2)
+        a = Arena{T,2}()
+        push_constant!(a, 1.0)
+        i2 = push_feature!(a, 2)
+        n2 = ArenaNode(a, i2)
+        @test !is_compact_root(n2)
         @test count_nodes(n2) == 1
         y, ok = eval_tree_array(n2, X, operators; eval_options=EvalOptions(; buffer=buf()))
         @test ok && y ≈ X[2, :]
@@ -625,7 +637,7 @@ end
     end
 
     @testset "out-of-arity get_child throws" begin
-        leaf = AN.ArenaNode{T,1}()
+        leaf = ArenaNode{T,1}()
         @test_throws BoundsError leaf.r
     end
 
@@ -638,7 +650,7 @@ end
     end
 
     function check_parity(tree, ops, Xm; early_exit)
-        atree = convert(AN.ArenaNode{T,2}, tree)
+        atree = convert(ArenaNode{T,2}, tree)
         yn, okn = eval_tree_array(
             copy(tree), Xm, ops; eval_options=EvalOptions(; early_exit)
         )
@@ -695,7 +707,7 @@ end
         ta = to_arena(tn)
         @test ta == tn
         @test tn == ta
-        @test convert(AN.ArenaNode{Float32,2}, tn) == tn
+        @test convert(ArenaNode{Float32,2}, tn) == tn
     end
 
     @testset "copy_into! container reuse" begin
@@ -710,7 +722,7 @@ end
         tb = Node{BigFloat,2}(;
             op=1, l=Node{BigFloat,2}(; feature=1), r=Node{BigFloat,2}(; val=big"1.5")
         )
-        ab = convert(AN.ArenaNode{BigFloat,2}, tb)
+        ab = convert(ArenaNode{BigFloat,2}, tb)
         Xb = BigFloat.(X)
         bufb = ArrayBuffer(Matrix{BigFloat}(undef, 16, nrows), Ref(0))
         yb, okb = eval_tree_array(

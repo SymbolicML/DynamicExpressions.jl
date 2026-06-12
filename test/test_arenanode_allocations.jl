@@ -2,13 +2,14 @@ using Test
 using DynamicExpressions
 using DynamicExpressions.NodePreallocationModule: allocate_container, copy_into!
 
-const AN = DynamicExpressions.ArenaNodeModule
+using DynamicExpressions: ArenaNode, Arena
+using DynamicExpressions.ArenaNodeModule: _copy_to_arena!, push_constant!
 
 operators = OperatorEnum(1 => (sin, cos), 2 => (+, *))
 x1 = DynamicExpressions.Node{Float64}(; feature=1)
 
 function alloc_push_constant!(arena)
-    AN.push_constant!(arena, 1.0)
+    push_constant!(arena, 1.0)
     return nothing
 end
 
@@ -18,7 +19,7 @@ function alloc_set_child!(parent, child)
 end
 
 function alloc_copy_tree!(arena, tree)
-    AN._copy_to_arena!(arena, tree)
+    _copy_to_arena!(arena, tree)
     return nothing
 end
 
@@ -27,22 +28,22 @@ function alloc_copy_into!(dest, tree)
     return nothing
 end
 
-arena_push = AN.Arena{Float64,2}(; capacity=128)
+arena_push = Arena{Float64,2}(; capacity=128)
 
 base_tree = sin(x1)
-parent_arena = AN.Arena{Float64,2}(; capacity=128)
-parent_idx = AN._copy_to_arena!(parent_arena, base_tree)
-parent = AN.ArenaNode(parent_arena, parent_idx)
+parent_arena = Arena{Float64,2}(; capacity=128)
+parent_idx = _copy_to_arena!(parent_arena, base_tree)
+parent = ArenaNode(parent_arena, parent_idx)
 
 child_tree = x1 * 3.2
-child_arena = AN.Arena{Float64,2}(; capacity=128)
-child_idx = AN._copy_to_arena!(child_arena, child_tree)
-child = AN.ArenaNode(child_arena, child_idx)
+child_arena = Arena{Float64,2}(; capacity=128)
+child_idx = _copy_to_arena!(child_arena, child_tree)
+child = ArenaNode(child_arena, child_idx)
 
 tree_large = sin(x1) + x1 * 3.2 + cos(x1)
-atree_large = convert(AN.ArenaNode{Float64}, tree_large)
+atree_large = convert(ArenaNode{Float64}, tree_large)
 copy_dest = allocate_container(atree_large)
-arena_large = AN.Arena{Float64,2}(; capacity=128)
+arena_large = Arena{Float64,2}(; capacity=128)
 
 for _ in 1:5
     alloc_push_constant!(arena_push)
