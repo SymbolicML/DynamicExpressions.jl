@@ -82,9 +82,8 @@ struct Arena{T<:Number,D} <: AbstractVector{ArenaEntry{T,D}}
     end
 end
 
-"""Mark the arena as holding exactly one postfix-ordered tree (root last)."""
+# Mark/clear the one-postfix-tree invariant (root last, no orphans):
 @inline mark_compact!(arena::Arena) = (arena.compact[]=true; arena)
-"""Record that the one-postfix-tree invariant may no longer hold."""
 @inline invalidate_compact!(arena::Arena) = (arena.compact[]=false; arena)
 @inline is_compact(arena::Arena) = arena.compact[]
 
@@ -138,15 +137,13 @@ end
 
 @inline ArenaNode(arena::Arena{T,D}, idx::Int32) where {T,D} = ArenaNode{T,D}(arena, idx)
 
-"""Raw accessors for the facade's two fields, and the only sanctioned
-`getfield` call sites. Internal code uses these instead of property access so
-that functions reachable from `getproperty` (e.g. `get_child` via the
-`:l`/`:r` branches) do not create an inference cycle through it."""
+# The only sanctioned `getfield` sites: internal code uses these instead of
+# property access so that functions reachable from `getproperty` (e.g.
+# `get_child` via the `:l`/`:r` branches) do not cycle back into it.
 @inline get_arena(node::ArenaNode) = getfield(node, :arena)
 @inline get_index(node::ArenaNode) = getfield(node, :idx)
 
-"""Whether `tree` is the root of a compact arena, so that the arena contents
-*are* the tree and whole-tree operations can act on the flat array directly."""
+# True when the arena contents *are* `tree`: compact, rooted at the last entry.
 @inline function is_compact_root(tree::ArenaNode)
     arena = get_arena(tree)
     return is_compact(arena) && get_index(tree) == length(arena.nodes)
@@ -177,7 +174,7 @@ end
     return _push_node!(arena; feature=UInt16(feature))
 end
 
-"""Create a default node (a `0` constant leaf) in its own fresh arena."""
+# Default node: a zero constant leaf in its own fresh arena.
 function ArenaNode{T,D}() where {T,D}
     arena = Arena{T,D}()
     idx = push_constant!(arena, zero(T))
@@ -251,11 +248,8 @@ end
     return Nullable{ArenaNode{T,D}}(iszero(child_idx), child)
 end
 
-"""Return an `NTuple{D,Nullable{ArenaNode}}` of children wrappers.
-
-Unused slots are represented as poison nodes (mirroring `Node`), so that
-accessing them throws an `UndefRefError`.
-"""
+# Children as `Nullable` wrappers; unused slots are poison nodes (like `Node`),
+# so accessing them throws an `UndefRefError`.
 @generated function unsafe_get_children(node::ArenaNode{T,D}) where {T,D}
     quote
         $(Expr(:meta, :inline))
@@ -274,10 +268,8 @@ end
     return ArenaNode{T,D}(arena, child_idx)
 end
 
-"""Arena index for attaching `child` under `node`: a same-arena child is
-linked by its existing index; anything else (a `Node`, or an `ArenaNode` from
-a different arena) is copied into `node`'s arena, since arenas cannot link
-across each other."""
+# Same-arena children attach by index; anything else is copied into `node`'s
+# arena, since arenas cannot link across each other.
 @inline function _resolve_child_index!(node::ArenaNode{T,D}, child) where {T,D}
     child isa AbstractExpressionNode{T,D} || throw(
         ArgumentError(
@@ -325,18 +317,9 @@ end
     return nothing
 end
 
-"""Copy a tree into a new arena and return the new root node.
-
-When `tree` is the root of a compact arena, this is a single flat copy of the
-node array (child indices are arena-relative, so they remain valid verbatim).
-Otherwise it falls back to a structural copy, which also re-compacts the
-resulting arena.
-
-This overloads `copy_node` (rather than `Base.copy`) since it is the generic
-entry point: `Base.copy(::AbstractExpressionNode)` forwards here, and the
-fallback `copy_node` would otherwise build a fresh arena per copied node via
-`constructorof`.
-"""
+# Compact arenas copy as one flat array copy (child indices stay valid
+# verbatim); otherwise fall back to a structural copy, which re-compacts.
+# Overloads `copy_node` (not `Base.copy`) since that is the generic entry point.
 function copy_node(tree::ArenaNode{T,D}; break_sharing::Val{BS}=Val(false)) where {T,D,BS}
     if is_compact_root(tree)
         return ArenaNode{T,D}(Arena{T,D}(copy(tree.arena.nodes), true), tree.idx)
@@ -344,18 +327,15 @@ function copy_node(tree::ArenaNode{T,D}; break_sharing::Val{BS}=Val(false)) wher
     return convert(ArenaNode{T,D}, tree)
 end
 
-"""Preallocate an arena for [`copy_into!`](@ref), enabling zero-allocation copies."""
+# Preallocated arena for `copy_into!`, enabling zero-allocation copies.
 function allocate_container(
     prototype::ArenaNode{T,D}, num_nodes::Union{Nothing,Integer}=nothing
 ) where {T,D}
     return Arena{T,D}(; capacity=@something(num_nodes, length(prototype)))
 end
 
-"""Copy `src` into the preallocated arena `dest`, reusing its storage.
-
-This is the steady-state copy path for population-based search: no allocations
-once `dest` has sufficient capacity.
-"""
+# Steady-state copy for population search: reuse `dest`'s storage, with no
+# allocations once it has sufficient capacity.
 function copy_into!(
     dest::Arena{T,D},
     src::ArenaNode{T,D};
@@ -399,10 +379,7 @@ function _copy_to_arena!(
     return _push_node!(arena; degree=UInt8(degree), op=tree.op, children=idxs)
 end
 
-"""Convert an existing tree into an arena-backed representation.
-
-This copies the entire tree into a fresh arena, in postfix (children-first) order.
-"""
+# Copy the tree into a fresh arena, in postfix (children-first) order.
 @inline function Base.convert(
     ::Type{ArenaNode{T,D}}, tree::AbstractExpressionNode{T2,D}
 ) where {T,T2,D}
@@ -497,9 +474,8 @@ end
     end
 end
 
-"""Constants are gathered as plain `Int32` arena indices (which also remain
-valid in flat copies of the tree): a linear scan for compact arenas, and a
-facade traversal otherwise."""
+# Constants as plain Int32 arena indices (also valid in flat copies): a
+# linear scan when compact, a facade traversal otherwise.
 function get_scalar_constants(
     tree::ArenaNode{T}, ::Type{BT}=get_number_type(T)
 ) where {T<:Number,BT}
@@ -590,8 +566,8 @@ function _eval_tree_array(
     )
 end
 
-"""Pool slot holding materialized `feature`: slot 1 is the output, and used
-features occupy slots 2, 3, ... in ascending feature order."""
+# Pool slot of materialized `feature`: slot 1 is the output; features fill
+# slots 2, 3, ... in ascending feature order.
 @inline function _feature_slot(feature_mask::UInt64, feature::Integer)
     return count_ones(feature_mask & (_feature_bit(feature) - 1)) + 2
 end
@@ -606,16 +582,14 @@ const _K_SLOT = 0x02    # recyclable slot (an intermediate)
 # recycling decisions: the executor trusts the planner's slot counts under
 # `@inbounds`. These three functions are the single source of that policy.
 
-"""Kind of the descriptor a leaf pushes: constants fold into the scalar lane,
-features live in permanent slots."""
+# Leaves: constants fold into the scalar lane, features live in permanent slots.
 @inline _leaf_kind(entry::ArenaEntry) = entry.constant ? _K_SCALAR : _K_PSLOT
 
-"""Kind of the descriptor an operator pushes: an all-scalar application
-constant-folds into the scalar lane, anything else lands in a recyclable
-intermediate slot."""
+# Operators: an all-scalar application constant-folds; anything else lands in
+# a recyclable intermediate slot.
 @inline _op_result_kind(all_args_scalar::Bool) = all_args_scalar ? _K_SCALAR : _K_SLOT
 
-"""Whether consuming an operand of this kind frees its slot for reuse."""
+# Whether consuming an operand of this kind frees its slot for reuse.
 @inline _is_recyclable(kind::UInt8) = kind == _K_SLOT
 
 # A stack descriptor is an Int64 packing a kind (low 2 bits) with a slot
@@ -627,9 +601,9 @@ intermediate slot."""
 @inline _descriptor_slot(descriptor::Int64) = Int32(descriptor >> 2)
 @inline _feature_bit(feature::Integer) = UInt64(1) << (feature - 1)
 
-"""Alloc-free stack of descriptor kinds for the planner: two bitmask lanes
-(bit 1 = top of stack) record whether each entry is `_K_SCALAR` or
-`_K_PSLOT`; an entry in neither lane is `_K_SLOT`. Capacity is 64 entries."""
+# Alloc-free stack of descriptor kinds for the planner: two bitmask lanes
+# (bit 1 = top) mark `_K_SCALAR`/`_K_PSLOT`; neither lane set = `_K_SLOT`.
+# Capacity is 64 entries.
 struct KindStack
     scalar::UInt64
     permanent::UInt64
@@ -653,13 +627,10 @@ end
     return count_ones(~kinds.scalar & ~kinds.permanent & arity_mask)
 end
 
-"""Alloc-free pre-pass: find which features are used and simulate the
-descriptor stack to count the recyclable intermediate slots (register
-allocation with a free list). The simulation makes the *same* kind and
-recycling decisions as the executor — both sides call `_leaf_kind`,
-`_op_result_kind`, and `_is_recyclable` — so the returned slot counts are
-exact. Kinds live in a `KindStack`, so trees deeper than 64 or features
-beyond 64 report failure and take the generic path."""
+# Alloc-free pre-pass: record used features and simulate the descriptor stack
+# to count slots. Makes the same kind/recycling decisions as the executor (the
+# shared policy functions above), so the counts are exact. Trees deeper than
+# 64 or features beyond 64 report failure and take the generic path.
 function _plan_scratch(arena::Arena{T,D}) where {T,D}
     nodes = arena.nodes
     feature_mask = UInt64(0)
@@ -718,10 +689,9 @@ end
     end
 end
 
-"""Branchless arity-generic kernel: each operand is selected per element with
-`ifelse` between its scalar value and its pool slot (scalar operands carry
-offset 0, so the dead load stays in cache). This avoids generating 2^arity
-kernel variants while remaining SIMD-friendly."""
+# Branchless arity-generic kernel: each operand selects per element between
+# its scalar value and its pool slot (scalar operands carry offset 0), so an
+# arity-A operator needs one kernel rather than 2^A variants.
 @generated function _kern_n!(
     pool::Matrix{T},
     dest_offset::Int,
@@ -740,7 +710,7 @@ kernel variants while remaining SIMD-friendly."""
         return nothing
     end
 end
-"""`is_valid_array` over a pool slot without constructing a view."""
+# `is_valid_array` over a pool slot without constructing a view.
 @inline function _valid_slot(pool::Matrix{T}, offset::Int, num_rows::Int) where {T}
     total = zero(T)
     @inbounds @simd for j in 1:num_rows
@@ -781,9 +751,8 @@ end
     end
 end
 
-"""Loop-invariant evaluation state: the slot pool, the descriptor/scalar
-stacks, and the free-list base. Immutable, so passing it compiles to the
-same code as passing the fields separately."""
+# Loop-invariant evaluation state. Immutable, so passing it compiles to the
+# same code as passing the fields separately.
 struct PlanState{T}
     pool::Matrix{T}
     descriptors::Vector{Int64}
@@ -792,8 +761,8 @@ struct PlanState{T}
     nrows::Int
 end
 
-"""The evaluator's register-like counters: descriptor stack top, free-list
-length, and high-water slot. Threaded through `_push_leaf!`/`_exec_op!`."""
+# Descriptor stack top, free-list length, and high-water slot, threaded
+# through `_push_leaf!`/`_exec_op!`.
 struct PlanRegisters
     stack_top::Int
     num_free::Int
@@ -814,9 +783,8 @@ end
     return PlanRegisters(stack_top, regs.num_free, regs.next_slot)
 end
 
-"""Execute one operator node of runtime degree `degree`: dispatch the
-runtime degree to a compile-time arity, then fold (all-scalar operands) or
-run the array kernel. Returns `(regs, ok)`."""
+# Dispatch the runtime degree to a compile-time arity, then fold (all-scalar
+# operands) or run the array kernel. Returns `(regs, ok)`.
 @generated function _exec_op!(
     state::PlanState{T},
     regs::PlanRegisters,
@@ -838,8 +806,8 @@ run the array kernel. Returns `(regs, ok)`."""
     end
 end
 
-"""Pop the top `A` operand descriptors and execute one arity-`A` operator
-node: constant-fold if every operand is a scalar, otherwise run the kernel."""
+# Pop the top `A` operand descriptors; constant-fold if every operand is a
+# scalar, otherwise run the kernel.
 @generated function _exec_op_arity!(
     ::Val{A},
     state::PlanState{T},
@@ -887,11 +855,10 @@ node: constant-fold if every operand is a scalar, otherwise run the kernel."""
     end
 end
 
-"""Constant-fold an operator whose operands are all in the scalar lane,
-writing the result descriptor at the (already popped) stack top. Mirrors
-`dispatch_constant_tree`: operand values and the fold result are validated
-unconditionally (not gated on `early_exit`); folded args are valid by
-induction, so the operand check only screens constant leaves."""
+# Constant-fold an all-scalar operator at the (already popped) stack top.
+# Like `dispatch_constant_tree`, operand values and the fold result are
+# validated unconditionally; folded args are valid by induction, so the arg
+# check only screens constant leaves.
 @inline function _fold_constant_args!(
     state::PlanState{T},
     regs::PlanRegisters,
@@ -907,17 +874,14 @@ induction, so the operand check only screens constant leaves."""
     return (regs, true)
 end
 
-"""Run an operator over pool slots: recycle the freed argument slots,
-allocate the destination (slot 1 at the root), and dispatch the kernel.
-
-Validation under `early_exit` mirrors the generic evaluator at lower cost:
-scalar operands are checked at consumption (O(1), like
-`@return_on_nonfinite_val`), while slot operands are covered by checking each
-kernel *output* at production — every non-root intermediate is consumed
-exactly once, so this rejects the same trees as per-consumption checks
-(`@return_on_nonfinite_array`), reading the slot while it is still hot.
-Features are validated once at materialization. The *root* output is never
-checked, as in the generic evaluator."""
+# Recycle the freed argument slots, allocate the destination (slot 1 at the
+# root), and dispatch the kernel. `early_exit` validation mirrors the generic
+# evaluator at lower cost: scalar operands are checked at consumption (O(1));
+# slot operands are covered by checking each kernel output at production
+# (every non-root intermediate is consumed exactly once, so this rejects the
+# same trees as per-consumption checks); features are validated once at
+# materialization; the root output is never checked, as in the generic
+# evaluator.
 @generated function _run_op_kernel!(
     state::PlanState{T},
     regs::PlanRegisters,
@@ -979,17 +943,12 @@ checked, as in the generic evaluator."""
     end
 end
 
-"""Copy each used feature column of `cX` into its permanent pool slot,
-returning whether all copied columns are valid. Slot layout in the pool:
-1 = output; 2 .. 1+num_features = materialized features (ascending feature
-order); intermediates after that.
-
-The validity check is fused into the copy (one extra add per element of a
-memory-bound loop) and replaces per-consumption checks: every materialized
-feature is consumed by at least one operator, so "invalid here" and "invalid
-at consumption" reject the same trees. `check_validity` is false when
-`early_exit` is off, and for a single-leaf tree, where no operator ever
-consumes the feature (`deg0_eval` never validates a bare leaf)."""
+# Copy each used feature column into its pinned pool slot (layout: 1 =
+# output; 2 .. 1+num_features = features, ascending). Validity is checked
+# once per feature here, replacing per-consumption checks: every
+# materialized feature is consumed by some operator -- except in a
+# single-leaf tree, where `check_validity` is passed as false to match
+# `deg0_eval`, which never validates a bare leaf.
 function _materialize_features!(
     pool::Matrix{T}, cX::Matrix{T}, feature_mask::UInt64, nrows::Int, check_validity::Bool
 ) where {T}
@@ -1010,10 +969,10 @@ function _materialize_features!(
     return true
 end
 
-"""Normalize the finished evaluation so the result lands in pool row 1: copy
-a scalar/passthrough root into the output chunk if needed, then convert the
-contiguous output chunk into the strided row the generic buffered evaluator
-returns (`@view(buffer.array[1, :])`), keeping `eval_tree_array` type stable."""
+# Land the result in pool row 1: copy a scalar or passthrough root into the
+# output chunk if needed, then convert the contiguous chunk into the strided
+# row the generic buffered evaluator returns (keeps `eval_tree_array`
+# type stable).
 function _write_root_to_output!(
     pool::Matrix{T}, descriptors::Vector{Int64}, scalar_vals::Vector{T}, nrows::Int
 ) where {T}
