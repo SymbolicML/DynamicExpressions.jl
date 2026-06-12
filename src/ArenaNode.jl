@@ -38,7 +38,7 @@ struct ArenaEntry{T<:Number,D}
     constant::Bool
 end
 
-@inline function _replace(
+function _replace(
     entry::ArenaEntry{T,D};
     val=entry.val,
     children=entry.children,
@@ -83,9 +83,9 @@ struct Arena{T<:Number,D} <: AbstractVector{ArenaEntry{T,D}}
 end
 
 # Mark/clear the one-postfix-tree invariant (root last, no orphans):
-@inline mark_compact!(arena::Arena) = (arena.compact[]=true; arena)
-@inline invalidate_compact!(arena::Arena) = (arena.compact[]=false; arena)
-@inline is_compact(arena::Arena) = arena.compact[]
+mark_compact!(arena::Arena) = (arena.compact[]=true; arena)
+invalidate_compact!(arena::Arena) = (arena.compact[]=false; arena)
+is_compact(arena::Arena) = arena.compact[]
 
 Base.size(arena::Arena) = size(arena.nodes)
 Base.IndexStyle(::Type{<:Arena}) = IndexLinear()
@@ -130,30 +130,28 @@ struct ArenaNode{T<:Number,D} <: AbstractExpressionNode{T,D}
     arena::Arena{T,D}
     idx::Int32
 
-    @inline function ArenaNode{T,D}(arena::Arena{T,D}, idx::Int32) where {T,D}
+    function ArenaNode{T,D}(arena::Arena{T,D}, idx::Int32) where {T,D}
         return new{T,D}(arena, idx)
     end
 end
 
-@inline ArenaNode(arena::Arena{T,D}, idx::Int32) where {T,D} = ArenaNode{T,D}(arena, idx)
+ArenaNode(arena::Arena{T,D}, idx::Int32) where {T,D} = ArenaNode{T,D}(arena, idx)
 
 # The only sanctioned `getfield` sites: internal code uses these instead of
 # property access so that functions reachable from `getproperty` (e.g.
 # `get_child` via the `:l`/`:r` branches) do not cycle back into it.
-@inline get_arena(node::ArenaNode) = getfield(node, :arena)
-@inline get_index(node::ArenaNode) = getfield(node, :idx)
+get_arena(node::ArenaNode) = getfield(node, :arena)
+get_index(node::ArenaNode) = getfield(node, :idx)
 
 # True when the arena contents *are* `tree`: compact, rooted at the last entry.
-@inline function is_compact_root(tree::ArenaNode)
+function is_compact_root(tree::ArenaNode)
     arena = get_arena(tree)
     return is_compact(arena) && get_index(tree) == length(arena.nodes)
 end
 
-@inline function _zero_children(::Val{D}) where {D}
-    return ntuple(_ -> Int32(0), Val(D))
-end
+_zero_children(::Val{D}) where {D} = ntuple(_ -> Int32(0), Val(D))
 
-@inline function _push_node!(
+function _push_node!(
     arena::Arena{T,D};
     degree::UInt8=UInt8(0),
     constant::Bool=false,
@@ -166,11 +164,11 @@ end
     return Int32(length(arena))
 end
 
-@inline function push_constant!(arena::Arena{T,D}, value) where {T,D}
+function push_constant!(arena::Arena{T,D}, value) where {T,D}
     return _push_node!(arena; constant=true, val=convert(T, value))
 end
 
-@inline function push_feature!(arena::Arena{T,D}, feature::Integer) where {T,D}
+function push_feature!(arena::Arena{T,D}, feature::Integer) where {T,D}
     return _push_node!(arena; feature=UInt16(feature))
 end
 
@@ -181,70 +179,64 @@ function ArenaNode{T,D}() where {T,D}
     return ArenaNode{T,D}(arena, idx)
 end
 
-Base.@constprop :aggressive @inline function Base.getproperty(
+Base.@constprop :aggressive function Base.getproperty(
     node::ArenaNode{T}, property_name::Symbol
 ) where {T}
     if property_name === :arena
         return get_arena(node)
     elseif property_name === :idx
         return get_index(node)
-    elseif property_name === :degree
-        return @inbounds get_arena(node).nodes[get_index(node)].degree
-    elseif property_name === :constant
-        return @inbounds get_arena(node).nodes[get_index(node)].constant
-    elseif property_name === :val
-        return @inbounds get_arena(node).nodes[get_index(node)].val::T
-    elseif property_name === :feature
-        return @inbounds get_arena(node).nodes[get_index(node)].feature
-    elseif property_name === :op
-        return @inbounds get_arena(node).nodes[get_index(node)].op
     elseif property_name === :children
         return unsafe_get_children(node)
     elseif property_name === :l
         return get_child(node, UInt8(1))
     elseif property_name === :r
         return get_child(node, UInt8(2))
+    end
+    entry = @inbounds get_arena(node).nodes[get_index(node)]
+    if property_name === :degree
+        return entry.degree
+    elseif property_name === :constant
+        return entry.constant
+    elseif property_name === :val
+        return entry.val::T
+    elseif property_name === :feature
+        return entry.feature
+    elseif property_name === :op
+        return entry.op
     else
         return getfield(node, property_name)
     end
 end
 
-@inline function Base.setproperty!(
-    node::ArenaNode{T,D}, property_name::Symbol, value
-) where {T,D}
-    arena = node.arena
-    i = node.idx
+function Base.setproperty!(node::ArenaNode{T,D}, property_name::Symbol, value) where {T,D}
+    arena = get_arena(node)
+    i = get_index(node)
     entry = @inbounds arena[i]
     if property_name === :degree
         @inbounds arena[i] = _replace(entry; degree=UInt8(value))
-        return value
     elseif property_name === :constant
         @inbounds arena[i] = _replace(entry; constant=Bool(value))
-        return value
     elseif property_name === :val
         @inbounds arena[i] = _replace(entry; val=convert(T, value))
-        return value
     elseif property_name === :feature
         @inbounds arena[i] = _replace(entry; feature=UInt16(value))
-        return value
     elseif property_name === :op
         @inbounds arena[i] = _replace(entry; op=UInt8(value))
-        return value
     elseif property_name === :l
         set_child!(node, value, 1)
-        return value
     elseif property_name === :r
         set_child!(node, value, 2)
-        return value
     else
         throw(ArgumentError("Unsupported field $property_name for ArenaNode"))
     end
+    return value
 end
 
-@inline function _nullable_child(
+function _nullable_child(
     node::ArenaNode{T,D}, child_idx::Int32
 )::Nullable{ArenaNode{T,D}} where {T,D}
-    child = ArenaNode{T,D}(node.arena, child_idx)
+    child = ArenaNode{T,D}(get_arena(node), child_idx)
     return Nullable{ArenaNode{T,D}}(iszero(child_idx), child)
 end
 
@@ -258,7 +250,7 @@ end
     end
 end
 
-@inline function get_child(node::ArenaNode{T,D}, i::Integer) where {T,D}
+function get_child(node::ArenaNode{T,D}, i::Integer) where {T,D}
     # Avoid routing through getproperty here: the :l/:r property branches call
     # get_child, and the resulting inference cycle widens property access.
     arena = get_arena(node)
@@ -270,7 +262,7 @@ end
 
 # Same-arena children attach by index; anything else is copied into `node`'s
 # arena, since arenas cannot link across each other.
-@inline function _resolve_child_index!(node::ArenaNode{T,D}, child) where {T,D}
+function _resolve_child_index!(node::ArenaNode{T,D}, child) where {T,D}
     child isa AbstractExpressionNode{T,D} || throw(
         ArgumentError(
             "ArenaNode children must be AbstractExpressionNode{$T,$D} (got $(typeof(child)))",
@@ -283,9 +275,7 @@ end
     end
 end
 
-@inline function set_child!(
-    node::ArenaNode{T,D}, child::AbstractNode{D}, i::Int
-) where {T,D}
+function set_child!(node::ArenaNode{T,D}, child::AbstractNode{D}, i::Int) where {T,D}
     idx = _resolve_child_index!(node, child)
     arena = node.arena
     entry = @inbounds arena[node.idx]
@@ -297,7 +287,7 @@ end
     return ArenaNode{T,D}(arena, idx)
 end
 
-@inline function set_children!(
+function set_children!(
     node::ArenaNode{T,D}, children::Union{Tuple,AbstractVector{<:AbstractNode{D}}}
 ) where {T,D}
     D2 = length(children)
@@ -380,7 +370,7 @@ function _copy_to_arena!(
 end
 
 # Copy the tree into a fresh arena, in postfix (children-first) order.
-@inline function Base.convert(
+function Base.convert(
     ::Type{ArenaNode{T,D}}, tree::AbstractExpressionNode{T2,D}
 ) where {T,T2,D}
     arena = Arena{T,D}(; capacity=length(tree; break_sharing=Val(true)))
@@ -388,7 +378,7 @@ end
     mark_compact!(arena)
     return ArenaNode{T,D}(arena, idx)
 end
-@inline function Base.convert(
+function Base.convert(
     ::Type{ArenaNode{T}}, tree::AbstractExpressionNode{T2,D}
 ) where {T,T2,D}
     return convert(ArenaNode{T,D}, tree)
@@ -568,7 +558,7 @@ end
 
 # Pool slot of materialized `feature`: slot 1 is the output; features fill
 # slots 2, 3, ... in ascending feature order.
-@inline function _feature_slot(feature_mask::UInt64, feature::Integer)
+function _feature_slot(feature_mask::UInt64, feature::Integer)
     return count_ones(feature_mask & (_feature_bit(feature) - 1)) + 2
 end
 
@@ -583,23 +573,23 @@ const _K_SLOT = 0x02    # recyclable slot (an intermediate)
 # `@inbounds`. These three functions are the single source of that policy.
 
 # Leaves: constants fold into the scalar lane, features live in permanent slots.
-@inline _leaf_kind(entry::ArenaEntry) = entry.constant ? _K_SCALAR : _K_PSLOT
+_leaf_kind(entry::ArenaEntry) = entry.constant ? _K_SCALAR : _K_PSLOT
 
 # Operators: an all-scalar application constant-folds; anything else lands in
 # a recyclable intermediate slot.
-@inline _op_result_kind(all_args_scalar::Bool) = all_args_scalar ? _K_SCALAR : _K_SLOT
+_op_result_kind(all_args_scalar::Bool) = all_args_scalar ? _K_SCALAR : _K_SLOT
 
 # Whether consuming an operand of this kind frees its slot for reuse.
-@inline _is_recyclable(kind::UInt8) = kind == _K_SLOT
+_is_recyclable(kind::UInt8) = kind == _K_SLOT
 
 # A stack descriptor is an Int64 packing a kind (low 2 bits) with a slot
 # index; scalar descriptors carry no slot (their value lives in the scalar
 # lane). `_feature_bit` is the feature's position in the `feature_mask`
 # bitset of used features.
-@inline _pack_descriptor(kind::UInt8, slot::Integer=0) = Int64(kind) | (Int64(slot) << 2)
-@inline _descriptor_kind(descriptor::Int64) = UInt8(descriptor & 3)
-@inline _descriptor_slot(descriptor::Int64) = Int32(descriptor >> 2)
-@inline _feature_bit(feature::Integer) = UInt64(1) << (feature - 1)
+_pack_descriptor(kind::UInt8, slot::Integer=0) = Int64(kind) | (Int64(slot) << 2)
+_descriptor_kind(descriptor::Int64) = UInt8(descriptor & 3)
+_descriptor_slot(descriptor::Int64) = Int32(descriptor >> 2)
+_feature_bit(feature::Integer) = UInt64(1) << (feature - 1)
 
 # Alloc-free stack of descriptor kinds for the planner: two bitmask lanes
 # (bit 1 = top) mark `_K_SCALAR`/`_K_PSLOT`; neither lane set = `_K_SLOT`.
@@ -609,20 +599,20 @@ struct KindStack
     permanent::UInt64
 end
 
-@inline function _push_kind(kinds::KindStack, kind::UInt8)
+function _push_kind(kinds::KindStack, kind::UInt8)
     return KindStack(
         (kinds.scalar << 1) | (kind == _K_SCALAR),
         (kinds.permanent << 1) | (kind == _K_PSLOT),
     )
 end
-@inline function _pop_kinds(kinds::KindStack, count::UInt8)
+function _pop_kinds(kinds::KindStack, count::UInt8)
     return KindStack(kinds.scalar >> count, kinds.permanent >> count)
 end
-@inline function _args_all_scalar(kinds::KindStack, degree::UInt8)
+function _args_all_scalar(kinds::KindStack, degree::UInt8)
     arity_mask = (UInt64(1) << degree) - 1
     return (kinds.scalar & arity_mask) == arity_mask
 end
-@inline function _count_recyclable_args(kinds::KindStack, degree::UInt8)
+function _count_recyclable_args(kinds::KindStack, degree::UInt8)
     arity_mask = (UInt64(1) << degree) - 1
     return count_ones(~kinds.scalar & ~kinds.permanent & arity_mask)
 end
@@ -711,14 +701,14 @@ end
     end
 end
 # `is_valid_array` over a pool slot without constructing a view.
-@inline function _valid_slot(pool::Matrix{T}, offset::Int, num_rows::Int) where {T}
+function _valid_slot(pool::Matrix{T}, offset::Int, num_rows::Int) where {T}
     total = zero(T)
     @inbounds @simd for j in 1:num_rows
         total += pool[offset + j]
     end
     return is_valid(total)
 end
-@inline _slot_offset(slot::Int32, nrows::Int) = (slot - 1) * nrows
+_slot_offset(slot::Int32, nrows::Int) = (slot - 1) * nrows
 
 @generated function _dispatch_degn!(
     ::Val{A},
@@ -769,7 +759,7 @@ struct PlanRegisters
     next_slot::Int32
 end
 
-@inline function _push_leaf!(
+function _push_leaf!(
     state::PlanState{T}, regs::PlanRegisters, entry::ArenaEntry{T}, feature_mask::UInt64
 ) where {T}
     stack_top = regs.stack_top + 1
@@ -839,19 +829,10 @@ end
         all_args_scalar = Base.Cartesian.@nall($A, k -> kinds[k] == _K_SCALAR)
         if _op_result_kind(all_args_scalar) == _K_SCALAR
             return _fold_constant_args!(state, regs, op_idx, scalar_args, operators)
-        else
-            return _run_op_kernel!(
-                state,
-                regs,
-                op_idx,
-                kinds,
-                idxs,
-                scalar_args,
-                is_root,
-                early_exit,
-                operators,
-            )
         end
+        return _run_op_kernel!(
+            state, regs, op_idx, kinds, idxs, scalar_args, is_root, early_exit, operators
+        )
     end
 end
 
@@ -859,7 +840,7 @@ end
 # Like `dispatch_constant_tree`, operand values and the fold result are
 # validated unconditionally; folded args are valid by induction, so the arg
 # check only screens constant leaves.
-@inline function _fold_constant_args!(
+function _fold_constant_args!(
     state::PlanState{T},
     regs::PlanRegisters,
     op_idx::UInt8,
