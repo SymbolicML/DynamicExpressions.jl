@@ -82,6 +82,12 @@ struct Arena{T<:Number,D} <: AbstractVector{ArenaEntry{T,D}}
     end
 end
 
+"""Mark the arena as holding exactly one postfix-ordered tree (root last)."""
+@inline mark_compact!(arena::Arena) = (arena.compact[]=true; arena)
+"""Record that the one-postfix-tree invariant may no longer hold."""
+@inline invalidate_compact!(arena::Arena) = (arena.compact[]=false; arena)
+@inline is_compact(arena::Arena) = arena.compact[]
+
 Base.size(arena::Arena) = size(arena.nodes)
 Base.IndexStyle(::Type{<:Arena}) = IndexLinear()
 Base.@propagate_inbounds Base.getindex(arena::Arena, i::Integer) = arena.nodes[i]
@@ -91,7 +97,7 @@ Base.@propagate_inbounds function Base.setindex!(
     nodes = arena.nodes
     old = nodes[i]
     if entry.degree != old.degree || entry.children != old.children
-        arena.compact[] = false
+        invalidate_compact!(arena)
     end
     nodes[i] = entry
     return arena
@@ -100,7 +106,7 @@ function Base.push!(arena::Arena{T,D}, entry::ArenaEntry{T,D}) where {T,D}
     nodes = arena.nodes
     # A single leaf in a fresh arena is a valid tree; any further append breaks
     # the one-postfix-tree invariant until a builder re-establishes it.
-    isempty(nodes) || (arena.compact[] = false)
+    isempty(nodes) || invalidate_compact!(arena)
     push!(nodes, entry)
     return arena
 end
@@ -143,7 +149,7 @@ that functions reachable from `getproperty` (e.g. `get_child` via the
 *are* the tree and whole-tree operations can act on the flat array directly."""
 @inline function is_compact_root(tree::ArenaNode)
     arena = get_arena(tree)
-    return arena.compact[] && get_index(tree) == length(arena.nodes)
+    return is_compact(arena) && get_index(tree) == length(arena.nodes)
 end
 
 @inline function _zero_children(::Val{D}) where {D}
@@ -365,12 +371,12 @@ function copy_into!(
         nodes = src.arena.nodes
         resize!(dest.nodes, length(nodes))
         copyto!(dest.nodes, nodes)
-        dest.compact[] = true
+        mark_compact!(dest)
         return ArenaNode{T,D}(dest, src.idx)
     end
     empty!(dest.nodes)
     idx = _copy_to_arena!(dest, src)
-    dest.compact[] = true
+    mark_compact!(dest)
     return ArenaNode{T,D}(dest, idx)
 end
 
@@ -402,7 +408,7 @@ This copies the entire tree into a fresh arena, in postfix (children-first) orde
 ) where {T,T2,D}
     arena = Arena{T,D}(; capacity=length(tree; break_sharing=Val(true)))
     idx = _copy_to_arena!(arena, tree)
-    arena.compact[] = true
+    mark_compact!(arena)
     return ArenaNode{T,D}(arena, idx)
 end
 @inline function Base.convert(
@@ -903,10 +909,15 @@ end
 
 """Run an operator over pool slots: recycle the freed argument slots,
 allocate the destination (slot 1 at the root), and dispatch the kernel.
-Mirrors `@return_on_nonfinite_array`/`_val`: operands (slots and constant
-scalars) are validated at consumption when `early_exit` is set; outputs are
-never checked here, so a non-finite *root* result still returns ok=true, as
-in the generic evaluator."""
+
+Validation under `early_exit` mirrors the generic evaluator at lower cost:
+scalar operands are checked at consumption (O(1), like
+`@return_on_nonfinite_val`), while slot operands are covered by checking each
+kernel *output* at production — every non-root intermediate is consumed
+exactly once, so this rejects the same trees as per-consumption checks
+(`@return_on_nonfinite_array`), reading the slot while it is still hot.
+Features are validated once at materialization. The *root* output is never
+checked, as in the generic evaluator."""
 @generated function _run_op_kernel!(
     state::PlanState{T},
     regs::PlanRegisters,
@@ -946,13 +957,10 @@ in the generic evaluator."""
             $A, k -> kinds[k] == _K_SCALAR ? 0 : _slot_offset(idxs[k], nrows)
         )
         regs = PlanRegisters(stack_top, num_free, next_slot)
-        args_valid =
-            !early_exit || Base.Cartesian.@nall($A, k -> if is_scalar[k]
-                is_valid(scalar_args[k])
-            else
-                _valid_slot(pool, offsets[k], nrows)
-            end)
-        args_valid || return (regs, false)
+        scalars_valid =
+            !early_exit ||
+            Base.Cartesian.@nall($A, k -> !is_scalar[k] || is_valid(scalar_args[k]))
+        scalars_valid || return (regs, false)
         _dispatch_degn!(
             Val($A),
             pool,
@@ -964,15 +972,26 @@ in the generic evaluator."""
             nrows,
             operators,
         )
+        if early_exit && !is_root && !_valid_slot(pool, dest_offset, nrows)
+            return (regs, false)
+        end
         return (regs, true)
     end
 end
 
-"""Copy each used feature column of `cX` into its permanent pool slot.
-Slot layout in the pool: 1 = output; 2 .. 1+num_features = materialized
-features (ascending feature order); intermediates after that."""
+"""Copy each used feature column of `cX` into its permanent pool slot,
+returning whether all copied columns are valid. Slot layout in the pool:
+1 = output; 2 .. 1+num_features = materialized features (ascending feature
+order); intermediates after that.
+
+The validity check is fused into the copy (one extra add per element of a
+memory-bound loop) and replaces per-consumption checks: every materialized
+feature is consumed by at least one operator, so "invalid here" and "invalid
+at consumption" reject the same trees. `check_validity` is false when
+`early_exit` is off, and for a single-leaf tree, where no operator ever
+consumes the feature (`deg0_eval` never validates a bare leaf)."""
 function _materialize_features!(
-    pool::Matrix{T}, cX::Matrix{T}, feature_mask::UInt64, nrows::Int
+    pool::Matrix{T}, cX::Matrix{T}, feature_mask::UInt64, nrows::Int, check_validity::Bool
 ) where {T}
     slot = 1
     remaining = feature_mask
@@ -983,9 +1002,12 @@ function _materialize_features!(
         @inbounds @simd for j in 1:nrows
             pool[offset + j] = cX[feature, j]
         end
+        # Separate validity pass over the just-written (cache-hot) slot keeps
+        # the copy loop a pure memcpy pattern.
+        check_validity && !_valid_slot(pool, offset, nrows) && return false
         remaining &= remaining - 1
     end
-    return nothing
+    return true
 end
 
 """Normalize the finished evaluation so the result lands in pool row 1: copy
@@ -1038,15 +1060,18 @@ function _arena_eval(
     num_nodes = length(nodes)
     nrows = size(cX, 2)
     num_features = count_ones(feature_mask)
+    output = @view(pool[1, :])
 
-    _materialize_features!(pool, cX, feature_mask, nrows)
+    check_features = early_exit && num_nodes > 1
+    if !_materialize_features!(pool, cX, feature_mask, nrows, check_features)
+        return ResultOk(output, false)
+    end
 
     # Per-call descriptor state (tiny; the pool itself is caller-owned):
     descriptors = Vector{Int64}(undef, max_stack + num_slots)
     scalar_vals = Vector{T}(undef, max_stack)
     state = PlanState(pool, descriptors, scalar_vals, max_stack, nrows)
     regs = PlanRegisters(0, 0, Int32(1 + num_features))
-    output = @view(pool[1, :])
 
     @inbounds for i in 1:num_nodes
         entry = nodes[i]

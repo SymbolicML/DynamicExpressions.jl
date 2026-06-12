@@ -685,6 +685,7 @@ end
         Xnan = copy(X)
         Xnan[1, 2] = NaN
         for early_exit in (true, false)
+            check_parity(copy(x1), ops2, Xnan; early_exit)  # bare feature root, NaN input
             check_parity(Node{T}(; op=1, l=x1), ops2, Xnan; early_exit)  # NaN input absorbed
             check_parity(Node{T}(; op=1, l=Node{T}(; val=NaN)), ops2, X; early_exit)  # NaN leaf folded away
         end
