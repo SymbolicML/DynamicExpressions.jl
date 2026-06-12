@@ -596,11 +596,10 @@ features occupy slots 2, 3, ... in ascending feature order."""
     return count_ones(feature_mask & (_feature_bit(feature) - 1)) + 2
 end
 
-"""Kind of an evaluation-stack operand: a constant folded into the scalar
-lane, a pinned pool slot (the output or a materialized feature; never
-recycled), or a scratch slot holding an intermediate (recycled once
-consumed)."""
-@enum OperandKind::UInt8 FoldedConstant PinnedSlot ScratchSlot
+# Descriptor kinds for evaluation stack slots:
+const _K_SCALAR = 0x00  # folded constant; value lives in the scalar lane
+const _K_PSLOT = 0x01   # permanent slot (output or a materialized feature)
+const _K_SLOT = 0x02    # recyclable slot (an intermediate)
 
 # The planner (`_plan_scratch`) and the executor (`_push_leaf!`/`_exec_op!`)
 # walk the same postfix program, so they must make identical kind and
@@ -609,39 +608,37 @@ consumed)."""
 
 """Kind of the descriptor a leaf pushes: constants fold into the scalar lane,
 features live in permanent slots."""
-@inline _leaf_kind(entry::ArenaEntry) = entry.constant ? FoldedConstant : PinnedSlot
+@inline _leaf_kind(entry::ArenaEntry) = entry.constant ? _K_SCALAR : _K_PSLOT
 
 """Kind of the descriptor an operator pushes: an all-scalar application
 constant-folds into the scalar lane, anything else lands in a recyclable
 intermediate slot."""
-@inline _op_result_kind(all_args_scalar::Bool) =
-    all_args_scalar ? FoldedConstant : ScratchSlot
+@inline _op_result_kind(all_args_scalar::Bool) = all_args_scalar ? _K_SCALAR : _K_SLOT
 
 """Whether consuming an operand of this kind frees its slot for reuse."""
-@inline _is_recyclable(kind::OperandKind) = kind == ScratchSlot
+@inline _is_recyclable(kind::UInt8) = kind == _K_SLOT
 
 # A stack descriptor is an Int64 packing a kind (low 2 bits) with a slot
 # index; scalar descriptors carry no slot (their value lives in the scalar
 # lane). `_feature_bit` is the feature's position in the `feature_mask`
 # bitset of used features.
-@inline _pack_descriptor(kind::OperandKind, slot::Integer=0) =
-    Int64(UInt8(kind)) | (Int64(slot) << 2)
-@inline _descriptor_kind(descriptor::Int64) = OperandKind(UInt8(descriptor & 3))
+@inline _pack_descriptor(kind::UInt8, slot::Integer=0) = Int64(kind) | (Int64(slot) << 2)
+@inline _descriptor_kind(descriptor::Int64) = UInt8(descriptor & 3)
 @inline _descriptor_slot(descriptor::Int64) = Int32(descriptor >> 2)
 @inline _feature_bit(feature::Integer) = UInt64(1) << (feature - 1)
 
 """Alloc-free stack of descriptor kinds for the planner: two bitmask lanes
-(bit 1 = top of stack) record whether each entry is `FoldedConstant` or
-`PinnedSlot`; an entry in neither lane is `ScratchSlot`. Capacity is 64 entries."""
+(bit 1 = top of stack) record whether each entry is `_K_SCALAR` or
+`_K_PSLOT`; an entry in neither lane is `_K_SLOT`. Capacity is 64 entries."""
 struct KindStack
     scalar::UInt64
     permanent::UInt64
 end
 
-@inline function _push_kind(kinds::KindStack, kind::OperandKind)
+@inline function _push_kind(kinds::KindStack, kind::UInt8)
     return KindStack(
-        (kinds.scalar << 1) | (kind == FoldedConstant),
-        (kinds.permanent << 1) | (kind == PinnedSlot),
+        (kinds.scalar << 1) | (kind == _K_SCALAR),
+        (kinds.permanent << 1) | (kind == _K_PSLOT),
     )
 end
 @inline function _pop_kinds(kinds::KindStack, count::UInt8)
@@ -680,7 +677,7 @@ function _plan_scratch(arena::Arena{T,D}) where {T,D}
             stack_top += 1
             max_stack = max(max_stack, stack_top)
             kind = _leaf_kind(entry)
-            if kind == PinnedSlot
+            if kind == _K_PSLOT
                 feature = entry.feature
                 (1 <= feature <= 64) || return (false, 0, 0, UInt64(0))
                 feature_mask |= _feature_bit(feature)
@@ -807,12 +804,12 @@ end
     state::PlanState{T}, regs::PlanRegisters, entry::ArenaEntry{T}, feature_mask::UInt64
 ) where {T}
     stack_top = regs.stack_top + 1
-    @inbounds if _leaf_kind(entry) == FoldedConstant
-        state.descriptors[stack_top] = _pack_descriptor(FoldedConstant)
+    @inbounds if _leaf_kind(entry) == _K_SCALAR
+        state.descriptors[stack_top] = _pack_descriptor(_K_SCALAR)
         state.scalar_vals[stack_top] = entry.val
     else
         feature_slot = _feature_slot(feature_mask, entry.feature)
-        state.descriptors[stack_top] = _pack_descriptor(PinnedSlot, feature_slot)
+        state.descriptors[stack_top] = _pack_descriptor(_K_PSLOT, feature_slot)
     end
     return PlanRegisters(stack_top, regs.num_free, regs.next_slot)
 end
@@ -863,7 +860,7 @@ node: constant-fold if every operand is a scalar, otherwise run the kernel."""
                 $A, k -> _descriptor_slot(descriptors[stack_top - $A + k])
             )
             scalar_args = Base.Cartesian.@ntuple(
-                $A, k -> if kinds[k] == FoldedConstant
+                $A, k -> if kinds[k] == _K_SCALAR
                     scalar_vals[stack_top - $A + k]
                 else
                     zero(T)
@@ -871,8 +868,8 @@ node: constant-fold if every operand is a scalar, otherwise run the kernel."""
             )
         end
         regs = PlanRegisters(stack_top - ($A - 1), num_free, next_slot)
-        all_args_scalar = Base.Cartesian.@nall($A, k -> kinds[k] == FoldedConstant)
-        if _op_result_kind(all_args_scalar) == FoldedConstant
+        all_args_scalar = Base.Cartesian.@nall($A, k -> kinds[k] == _K_SCALAR)
+        if _op_result_kind(all_args_scalar) == _K_SCALAR
             return _fold_constant_args!(state, regs, op_idx, scalar_args, operators)
         else
             return _run_op_kernel!(
@@ -905,7 +902,7 @@ induction, so the operand check only screens constant leaves."""
     all(is_valid, scalar_args) || return (regs, false)
     value = _scalar_degn(Val(A), op_idx, scalar_args, operators)
     is_valid(value) || return (regs, false)
-    @inbounds state.descriptors[regs.stack_top] = _pack_descriptor(FoldedConstant)
+    @inbounds state.descriptors[regs.stack_top] = _pack_descriptor(_K_SCALAR)
     @inbounds state.scalar_vals[regs.stack_top] = value
     return (regs, true)
 end
@@ -925,7 +922,7 @@ checked, as in the generic evaluator."""
     state::PlanState{T},
     regs::PlanRegisters,
     op_idx::UInt8,
-    kinds::NTuple{A,OperandKind},
+    kinds::NTuple{A,UInt8},
     idxs::NTuple{A,Int32},
     scalar_args::NTuple{A,T},
     is_root::Bool,
@@ -953,11 +950,11 @@ checked, as in the generic evaluator."""
             next_slot += Int32(1)
             slot = next_slot
         end
-        @inbounds descriptors[stack_top] = _pack_descriptor(ScratchSlot, slot)
+        @inbounds descriptors[stack_top] = _pack_descriptor(_K_SLOT, slot)
         dest_offset = _slot_offset(slot, nrows)
-        is_scalar = Base.Cartesian.@ntuple($A, k -> kinds[k] == FoldedConstant)
+        is_scalar = Base.Cartesian.@ntuple($A, k -> kinds[k] == _K_SCALAR)
         offsets = Base.Cartesian.@ntuple(
-            $A, k -> kinds[k] == FoldedConstant ? 0 : _slot_offset(idxs[k], nrows)
+            $A, k -> kinds[k] == _K_SCALAR ? 0 : _slot_offset(idxs[k], nrows)
         )
         regs = PlanRegisters(stack_top, num_free, next_slot)
         scalars_valid =
@@ -1026,7 +1023,7 @@ function _write_root_to_output!(
     # scalar root is already valid by induction.
     root_kind = _descriptor_kind(descriptors[1])
     root_slot = _descriptor_slot(descriptors[1])
-    if root_kind == FoldedConstant
+    if root_kind == _K_SCALAR
         value = scalar_vals[1]
         @inbounds @simd for j in 1:nrows
             pool[j] = value
