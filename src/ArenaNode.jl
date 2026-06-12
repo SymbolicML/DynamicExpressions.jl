@@ -552,8 +552,7 @@ function _eval_tree_array(
     eval_options::EvalOptions,
 )::ResultOk where {T<:Number,D}
     buffer = eval_options.buffer
-    if D == 2 &&
-        buffer isa ArrayBuffer{Matrix{T}} &&
+    if buffer isa ArrayBuffer{Matrix{T}} &&
         cX isa Matrix{T} &&
         size(buffer.array, 2) == size(cX, 2) &&
         is_compact_root(tree) &&
@@ -618,27 +617,15 @@ function _plan_scratch(a::Arena{T,D}) where {T,D}
                 fmask |= UInt64(1) << (f - 1)
                 perm_mask |= 1
             end
-        elseif d == 0x01
-            if scalar_mask & 1 == 0
-                if perm_mask & 1 == 1
-                    # permanent operand: result needs a fresh intermediate
-                    if nfree > 0
-                        nfree -= 1
-                    else
-                        live += 1
-                        max_int_slots = max(max_int_slots, live)
-                    end
-                    perm_mask &= ~UInt64(1)
-                end
-                # recyclable operand: reused in place
-            end
         else
-            both_scalar = (scalar_mask & 3) == 3
-            n_free_args = count_ones(~perm_mask & ~scalar_mask & 3)
-            scalar_mask >>= 1
-            perm_mask >>= 1
-            sp -= 1
-            if both_scalar
+            di = Int(d)
+            window = (UInt64(1) << di) - 1
+            all_scalar = (scalar_mask & window) == window
+            n_free_args = count_ones(~perm_mask & ~scalar_mask & window)
+            scalar_mask >>= (di - 1)
+            perm_mask >>= (di - 1)
+            sp -= di - 1
+            if all_scalar
                 scalar_mask |= 1
                 perm_mask &= ~UInt64(1)
             else
@@ -658,64 +645,42 @@ function _plan_scratch(a::Arena{T,D}) where {T,D}
     return (true, n_slots, sp_max, fmask)
 end
 
-@generated function _scalar_deg1(
-    op_idx::UInt8, x::T, operators::O
-) where {T,O<:OperatorEnum}
-    nops = length(O.parameters[1].parameters[1].parameters)
+@generated function _scalar_degn(
+    ::Val{A}, op_idx::UInt8, args::NTuple{A,T}, operators::O
+) where {A,T,O<:OperatorEnum}
+    OPS = O.parameters[1]
+    nops = A <= length(OPS.parameters) ? length(OPS.parameters[A].parameters) : 0
+    nops == 0 && return :(throw(ArgumentError("no operators of arity " * string($A))))
     return quote
         Base.Cartesian.@nif(
             $nops,
             i -> i == Int(op_idx),  # COV_EXCL_LINE
-            i -> operators.unaops[i](x)::T,
-        )
-    end
-end
-@generated function _scalar_deg2(
-    op_idx::UInt8, x::T, y::T, operators::O
-) where {T,O<:OperatorEnum}
-    nops = length(O.parameters[1].parameters[2].parameters)
-    return quote
-        Base.Cartesian.@nif(
-            $nops,
-            i -> i == Int(op_idx),  # COV_EXCL_LINE
-            i -> operators.binops[i](x, y)::T,
+            i -> (Base.Cartesian.@ncall($A, operators.ops[$A][i], k -> args[k]))::T,
         )
     end
 end
 
-"""Offset-based kernels over the raw pool: views/broadcasts box `SubArray`
-wrappers at the dispatch boundaries (~0.5KB/op), so every kernel works on
-`(pool, offset)` pairs with explicit `@simd` loops. The destination is always
-a pool slot too (slot 1 is the output), so offsets are uniform."""
-@inline function _kern1!(pool::Matrix{T}, doff::Int, soff::Int, op::F, n::Int) where {T,F}
-    @inbounds @simd for j in 1:n
-        pool[doff + j] = op(pool[soff + j])
+"""Branchless arity-generic kernel: each operand is selected per element with
+`ifelse` between its scalar value and its pool slot (scalar operands carry
+offset 0, so the dead load stays in cache). This avoids generating 2^arity
+kernel variants while remaining SIMD-friendly."""
+@generated function _kern_n!(
+    pool::Matrix{T},
+    doff::Int,
+    op::F,
+    isscal::NTuple{A,Bool},
+    svs::NTuple{A,T},
+    offs::NTuple{A,Int},
+    n::Int,
+) where {T,F,A}
+    quote
+        @inbounds @simd for j in 1:n
+            pool[doff + j] = Base.Cartesian.@ncall(
+                $A, op, k -> ifelse(isscal[k], svs[k], pool[offs[k] + j])
+            )
+        end
+        return nothing
     end
-    return nothing
-end
-@inline function _kern2_vv!(
-    pool::Matrix{T}, doff::Int, a::Int, b::Int, op::F, n::Int
-) where {T,F}
-    @inbounds @simd for j in 1:n
-        pool[doff + j] = op(pool[a + j], pool[b + j])
-    end
-    return nothing
-end
-@inline function _kern2_sv!(
-    pool::Matrix{T}, doff::Int, s::T, b::Int, op::F, n::Int
-) where {T,F}
-    @inbounds @simd for j in 1:n
-        pool[doff + j] = op(s, pool[b + j])
-    end
-    return nothing
-end
-@inline function _kern2_vs!(
-    pool::Matrix{T}, doff::Int, a::Int, s::T, op::F, n::Int
-) where {T,F}
-    @inbounds @simd for j in 1:n
-        pool[doff + j] = op(pool[a + j], s)
-    end
-    return nothing
 end
 """`is_valid_array` over a pool slot without constructing a view."""
 @inline function _valid_slot(pool::Matrix{T}, off::Int, n::Int) where {T}
@@ -733,64 +698,100 @@ returned output, never inside kernels."""
     return @inbounds view(pool, (off + 1):(off + nrows))
 end
 
-@inline function _deg2_combos!(
-    pool::Matrix{T},
-    doff::Int,
-    op::F,
-    k1::UInt8,
-    i1::Int32,
-    s1::T,
-    k2::UInt8,
-    i2::Int32,
-    s2::T,
-    nrows::Int,
-) where {F,T}
-    if k1 == _K_SCALAR
-        _kern2_sv!(pool, doff, s1, _slotoff(i2, nrows), op, nrows)
-    elseif k2 == _K_SCALAR
-        _kern2_vs!(pool, doff, _slotoff(i1, nrows), s2, op, nrows)
-    else
-        _kern2_vv!(pool, doff, _slotoff(i1, nrows), _slotoff(i2, nrows), op, nrows)
-    end
-    return nothing
-end
-
-@generated function _dispatch_deg1!(
-    pool::Matrix{T}, doff::Int, op_idx::UInt8, src::Int32, nrows::Int, operators::O
-) where {T,O<:OperatorEnum}
-    nops = length(O.parameters[1].parameters[1].parameters)
-    quote
-        Base.Cartesian.@nif(
-            $nops,
-            i -> i == Int(op_idx),  # COV_EXCL_LINE
-            i -> _kern1!(pool, doff, _slotoff(src, nrows), operators.unaops[i], nrows),
-        )
-        return nothing
-    end
-end
-@generated function _dispatch_deg2!(
+@generated function _dispatch_degn!(
+    ::Val{A},
     pool::Matrix{T},
     doff::Int,
     op_idx::UInt8,
-    k1::UInt8,
-    i1::Int32,
-    s1::T,
-    k2::UInt8,
-    i2::Int32,
-    s2::T,
+    isscal::NTuple{A,Bool},
+    svs::NTuple{A,T},
+    offs::NTuple{A,Int},
     nrows::Int,
     operators::O,
-) where {T,O<:OperatorEnum}
-    nops = length(O.parameters[1].parameters[2].parameters)
+) where {A,T,O<:OperatorEnum}
+    OPS = O.parameters[1]
+    nops = A <= length(OPS.parameters) ? length(OPS.parameters[A].parameters) : 0
+    nops == 0 && return :(throw(ArgumentError("no operators of arity " * string($A))))
     quote
         Base.Cartesian.@nif(
             $nops,
             i -> i == Int(op_idx),  # COV_EXCL_LINE
-            i -> _deg2_combos!(
-                pool, doff, operators.binops[i], k1, i1, s1, k2, i2, s2, nrows
-            ),
+            i -> _kern_n!(pool, doff, operators.ops[$A][i], isscal, svs, offs, nrows),
         )
         return nothing
+    end
+end
+
+"""Execute one operator node of runtime degree `d` (dispatched to a
+compile-time arity with `Base.Cartesian.@nif`): gather the top `d` operand
+descriptors, fold if all are scalars, otherwise free recyclable argument
+slots, allocate the destination (slot 1 when at the root), and run the
+kernel. Returns the updated `(sp, nfree, next_slot, ok, doff)`; `doff == -1`
+means the result stayed in the scalar lane."""
+@generated function _exec_op!(
+    pool::Matrix{T},
+    desc::Vector{Int64},
+    svals::Vector{T},
+    fbase::Int,
+    sp::Int,
+    nfree::Int,
+    next_slot::Int32,
+    op_idx::UInt8,
+    d::UInt8,
+    is_root::Bool,
+    nrows::Int,
+    operators::O,
+    ::Val{D},
+) where {T,O<:OperatorEnum,D}
+    quote
+        return Base.Cartesian.@nif(
+            $D,
+            A -> A == Int(d),  # COV_EXCL_LINE
+            A -> @inbounds begin
+                ks = Base.Cartesian.@ntuple(A, k -> UInt8(desc[sp - A + k] & 3))
+                is = Base.Cartesian.@ntuple(A, k -> Int32(desc[sp - A + k] >> 2))
+                svs = Base.Cartesian.@ntuple(
+                    A, k -> ks[k] == _K_SCALAR ? svals[sp - A + k] : zero(T)
+                )
+                sp -= A - 1
+                if Base.Cartesian.@nall(A, k -> ks[k] == _K_SCALAR)
+                    v = _scalar_degn(Val(A), op_idx, svs, operators)
+                    ok = is_valid(v)
+                    if ok
+                        desc[sp] = Int64(_K_SCALAR)
+                        svals[sp] = v
+                    end
+                    (sp, nfree, next_slot, ok, -1)
+                else
+                    # free recyclable argument slots first; the destination
+                    # may then reuse one (kernels are alias-safe: reads and
+                    # writes of the same slot are at the same element index)
+                    Base.Cartesian.@nexprs(A, k -> if ks[k] == _K_SLOT
+                            nfree += 1
+                            desc[fbase + nfree] = Int64(is[k])
+                        end)
+                    if is_root
+                        s = Int32(1)
+                    elseif nfree > 0
+                        s = Int32(desc[fbase + nfree])
+                        nfree -= 1
+                    else
+                        next_slot += Int32(1)
+                        s = next_slot
+                    end
+                    desc[sp] = Int64(_K_SLOT) | (Int64(s) << 2)
+                    doff = _slotoff(s, nrows)
+                    isscal = Base.Cartesian.@ntuple(A, k -> ks[k] == _K_SCALAR)
+                    offs = Base.Cartesian.@ntuple(
+                        A, k -> ks[k] == _K_SCALAR ? 0 : _slotoff(is[k], nrows)
+                    )
+                    _dispatch_degn!(
+                        Val(A), pool, doff, op_idx, isscal, svs, offs, nrows, operators
+                    )
+                    (sp, nfree, next_slot, true, doff)
+                end
+            end
+        )
     end
 end
 
@@ -848,79 +849,25 @@ function _arena_eval(
                 fslot = count_ones(fmask & ((UInt64(1) << (f - 1)) - 1)) + 2
                 desc[sp] = Int64(_K_PSLOT) | (Int64(fslot) << 2)
             end
-        elseif d == 0x01
-            dtop = desc[sp]
-            k = UInt8(dtop & 3)
-            if k == _K_SCALAR
-                v = _scalar_deg1(e.op, svals[sp], operators)
-                is_valid(v) || return ResultOk(out(), false)
-                svals[sp] = v
-            else
-                srci = Int32(dtop >> 2)
-                if is_root
-                    s = Int32(1)
-                    desc[sp] = Int64(_K_SLOT) | (Int64(s) << 2)
-                elseif k == _K_SLOT
-                    s = srci
-                else
-                    if nfree > 0
-                        s = Int32(desc[fbase + nfree])
-                        nfree -= 1
-                    else
-                        next_slot += Int32(1)
-                        s = next_slot
-                    end
-                    desc[sp] = Int64(_K_SLOT) | (Int64(s) << 2)
-                end
-                doff = _slotoff(s, nrows)
-                _dispatch_deg1!(pool, doff, e.op, srci, nrows, operators)
-                if early_exit && !_valid_slot(pool, doff, nrows)
-                    return ResultOk(out(), false)
-                end
-            end
         else
-            d1 = desc[sp - 1]
-            d2 = desc[sp]
-            k1 = UInt8(d1 & 3)
-            k2 = UInt8(d2 & 3)
-            i1 = Int32(d1 >> 2)
-            i2 = Int32(d2 >> 2)
-            s1 = k1 == _K_SCALAR ? svals[sp - 1] : zero(T)
-            s2 = k2 == _K_SCALAR ? svals[sp] : zero(T)
-            sp -= 1
-            if k1 == _K_SCALAR && k2 == _K_SCALAR
-                v = _scalar_deg2(e.op, s1, s2, operators)
-                is_valid(v) || return ResultOk(out(), false)
-                desc[sp] = Int64(_K_SCALAR)
-                svals[sp] = v
-            else
-                # free recyclable argument slots first; the destination may
-                # then reuse one (kernels are alias-safe for exact overlap)
-                if k1 == _K_SLOT
-                    nfree += 1
-                    desc[fbase + nfree] = Int64(i1)
-                end
-                if k2 == _K_SLOT
-                    nfree += 1
-                    desc[fbase + nfree] = Int64(i2)
-                end
-                if is_root
-                    s = Int32(1)
-                else
-                    if nfree > 0
-                        s = Int32(desc[fbase + nfree])
-                        nfree -= 1
-                    else
-                        next_slot += Int32(1)
-                        s = next_slot
-                    end
-                end
-                desc[sp] = Int64(_K_SLOT) | (Int64(s) << 2)
-                doff = _slotoff(s, nrows)
-                _dispatch_deg2!(pool, doff, e.op, k1, i1, s1, k2, i2, s2, nrows, operators)
-                if early_exit && !_valid_slot(pool, doff, nrows)
-                    return ResultOk(out(), false)
-                end
+            sp, nfree, next_slot, ok, doff = _exec_op!(
+                pool,
+                desc,
+                svals,
+                fbase,
+                sp,
+                nfree,
+                next_slot,
+                e.op,
+                d,
+                is_root,
+                nrows,
+                operators,
+                Val(D),
+            )
+            ok || return ResultOk(out(), false)
+            if doff >= 0 && early_exit && !_valid_slot(pool, doff, nrows)
+                return ResultOk(out(), false)
             end
         end
     end

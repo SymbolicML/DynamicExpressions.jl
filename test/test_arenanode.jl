@@ -546,3 +546,77 @@ end
         ok1 && @test y1 ≈ y2
     end
 end
+
+@testitem "ArenaNode buffered evaluation with arbitrary-degree operators" begin
+    using DynamicExpressions
+    using DynamicExpressions: Node, EvalOptions, ArrayBuffer
+    using Random
+
+    const AN = DynamicExpressions.ArenaNodeModule
+
+    my3(x, y, z) = x * y + z
+    operators = OperatorEnum(1 => (cos, exp), 2 => (+, *, -, /), 3 => (fma, my3))
+    rng = MersenneTwister(5)
+    T = Float64
+
+    random_leaf(rng) =
+        if rand(rng) < 0.4
+            Node{T,3}(; val=randn(rng, T))
+        else
+            Node{T,3}(; feature=rand(rng, 1:5))
+        end
+    function random_tree(rng, n)
+        tree = random_leaf(rng)
+        while count_nodes(tree) < n
+            leaf = rand(rng, filter(t -> t.degree == 0, tree))
+            r = rand(rng)
+            if r < 0.25
+                leaf.degree = 1
+                leaf.op = rand(rng, 1:2)
+                set_children!(leaf, (random_leaf(rng),))
+            elseif r < 0.6
+                leaf.degree = 2
+                leaf.op = rand(rng, 1:4)
+                set_children!(leaf, (random_leaf(rng), random_leaf(rng)))
+            else
+                leaf.degree = 3
+                leaf.op = rand(rng, 1:2)
+                set_children!(leaf, (random_leaf(rng), random_leaf(rng), random_leaf(rng)))
+            end
+            leaf.constant = false
+            leaf.val = zero(T)
+        end
+        return tree
+    end
+
+    X = randn(rng, T, 5, 29)
+    buf = zeros(T, 48, 29)
+    for trial in 1:40, early_exit in (true, false)
+        tree = random_tree(rng, rand(rng, 1:25))
+        atree = convert(AN.ArenaNode{T,3}, tree)
+        o = EvalOptions(; early_exit, buffer=ArrayBuffer(buf, Ref(0)))
+        rt = try
+            (
+                eval_tree_array(
+                    copy(tree), X, operators; eval_options=EvalOptions(; early_exit)
+                ),
+                false,
+            )
+        catch
+            (nothing, true)
+        end
+        ra = try
+            (eval_tree_array(atree, X, operators; eval_options=o), false)
+        catch
+            (nothing, true)
+        end
+        @test rt[2] == ra[2]
+        (rt[2] || ra[2]) && continue
+        (yref, okref) = rt[1]
+        (ya, oka) = ra[1]
+        @test okref == oka
+        if okref
+            @test yref ≈ ya || (any(!isfinite, yref) && any(!isfinite, ya))
+        end
+    end
+end
