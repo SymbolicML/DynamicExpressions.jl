@@ -770,11 +770,9 @@ end
     return PlanRegisters(stack_top, regs.num_free, regs.next_slot)
 end
 
-"""Execute one operator node of runtime degree `d` (dispatched to a
-compile-time arity with `Base.Cartesian.@nif`): gather the top `degree` operand
-descriptors, fold if all are scalars, otherwise free recyclable argument
-slots, allocate the destination (slot 1 when at the root), and run the
-kernel. Returns `(regs, ok)`."""
+"""Execute one operator node of runtime degree `degree`: dispatch the
+runtime degree to a compile-time arity, then fold (all-scalar operands) or
+run the array kernel. Returns `(regs, ok)`."""
 @generated function _exec_op!(
     state::PlanState{T},
     regs::PlanRegisters,
@@ -786,98 +784,148 @@ kernel. Returns `(regs, ok)`."""
     ::Val{D},
 ) where {T,O<:OperatorEnum,D}
     quote
-        (; pool, descriptors, scalar_vals, free_base, nrows) = state
-        (; stack_top, num_free, next_slot) = regs
         return Base.Cartesian.@nif(
             $D,
             A -> A == degree,  # COV_EXCL_LINE
-            A -> @inbounds begin
-                kinds = Base.Cartesian.@ntuple(
-                    A, k -> UInt8(descriptors[stack_top - A + k] & 3)
-                )
-                idxs = Base.Cartesian.@ntuple(
-                    A, k -> Int32(descriptors[stack_top - A + k] >> 2)
-                )
-                scalar_args = Base.Cartesian.@ntuple(
-                    A, k -> if kinds[k] == _K_SCALAR
-                        scalar_vals[stack_top - A + k]
-                    else
-                        zero(T)
-                    end
-                )
-                stack_top -= A - 1
-                if Base.Cartesian.@nall(A, k -> kinds[k] == _K_SCALAR)
-                    # Mirrors `dispatch_constant_tree`: leaf values and fold
-                    # results are validated unconditionally (not gated on
-                    # `early_exit`). Folded args are valid by induction, so
-                    # the arg check only screens constant leaves.
-                    if Base.Cartesian.@nall(A, k -> is_valid(scalar_args[k]))
-                        value = _scalar_degn(Val(A), op_idx, scalar_args, operators)
-                        ok = is_valid(value)
-                        if ok
-                            descriptors[stack_top] = Int64(_K_SCALAR)
-                            scalar_vals[stack_top] = value
-                        end
-                        (PlanRegisters(stack_top, num_free, next_slot), ok)
-                    else
-                        (PlanRegisters(stack_top, num_free, next_slot), false)
-                    end
+            A -> _exec_op_arity!(
+                Val(A), state, regs, op_idx, is_root, early_exit, operators
+            ),
+        )
+    end
+end
+
+"""Pop the top `A` operand descriptors and execute one arity-`A` operator
+node: constant-fold if every operand is a scalar, otherwise run the kernel."""
+@generated function _exec_op_arity!(
+    ::Val{A},
+    state::PlanState{T},
+    regs::PlanRegisters,
+    op_idx::UInt8,
+    is_root::Bool,
+    early_exit::Bool,
+    operators::O,
+) where {A,T,O<:OperatorEnum}
+    quote
+        (; descriptors, scalar_vals) = state
+        (; stack_top, num_free, next_slot) = regs
+        @inbounds begin
+            kinds = Base.Cartesian.@ntuple(
+                $A, k -> UInt8(descriptors[stack_top - $A + k] & 3)
+            )
+            idxs = Base.Cartesian.@ntuple(
+                $A, k -> Int32(descriptors[stack_top - $A + k] >> 2)
+            )
+            scalar_args = Base.Cartesian.@ntuple(
+                $A, k -> if kinds[k] == _K_SCALAR
+                    scalar_vals[stack_top - $A + k]
                 else
-                    # free recyclable argument slots first; the destination
-                    # may then reuse one (kernels are alias-safe: reads and
-                    # writes of the same slot are at the same element index)
-                    Base.Cartesian.@nexprs(
-                        A, k -> if kinds[k] == _K_SLOT
-                            num_free += 1
-                            descriptors[free_base + num_free] = Int64(idxs[k])
-                        end
-                    )
-                    if is_root
-                        slot = Int32(1)
-                    elseif num_free > 0
-                        slot = Int32(descriptors[free_base + num_free])
-                        num_free -= 1
-                    else
-                        next_slot += Int32(1)
-                        slot = next_slot
-                    end
-                    descriptors[stack_top] = Int64(_K_SLOT) | (Int64(slot) << 2)
-                    dest_offset = _slotoff(slot, nrows)
-                    is_scalar = Base.Cartesian.@ntuple(A, k -> kinds[k] == _K_SCALAR)
-                    offsets = Base.Cartesian.@ntuple(
-                        A, k -> kinds[k] == _K_SCALAR ? 0 : _slotoff(idxs[k], nrows)
-                    )
-                    # Mirrors `@return_on_nonfinite_array`/`_val`: operands
-                    # (slots and constant scalars) are validated at consumption
-                    # when `early_exit` is set; outputs are never checked here,
-                    # so a non-finite *root* result still returns ok=true, as
-                    # in the generic evaluator.
-                    if early_exit &&
-                        !Base.Cartesian.@nall(
-                        A, k -> if is_scalar[k]
-                            is_valid(scalar_args[k])
-                        else
-                            _valid_slot(pool, offsets[k], nrows)
-                        end,
-                    )
-                        (PlanRegisters(stack_top, num_free, next_slot), false)
-                    else
-                        _dispatch_degn!(
-                            Val(A),
-                            pool,
-                            dest_offset,
-                            op_idx,
-                            is_scalar,
-                            scalar_args,
-                            offsets,
-                            nrows,
-                            operators,
-                        )
-                        (PlanRegisters(stack_top, num_free, next_slot), true)
-                    end
+                    zero(T)
                 end
+            )
+        end
+        regs = PlanRegisters(stack_top - ($A - 1), num_free, next_slot)
+        if Base.Cartesian.@nall($A, k -> kinds[k] == _K_SCALAR)
+            return _fold_constant_args!(state, regs, op_idx, scalar_args, operators)
+        else
+            return _run_op_kernel!(
+                state,
+                regs,
+                op_idx,
+                kinds,
+                idxs,
+                scalar_args,
+                is_root,
+                early_exit,
+                operators,
+            )
+        end
+    end
+end
+
+"""Constant-fold an operator whose operands are all in the scalar lane,
+writing the result descriptor at the (already popped) stack top. Mirrors
+`dispatch_constant_tree`: operand values and the fold result are validated
+unconditionally (not gated on `early_exit`); folded args are valid by
+induction, so the operand check only screens constant leaves."""
+@inline function _fold_constant_args!(
+    state::PlanState{T},
+    regs::PlanRegisters,
+    op_idx::UInt8,
+    scalar_args::NTuple{A,T},
+    operators::OperatorEnum,
+) where {A,T}
+    all(is_valid, scalar_args) || return (regs, false)
+    value = _scalar_degn(Val(A), op_idx, scalar_args, operators)
+    is_valid(value) || return (regs, false)
+    @inbounds state.descriptors[regs.stack_top] = Int64(_K_SCALAR)
+    @inbounds state.scalar_vals[regs.stack_top] = value
+    return (regs, true)
+end
+
+"""Run an operator over pool slots: recycle the freed argument slots,
+allocate the destination (slot 1 at the root), and dispatch the kernel.
+Mirrors `@return_on_nonfinite_array`/`_val`: operands (slots and constant
+scalars) are validated at consumption when `early_exit` is set; outputs are
+never checked here, so a non-finite *root* result still returns ok=true, as
+in the generic evaluator."""
+@generated function _run_op_kernel!(
+    state::PlanState{T},
+    regs::PlanRegisters,
+    op_idx::UInt8,
+    kinds::NTuple{A,UInt8},
+    idxs::NTuple{A,Int32},
+    scalar_args::NTuple{A,T},
+    is_root::Bool,
+    early_exit::Bool,
+    operators::O,
+) where {A,T,O<:OperatorEnum}
+    quote
+        (; pool, descriptors, free_base, nrows) = state
+        (; stack_top, num_free, next_slot) = regs
+        # free recyclable argument slots first; the destination may then reuse
+        # one (kernels are alias-safe: reads and writes of the same slot are
+        # at the same element index)
+        @inbounds Base.Cartesian.@nexprs(
+            $A, k -> if kinds[k] == _K_SLOT
+                num_free += 1
+                descriptors[free_base + num_free] = Int64(idxs[k])
             end
         )
+        if is_root
+            slot = Int32(1)
+        elseif num_free > 0
+            slot = Int32(@inbounds(descriptors[free_base + num_free]))
+            num_free -= 1
+        else
+            next_slot += Int32(1)
+            slot = next_slot
+        end
+        @inbounds descriptors[stack_top] = Int64(_K_SLOT) | (Int64(slot) << 2)
+        dest_offset = _slotoff(slot, nrows)
+        is_scalar = Base.Cartesian.@ntuple($A, k -> kinds[k] == _K_SCALAR)
+        offsets = Base.Cartesian.@ntuple(
+            $A, k -> kinds[k] == _K_SCALAR ? 0 : _slotoff(idxs[k], nrows)
+        )
+        regs = PlanRegisters(stack_top, num_free, next_slot)
+        args_valid =
+            !early_exit || Base.Cartesian.@nall($A, k -> if is_scalar[k]
+                is_valid(scalar_args[k])
+            else
+                _valid_slot(pool, offsets[k], nrows)
+            end)
+        args_valid || return (regs, false)
+        _dispatch_degn!(
+            Val($A),
+            pool,
+            dest_offset,
+            op_idx,
+            is_scalar,
+            scalar_args,
+            offsets,
+            nrows,
+            operators,
+        )
+        return (regs, true)
     end
 end
 
