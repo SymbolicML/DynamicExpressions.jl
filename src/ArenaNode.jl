@@ -515,26 +515,30 @@ end
 function Base.any(f::F, tree::ArenaNode{T,D}) where {F<:Function,T,D}
     arena = get_arena(tree)
     if is_compact_root(tree)
-        # The arena contents are exactly the tree: a flat scan beats any
-        # traversal (visit order is unspecified for `any`).
+        # The arena contents are exactly the tree, and visit order is
+        # unspecified for `any`: scan flat, with recursion compiled out.
         @inbounds for i in eachindex(arena.nodes)
-            @inline(f(ArenaNode{T,D}(arena, Int32(i)))) && return true
+            _entry_any(f, arena, Int32(i), Val(false)) && return true
         end
         return false
     end
-    return _entry_any(f, arena, get_index(tree))
+    return _entry_any(f, arena, get_index(tree), Val(true))
 end
 
-# Entry-level early-exit traversal (the same skeleton as _entry_mapreduce):
-# the generic `any` re-reads entries through the facade per field and falls
-# behind Node as trees grow. Explicit recursion, not
+# One body for both modes: `recurse` is a static flag, so the compact flat
+# scan and the non-compact traversal share the per-node logic with the
+# children loop compiled out of the former. Explicit recursion, not
 # `any(j -> ..., 1:degree)`: a closure through `Base.any` defeats the
 # early-exit inlining nondeterministically.
-function _entry_any(f::F, arena::Arena{T,D}, idx::Int32) where {F<:Function,T,D}
+function _entry_any(
+    f::F, arena::Arena{T,D}, idx::Int32, ::Val{recurse}
+) where {F<:Function,T,D,recurse}
     entry = _load_entry(arena, idx)
     @inline(f(ArenaNode{T,D}(arena, idx))) && return true
-    @inbounds for j in 1:(entry.degree)
-        _entry_any(f, arena, entry.children[j]) && return true
+    if recurse
+        @inbounds for j in 1:(entry.degree)
+            _entry_any(f, arena, entry.children[j], Val(recurse)) && return true
+        end
     end
     return false
 end
