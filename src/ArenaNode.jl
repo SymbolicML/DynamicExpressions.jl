@@ -39,13 +39,13 @@ struct ArenaEntry{T,D}
 end
 
 @inline function _replace(
-    e::ArenaEntry{T,D};
-    val=e.val,
-    children=e.children,
-    feature=e.feature,
-    degree=e.degree,
-    op=e.op,
-    constant=e.constant,
+    entry::ArenaEntry{T,D};
+    val=entry.val,
+    children=entry.children,
+    feature=entry.feature,
+    degree=entry.degree,
+    op=entry.op,
+    constant=entry.constant,
 ) where {T,D}
     return ArenaEntry{T,D}(val, children, feature, degree, op, constant)
 end
@@ -82,29 +82,33 @@ struct Arena{T,D} <: AbstractVector{ArenaEntry{T,D}}
     end
 end
 
-Base.size(a::Arena) = size(getfield(a, :nodes))
+Base.size(arena::Arena) = size(getfield(arena, :nodes))
 Base.IndexStyle(::Type{<:Arena}) = IndexLinear()
-Base.@propagate_inbounds Base.getindex(a::Arena, i::Integer) = getfield(a, :nodes)[i]
+Base.@propagate_inbounds Base.getindex(arena::Arena, i::Integer) =
+    getfield(arena, :nodes)[i]
 Base.@propagate_inbounds function Base.setindex!(
-    a::Arena{T,D}, e::ArenaEntry{T,D}, i::Integer
+    arena::Arena{T,D}, entry::ArenaEntry{T,D}, i::Integer
 ) where {T,D}
-    nodes = getfield(a, :nodes)
+    nodes = getfield(arena, :nodes)
     old = nodes[i]
-    if e.degree != old.degree || e.children != old.children
-        a.compact[] = false
+    if entry.degree != old.degree || entry.children != old.children
+        arena.compact[] = false
     end
-    nodes[i] = e
-    return a
+    nodes[i] = entry
+    return arena
 end
-function Base.push!(a::Arena{T,D}, e::ArenaEntry{T,D}) where {T,D}
-    nodes = getfield(a, :nodes)
+function Base.push!(arena::Arena{T,D}, entry::ArenaEntry{T,D}) where {T,D}
+    nodes = getfield(arena, :nodes)
     # A single leaf in a fresh arena is a valid tree; any further append breaks
     # the one-postfix-tree invariant until a builder re-establishes it.
-    isempty(nodes) || (a.compact[] = false)
-    push!(nodes, e)
-    return a
+    isempty(nodes) || (arena.compact[] = false)
+    push!(nodes, entry)
+    return arena
 end
-Base.sizehint!(a::Arena, n::Integer) = (sizehint!(getfield(a, :nodes), n); a)
+function Base.sizehint!(arena::Arena, capacity::Integer)
+    sizehint!(getfield(arena, :nodes), capacity)
+    return arena
+end
 
 """A lightweight facade for a node stored in an [`Arena`](@ref).
 
@@ -132,8 +136,8 @@ end
 """Whether `tree` is the root of a compact arena, so that the arena contents
 *are* the tree and whole-tree operations can act on the flat array directly."""
 @inline function is_compact_root(tree::ArenaNode)
-    a = getfield(tree, :arena)
-    return a.compact[] && getfield(tree, :idx) == length(a.nodes)
+    arena = getfield(tree, :arena)
+    return arena.compact[] && getfield(tree, :idx) == length(arena.nodes)
 end
 
 @inline function _zero_children(::Val{D}) where {D}
@@ -179,68 +183,70 @@ function ArenaNode{T,D}() where {T,D}
 end
 
 Base.@constprop :aggressive @inline function Base.getproperty(
-    n::ArenaNode{T}, k::Symbol
+    node::ArenaNode{T}, property_name::Symbol
 ) where {T}
-    if k === :arena
-        return getfield(n, :arena)
-    elseif k === :idx
-        return getfield(n, :idx)
-    elseif k === :degree
-        return @inbounds getfield(n, :arena).nodes[getfield(n, :idx)].degree
-    elseif k === :constant
-        return @inbounds getfield(n, :arena).nodes[getfield(n, :idx)].constant
-    elseif k === :val
-        return @inbounds getfield(n, :arena).nodes[getfield(n, :idx)].val::T
-    elseif k === :feature
-        return @inbounds getfield(n, :arena).nodes[getfield(n, :idx)].feature
-    elseif k === :op
-        return @inbounds getfield(n, :arena).nodes[getfield(n, :idx)].op
-    elseif k === :children
-        return unsafe_get_children(n)
-    elseif k === :l
-        return get_child(n, UInt8(1))
-    elseif k === :r
-        return get_child(n, UInt8(2))
+    if property_name === :arena
+        return getfield(node, :arena)
+    elseif property_name === :idx
+        return getfield(node, :idx)
+    elseif property_name === :degree
+        return @inbounds getfield(node, :arena).nodes[getfield(node, :idx)].degree
+    elseif property_name === :constant
+        return @inbounds getfield(node, :arena).nodes[getfield(node, :idx)].constant
+    elseif property_name === :val
+        return @inbounds getfield(node, :arena).nodes[getfield(node, :idx)].val::T
+    elseif property_name === :feature
+        return @inbounds getfield(node, :arena).nodes[getfield(node, :idx)].feature
+    elseif property_name === :op
+        return @inbounds getfield(node, :arena).nodes[getfield(node, :idx)].op
+    elseif property_name === :children
+        return unsafe_get_children(node)
+    elseif property_name === :l
+        return get_child(node, UInt8(1))
+    elseif property_name === :r
+        return get_child(node, UInt8(2))
     else
-        return getfield(n, k)
+        return getfield(node, property_name)
     end
 end
 
-@inline function Base.setproperty!(n::ArenaNode{T,D}, k::Symbol, v) where {T,D}
-    a = n.arena
-    i = n.idx
-    e = @inbounds a[i]
-    if k === :degree
-        @inbounds a[i] = _replace(e; degree=UInt8(v))
-        return v
-    elseif k === :constant
-        @inbounds a[i] = _replace(e; constant=Bool(v))
-        return v
-    elseif k === :val
-        @inbounds a[i] = _replace(e; val=convert(T, v))
-        return v
-    elseif k === :feature
-        @inbounds a[i] = _replace(e; feature=UInt16(v))
-        return v
-    elseif k === :op
-        @inbounds a[i] = _replace(e; op=UInt8(v))
-        return v
-    elseif k === :l
-        set_child!(n, v, 1)
-        return v
-    elseif k === :r
-        set_child!(n, v, 2)
-        return v
+@inline function Base.setproperty!(
+    node::ArenaNode{T,D}, property_name::Symbol, value
+) where {T,D}
+    arena = node.arena
+    i = node.idx
+    entry = @inbounds arena[i]
+    if property_name === :degree
+        @inbounds arena[i] = _replace(entry; degree=UInt8(value))
+        return value
+    elseif property_name === :constant
+        @inbounds arena[i] = _replace(entry; constant=Bool(value))
+        return value
+    elseif property_name === :val
+        @inbounds arena[i] = _replace(entry; val=convert(T, value))
+        return value
+    elseif property_name === :feature
+        @inbounds arena[i] = _replace(entry; feature=UInt16(value))
+        return value
+    elseif property_name === :op
+        @inbounds arena[i] = _replace(entry; op=UInt8(value))
+        return value
+    elseif property_name === :l
+        set_child!(node, value, 1)
+        return value
+    elseif property_name === :r
+        set_child!(node, value, 2)
+        return value
     else
-        throw(ArgumentError("Unsupported field $k for ArenaNode"))
+        throw(ArgumentError("Unsupported field $property_name for ArenaNode"))
     end
 end
 
 @inline function _nullable_child(
-    n::ArenaNode{T,D}, c::Int32
+    node::ArenaNode{T,D}, child_idx::Int32
 )::Nullable{ArenaNode{T,D}} where {T,D}
-    child = ArenaNode{T,D}(n.arena, c)
-    return Nullable{ArenaNode{T,D}}(c == 0, child)
+    child = ArenaNode{T,D}(node.arena, child_idx)
+    return Nullable{ArenaNode{T,D}}(child_idx == 0, child)
 end
 
 """Return an `NTuple{D,Nullable{ArenaNode}}` of children wrappers.
@@ -248,75 +254,79 @@ end
 Unused slots are represented as poison nodes (mirroring `Node`), so that
 accessing them throws an `UndefRefError`.
 """
-@generated function unsafe_get_children(n::ArenaNode{T,D}) where {T,D}
+@generated function unsafe_get_children(node::ArenaNode{T,D}) where {T,D}
     quote
         $(Expr(:meta, :inline))
-        children = @inbounds getfield(n, :arena).nodes[getfield(n, :idx)].children
-        return Base.Cartesian.@ntuple($D, j -> _nullable_child(n, children[j]))
+        children = @inbounds getfield(node, :arena).nodes[getfield(node, :idx)].children
+        return Base.Cartesian.@ntuple($D, j -> _nullable_child(node, children[j]))
     end
 end
 
-@inline function get_child(n::ArenaNode{T,D}, i::Integer) where {T,D}
+@inline function get_child(node::ArenaNode{T,D}, i::Integer) where {T,D}
     # Avoid routing through getproperty here: the :l/:r property branches call
     # get_child, and the resulting inference cycle widens property access.
-    a = getfield(n, :arena)
-    e = @inbounds getfield(a, :nodes)[getfield(n, :idx)]
-    c = e.children[i]  # bounds-checked: i > D must throw, not crash
-    c == 0 && throw(UndefRefError())
-    return ArenaNode{T,D}(a, c)
+    arena = getfield(node, :arena)
+    entry = @inbounds getfield(arena, :nodes)[getfield(node, :idx)]
+    child_idx = entry.children[i]  # bounds-checked: i > D must throw, not crash
+    child_idx == 0 && throw(UndefRefError())
+    return ArenaNode{T,D}(arena, child_idx)
 end
 
-@inline function set_child!(n::ArenaNode{T,D}, child::AbstractNode{D}, i::Int) where {T,D}
+@inline function set_child!(
+    node::ArenaNode{T,D}, child::AbstractNode{D}, i::Int
+) where {T,D}
     child isa AbstractExpressionNode{T,D} || throw(
         ArgumentError(
             "ArenaNode children must be AbstractExpressionNode{$T,$D} (got $(typeof(child)))",
         ),
     )
 
-    # We cannot directly link across arenas, so we copy the subtree into `n`'s arena.
-    idx = if child isa ArenaNode{T,D} && child.arena === n.arena
+    # We cannot directly link across arenas, so we copy the subtree into `node`'s arena.
+    idx = if child isa ArenaNode{T,D} && child.arena === node.arena
         child.idx
     else
-        _copy_to_arena!(n.arena, child)
+        _copy_to_arena!(node.arena, child)
     end
 
-    a = n.arena
-    e = @inbounds a[n.idx]
-    if @inbounds(e.children[i]) != idx
-        @inbounds a[n.idx] = _replace(e; children=Base.setindex(e.children, idx, i))
+    arena = node.arena
+    entry = @inbounds arena[node.idx]
+    if @inbounds(entry.children[i]) != idx
+        @inbounds arena[node.idx] = _replace(
+            entry; children=Base.setindex(entry.children, idx, i)
+        )
     end
-    return ArenaNode{T,D}(a, idx)
+    return ArenaNode{T,D}(arena, idx)
 end
 
 @inline function set_children!(
-    n::ArenaNode{T,D}, children::Union{Tuple,AbstractVector{<:AbstractNode{D}}}
+    node::ArenaNode{T,D}, children::Union{Tuple,AbstractVector{<:AbstractNode{D}}}
 ) where {T,D}
     D2 = length(children)
     idxs = _zero_children(Val(D))
     @inbounds for i in 1:min(D, D2)
-        c = children[i]
-        if c isa Nullable
-            c.null && continue
-            c = c[]
+        child = children[i]
+        if child isa Nullable
+            child.null && continue
+            child = child[]
         end
 
-        c isa AbstractExpressionNode{T,D} || throw(
+        child isa AbstractExpressionNode{T,D} || throw(
             ArgumentError(
-                "ArenaNode children must be AbstractExpressionNode{$T,$D} (got $(typeof(c)))",
+                "ArenaNode children must be AbstractExpressionNode{$T,$D} (got $(typeof(child)))",
             ),
         )
 
-        idx = if c isa ArenaNode{T,D} && c.arena === n.arena
-            c.idx
+        idx = if child isa ArenaNode{T,D} && child.arena === node.arena
+            child.idx
         else
-            _copy_to_arena!(n.arena, c)
+            _copy_to_arena!(node.arena, child)
         end
         idxs = Base.setindex(idxs, idx, i)
     end
 
-    a = n.arena
-    e = @inbounds a[n.idx]
-    @inbounds a[n.idx] = _replace(e; children=idxs)
+    arena = node.arena
+    entry = @inbounds arena[node.idx]
+    @inbounds arena[node.idx] = _replace(entry; children=idxs)
     return nothing
 end
 
@@ -341,9 +351,9 @@ end
 
 """Preallocate an arena for [`copy_into!`](@ref), enabling zero-allocation copies."""
 function allocate_container(
-    prototype::ArenaNode{T,D}, n::Union{Nothing,Integer}=nothing
+    prototype::ArenaNode{T,D}, num_nodes::Union{Nothing,Integer}=nothing
 ) where {T,D}
-    return Arena{T,D}(; capacity=@something(n, length(prototype)))
+    return Arena{T,D}(; capacity=@something(num_nodes, length(prototype)))
 end
 
 """Copy `src` into the preallocated arena `dest`, reusing its storage.
@@ -378,8 +388,8 @@ end
 function _copy_to_arena!(
     arena::Arena{T,D}, tree::AbstractExpressionNode{T2,D}
 ) where {T,T2,D}
-    d = tree.degree
-    if d == 0
+    degree = tree.degree
+    if degree == 0
         if tree.constant
             return push_constant!(arena, tree.val)
         else
@@ -388,10 +398,10 @@ function _copy_to_arena!(
     end
 
     idxs = _zero_children(Val(D))
-    @inbounds for i in 1:d
+    @inbounds for i in 1:degree
         idxs = Base.setindex(idxs, _copy_to_arena!(arena, get_child(tree, i)), i)
     end
-    return _push_node!(arena, UInt8(d), false, zero(T), UInt16(0), tree.op, idxs)
+    return _push_node!(arena, UInt8(degree), false, zero(T), UInt16(0), tree.op, idxs)
 end
 
 """Convert an existing tree into an arena-backed representation.
@@ -439,19 +449,21 @@ end
 function Base.any(f::F, tree::ArenaNode{T,D}) where {F<:Function,T,D}
     return _arena_any(f, getfield(tree, :arena), getfield(tree, :idx))
 end
-function _arena_any(f::F, a::Arena{T,D}, idx::Int32) where {F<:Function,T,D}
+function _arena_any(f::F, arena::Arena{T,D}, idx::Int32) where {F<:Function,T,D}
     iszero(idx) && throw(UndefRefError())  # unset child slot, like Node
-    e = @inbounds getfield(a, :nodes)[idx]
-    @inline(f(ArenaNode{T,D}(a, idx))) && return true
-    @inbounds for j in 1:e.degree
-        _arena_any(f, a, e.children[j]) && return true
+    entry = @inbounds getfield(arena, :nodes)[idx]
+    @inline(f(ArenaNode{T,D}(arena, idx))) && return true
+    @inbounds for j in 1:entry.degree
+        _arena_any(f, arena, entry.children[j]) && return true
     end
     return false
 end
 
 function is_constant(tree::ArenaNode)
     return !_arena_any(
-        n -> iszero(n.degree) && !n.constant, getfield(tree, :arena), getfield(tree, :idx)
+        node -> iszero(node.degree) && !node.constant,
+        getfield(tree, :arena),
+        getfield(tree, :idx),
     )
 end
 
@@ -470,25 +482,25 @@ function tree_mapreduce(
 end
 
 @generated function _arena_mapreduce(
-    f_leaf::F1, f_branch::F2, op::G, a::Arena{T,D}, idx::Int32
+    f_leaf::F1, f_branch::F2, op::G, arena::Arena{T,D}, idx::Int32
 ) where {F1<:Function,F2<:Function,G<:Function,T,D}
     quote
         iszero(idx) && throw(UndefRefError())  # unset child slot, like Node
-        e = @inbounds getfield(a, :nodes)[idx]
-        d = e.degree
-        if iszero(d)
-            return f_leaf(ArenaNode{T,D}(a, idx))
+        entry = @inbounds getfield(arena, :nodes)[idx]
+        degree = entry.degree
+        if iszero(degree)
+            return f_leaf(ArenaNode{T,D}(arena, idx))
         end
-        branch = f_branch(ArenaNode{T,D}(a, idx))
-        children = e.children
+        branch = f_branch(ArenaNode{T,D}(arena, idx))
+        children = entry.children
         return Base.Cartesian.@nif(
             $D,
-            i -> i == d,  # COV_EXCL_LINE
+            i -> i == degree,  # COV_EXCL_LINE
             i -> Base.Cartesian.@ncall(
                 i,
                 op,
                 branch,
-                j -> _arena_mapreduce(f_leaf, f_branch, op, a, children[j])
+                j -> _arena_mapreduce(f_leaf, f_branch, op, arena, children[j])
             ),
         )
     end
@@ -500,36 +512,36 @@ facade traversal otherwise."""
 function get_scalar_constants(
     tree::ArenaNode{T}, ::Type{BT}=get_number_type(T)
 ) where {T<:Number,BT}
-    a = tree.arena
+    arena = tree.arena
     if is_compact_root(tree)
-        nodes = a.nodes
-        n_constants = count(e -> iszero(e.degree) && e.constant, nodes)
+        nodes = arena.nodes
+        n_constants = count(entry -> iszero(entry.degree) && entry.constant, nodes)
         vals = Vector{T}(undef, n_constants)
         refs = Vector{Int32}(undef, n_constants)
         j = 0
         @inbounds for i in eachindex(nodes)
-            e = nodes[i]
-            if iszero(e.degree) && e.constant
+            entry = nodes[i]
+            if iszero(entry.degree) && entry.constant
                 j += 1
-                vals[j] = e.val
+                vals[j] = entry.val
                 refs[j] = Int32(i)
             end
         end
         return vals, refs
     end
     refs = filter_map(is_node_constant, node -> node.idx, tree, Int32)
-    vals = T[@inbounds(a[i].val) for i in refs]
+    vals = T[@inbounds(arena[i].val) for i in refs]
     return vals, refs
 end
 
 function set_scalar_constants!(
     tree::ArenaNode{T}, constants, refs::AbstractVector{Int32}
 ) where {T<:Number}
-    a = tree.arena
+    arena = tree.arena
     # Deliberately bounds-checked: refs are caller-supplied and may be stale.
     for j in eachindex(refs, constants)
         i = refs[j]
-        a[i] = _replace(a[i]; val=convert(T, constants[j]))
+        arena[i] = _replace(arena[i]; val=convert(T, constants[j]))
     end
     return nothing
 end
@@ -563,7 +575,7 @@ function _eval_tree_array(
         is_compact_root(tree) &&
         eval_options.turbo isa Val{false} &&
         eval_options.use_fused isa Val{true}
-        ok_plan, n_slots, sp_max, fmask = _plan_scratch(getfield(tree, :arena))
+        ok_plan, n_slots, max_stack, fmask = _plan_scratch(getfield(tree, :arena))
         # +1 for the output slot; capacity is the buffer's row count
         if ok_plan && n_slots + 1 <= size(buffer.array, 1)
             return _arena_eval(
@@ -572,7 +584,7 @@ function _eval_tree_array(
                 operators,
                 eval_options.early_exit,
                 n_slots,
-                sp_max,
+                max_stack,
                 fmask,
                 buffer.array,
             )
@@ -598,45 +610,45 @@ descriptor stack to count the recyclable intermediate slots (register
 allocation with a free list). Kinds are tracked in `UInt64` bitmask stacks,
 so trees deeper than 64 or features beyond 64 report failure and take the
 generic path."""
-function _plan_scratch(a::Arena{T,D}) where {T,D}
-    nodes = getfield(a, :nodes)
+function _plan_scratch(arena::Arena{T,D}) where {T,D}
+    nodes = getfield(arena, :nodes)
     fmask = UInt64(0)
     scalar_mask = UInt64(0)
     perm_mask = UInt64(0)
-    sp = 0
-    sp_max = 0
+    stack_top = 0
+    max_stack = 0
     live = 0
-    nfree = 0
+    num_free = 0
     max_int_slots = 0
     @inbounds for i in eachindex(nodes)
-        e = nodes[i]
-        d = e.degree
-        if iszero(d)
-            sp >= 64 && return (false, 0, 0, UInt64(0))
-            sp += 1
-            sp_max = max(sp_max, sp)
-            scalar_mask = (scalar_mask << 1) | (e.constant ? 1 : 0)
+        entry = nodes[i]
+        degree = entry.degree
+        if iszero(degree)
+            stack_top >= 64 && return (false, 0, 0, UInt64(0))
+            stack_top += 1
+            max_stack = max(max_stack, stack_top)
+            scalar_mask = (scalar_mask << 1) | (entry.constant ? 1 : 0)
             perm_mask <<= 1
-            if !e.constant
-                f = e.feature
-                (1 <= f <= 64) || return (false, 0, 0, UInt64(0))
-                fmask |= UInt64(1) << (f - 1)
+            if !entry.constant
+                feature = entry.feature
+                (1 <= feature <= 64) || return (false, 0, 0, UInt64(0))
+                fmask |= UInt64(1) << (feature - 1)
                 perm_mask |= 1
             end
         else
-            window = (UInt64(1) << d) - 1
+            window = (UInt64(1) << degree) - 1
             all_scalar = (scalar_mask & window) == window
             n_free_args = count_ones(~perm_mask & ~scalar_mask & window)
-            scalar_mask >>= (d - 1)
-            perm_mask >>= (d - 1)
-            sp -= d - 1
+            scalar_mask >>= (degree - 1)
+            perm_mask >>= (degree - 1)
+            stack_top -= degree - 1
             if all_scalar
                 scalar_mask |= 1
                 perm_mask &= ~UInt64(1)
             else
-                nfree += n_free_args
-                if nfree > 0
-                    nfree -= 1
+                num_free += n_free_args
+                if num_free > 0
+                    num_free -= 1
                 else
                     live += 1
                     max_int_slots = max(max_int_slots, live)
@@ -649,7 +661,7 @@ function _plan_scratch(a::Arena{T,D}) where {T,D}
     n_slots = count_ones(fmask) + max_int_slots
     # A well-formed postfix tree collapses the stack to exactly the root;
     # anything else (e.g. orphaned roots) must fail closed.
-    return (sp == 1, n_slots, sp_max, fmask)
+    return (stack_top == 1, n_slots, max_stack, fmask)
 end
 
 @generated function _scalar_degn(
@@ -672,40 +684,40 @@ offset 0, so the dead load stays in cache). This avoids generating 2^arity
 kernel variants while remaining SIMD-friendly."""
 @generated function _kern_n!(
     pool::Matrix{T},
-    doff::Int,
+    dest_offset::Int,
     op::F,
-    isscal::NTuple{A,Bool},
-    svs::NTuple{A,T},
-    offs::NTuple{A,Int},
-    n::Int,
+    is_scalar::NTuple{A,Bool},
+    scalar_args::NTuple{A,T},
+    offsets::NTuple{A,Int},
+    num_rows::Int,
 ) where {T,F,A}
     quote
-        @inbounds @simd for j in 1:n
-            pool[doff + j] = Base.Cartesian.@ncall(
-                $A, op, k -> ifelse(isscal[k], svs[k], pool[offs[k] + j])
+        @inbounds @simd for j in 1:num_rows
+            pool[dest_offset + j] = Base.Cartesian.@ncall(
+                $A, op, k -> ifelse(is_scalar[k], scalar_args[k], pool[offsets[k] + j])
             )
         end
         return nothing
     end
 end
 """`is_valid_array` over a pool slot without constructing a view."""
-@inline function _valid_slot(pool::Matrix{T}, off::Int, n::Int) where {T}
-    s = zero(T)
-    @inbounds @simd for j in 1:n
-        s += pool[off + j]
+@inline function _valid_slot(pool::Matrix{T}, offset::Int, num_rows::Int) where {T}
+    total = zero(T)
+    @inbounds @simd for j in 1:num_rows
+        total += pool[offset + j]
     end
-    return is_valid(s)
+    return is_valid(total)
 end
-@inline _slotoff(s::Int32, nrows::Int) = (s - 1) * nrows
+@inline _slotoff(slot::Int32, nrows::Int) = (slot - 1) * nrows
 
 @generated function _dispatch_degn!(
     ::Val{A},
     pool::Matrix{T},
-    doff::Int,
+    dest_offset::Int,
     op_idx::UInt8,
-    isscal::NTuple{A,Bool},
-    svs::NTuple{A,T},
-    offs::NTuple{A,Int},
+    is_scalar::NTuple{A,Bool},
+    scalar_args::NTuple{A,T},
+    offsets::NTuple{A,Int},
     nrows::Int,
     operators::O,
 ) where {A,T,O<:OperatorEnum}
@@ -715,7 +727,15 @@ end
         Base.Cartesian.@nif(
             $nops,
             i -> i == op_idx,  # COV_EXCL_LINE
-            i -> _kern_n!(pool, doff, operators.ops[$A][i], isscal, svs, offs, nrows),
+            i -> _kern_n!(
+                pool,
+                dest_offset,
+                operators.ops[$A][i],
+                is_scalar,
+                scalar_args,
+                offsets,
+                nrows,
+            ),
         )
         return nothing
     end
@@ -726,100 +746,111 @@ stacks, and the free-list base. Immutable, so passing it compiles to the
 same code as passing the fields separately."""
 struct _PlanState{T}
     pool::Matrix{T}
-    desc::Vector{Int64}
-    svals::Vector{T}
-    fbase::Int
+    descriptors::Vector{Int64}
+    scalar_vals::Vector{T}
+    free_base::Int
     nrows::Int
 end
 
-"""The evaluator's register-like counters: descriptor stack pointer, free-list
+"""The evaluator's register-like counters: descriptor stack top, free-list
 length, and high-water slot. Threaded through `_push_leaf!`/`_exec_op!`."""
 struct _PlanRegs
-    sp::Int
-    nfree::Int
+    stack_top::Int
+    num_free::Int
     next_slot::Int32
 end
 
 @inline function _push_leaf!(
-    st::_PlanState{T}, regs::_PlanRegs, e::ArenaEntry{T}, fmask::UInt64
+    state::_PlanState{T}, regs::_PlanRegs, entry::ArenaEntry{T}, fmask::UInt64
 ) where {T}
-    sp = regs.sp + 1
-    @inbounds if e.constant
-        st.desc[sp] = Int64(_K_SCALAR)
-        st.svals[sp] = e.val
+    stack_top = regs.stack_top + 1
+    @inbounds if entry.constant
+        state.descriptors[stack_top] = Int64(_K_SCALAR)
+        state.scalar_vals[stack_top] = entry.val
     else
-        fslot = count_ones(fmask & ((UInt64(1) << (e.feature - 1)) - 1)) + 2
-        st.desc[sp] = Int64(_K_PSLOT) | (Int64(fslot) << 2)
+        fslot = count_ones(fmask & ((UInt64(1) << (entry.feature - 1)) - 1)) + 2
+        state.descriptors[stack_top] = Int64(_K_PSLOT) | (Int64(fslot) << 2)
     end
-    return _PlanRegs(sp, regs.nfree, regs.next_slot)
+    return _PlanRegs(stack_top, regs.num_free, regs.next_slot)
 end
 
 """Execute one operator node of runtime degree `d` (dispatched to a
-compile-time arity with `Base.Cartesian.@nif`): gather the top `d` operand
+compile-time arity with `Base.Cartesian.@nif`): gather the top `degree` operand
 descriptors, fold if all are scalars, otherwise free recyclable argument
 slots, allocate the destination (slot 1 when at the root), and run the
 kernel. Returns `(regs, ok)`."""
 @generated function _exec_op!(
-    st::_PlanState{T},
+    state::_PlanState{T},
     regs::_PlanRegs,
     op_idx::UInt8,
-    d::UInt8,
+    degree::UInt8,
     is_root::Bool,
     early_exit::Bool,
     operators::O,
     ::Val{D},
 ) where {T,O<:OperatorEnum,D}
     quote
-        (; pool, desc, svals, fbase, nrows) = st
-        (; sp, nfree, next_slot) = regs
+        (; pool, descriptors, scalar_vals, free_base, nrows) = state
+        (; stack_top, num_free, next_slot) = regs
         return Base.Cartesian.@nif(
             $D,
-            A -> A == d,  # COV_EXCL_LINE
+            A -> A == degree,  # COV_EXCL_LINE
             A -> @inbounds begin
-                ks = Base.Cartesian.@ntuple(A, k -> UInt8(desc[sp - A + k] & 3))
-                is = Base.Cartesian.@ntuple(A, k -> Int32(desc[sp - A + k] >> 2))
-                svs = Base.Cartesian.@ntuple(
-                    A, k -> ks[k] == _K_SCALAR ? svals[sp - A + k] : zero(T)
+                kinds = Base.Cartesian.@ntuple(
+                    A, k -> UInt8(descriptors[stack_top - A + k] & 3)
                 )
-                sp -= A - 1
-                if Base.Cartesian.@nall(A, k -> ks[k] == _K_SCALAR)
+                idxs = Base.Cartesian.@ntuple(
+                    A, k -> Int32(descriptors[stack_top - A + k] >> 2)
+                )
+                scalar_args = Base.Cartesian.@ntuple(
+                    A,
+                    k -> if kinds[k] == _K_SCALAR
+                        scalar_vals[stack_top - A + k]
+                    else
+                        zero(T)
+                    end
+                )
+                stack_top -= A - 1
+                if Base.Cartesian.@nall(A, k -> kinds[k] == _K_SCALAR)
                     # Mirrors `dispatch_constant_tree`: leaf values and fold
                     # results are validated unconditionally (not gated on
                     # `early_exit`). Folded args are valid by induction, so
                     # the arg check only screens constant leaves.
-                    if Base.Cartesian.@nall(A, k -> is_valid(svs[k]))
-                        v = _scalar_degn(Val(A), op_idx, svs, operators)
-                        ok = is_valid(v)
+                    if Base.Cartesian.@nall(A, k -> is_valid(scalar_args[k]))
+                        value = _scalar_degn(Val(A), op_idx, scalar_args, operators)
+                        ok = is_valid(value)
                         if ok
-                            desc[sp] = Int64(_K_SCALAR)
-                            svals[sp] = v
+                            descriptors[stack_top] = Int64(_K_SCALAR)
+                            scalar_vals[stack_top] = value
                         end
-                        (_PlanRegs(sp, nfree, next_slot), ok)
+                        (_PlanRegs(stack_top, num_free, next_slot), ok)
                     else
-                        (_PlanRegs(sp, nfree, next_slot), false)
+                        (_PlanRegs(stack_top, num_free, next_slot), false)
                     end
                 else
                     # free recyclable argument slots first; the destination
                     # may then reuse one (kernels are alias-safe: reads and
                     # writes of the same slot are at the same element index)
-                    Base.Cartesian.@nexprs(A, k -> if ks[k] == _K_SLOT
-                            nfree += 1
-                            desc[fbase + nfree] = Int64(is[k])
-                        end)
+                    Base.Cartesian.@nexprs(
+                        A, k -> if kinds[k] == _K_SLOT
+                            num_free += 1
+                            descriptors[free_base + num_free] = Int64(idxs[k])
+                        end
+                    )
                     if is_root
-                        s = Int32(1)
-                    elseif nfree > 0
-                        s = Int32(desc[fbase + nfree])
-                        nfree -= 1
+                        slot = Int32(1)
+                    elseif num_free > 0
+                        slot = Int32(descriptors[free_base + num_free])
+                        num_free -= 1
                     else
                         next_slot += Int32(1)
-                        s = next_slot
+                        slot = next_slot
                     end
-                    desc[sp] = Int64(_K_SLOT) | (Int64(s) << 2)
-                    doff = _slotoff(s, nrows)
-                    isscal = Base.Cartesian.@ntuple(A, k -> ks[k] == _K_SCALAR)
-                    offs = Base.Cartesian.@ntuple(
-                        A, k -> ks[k] == _K_SCALAR ? 0 : _slotoff(is[k], nrows)
+                    descriptors[stack_top] = Int64(_K_SLOT) | (Int64(slot) << 2)
+                    dest_offset = _slotoff(slot, nrows)
+                    is_scalar = Base.Cartesian.@ntuple(A, k -> kinds[k] == _K_SCALAR)
+                    offsets = Base.Cartesian.@ntuple(
+                        A, k -> kinds[k] == _K_SCALAR ? 0 : _slotoff(idxs[k], nrows)
                     )
                     # Mirrors `@return_on_nonfinite_array`/`_val`: operands
                     # (slots and constant scalars) are validated at consumption
@@ -828,26 +859,26 @@ kernel. Returns `(regs, ok)`."""
                     # in the generic evaluator.
                     if early_exit &&
                         !Base.Cartesian.@nall(
-                        A, k -> if isscal[k]
-                            is_valid(svs[k])
+                        A, k -> if is_scalar[k]
+                            is_valid(scalar_args[k])
                         else
-                            _valid_slot(pool, offs[k], nrows)
+                            _valid_slot(pool, offsets[k], nrows)
                         end,
                     )
-                        (_PlanRegs(sp, nfree, next_slot), false)
+                        (_PlanRegs(stack_top, num_free, next_slot), false)
                     else
                         _dispatch_degn!(
                             Val(A),
                             pool,
-                            doff,
+                            dest_offset,
                             op_idx,
-                            isscal,
-                            svs,
-                            offs,
+                            is_scalar,
+                            scalar_args,
+                            offsets,
                             nrows,
                             operators,
                         )
-                        (_PlanRegs(sp, nfree, next_slot), true)
+                        (_PlanRegs(stack_top, num_free, next_slot), true)
                     end
                 end
             end
@@ -856,17 +887,17 @@ kernel. Returns `(regs, ok)`."""
 end
 
 function _arena_eval(
-    a::Arena{T,D},
+    arena::Arena{T,D},
     cX::Matrix{T},
     operators::OperatorEnum,
     ::Val{early_exit},
     n_slots::Int,
-    sp_max::Int,
+    max_stack::Int,
     fmask::UInt64,
     pool::Matrix{T},
 ) where {T,D,early_exit}
-    nodes = getfield(a, :nodes)
-    n = length(nodes)
+    nodes = getfield(arena, :nodes)
+    num_nodes = length(nodes)
     nrows = size(cX, 2)
 
     # Slot layout in the pool: 1 = output; 2 .. 1+n_perm = materialized
@@ -874,33 +905,33 @@ function _arena_eval(
     # output view is constructed once, at return.
     n_perm = count_ones(fmask)
     let slot = 1
-        rem = fmask
-        while rem != 0
-            f = trailing_zeros(rem) + 1
+        remaining = fmask
+        while remaining != 0
+            feature = trailing_zeros(remaining) + 1
             slot += 1
-            off = (slot - 1) * nrows
+            offset = (slot - 1) * nrows
             @inbounds @simd for j in 1:nrows
-                pool[off + j] = cX[f, j]
+                pool[offset + j] = cX[feature, j]
             end
-            rem &= rem - 1
+            remaining &= remaining - 1
         end
     end
 
     # Per-call descriptor state (tiny; the pool itself is caller-owned):
-    desc = Vector{Int64}(undef, sp_max + n_slots)
-    svals = Vector{T}(undef, sp_max)
-    st = _PlanState(pool, desc, svals, sp_max, nrows)
+    descriptors = Vector{Int64}(undef, max_stack + n_slots)
+    scalar_vals = Vector{T}(undef, max_stack)
+    state = _PlanState(pool, descriptors, scalar_vals, max_stack, nrows)
     regs = _PlanRegs(0, 0, Int32(1 + n_perm))
     out() = @inbounds @view(pool[1, :])
 
-    @inbounds for i in 1:n
-        e = nodes[i]
-        if iszero(e.degree)
-            regs = _push_leaf!(st, regs, e, fmask)
+    @inbounds for i in 1:num_nodes
+        entry = nodes[i]
+        if iszero(entry.degree)
+            regs = _push_leaf!(state, regs, entry, fmask)
         else
-            is_root = i == n
+            is_root = i == num_nodes
             regs, ok = _exec_op!(
-                st, regs, e.op, e.degree, is_root, early_exit, operators, Val(D)
+                state, regs, entry.op, entry.degree, is_root, early_exit, operators, Val(D)
             )
             ok || return ResultOk(out(), false)
         end
@@ -910,14 +941,14 @@ function _arena_eval(
     # an op-root wrote into a non-output slot via in-place deg1 reuse. A bare
     # leaf root is never validity-checked (`deg0_eval` semantics); a folded
     # scalar root is already valid by induction.
-    kroot = UInt8(desc[1] & 3)
+    kroot = UInt8(descriptors[1] & 3)
     if kroot == _K_SCALAR
-        v = svals[1]
+        value = scalar_vals[1]
         @inbounds @simd for j in 1:nrows
-            pool[j] = v
+            pool[j] = value
         end
-    elseif Int32(desc[1] >> 2) != Int32(1)
-        soff = _slotoff(Int32(desc[1] >> 2), nrows)
+    elseif Int32(descriptors[1] >> 2) != Int32(1)
+        soff = _slotoff(Int32(descriptors[1] >> 2), nrows)
         @inbounds @simd for j in 1:nrows
             pool[j] = pool[soff + j]
         end
@@ -927,10 +958,10 @@ function _arena_eval(
     # `@view(buffer.array[i, :])` (keeping `eval_tree_array` type stable).
     # Chunk and row overlap in memory; iterating downward is safe: when
     # reading chunk index j, every already-written row position (j''-1)*B+1
-    # with j'' > j exceeds j for B >= 2, and for B == 1 chunk and row
+    # with j'' > j exceeds j for buffer_rows >= 2, and for buffer_rows == 1 chunk and row
     # coincide elementwise.
-    B = size(pool, 1)
-    if B > 1
+    buffer_rows = size(pool, 1)
+    if buffer_rows > 1
         @inbounds for j in nrows:-1:1
             pool[1, j] = pool[j]
         end
