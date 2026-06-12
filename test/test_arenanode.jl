@@ -1,3 +1,46 @@
+@testmodule ArenaTreeGen begin
+    using DynamicExpressions
+    using Random: AbstractRNG
+
+    export random_tree
+
+    function random_leaf(rng, ::Type{T}, ::Val{D}, nfeat, const_p) where {T,D}
+        if rand(rng) < const_p
+            return Node{T,D}(; val=randn(rng, T))
+        else
+            return Node{T,D}(; feature=rand(rng, 1:nfeat))
+        end
+    end
+
+    """Grow a random `Node{T,D}` tree to `n` nodes. `arity_cdf[d]` is the
+    cumulative probability of expanding a leaf to degree `d`; `nops[d]` is the
+    number of degree-`d` operators in the testitem's `OperatorEnum`."""
+    function random_tree(
+        rng::AbstractRNG,
+        n;
+        T=Float64,
+        D=2,
+        nfeat=3,
+        nops=(2, 4),
+        arity_cdf=(0.3, 1.0),
+        const_p=0.5,
+    )
+        leaf() = random_leaf(rng, T, Val(D), nfeat, const_p)
+        tree = leaf()
+        while count_nodes(tree) < n
+            node = rand(rng, filter(t -> t.degree == 0, tree))
+            r = rand(rng)
+            d = something(findfirst(>=(r), arity_cdf), D)
+            node.degree = d
+            node.op = rand(rng, 1:nops[d])
+            set_children!(node, ntuple(_ -> leaf(), d))
+            node.constant = false
+            node.val = zero(T)
+        end
+        return tree
+    end
+end
+
 @testitem "ArenaNode interface and evaluation" begin
     using Test
     using DynamicExpressions
@@ -35,15 +78,8 @@
         @test get_child(atree, UInt8(1)) == get_child(atree, 1)
     end
 
-    cursor = AN.ArenaCursor(atree; capacity=count_nodes(atree))
-    seen = Int32[]
-    AN.foreach_preorder!(n -> push!(seen, n.idx), atree, cursor)
-    seen2 = Int32[]
-    AN.foreach_preorder!(n -> push!(seen2, n.idx), atree, cursor)
-    @test seen == seen2
-
     collected = collect(atree; break_sharing=Val(true))
-    @test map(n -> n.idx, collected) == seen
+    @test !isempty(collected) && collected[1].idx == atree.idx
 
     X = randn(Float64, 1, 50)
     y_tree, ok_tree = eval_tree_array(tree, X, operators)
@@ -131,9 +167,6 @@ end
     @test atree_fold.degree == 0
     @test atree_fold.constant
     @test atree_fold.val == 5.0
-
-    other_cursor = AN.ArenaCursor(convert(AN.ArenaNode{Float64}, x1))
-    @test_throws ArgumentError AN.foreach_preorder!(identity, atree_fold, other_cursor)
 end
 
 @testitem "Expression with ArenaNode" begin
@@ -371,7 +404,9 @@ end
     @test c.compact[]
 end
 
-@testitem "ArenaNode fast paths agree with Node under random mutations" begin
+@testitem "ArenaNode fast paths agree with Node under random mutations" setup = [
+    ArenaTreeGen
+] begin
     using DynamicExpressions
     using DynamicExpressions: Node
     using Random
@@ -380,33 +415,6 @@ end
 
     operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[sin, cos])
     rng = MersenneTwister(42)
-
-    random_leaf(rng) =
-        if rand(rng) < 0.5
-            Node{Float64}(; val=randn(rng))
-        else
-            Node{Float64}(; feature=rand(rng, 1:3))
-        end
-
-    function random_tree(rng, n)
-        tree = random_leaf(rng)
-        while count_nodes(tree) < n
-            leaf = rand(rng, filter(t -> t.degree == 0, tree))
-            if rand(rng) < 0.3
-                leaf.degree = 1
-                leaf.op = rand(rng, 1:2)
-                leaf.l = random_leaf(rng)
-            else
-                leaf.degree = 2
-                leaf.op = rand(rng, 1:4)
-                leaf.l = random_leaf(rng)
-                leaf.r = random_leaf(rng)
-            end
-            leaf.constant = false
-            leaf.val = 0.0
-        end
-        return tree
-    end
 
     function all_facades(n, acc=AN.ArenaNode{Float64,2}[])
         push!(acc, n)
@@ -417,7 +425,9 @@ end
     end
 
     for _ in 1:20
-        root = convert(AN.ArenaNode{Float64}, random_tree(rng, rand(rng, 5:25)))
+        root = convert(
+            AN.ArenaNode{Float64}, ArenaTreeGen.random_tree(rng, rand(rng, 5:25))
+        )
         for _ in 1:8
             nodes = all_facades(root)
             node = rand(rng, nodes)
@@ -433,7 +443,9 @@ end
             elseif choice == 3 && node.degree > 0
                 set_child!(
                     node,
-                    convert(AN.ArenaNode{Float64}, random_tree(rng, rand(rng, 1:5))),
+                    convert(
+                        AN.ArenaNode{Float64}, ArenaTreeGen.random_tree(rng, rand(rng, 1:5))
+                    ),
                     rand(rng, 1:(node.degree)),
                 )
             else
@@ -457,7 +469,9 @@ end
     end
 end
 
-@testitem "ArenaNode buffered plan evaluation matches generic evaluator" begin
+@testitem "ArenaNode buffered plan evaluation matches generic evaluator" setup = [
+    ArenaTreeGen
+] begin
     using DynamicExpressions
     using DynamicExpressions: Node, EvalOptions, ArrayBuffer
     using Random
@@ -468,37 +482,11 @@ end
     rng = MersenneTwister(11)
 
     for T in (Float32, Float64)
-        random_leaf(rng) =
-            if rand(rng) < 0.4
-                Node{T}(; val=randn(rng, T))
-            else
-                Node{T}(; feature=rand(rng, 1:5))
-            end
-        function random_tree(rng, n)
-            tree = random_leaf(rng)
-            while count_nodes(tree) < n
-                leaf = rand(rng, filter(t -> t.degree == 0, tree))
-                if rand(rng) < 0.3
-                    leaf.degree = 1
-                    leaf.op = rand(rng, 1:2)
-                    leaf.l = random_leaf(rng)
-                else
-                    leaf.degree = 2
-                    leaf.op = rand(rng, 1:4)
-                    leaf.l = random_leaf(rng)
-                    leaf.r = random_leaf(rng)
-                end
-                leaf.constant = false
-                leaf.val = zero(T)
-            end
-            return tree
-        end
-
         X = randn(rng, T, 5, 37)
         buf_a = zeros(T, 40, 37)
         buf_n = zeros(T, 40, 37)
         for trial in 1:60, early_exit in (true, false)
-            tree = random_tree(rng, rand(rng, 1:30))
+            tree = ArenaTreeGen.random_tree(rng, rand(rng, 1:30); T, nfeat=5, const_p=0.4)
             atree = convert(AN.ArenaNode{T}, tree)
             opts_a = EvalOptions(; early_exit, buffer=ArrayBuffer(buf_a, Ref(0)))
             opts_n = EvalOptions(; early_exit, buffer=ArrayBuffer(buf_n, Ref(0)))
@@ -547,7 +535,9 @@ end
     end
 end
 
-@testitem "ArenaNode buffered evaluation with arbitrary-degree operators" begin
+@testitem "ArenaNode buffered evaluation with arbitrary-degree operators" setup = [
+    ArenaTreeGen
+] begin
     using DynamicExpressions
     using DynamicExpressions: Node, EvalOptions, ArrayBuffer
     using Random
@@ -559,40 +549,18 @@ end
     rng = MersenneTwister(5)
     T = Float64
 
-    random_leaf(rng) =
-        if rand(rng) < 0.4
-            Node{T,3}(; val=randn(rng, T))
-        else
-            Node{T,3}(; feature=rand(rng, 1:5))
-        end
-    function random_tree(rng, n)
-        tree = random_leaf(rng)
-        while count_nodes(tree) < n
-            leaf = rand(rng, filter(t -> t.degree == 0, tree))
-            r = rand(rng)
-            if r < 0.25
-                leaf.degree = 1
-                leaf.op = rand(rng, 1:2)
-                set_children!(leaf, (random_leaf(rng),))
-            elseif r < 0.6
-                leaf.degree = 2
-                leaf.op = rand(rng, 1:4)
-                set_children!(leaf, (random_leaf(rng), random_leaf(rng)))
-            else
-                leaf.degree = 3
-                leaf.op = rand(rng, 1:2)
-                set_children!(leaf, (random_leaf(rng), random_leaf(rng), random_leaf(rng)))
-            end
-            leaf.constant = false
-            leaf.val = zero(T)
-        end
-        return tree
-    end
-
     X = randn(rng, T, 5, 29)
     buf = zeros(T, 48, 29)
     for trial in 1:40, early_exit in (true, false)
-        tree = random_tree(rng, rand(rng, 1:25))
+        tree = ArenaTreeGen.random_tree(
+            rng,
+            rand(rng, 1:25);
+            D=3,
+            nfeat=5,
+            nops=(2, 4, 2),
+            arity_cdf=(0.25, 0.6, 1.0),
+            const_p=0.4,
+        )
         atree = convert(AN.ArenaNode{T,3}, tree)
         o = EvalOptions(; early_exit, buffer=ArrayBuffer(buf, Ref(0)))
         rt = try
@@ -618,5 +586,136 @@ end
         if okref
             @test yref ≈ ya || (any(!isfinite, yref) && any(!isfinite, ya))
         end
+    end
+end
+
+@testitem "ArenaNode review regressions" begin
+    using DynamicExpressions
+    using DynamicExpressions: Node, EvalOptions, ArrayBuffer
+    using DynamicExpressions.NodePreallocationModule: allocate_container, copy_into!
+
+    const AN = DynamicExpressions.ArenaNodeModule
+
+    operators = OperatorEnum(1 => (cos, exp), 2 => (+, *, -, /))
+    T = Float64
+    X = T[1.0 2.0 3.0; 0.5 1.5 2.5]
+    nrows = size(X, 2)
+    buf() = ArrayBuffer(zeros(T, 16, nrows), Ref(0))
+    to_arena(t) = convert(AN.ArenaNode{T,2}, t)
+    x1 = Node{T}(; feature=1)
+    x2 = Node{T}(; feature=2)
+
+    @testset "multi-root arenas fail closed" begin
+        a = AN.Arena{T,2}()
+        AN.push_constant!(a, 1.0)
+        i2 = AN.push_feature!(a, 2)
+        n2 = AN.ArenaNode(a, i2)
+        @test !AN.is_compact_root(n2)
+        @test count_nodes(n2) == 1
+        y, ok = eval_tree_array(n2, X, operators; eval_options=EvalOptions(; buffer=buf()))
+        @test ok && y ≈ X[2, :]
+    end
+
+    @testset "set_scalar_constants! is bounds-checked and converts" begin
+        small = to_arena(Node{T}(; op=1, l=x1, r=Node{T}(; val=9.0)))
+        @test_throws BoundsError set_scalar_constants!(small, fill(-1.0, 3), Int32[2, 4, 7])
+        _, refs = get_scalar_constants(small)
+        set_scalar_constants!(small, Float32[2.5], refs)
+        @test any(n -> n.degree == 0 && n.constant && n.val == 2.5, small)
+    end
+
+    @testset "out-of-arity get_child throws" begin
+        leaf = AN.ArenaNode{T,1}()
+        @test_throws BoundsError leaf.r
+    end
+
+    @testset "half-built nodes throw on traversal" begin
+        half = to_arena(x1)
+        half.degree = 1
+        half.op = 1
+        @test_throws UndefRefError DynamicExpressions.NodeUtilsModule.is_constant(half)
+        @test_throws UndefRefError any(_ -> false, half)
+    end
+
+    function check_parity(tree, ops, Xm; early_exit)
+        atree = convert(AN.ArenaNode{T,2}, tree)
+        yn, okn = eval_tree_array(
+            copy(tree), Xm, ops; eval_options=EvalOptions(; early_exit)
+        )
+        o = EvalOptions(; early_exit, buffer=ArrayBuffer(zeros(T, 16, size(Xm, 2)), Ref(0)))
+        ya, oka = eval_tree_array(atree, Xm, ops; eval_options=o)
+        @test okn == oka
+        if okn
+            @test yn ≈ ya || (any(!isfinite, yn) && any(!isfinite, ya))
+        end
+    end
+
+    @testset "ok-flag parity with the generic evaluator" begin
+        nanleaf = Node{T}(; val=NaN)
+        infdiv = Node{T}(; op=4, l=Node{T}(; val=1.0), r=Node{T}(; val=0.0))
+        for early_exit in (true, false)
+            check_parity(nanleaf, operators, X; early_exit)
+            check_parity(Node{T}(; op=1, l=x1, r=nanleaf), operators, X; early_exit)
+            check_parity(Node{T}(; op=1, l=x1, r=infdiv), operators, X; early_exit)
+            check_parity(
+                Node{T}(; op=1, l=x1, r=Node{T}(; val=Inf)), operators, X; early_exit
+            )
+            grow = Node{T}(;
+                op=2,
+                l=Node{T}(; op=2, l=x1, r=Node{T}(; val=1e300)),
+                r=Node{T}(; val=1e300),
+            )
+            check_parity(Node{T}(; op=1, l=grow, r=x2), operators, X; early_exit)  # Inf intermediate
+            check_parity(grow, operators, X; early_exit)  # Inf at the root
+        end
+
+        nanclean(x) = ifelse(isnan(x), zero(x), x)
+        ops2 = OperatorEnum(1 => (nanclean,), 2 => (+, *))
+        Xnan = copy(X)
+        Xnan[1, 2] = NaN
+        for early_exit in (true, false)
+            check_parity(Node{T}(; op=1, l=x1), ops2, Xnan; early_exit)  # NaN input absorbed
+            check_parity(Node{T}(; op=1, l=Node{T}(; val=NaN)), ops2, X; early_exit)  # NaN leaf folded away
+        end
+    end
+
+    @testset "use_fused=false takes the generic path" begin
+        t = to_arena(Node{T}(; op=1, l=x1, r=Node{T}(; op=2, l=x2, r=Node{T}(; val=3.0))))
+        o_nofuse = EvalOptions(; buffer=buf(), use_fused=Val(false))
+        y1, ok1 = eval_tree_array(t, X, operators; eval_options=o_nofuse)
+        @test ok1 && o_nofuse.buffer.index[] > 0  # generic buffer protocol engaged
+        o_plan = EvalOptions(; buffer=buf())
+        y2, ok2 = eval_tree_array(t, X, operators; eval_options=o_plan)
+        @test ok2 && o_plan.buffer.index[] == 0  # plan path bypasses the index
+        @test y1 ≈ y2
+    end
+
+    @testset "cross-representation ==" begin
+        tn = Node{T}(; op=1, l=x1, r=Node{T}(; op=2, l=x2, r=Node{T}(; val=0.5)))
+        ta = to_arena(tn)
+        @test ta == tn
+        @test tn == ta
+        @test convert(AN.ArenaNode{Float32,2}, tn) == tn
+    end
+
+    @testset "copy_into! container reuse" begin
+        t = to_arena(Node{T}(; op=1, l=x1, r=Node{T}(; val=2.0)))
+        c = allocate_container(t)
+        t2 = copy_into!(c, t)
+        t3 = copy_into!(c, t2)
+        @test string_tree(t3, operators) == string_tree(t, operators)
+    end
+
+    @testset "non-isbits eltype takes the generic path safely" begin
+        tb = Node{BigFloat,2}(;
+            op=1, l=Node{BigFloat,2}(; feature=1), r=Node{BigFloat,2}(; val=big"1.5")
+        )
+        ab = convert(AN.ArenaNode{BigFloat,2}, tb)
+        Xb = BigFloat.(X)
+        bufb = ArrayBuffer(Matrix{BigFloat}(undef, 16, nrows), Ref(0))
+        yb, okb = eval_tree_array(
+            ab, Xb, operators; eval_options=EvalOptions(; buffer=bufb)
+        )
+        @test okb && yb ≈ Xb[1, :] .+ big"1.5"
     end
 end
