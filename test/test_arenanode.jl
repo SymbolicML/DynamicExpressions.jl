@@ -456,3 +456,93 @@ end
         end
     end
 end
+
+@testitem "ArenaNode buffered plan evaluation matches generic evaluator" begin
+    using DynamicExpressions
+    using DynamicExpressions: Node, EvalOptions, ArrayBuffer
+    using Random
+
+    const AN = DynamicExpressions.ArenaNodeModule
+
+    operators = OperatorEnum(; binary_operators=[+, *, /, -], unary_operators=[cos, exp])
+    rng = MersenneTwister(11)
+
+    for T in (Float32, Float64)
+        random_leaf(rng) =
+            if rand(rng) < 0.4
+                Node{T}(; val=randn(rng, T))
+            else
+                Node{T}(; feature=rand(rng, 1:5))
+            end
+        function random_tree(rng, n)
+            tree = random_leaf(rng)
+            while count_nodes(tree) < n
+                leaf = rand(rng, filter(t -> t.degree == 0, tree))
+                if rand(rng) < 0.3
+                    leaf.degree = 1
+                    leaf.op = rand(rng, 1:2)
+                    leaf.l = random_leaf(rng)
+                else
+                    leaf.degree = 2
+                    leaf.op = rand(rng, 1:4)
+                    leaf.l = random_leaf(rng)
+                    leaf.r = random_leaf(rng)
+                end
+                leaf.constant = false
+                leaf.val = zero(T)
+            end
+            return tree
+        end
+
+        X = randn(rng, T, 5, 37)
+        buf_a = zeros(T, 40, 37)
+        buf_n = zeros(T, 40, 37)
+        for trial in 1:60, early_exit in (true, false)
+            tree = random_tree(rng, rand(rng, 1:30))
+            atree = convert(AN.ArenaNode{T}, tree)
+            opts_a = EvalOptions(; early_exit, buffer=ArrayBuffer(buf_a, Ref(0)))
+            opts_n = EvalOptions(; early_exit, buffer=ArrayBuffer(buf_n, Ref(0)))
+            # Unbuffered ground truth; results of buffered evals are views, so
+            # copy before they can alias each other.
+            rt = try
+                (
+                    eval_tree_array(
+                        tree, X, operators; eval_options=EvalOptions(; early_exit)
+                    ),
+                    false,
+                )
+            catch
+                (nothing, true)
+            end
+            ra = try
+                (eval_tree_array(atree, X, operators; eval_options=opts_a), false)
+            catch
+                (nothing, true)
+            end
+            @test rt[2] == ra[2]
+            (rt[2] || ra[2]) && continue
+            (yref, okref) = rt[1]
+            (ya, oka) = ra[1]
+            @test okref == oka
+            if okref
+                @test yref ≈ ya || (any(!isfinite, yref) && any(!isfinite, ya))
+            end
+            # buffered Node evaluation agrees too
+            (yn, okn) = eval_tree_array(tree, X, operators; eval_options=opts_n)
+            @test okn == okref
+        end
+
+        # Stacks deeper than 64 take the generic path (with the same buffer):
+        deep = Node{T}(; val=T(0.5))
+        for _ in 1:70
+            deep = Node{T}(; op=1, l=Node{T}(; feature=1), r=deep)
+        end
+        adeep = convert(AN.ArenaNode{T}, deep)
+        big = zeros(T, 80, 37)
+        o = EvalOptions(; buffer=ArrayBuffer(big, Ref(0)))
+        y1, ok1 = eval_tree_array(copy(deep), X, operators)
+        y2, ok2 = eval_tree_array(adeep, X, operators; eval_options=o)
+        @test ok1 == ok2
+        ok1 && @test y1 ≈ y2
+    end
+end

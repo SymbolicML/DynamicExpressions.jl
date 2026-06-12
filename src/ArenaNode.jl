@@ -1,6 +1,6 @@
 module ArenaNodeModule
 
-using ..UtilsModule: Nullable, Undefined
+using ..UtilsModule: Nullable, Undefined, ResultOk
 
 import ..NodeModule:
     AbstractNode,
@@ -17,7 +17,9 @@ import ..NodeModule:
 import ..NodeUtilsModule:
     get_scalar_constants, set_scalar_constants!, is_node_constant, is_constant
 import ..NodePreallocationModule: allocate_container, copy_into!
-import ..ValueInterfaceModule: get_number_type
+import ..ValueInterfaceModule: get_number_type, is_valid, is_valid_array
+import ..OperatorEnumModule: OperatorEnum
+import ..EvaluateModule: _eval_tree_array, EvalOptions, ArrayBuffer
 
 """All per-node fields packed into a single isbits struct.
 
@@ -514,6 +516,444 @@ function set_scalar_constants!(
         a[i] = _replace(a[i]; val=constants[j]::T)
     end
     return nothing
+end
+
+################################################################################
+# Plan-style buffered evaluation
+################################################################################
+
+"""Plan-style postfix evaluation into a caller-provided `ArrayBuffer`,
+mirroring the compile-and-execute evaluator of symbolic_regression.rs
+(`compile.rs` + `evaluate.rs`): its `EvalContext` is caller-owned, and
+`EvalOptions.buffer` is the DynamicExpressions equivalent. This fast path
+therefore engages *only* when the caller passes a buffer -- repeated-eval
+workloads such as constant optimization -- and never caches state of its own.
+
+Stack slots are descriptors (constant scalar / scratch slot), not arrays:
+- the buffer is treated as a flat pool of contiguous slots of `n_rows`
+  values each (the generic evaluator hands out strided matrix rows; the
+  plan evaluator slices the same memory contiguously so kernels vectorize);
+- slot 1 is the output: the root instruction writes straight into it;
+- each used feature is materialized once into a permanent slot (the one
+  strided read of column-major `cX`), then read contiguously at every use --
+  strictly fewer copies than the generic evaluator's copy per leaf;
+- intermediate slots are register-allocated with a free list, so the live
+  set stays ~tree depth;
+- constant subtrees fold in a scalar lane (one flop per node).
+
+Falls back to the generic recursive evaluator when there is no buffer, the
+buffer is too small or mismatched, the arena is not compact, `D != 2`, depth
+or feature count exceeds 64, or turbo is requested.
+"""
+function _eval_tree_array(
+    tree::ArenaNode{T,D},
+    cX::AbstractMatrix{T},
+    operators::OperatorEnum,
+    eval_options::EvalOptions,
+)::ResultOk where {T<:Number,D}
+    buffer = eval_options.buffer
+    if D == 2 &&
+        buffer isa ArrayBuffer{Matrix{T}} &&
+        cX isa Matrix{T} &&
+        size(buffer.array, 2) == size(cX, 2) &&
+        is_compact_root(tree) &&
+        eval_options.turbo isa Val{false}
+        ok_plan, n_slots, sp_max, fmask = _plan_scratch(getfield(tree, :arena))
+        # +1 for the output slot; capacity is the buffer's row count
+        if ok_plan && n_slots + 1 <= size(buffer.array, 1)
+            return _arena_eval(
+                getfield(tree, :arena),
+                cX,
+                operators,
+                eval_options.early_exit,
+                n_slots,
+                sp_max,
+                fmask,
+                buffer.array,
+            )
+        end
+    end
+    return invoke(
+        _eval_tree_array,
+        Tuple{AbstractExpressionNode{T,D},AbstractMatrix{T},OperatorEnum,EvalOptions},
+        tree,
+        cX,
+        operators,
+        eval_options,
+    )
+end
+
+# Descriptor kinds for evaluation stack slots:
+const _K_SCALAR = 0x00  # folded constant; value lives in the scalar lane
+const _K_PSLOT = 0x01   # permanent slot (output or a materialized feature)
+const _K_SLOT = 0x02    # recyclable slot (an intermediate)
+
+"""Alloc-free pre-pass: find which features are used and simulate the
+descriptor stack to count the recyclable intermediate slots (register
+allocation with a free list). Kinds are tracked in `UInt64` bitmask stacks,
+so trees deeper than 64 or features beyond 64 report failure and take the
+generic path."""
+function _plan_scratch(a::Arena{T,D}) where {T,D}
+    nodes = getfield(a, :nodes)
+    fmask = UInt64(0)
+    scalar_mask = UInt64(0)
+    perm_mask = UInt64(0)
+    sp = 0
+    sp_max = 0
+    live = 0
+    nfree = 0
+    max_int_slots = 0
+    @inbounds for i in eachindex(nodes)
+        e = nodes[i]
+        d = e.degree
+        if d == 0x00
+            sp >= 64 && return (false, 0, 0, UInt64(0))
+            sp += 1
+            sp_max = max(sp_max, sp)
+            scalar_mask = (scalar_mask << 1) | (e.constant ? 1 : 0)
+            perm_mask <<= 1
+            if !e.constant
+                f = Int(e.feature)
+                (1 <= f <= 64) || return (false, 0, 0, UInt64(0))
+                fmask |= UInt64(1) << (f - 1)
+                perm_mask |= 1
+            end
+        elseif d == 0x01
+            if scalar_mask & 1 == 0
+                if perm_mask & 1 == 1
+                    # permanent operand: result needs a fresh intermediate
+                    if nfree > 0
+                        nfree -= 1
+                    else
+                        live += 1
+                        max_int_slots = max(max_int_slots, live)
+                    end
+                    perm_mask &= ~UInt64(1)
+                end
+                # recyclable operand: reused in place
+            end
+        else
+            both_scalar = (scalar_mask & 3) == 3
+            n_free_args = count_ones(~perm_mask & ~scalar_mask & 3)
+            scalar_mask >>= 1
+            perm_mask >>= 1
+            sp -= 1
+            if both_scalar
+                scalar_mask |= 1
+                perm_mask &= ~UInt64(1)
+            else
+                nfree += n_free_args
+                if nfree > 0
+                    nfree -= 1
+                else
+                    live += 1
+                    max_int_slots = max(max_int_slots, live)
+                end
+                scalar_mask &= ~UInt64(1)
+                perm_mask &= ~UInt64(1)
+            end
+        end
+    end
+    n_slots = count_ones(fmask) + max_int_slots
+    return (true, n_slots, sp_max, fmask)
+end
+
+@generated function _scalar_deg1(
+    op_idx::UInt8, x::T, operators::O
+) where {T,O<:OperatorEnum}
+    nops = length(O.parameters[1].parameters[1].parameters)
+    return quote
+        Base.Cartesian.@nif(
+            $nops,
+            i -> i == Int(op_idx),  # COV_EXCL_LINE
+            i -> operators.unaops[i](x)::T,
+        )
+    end
+end
+@generated function _scalar_deg2(
+    op_idx::UInt8, x::T, y::T, operators::O
+) where {T,O<:OperatorEnum}
+    nops = length(O.parameters[1].parameters[2].parameters)
+    return quote
+        Base.Cartesian.@nif(
+            $nops,
+            i -> i == Int(op_idx),  # COV_EXCL_LINE
+            i -> operators.binops[i](x, y)::T,
+        )
+    end
+end
+
+"""Offset-based kernels over the raw pool: views/broadcasts box `SubArray`
+wrappers at the dispatch boundaries (~0.5KB/op), so every kernel works on
+`(pool, offset)` pairs with explicit `@simd` loops. The destination is always
+a pool slot too (slot 1 is the output), so offsets are uniform."""
+@inline function _kern1!(pool::Matrix{T}, doff::Int, soff::Int, op::F, n::Int) where {T,F}
+    @inbounds @simd for j in 1:n
+        pool[doff + j] = op(pool[soff + j])
+    end
+    return nothing
+end
+@inline function _kern2_vv!(
+    pool::Matrix{T}, doff::Int, a::Int, b::Int, op::F, n::Int
+) where {T,F}
+    @inbounds @simd for j in 1:n
+        pool[doff + j] = op(pool[a + j], pool[b + j])
+    end
+    return nothing
+end
+@inline function _kern2_sv!(
+    pool::Matrix{T}, doff::Int, s::T, b::Int, op::F, n::Int
+) where {T,F}
+    @inbounds @simd for j in 1:n
+        pool[doff + j] = op(s, pool[b + j])
+    end
+    return nothing
+end
+@inline function _kern2_vs!(
+    pool::Matrix{T}, doff::Int, a::Int, s::T, op::F, n::Int
+) where {T,F}
+    @inbounds @simd for j in 1:n
+        pool[doff + j] = op(pool[a + j], s)
+    end
+    return nothing
+end
+"""`is_valid_array` over a pool slot without constructing a view."""
+@inline function _valid_slot(pool::Matrix{T}, off::Int, n::Int) where {T}
+    s = zero(T)
+    @inbounds @simd for j in 1:n
+        s += pool[off + j]
+    end
+    return is_valid(s)
+end
+@inline _slotoff(s::Int32, nrows::Int) = (Int(s) - 1) * nrows
+"""Contiguous view of pool slot `s` (linear indexing); used only for the
+returned output, never inside kernels."""
+@inline function _slotview(pool::Matrix{T}, s::Int32, nrows::Int) where {T}
+    off = _slotoff(s, nrows)
+    return @inbounds view(pool, (off + 1):(off + nrows))
+end
+
+@inline function _deg2_combos!(
+    pool::Matrix{T},
+    doff::Int,
+    op::F,
+    k1::UInt8,
+    i1::Int32,
+    s1::T,
+    k2::UInt8,
+    i2::Int32,
+    s2::T,
+    nrows::Int,
+) where {F,T}
+    if k1 == _K_SCALAR
+        _kern2_sv!(pool, doff, s1, _slotoff(i2, nrows), op, nrows)
+    elseif k2 == _K_SCALAR
+        _kern2_vs!(pool, doff, _slotoff(i1, nrows), s2, op, nrows)
+    else
+        _kern2_vv!(pool, doff, _slotoff(i1, nrows), _slotoff(i2, nrows), op, nrows)
+    end
+    return nothing
+end
+
+@generated function _dispatch_deg1!(
+    pool::Matrix{T}, doff::Int, op_idx::UInt8, src::Int32, nrows::Int, operators::O
+) where {T,O<:OperatorEnum}
+    nops = length(O.parameters[1].parameters[1].parameters)
+    quote
+        Base.Cartesian.@nif(
+            $nops,
+            i -> i == Int(op_idx),  # COV_EXCL_LINE
+            i -> _kern1!(pool, doff, _slotoff(src, nrows), operators.unaops[i], nrows),
+        )
+        return nothing
+    end
+end
+@generated function _dispatch_deg2!(
+    pool::Matrix{T},
+    doff::Int,
+    op_idx::UInt8,
+    k1::UInt8,
+    i1::Int32,
+    s1::T,
+    k2::UInt8,
+    i2::Int32,
+    s2::T,
+    nrows::Int,
+    operators::O,
+) where {T,O<:OperatorEnum}
+    nops = length(O.parameters[1].parameters[2].parameters)
+    quote
+        Base.Cartesian.@nif(
+            $nops,
+            i -> i == Int(op_idx),  # COV_EXCL_LINE
+            i -> _deg2_combos!(
+                pool, doff, operators.binops[i], k1, i1, s1, k2, i2, s2, nrows
+            ),
+        )
+        return nothing
+    end
+end
+
+function _arena_eval(
+    a::Arena{T,D},
+    cX::Matrix{T},
+    operators::OperatorEnum,
+    ::Val{early_exit},
+    n_slots::Int,
+    sp_max::Int,
+    fmask::UInt64,
+    pool::Matrix{T},
+) where {T,D,early_exit}
+    nodes = getfield(a, :nodes)
+    n = length(nodes)
+    nrows = size(cX, 2)
+
+    # Slot layout in the pool: 1 = output; 2 .. 1+n_perm = materialized
+    # features; intermediates after that. Slots are addressed by offset; the
+    # output view is constructed once, at return.
+    n_perm = count_ones(fmask)
+    let slot = 1
+        rem = fmask
+        while rem != 0
+            f = trailing_zeros(rem) + 1
+            slot += 1
+            off = (slot - 1) * nrows
+            @inbounds @simd for j in 1:nrows
+                pool[off + j] = cX[f, j]
+            end
+            rem &= rem - 1
+        end
+    end
+
+    # Per-call descriptor state (tiny; the pool itself is caller-owned):
+    desc = Vector{Int64}(undef, sp_max + n_slots)
+    svals = Vector{T}(undef, sp_max)
+    fbase = sp_max
+    sp = 0
+    nfree = 0
+    next_slot = Int32(1 + n_perm)
+    out() = @inbounds @view(pool[1, :])
+
+    @inbounds for i in 1:n
+        e = nodes[i]
+        d = e.degree
+        is_root = i == n
+        if d == 0x00
+            sp += 1
+            if e.constant
+                desc[sp] = Int64(_K_SCALAR)
+                svals[sp] = e.val
+            else
+                f = Int(e.feature)
+                fslot = count_ones(fmask & ((UInt64(1) << (f - 1)) - 1)) + 2
+                desc[sp] = Int64(_K_PSLOT) | (Int64(fslot) << 2)
+            end
+        elseif d == 0x01
+            dtop = desc[sp]
+            k = UInt8(dtop & 3)
+            if k == _K_SCALAR
+                v = _scalar_deg1(e.op, svals[sp], operators)
+                is_valid(v) || return ResultOk(out(), false)
+                svals[sp] = v
+            else
+                srci = Int32(dtop >> 2)
+                if is_root
+                    s = Int32(1)
+                    desc[sp] = Int64(_K_SLOT) | (Int64(s) << 2)
+                elseif k == _K_SLOT
+                    s = srci
+                else
+                    if nfree > 0
+                        s = Int32(desc[fbase + nfree])
+                        nfree -= 1
+                    else
+                        next_slot += Int32(1)
+                        s = next_slot
+                    end
+                    desc[sp] = Int64(_K_SLOT) | (Int64(s) << 2)
+                end
+                doff = _slotoff(s, nrows)
+                _dispatch_deg1!(pool, doff, e.op, srci, nrows, operators)
+                if early_exit && !_valid_slot(pool, doff, nrows)
+                    return ResultOk(out(), false)
+                end
+            end
+        else
+            d1 = desc[sp - 1]
+            d2 = desc[sp]
+            k1 = UInt8(d1 & 3)
+            k2 = UInt8(d2 & 3)
+            i1 = Int32(d1 >> 2)
+            i2 = Int32(d2 >> 2)
+            s1 = k1 == _K_SCALAR ? svals[sp - 1] : zero(T)
+            s2 = k2 == _K_SCALAR ? svals[sp] : zero(T)
+            sp -= 1
+            if k1 == _K_SCALAR && k2 == _K_SCALAR
+                v = _scalar_deg2(e.op, s1, s2, operators)
+                is_valid(v) || return ResultOk(out(), false)
+                desc[sp] = Int64(_K_SCALAR)
+                svals[sp] = v
+            else
+                # free recyclable argument slots first; the destination may
+                # then reuse one (kernels are alias-safe for exact overlap)
+                if k1 == _K_SLOT
+                    nfree += 1
+                    desc[fbase + nfree] = Int64(i1)
+                end
+                if k2 == _K_SLOT
+                    nfree += 1
+                    desc[fbase + nfree] = Int64(i2)
+                end
+                if is_root
+                    s = Int32(1)
+                else
+                    if nfree > 0
+                        s = Int32(desc[fbase + nfree])
+                        nfree -= 1
+                    else
+                        next_slot += Int32(1)
+                        s = next_slot
+                    end
+                end
+                desc[sp] = Int64(_K_SLOT) | (Int64(s) << 2)
+                doff = _slotoff(s, nrows)
+                _dispatch_deg2!(pool, doff, e.op, k1, i1, s1, k2, i2, s2, nrows, operators)
+                if early_exit && !_valid_slot(pool, doff, nrows)
+                    return ResultOk(out(), false)
+                end
+            end
+        end
+    end
+
+    # Root never went through a kernel (bare leaf or fully folded scalar), or
+    # an op-root wrote into a non-output slot via in-place deg1 reuse.
+    kroot = UInt8(desc[1] & 3)
+    if kroot == _K_SCALAR
+        v = svals[1]
+        is_valid(v) || return ResultOk(out(), false)
+        @inbounds @simd for j in 1:nrows
+            pool[j] = v
+        end
+    elseif Int32(desc[1] >> 2) != Int32(1)
+        soff = _slotoff(Int32(desc[1] >> 2), nrows)
+        @inbounds @simd for j in 1:nrows
+            pool[j] = pool[soff + j]
+        end
+    end
+    # Move the result from chunk 1 (linear 1:nrows) into row 1, so the
+    # returned view has the same type as the generic buffered evaluator's
+    # `@view(buffer.array[i, :])` (keeping `eval_tree_array` type stable).
+    # Chunk and row overlap in memory; iterating downward is safe: when
+    # reading chunk index j, every already-written row position (j''-1)*B+1
+    # with j'' > j exceeds j for B >= 2, and for B == 1 chunk and row
+    # coincide elementwise.
+    B = size(pool, 1)
+    if B > 1
+        @inbounds for j in nrows:-1:1
+            pool[1, j] = pool[j]
+        end
+    end
+    return ResultOk(out(), true)
 end
 
 ################################################################################
