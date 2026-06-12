@@ -12,9 +12,9 @@ import ..NodeModule:
     set_children!,
     count_nodes,
     copy_node,
-    filter_map,
-    tree_mapreduce
-import ..NodeUtilsModule: get_scalar_constants, set_scalar_constants!, is_node_constant
+    tree_mapreduce,
+    inner_is_equal
+import ..NodeUtilsModule: count_constant_nodes, get_scalar_constants, set_scalar_constants!
 import ..NodePreallocationModule: allocate_container, copy_into!
 import ..ValueInterfaceModule: get_number_type, is_valid, is_valid_array
 import ..OperatorEnumModule: OperatorEnum
@@ -184,7 +184,7 @@ function ArenaNode{T,D}() where {T,D}
     return ArenaNode{T,D}(arena, idx)
 end
 
-Base.@constprop :aggressive function Base.getproperty(
+Base.@constprop :aggressive @inline function Base.getproperty(
     node::ArenaNode{T}, property_name::Symbol
 ) where {T}
     if property_name === :arena
@@ -452,11 +452,100 @@ end
 # to the generic traversal-based implementation when the invariant doesn't hold.
 ################################################################################
 
-function count_nodes(tree::ArenaNode; break_sharing::Val{BS}=Val(false)) where {BS}
+# The single iteration driver for order-free whole-tree visits.
+# `visit(node, entry)` receives the facade and the already-loaded entry, and
+# returns true to stop early (the driver then returns true). The two walks
+# sit side by side with the unused one compiled out: a compact arena *is*
+# the tree, so it is walked as an array (storage order, leaves first); a
+# non-compact arena is walked through the children pointers (preorder).
+function _foreach_node(visit::F, tree::ArenaNode{T,D}) where {F<:Function,T,D}
+    arena = get_arena(tree)
     if is_compact_root(tree)
-        return length(tree.arena.nodes)
+        return _foreach_node(visit, arena, get_index(tree), Val(true))
+    else
+        return _foreach_node(visit, arena, get_index(tree), Val(false))
     end
-    return invoke(count_nodes, Tuple{AbstractNode}, tree; break_sharing=Val(BS))::Int64
+end
+@generated function _foreach_node(
+    visit::F, arena::Arena{T,D}, root::Int32, ::Val{compact}
+) where {F<:Function,T,D,compact}
+    if compact
+        # The arena is the tree: walk the array. Indices 1:root are valid by
+        # construction, so the entry load needs no poison check (and is dead
+        # code when `visit` ignores it).
+        return quote
+            @inbounds for i in 1:root
+                entry = arena.nodes[i]
+                @inline(visit(ArenaNode{T,D}(arena, Int32(i)), entry)) && return true
+            end
+            return false
+        end
+    else
+        # Walk the children pointers, with the per-degree dispatch unrolled
+        # like the generic `any` -- this benches at Node parity, where a
+        # children loop or a worklist do not.
+        return quote
+            entry = _load_entry(arena, root)
+            @inline(visit(ArenaNode{T,D}(arena, root), entry)) && return true
+            degree = entry.degree
+            iszero(degree) && return false
+            children = entry.children
+            return Base.Cartesian.@nif(
+                $D,
+                i -> degree == i,  # COV_EXCL_LINE
+                i -> Base.Cartesian.@nany(
+                    i, j -> _foreach_node(visit, arena, children[j], Val(false))
+                ),
+            )
+        end
+    end
+end
+
+# A compact arena is a canonical form: equal trees have identical entry
+# vectors (same layout, same child indices), so equality is a flat
+# field-compare. `val` is compared with `==` (not bitwise) to keep the
+# -0.0 == 0.0 and NaN != NaN semantics of the structural fallback.
+function Base.:(==)(a::ArenaNode{T,D}, b::ArenaNode{T,D})::Bool where {T,D}
+    if is_compact_root(a) && is_compact_root(b)
+        nodes_a = get_arena(a).nodes
+        nodes_b = get_arena(b).nodes
+        length(nodes_a) == length(nodes_b) || return false
+        @inbounds for i in eachindex(nodes_a)
+            ea, eb = nodes_a[i], nodes_b[i]
+            same = if ea.degree != eb.degree
+                false
+            elseif iszero(ea.degree)
+                ea.constant == eb.constant &&
+                    (ea.constant ? ea.val == eb.val : ea.feature == eb.feature)
+            else
+                ea.op == eb.op && ea.children == eb.children
+            end
+            same || return false
+        end
+        return true
+    end
+    return inner_is_equal(a, b, nothing)  # preserve_sharing is false
+end
+
+function count_nodes(tree::ArenaNode; break_sharing::Val{BS}=Val(false)) where {BS}
+    is_compact_root(tree) && return length(get_arena(tree).nodes)
+    counter = Base.RefValue(0)
+    _foreach_node((_, _) -> (counter[] += 1; false), tree)
+    return counter[]
+end
+
+function count_constant_nodes(tree::ArenaNode; break_sharing::Val{BS}=Val(false)) where {BS}
+    arena = get_arena(tree)
+    if is_compact_root(tree)
+        return count(entry -> iszero(entry.degree) && entry.constant, arena.nodes)
+    end
+    return _entry_mapreduce(
+        node -> Int(node.degree == 0 && node.constant),
+        Returns(0),
+        +,
+        arena,
+        get_index(tree),
+    )
 end
 
 # The deep traversal primitive. The generic skeleton re-reads the entry
@@ -513,51 +602,22 @@ end
 end
 
 function Base.any(f::F, tree::ArenaNode{T,D}) where {F<:Function,T,D}
-    arena = get_arena(tree)
-    if is_compact_root(tree)
-        # The arena contents are exactly the tree, and visit order is
-        # unspecified for `any`: scan flat, with recursion compiled out.
-        @inbounds for i in eachindex(arena.nodes)
-            _entry_any(f, arena, Int32(i), Val(false)) && return true
-        end
-        return false
-    end
-    return _entry_any(f, arena, get_index(tree), Val(true))
+    return _foreach_node((node, _) -> @inline(f(node)), tree)
 end
 
-# One body for both modes: `recurse` is a static flag, so the compact flat
-# scan and the non-compact traversal share the per-node logic with the
-# children loop compiled out of the former. Explicit recursion, not
-# `any(j -> ..., 1:degree)`: a closure through `Base.any` defeats the
-# early-exit inlining nondeterministically.
-function _entry_any(
-    f::F, arena::Arena{T,D}, idx::Int32, ::Val{recurse}
-) where {F<:Function,T,D,recurse}
-    entry = _load_entry(arena, idx)
-    @inline(f(ArenaNode{T,D}(arena, idx))) && return true
-    if recurse
-        @inbounds for j in 1:(entry.degree)
-            _entry_any(f, arena, entry.children[j], Val(recurse)) && return true
-        end
-    end
-    return false
-end
-
-# Constants as plain Int32 arena indices (also valid in flat copies): a
-# linear scan when compact, a facade traversal otherwise.
+# Constants as plain Int32 arena indices (also valid in flat copies). Both
+# walks visit leaves left to right, so the order matches Node's.
 function get_scalar_constants(
     tree::ArenaNode{T}, ::Type{BT}=get_number_type(T)
 ) where {T<:Number,BT}
-    arena = tree.arena
-    if is_compact_root(tree)
-        nodes = arena.nodes
-        refs = Int32[
-            i for i in eachindex(nodes) if iszero(nodes[i].degree) && nodes[i].constant
-        ]
-        vals = T[@inbounds(nodes[i].val) for i in refs]
-        return vals, refs
+    arena = get_arena(tree)
+    refs = Int32[]
+    _foreach_node(tree) do node, entry
+        if iszero(entry.degree) && entry.constant
+            push!(refs, get_index(node))
+        end
+        return false
     end
-    refs = filter_map(is_node_constant, node -> node.idx, tree, Int32)
     vals = T[@inbounds(arena[i].val) for i in refs]
     return vals, refs
 end
@@ -565,10 +625,12 @@ end
 function set_scalar_constants!(
     tree::ArenaNode{T}, constants, refs::AbstractVector{Int32}
 ) where {T<:Number}
-    arena = tree.arena
+    # Val-only writes cannot change structure, so they go to the entries
+    # directly, skipping `setindex!`'s degree/children diff.
+    nodes = get_arena(tree).nodes
     @inbounds for j in eachindex(refs, constants)
         i = refs[j]
-        arena[i] = _replace(arena[i]; val=convert(T, constants[j]))
+        nodes[i] = _replace(nodes[i]; val=convert(T, constants[j]))
     end
     return nothing
 end
