@@ -594,16 +594,60 @@ const _K_SCALAR = 0x00  # folded constant; value lives in the scalar lane
 const _K_PSLOT = 0x01   # permanent slot (output or a materialized feature)
 const _K_SLOT = 0x02    # recyclable slot (an intermediate)
 
+# The planner (`_plan_scratch`) and the executor (`_push_leaf!`/`_exec_op!`)
+# walk the same postfix program, so they must make identical kind and
+# recycling decisions: the executor trusts the planner's slot counts under
+# `@inbounds`. These three functions are the single source of that policy.
+
+"""Kind of the descriptor a leaf pushes: constants fold into the scalar lane,
+features live in permanent slots."""
+@inline _leaf_kind(entry::ArenaEntry) = entry.constant ? _K_SCALAR : _K_PSLOT
+
+"""Kind of the descriptor an operator pushes: an all-scalar application
+constant-folds into the scalar lane, anything else lands in a recyclable
+intermediate slot."""
+@inline _op_result_kind(all_args_scalar::Bool) = all_args_scalar ? _K_SCALAR : _K_SLOT
+
+"""Whether consuming an operand of this kind frees its slot for reuse."""
+@inline _is_recyclable(kind::UInt8) = kind == _K_SLOT
+
+"""Alloc-free stack of descriptor kinds for the planner: two bitmask lanes
+(bit 1 = top of stack) record whether each entry is `_K_SCALAR` or
+`_K_PSLOT`; an entry in neither lane is `_K_SLOT`. Capacity is 64 entries."""
+struct KindStack
+    scalar::UInt64
+    permanent::UInt64
+end
+
+@inline function _push_kind(kinds::KindStack, kind::UInt8)
+    return KindStack(
+        (kinds.scalar << 1) | (kind == _K_SCALAR),
+        (kinds.permanent << 1) | (kind == _K_PSLOT),
+    )
+end
+@inline function _pop_kinds(kinds::KindStack, count::UInt8)
+    return KindStack(kinds.scalar >> count, kinds.permanent >> count)
+end
+@inline function _args_all_scalar(kinds::KindStack, degree::UInt8)
+    arity_mask = (UInt64(1) << degree) - 1
+    return (kinds.scalar & arity_mask) == arity_mask
+end
+@inline function _count_recyclable_args(kinds::KindStack, degree::UInt8)
+    arity_mask = (UInt64(1) << degree) - 1
+    return count_ones(~kinds.scalar & ~kinds.permanent & arity_mask)
+end
+
 """Alloc-free pre-pass: find which features are used and simulate the
 descriptor stack to count the recyclable intermediate slots (register
-allocation with a free list). Kinds are tracked in `UInt64` bitmask stacks,
-so trees deeper than 64 or features beyond 64 report failure and take the
-generic path."""
+allocation with a free list). The simulation makes the *same* kind and
+recycling decisions as the executor — both sides call `_leaf_kind`,
+`_op_result_kind`, and `_is_recyclable` — so the returned slot counts are
+exact. Kinds live in a `KindStack`, so trees deeper than 64 or features
+beyond 64 report failure and take the generic path."""
 function _plan_scratch(arena::Arena{T,D}) where {T,D}
     nodes = getfield(arena, :nodes)
     feature_mask = UInt64(0)
-    scalar_stack = UInt64(0)
-    permanent_stack = UInt64(0)
+    kinds = KindStack(0, 0)
     stack_top = 0
     max_stack = 0
     num_live = 0
@@ -616,35 +660,26 @@ function _plan_scratch(arena::Arena{T,D}) where {T,D}
             stack_top >= 64 && return (false, 0, 0, UInt64(0))
             stack_top += 1
             max_stack = max(max_stack, stack_top)
-            scalar_stack = (scalar_stack << 1) | (entry.constant ? 1 : 0)
-            permanent_stack <<= 1
-            if !entry.constant
+            kind = _leaf_kind(entry)
+            if kind == _K_PSLOT
                 feature = entry.feature
                 (1 <= feature <= 64) || return (false, 0, 0, UInt64(0))
                 feature_mask |= UInt64(1) << (feature - 1)
-                permanent_stack |= 1
             end
+            kinds = _push_kind(kinds, kind)
         else
-            arity_mask = (UInt64(1) << degree) - 1
-            all_args_scalar = (scalar_stack & arity_mask) == arity_mask
-            num_recyclable_args = count_ones(~permanent_stack & ~scalar_stack & arity_mask)
-            scalar_stack >>= (degree - 1)
-            permanent_stack >>= (degree - 1)
-            stack_top -= degree - 1
-            if all_args_scalar
-                scalar_stack |= 1
-                permanent_stack &= ~UInt64(1)
-            else
-                num_free += num_recyclable_args
+            result_kind = _op_result_kind(_args_all_scalar(kinds, degree))
+            if _is_recyclable(result_kind)
+                num_free += _count_recyclable_args(kinds, degree)
                 if num_free > 0
                     num_free -= 1
                 else
                     num_live += 1
                     max_live_intermediates = max(max_live_intermediates, num_live)
                 end
-                scalar_stack &= ~UInt64(1)
-                permanent_stack &= ~UInt64(1)
             end
+            kinds = _push_kind(_pop_kinds(kinds, degree), result_kind)
+            stack_top -= degree - 1
         end
     end
     num_slots = count_ones(feature_mask) + max_live_intermediates
@@ -753,7 +788,7 @@ end
     state::PlanState{T}, regs::PlanRegisters, entry::ArenaEntry{T}, feature_mask::UInt64
 ) where {T}
     stack_top = regs.stack_top + 1
-    @inbounds if entry.constant
+    @inbounds if _leaf_kind(entry) == _K_SCALAR
         state.descriptors[stack_top] = Int64(_K_SCALAR)
         state.scalar_vals[stack_top] = entry.val
     else
@@ -817,7 +852,8 @@ node: constant-fold if every operand is a scalar, otherwise run the kernel."""
             )
         end
         regs = PlanRegisters(stack_top - ($A - 1), num_free, next_slot)
-        if Base.Cartesian.@nall($A, k -> kinds[k] == _K_SCALAR)
+        all_args_scalar = Base.Cartesian.@nall($A, k -> kinds[k] == _K_SCALAR)
+        if _op_result_kind(all_args_scalar) == _K_SCALAR
             return _fold_constant_args!(state, regs, op_idx, scalar_args, operators)
         else
             return _run_op_kernel!(
@@ -879,7 +915,7 @@ in the generic evaluator."""
         # one (kernels are alias-safe: reads and writes of the same slot are
         # at the same element index)
         @inbounds Base.Cartesian.@nexprs(
-            $A, k -> if kinds[k] == _K_SLOT
+            $A, k -> if _is_recyclable(kinds[k])
                 num_free += 1
                 descriptors[free_base + num_free] = Int64(idxs[k])
             end
