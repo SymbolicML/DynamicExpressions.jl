@@ -587,7 +587,7 @@ end
 """Pool slot holding materialized `feature`: slot 1 is the output, and used
 features occupy slots 2, 3, ... in ascending feature order."""
 @inline function _feature_slot(feature_mask::UInt64, feature::Integer)
-    return count_ones(feature_mask & ((UInt64(1) << (feature - 1)) - 1)) + 2
+    return count_ones(feature_mask & (_feature_bit(feature) - 1)) + 2
 end
 
 # Descriptor kinds for evaluation stack slots:
@@ -611,6 +611,15 @@ intermediate slot."""
 
 """Whether consuming an operand of this kind frees its slot for reuse."""
 @inline _is_recyclable(kind::UInt8) = kind == _K_SLOT
+
+# A stack descriptor is an Int64 packing a kind (low 2 bits) with a slot
+# index; scalar descriptors carry no slot (their value lives in the scalar
+# lane). `_feature_bit` is the feature's position in the `feature_mask`
+# bitset of used features.
+@inline _pack_descriptor(kind::UInt8, slot::Integer=0) = Int64(kind) | (Int64(slot) << 2)
+@inline _descriptor_kind(descriptor::Int64) = UInt8(descriptor & 3)
+@inline _descriptor_slot(descriptor::Int64) = Int32(descriptor >> 2)
+@inline _feature_bit(feature::Integer) = UInt64(1) << (feature - 1)
 
 """Alloc-free stack of descriptor kinds for the planner: two bitmask lanes
 (bit 1 = top of stack) record whether each entry is `_K_SCALAR` or
@@ -665,7 +674,7 @@ function _plan_scratch(arena::Arena{T,D}) where {T,D}
             if kind == _K_PSLOT
                 feature = entry.feature
                 (1 <= feature <= 64) || return (false, 0, 0, UInt64(0))
-                feature_mask |= UInt64(1) << (feature - 1)
+                feature_mask |= _feature_bit(feature)
             end
             kinds = _push_kind(kinds, kind)
         else
@@ -733,7 +742,7 @@ end
     end
     return is_valid(total)
 end
-@inline _slotoff(slot::Int32, nrows::Int) = (slot - 1) * nrows
+@inline _slot_offset(slot::Int32, nrows::Int) = (slot - 1) * nrows
 
 @generated function _dispatch_degn!(
     ::Val{A},
@@ -790,11 +799,11 @@ end
 ) where {T}
     stack_top = regs.stack_top + 1
     @inbounds if _leaf_kind(entry) == _K_SCALAR
-        state.descriptors[stack_top] = Int64(_K_SCALAR)
+        state.descriptors[stack_top] = _pack_descriptor(_K_SCALAR)
         state.scalar_vals[stack_top] = entry.val
     else
         feature_slot = _feature_slot(feature_mask, entry.feature)
-        state.descriptors[stack_top] = Int64(_K_PSLOT) | (Int64(feature_slot) << 2)
+        state.descriptors[stack_top] = _pack_descriptor(_K_PSLOT, feature_slot)
     end
     return PlanRegisters(stack_top, regs.num_free, regs.next_slot)
 end
@@ -839,10 +848,10 @@ node: constant-fold if every operand is a scalar, otherwise run the kernel."""
         (; stack_top, num_free, next_slot) = regs
         @inbounds begin
             kinds = Base.Cartesian.@ntuple(
-                $A, k -> UInt8(descriptors[stack_top - $A + k] & 3)
+                $A, k -> _descriptor_kind(descriptors[stack_top - $A + k])
             )
             idxs = Base.Cartesian.@ntuple(
-                $A, k -> Int32(descriptors[stack_top - $A + k] >> 2)
+                $A, k -> _descriptor_slot(descriptors[stack_top - $A + k])
             )
             scalar_args = Base.Cartesian.@ntuple(
                 $A, k -> if kinds[k] == _K_SCALAR
@@ -887,7 +896,7 @@ induction, so the operand check only screens constant leaves."""
     all(is_valid, scalar_args) || return (regs, false)
     value = _scalar_degn(Val(A), op_idx, scalar_args, operators)
     is_valid(value) || return (regs, false)
-    @inbounds state.descriptors[regs.stack_top] = Int64(_K_SCALAR)
+    @inbounds state.descriptors[regs.stack_top] = _pack_descriptor(_K_SCALAR)
     @inbounds state.scalar_vals[regs.stack_top] = value
     return (regs, true)
 end
@@ -930,11 +939,11 @@ in the generic evaluator."""
             next_slot += Int32(1)
             slot = next_slot
         end
-        @inbounds descriptors[stack_top] = Int64(_K_SLOT) | (Int64(slot) << 2)
-        dest_offset = _slotoff(slot, nrows)
+        @inbounds descriptors[stack_top] = _pack_descriptor(_K_SLOT, slot)
+        dest_offset = _slot_offset(slot, nrows)
         is_scalar = Base.Cartesian.@ntuple($A, k -> kinds[k] == _K_SCALAR)
         offsets = Base.Cartesian.@ntuple(
-            $A, k -> kinds[k] == _K_SCALAR ? 0 : _slotoff(idxs[k], nrows)
+            $A, k -> kinds[k] == _K_SCALAR ? 0 : _slot_offset(idxs[k], nrows)
         )
         regs = PlanRegisters(stack_top, num_free, next_slot)
         args_valid =
@@ -990,15 +999,15 @@ function _write_root_to_output!(
     # an op-root wrote into a non-output slot via in-place deg1 reuse. A bare
     # leaf root is never validity-checked (`deg0_eval` semantics); a folded
     # scalar root is already valid by induction.
-    root_kind = UInt8(descriptors[1] & 3)
-    root_slot = Int32(descriptors[1] >> 2)
+    root_kind = _descriptor_kind(descriptors[1])
+    root_slot = _descriptor_slot(descriptors[1])
     if root_kind == _K_SCALAR
         value = scalar_vals[1]
         @inbounds @simd for j in 1:nrows
             pool[j] = value
         end
     elseif !isone(root_slot)
-        root_offset = _slotoff(root_slot, nrows)
+        root_offset = _slot_offset(root_slot, nrows)
         @inbounds @simd for j in 1:nrows
             pool[j] = pool[root_offset + j]
         end
