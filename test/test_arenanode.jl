@@ -345,11 +345,135 @@ end
         set_scalar_constants!(c, vals, refs)
         @test first(get_scalar_constants(c)) == vals
 
-        # Non-compact trees fall back to the generic Ref-based path:
+        # Non-compact trees also use arena-index refs:
         sub = fresh.l
         vsub, rsub = get_scalar_constants(sub)
+        @test rsub isa Vector{Int32}
         @test vsub == first(get_scalar_constants(convert(Node, sub)))
         set_scalar_constants!(sub, vsub .+ 1, rsub)
         @test first(get_scalar_constants(sub)) == vsub .+ 1
+    end
+end
+
+@testitem "Arena array interface guards compactness automatically" begin
+    using DynamicExpressions
+    using DynamicExpressions: Node
+
+    const AN = DynamicExpressions.ArenaNodeModule
+
+    operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
+    x1 = Node{Float64}(; feature=1)
+    tree = sin(x1 * 3.2) + 0.5
+    atree = convert(AN.ArenaNode{Float64}, tree)
+    a = atree.arena
+    @test a isa AbstractVector{AN.ArenaEntry{Float64,2}}
+    @test length(a) == count_nodes(tree)
+
+    e = a[1]
+    a[1] = AN._replace(e; val=42.0)
+    @test AN.is_compact_root(atree)
+
+    vals, refs = get_scalar_constants(atree)
+    set_scalar_constants!(atree, vals .* 2, refs)
+    @test AN.is_compact_root(atree)
+
+    bi = findfirst(e -> e.degree == 0x02, collect(a))
+    e = a[bi]
+    a[bi] = AN._replace(e; degree=0x00)
+    @test !a.compact[]
+
+    b = convert(AN.ArenaNode{Float64}, tree).arena
+    scrambled = reverse(collect(b))
+    copyto!(b, scrambled)
+    @test !b.compact[]
+
+    c = convert(AN.ArenaNode{Float64}, tree).arena
+    copyto!(c, collect(c))
+    @test c.compact[]
+end
+
+@testitem "ArenaNode fast paths agree with Node under random mutations" begin
+    using DynamicExpressions
+    using DynamicExpressions: Node
+    using Random
+
+    const AN = DynamicExpressions.ArenaNodeModule
+
+    operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[sin, cos])
+    rng = MersenneTwister(42)
+
+    random_leaf(rng) =
+        if rand(rng) < 0.5
+            Node{Float64}(; val=randn(rng))
+        else
+            Node{Float64}(; feature=rand(rng, 1:3))
+        end
+
+    function random_tree(rng, n)
+        tree = random_leaf(rng)
+        while count_nodes(tree) < n
+            leaf = rand(rng, filter(t -> t.degree == 0, tree))
+            if rand(rng) < 0.3
+                leaf.degree = 1
+                leaf.op = rand(rng, 1:2)
+                leaf.l = random_leaf(rng)
+            else
+                leaf.degree = 2
+                leaf.op = rand(rng, 1:4)
+                leaf.l = random_leaf(rng)
+                leaf.r = random_leaf(rng)
+            end
+            leaf.constant = false
+            leaf.val = 0.0
+        end
+        return tree
+    end
+
+    function all_facades(n, acc=AN.ArenaNode{Float64,2}[])
+        push!(acc, n)
+        for i in 1:(n.degree)
+            all_facades(get_child(n, i), acc)
+        end
+        return acc
+    end
+
+    for _ in 1:20
+        root = convert(AN.ArenaNode{Float64}, random_tree(rng, rand(rng, 5:25)))
+        for _ in 1:8
+            nodes = all_facades(root)
+            node = rand(rng, nodes)
+            choice = rand(rng, 1:4)
+            if choice == 1 && node.degree == 0
+                if node.constant
+                    node.val = randn(rng)
+                else
+                    node.feature = rand(rng, 1:3)
+                end
+            elseif choice == 2 && node.degree > 0
+                node.op = rand(rng, 1:(node.degree == 1 ? 2 : 4))
+            elseif choice == 3 && node.degree > 0
+                set_child!(
+                    node,
+                    convert(AN.ArenaNode{Float64}, random_tree(rng, rand(rng, 1:5))),
+                    rand(rng, 1:(node.degree)),
+                )
+            else
+                node.degree = 0
+                node.constant = true
+                node.val = randn(rng)
+            end
+
+            expected = convert(Node, root)
+            @test count_nodes(root) == count_nodes(expected)
+            @test count_constant_nodes(root) == count_constant_nodes(expected)
+            @test has_constants(root) == has_constants(expected)
+            @test DynamicExpressions.NodeUtilsModule.is_constant(root) ==
+                DynamicExpressions.NodeUtilsModule.is_constant(expected)
+            @test count(t -> t.degree == 2, root) == count(t -> t.degree == 2, expected)
+            @test first(get_scalar_constants(root)) == first(get_scalar_constants(expected))
+            c = copy(root)
+            @test AN.is_compact_root(c)
+            @test convert(Node, c) == expected
+        end
     end
 end

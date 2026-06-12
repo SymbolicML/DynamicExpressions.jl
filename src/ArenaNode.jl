@@ -1,6 +1,6 @@
 module ArenaNodeModule
 
-using ..UtilsModule: Nullable
+using ..UtilsModule: Nullable, Undefined
 
 import ..NodeModule:
     AbstractNode,
@@ -11,13 +11,17 @@ import ..NodeModule:
     set_child!,
     set_children!,
     count_nodes,
-    copy_node
+    copy_node,
+    filter_map,
+    tree_mapreduce
 import ..NodeUtilsModule:
     count_constant_nodes,
     count_scalar_constants,
     has_constants,
     get_scalar_constants,
-    set_scalar_constants!
+    set_scalar_constants!,
+    is_node_constant,
+    is_constant
 import ..NodePreallocationModule: allocate_container, copy_into!
 import ..ValueInterfaceModule: get_number_type
 
@@ -61,8 +65,16 @@ The `compact` flag tracks whether `nodes` is exactly one postfix-ordered tree
 subtrees). Trees built via `convert`/`copy` are compact; structural mutations
 through the facade may clear the flag, in which case whole-tree operations fall
 back to generic traversals. A structural `copy` re-compacts.
+
+`Arena` implements the (1-based, linear) array interface over its entries, and
+this is the only sanctioned way to mutate entries: `setindex!` compares the old
+and new entry and automatically clears `compact` whenever the structural fields
+(`degree`, `children`) change. Non-structural writes (`val`/`op`/`feature`/
+`constant`) preserve the flag, which keeps constant optimization on the fast
+paths. Do not write `arena.nodes` directly outside this file's bulk-copy
+internals.
 """
-struct Arena{T,D}
+struct Arena{T,D} <: AbstractVector{ArenaEntry{T,D}}
     nodes::Vector{ArenaEntry{T,D}}
     compact::Base.RefValue{Bool}
 
@@ -73,6 +85,26 @@ struct Arena{T,D}
         return new{T,D}(nodes, Ref(compact))
     end
 end
+
+Base.size(a::Arena) = size(getfield(a, :nodes))
+Base.IndexStyle(::Type{<:Arena}) = IndexLinear()
+Base.@propagate_inbounds Base.getindex(a::Arena, i::Integer) = getfield(a, :nodes)[i]
+Base.@propagate_inbounds function Base.setindex!(
+    a::Arena{T,D}, e::ArenaEntry{T,D}, i::Integer
+) where {T,D}
+    nodes = getfield(a, :nodes)
+    old = nodes[i]
+    if e.degree != old.degree || e.children != old.children
+        a.compact[] = false
+    end
+    nodes[i] = e
+    return a
+end
+function Base.push!(a::Arena{T,D}, e::ArenaEntry{T,D}) where {T,D}
+    push!(getfield(a, :nodes), e)
+    return a
+end
+Base.sizehint!(a::Arena, n::Integer) = (sizehint!(getfield(a, :nodes), n); a)
 
 """A lightweight facade for a node stored in an [`Arena`](@ref).
 
@@ -110,8 +142,8 @@ end
     op::UInt8,
     children::NTuple{D,Int32},
 ) where {T,D}
-    push!(arena.nodes, ArenaEntry{T,D}(val, children, feature, degree, op, constant))
-    return Int32(length(arena.nodes))
+    push!(arena, ArenaEntry{T,D}(val, children, feature, degree, op, constant))
+    return Int32(length(arena))
 end
 
 @inline function push_constant!(arena::Arena{T,D}, value) where {T,D}
@@ -178,24 +210,21 @@ end
 @inline function Base.setproperty!(n::ArenaNode{T,D}, k::Symbol, v) where {T,D}
     a = n.arena
     i = n.idx
-    e = @inbounds a.nodes[i]
+    e = @inbounds a[i]
     if k === :degree
-        # Changing arity orphans or exposes child slots, so the flat layout can
-        # no longer be assumed to be exactly this tree.
-        UInt8(v) == e.degree || (a.compact[] = false)
-        @inbounds a.nodes[i] = _replace(e; degree=UInt8(v))
+        @inbounds a[i] = _replace(e; degree=UInt8(v))
         return v
     elseif k === :constant
-        @inbounds a.nodes[i] = _replace(e; constant=Bool(v))
+        @inbounds a[i] = _replace(e; constant=Bool(v))
         return v
     elseif k === :val
-        @inbounds a.nodes[i] = _replace(e; val=convert(T, v))
+        @inbounds a[i] = _replace(e; val=convert(T, v))
         return v
     elseif k === :feature
-        @inbounds a.nodes[i] = _replace(e; feature=UInt16(v))
+        @inbounds a[i] = _replace(e; feature=UInt16(v))
         return v
     elseif k === :op
-        @inbounds a.nodes[i] = _replace(e; op=UInt8(v))
+        @inbounds a[i] = _replace(e; op=UInt8(v))
         return v
     elseif k === :l
         set_child!(n, v, 1)
@@ -222,6 +251,7 @@ accessing them throws an `UndefRefError`.
 """
 @generated function unsafe_get_children(n::ArenaNode{T,D}) where {T,D}
     quote
+        $(Expr(:meta, :inline))
         children = @inbounds getfield(n, :arena).nodes[getfield(n, :idx)].children
         return Base.Cartesian.@ntuple($D, j -> _nullable_child(n, children[j]))
     end
@@ -248,11 +278,9 @@ end
     end
 
     a = n.arena
-    e = @inbounds a.nodes[n.idx]
+    e = @inbounds a[n.idx]
     if @inbounds(e.children[i]) != idx
-        # Relinking orphans the old child subtree and may introduce sharing.
-        a.compact[] = false
-        @inbounds a.nodes[n.idx] = _replace(e; children=Base.setindex(e.children, idx, i))
+        @inbounds a[n.idx] = _replace(e; children=Base.setindex(e.children, idx, i))
     end
     return ArenaNode(a, idx)
 end
@@ -284,11 +312,8 @@ end
     end
 
     a = n.arena
-    e = @inbounds a.nodes[n.idx]
-    if e.children != idxs
-        a.compact[] = false
-        @inbounds a.nodes[n.idx] = _replace(e; children=idxs)
-    end
+    e = @inbounds a[n.idx]
+    @inbounds a[n.idx] = _replace(e; children=idxs)
     return nothing
 end
 
@@ -414,6 +439,58 @@ function count_scalar_constants(tree::ArenaNode{T}) where {T<:Number}
     return invoke(count_scalar_constants, Tuple{AbstractExpressionNode{T}}, tree)
 end
 
+function is_constant(tree::ArenaNode)
+    return _is_constant(getfield(tree, :arena).nodes, getfield(tree, :idx))
+end
+
+function _is_constant(nodes::Vector{ArenaEntry{T,D}}, i::Int32) where {T,D}
+    e = @inbounds nodes[Int(i)]
+    d = e.degree
+    d == 0x00 && return e.constant
+    @inbounds for j in 1:Int(d)
+        _is_constant(nodes, e.children[j]) || return false
+    end
+    return true
+end
+
+function tree_mapreduce(
+    f_leaf::F1,
+    f_branch::F2,
+    op::G,
+    tree::ArenaNode{T,D},
+    result_type::Type{RT}=Undefined;
+    f_on_shared::H=(result, is_shared) -> result,
+    break_sharing::Val{BS}=Val(false),
+) where {T,D,F1<:Function,F2<:Function,G<:Function,H<:Function,RT,BS}
+    return _arena_mapreduce(
+        f_leaf, f_branch, op, getfield(tree, :arena), getfield(tree, :idx)
+    )
+end
+
+@generated function _arena_mapreduce(
+    f_leaf::F1, f_branch::F2, op::G, a::Arena{T,D}, idx::Int32
+) where {F1<:Function,F2<:Function,G<:Function,T,D}
+    quote
+        e = @inbounds getfield(a, :nodes)[Int(idx)]
+        d = e.degree
+        if d == 0x00
+            return f_leaf(ArenaNode{T,D}(a, idx))
+        end
+        branch = f_branch(ArenaNode{T,D}(a, idx))
+        children = e.children
+        return Base.Cartesian.@nif(
+            $D,
+            i -> i == Int(d),  # COV_EXCL_LINE
+            i -> Base.Cartesian.@ncall(
+                i,
+                op,
+                branch,
+                j -> _arena_mapreduce(f_leaf, f_branch, op, a, children[j])
+            ),
+        )
+    end
+end
+
 """Used by `NodeSampler` (random node selection in mutations), once per sample."""
 function Base.count(
     f::F, tree::ArenaNode{T,D}; init=0, break_sharing::Val{BS}=Val(false)
@@ -429,14 +506,15 @@ function Base.count(
     return invoke(Base.count, Tuple{F,AbstractNode}, f, tree; init, break_sharing=Val(BS))
 end
 
-"""For compact arenas, constants are gathered by a linear scan, and the
-returned `refs` are plain arena indices (which also remain valid in flat
-copies of the tree)."""
+"""Constants are gathered as plain `Int32` arena indices (which also remain
+valid in flat copies of the tree): a linear scan for compact arenas, and a
+facade traversal otherwise."""
 function get_scalar_constants(
     tree::ArenaNode{T}, ::Type{BT}=get_number_type(T)
 ) where {T<:Number,BT}
+    a = tree.arena
     if is_compact_root(tree)
-        nodes = tree.arena.nodes
+        nodes = a.nodes
         n_constants = count(e -> e.degree == 0x00 && e.constant, nodes)
         vals = Vector{T}(undef, n_constants)
         refs = Vector{Int32}(undef, n_constants)
@@ -451,16 +529,18 @@ function get_scalar_constants(
         end
         return vals, refs
     end
-    return invoke(get_scalar_constants, Tuple{AbstractExpressionNode{T},Type{BT}}, tree, BT)
+    refs = filter_map(is_node_constant, node -> node.idx, tree, Int32)
+    vals = T[@inbounds(a[Int(i)].val) for i in refs]
+    return vals, refs
 end
 
 function set_scalar_constants!(
     tree::ArenaNode{T}, constants, refs::AbstractVector{Int32}
 ) where {T<:Number}
-    nodes = tree.arena.nodes
+    a = tree.arena
     @inbounds for j in eachindex(refs, constants)
-        i = refs[j]
-        nodes[i] = _replace(nodes[i]; val=constants[j]::T)
+        i = Int(refs[j])
+        a[i] = _replace(a[i]; val=constants[j]::T)
     end
     return nothing
 end
