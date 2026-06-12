@@ -516,9 +516,21 @@ function Base.any(f::F, tree::ArenaNode{T,D}) where {F<:Function,T,D}
         end
         return false
     end
-    # The generic early-exit traversal benches the same as a hand-written
-    # recursion here; no specialization needed.
-    return invoke(any, Tuple{F,AbstractNode{D}}, f, tree)
+    return _entry_any(f, arena, get_index(tree))
+end
+
+# Entry-level early-exit traversal (the same skeleton as _entry_mapreduce):
+# the generic `any` re-reads entries through the facade per field and falls
+# behind Node as trees grow. Explicit recursion, not
+# `any(j -> ..., 1:degree)`: a closure through `Base.any` defeats the
+# early-exit inlining nondeterministically.
+function _entry_any(f::F, arena::Arena{T,D}, idx::Int32) where {F<:Function,T,D}
+    entry = _load_entry(arena, idx)
+    @inline(f(ArenaNode{T,D}(arena, idx))) && return true
+    @inbounds for j in 1:(entry.degree)
+        _entry_any(f, arena, entry.children[j]) && return true
+    end
+    return false
 end
 
 # Constants as plain Int32 arena indices (also valid in flat copies): a
