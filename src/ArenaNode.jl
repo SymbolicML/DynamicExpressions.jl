@@ -1007,7 +1007,7 @@ function _arena_eval(
     scalar_vals = Vector{T}(undef, max_stack)
     state = PlanState(pool, descriptors, scalar_vals, max_stack, nrows)
     regs = PlanRegisters(0, 0, Int32(1 + num_features))
-    out() = @inbounds @view(pool[1, :])
+    output = @view(pool[1, :])
 
     @inbounds for i in 1:num_nodes
         entry = nodes[i]
@@ -1018,12 +1018,12 @@ function _arena_eval(
             regs, ok = _exec_op!(
                 state, regs, entry.op, entry.degree, is_root, early_exit, operators, Val(D)
             )
-            ok || return ResultOk(out(), false)
+            ok || return ResultOk(output, false)
         end
     end
 
     _write_root_to_output!(pool, descriptors, scalar_vals, nrows)
-    return ResultOk(out(), true)
+    return ResultOk(output, true)
 end
 
 end
