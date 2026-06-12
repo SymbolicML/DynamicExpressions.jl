@@ -262,22 +262,27 @@ end
     return ArenaNode{T,D}(arena, child_idx)
 end
 
-@inline function set_child!(
-    node::ArenaNode{T,D}, child::AbstractNode{D}, i::Int
-) where {T,D}
+"""Arena index for attaching `child` under `node`: a same-arena child is
+linked by its existing index; anything else (a `Node`, or an `ArenaNode` from
+a different arena) is copied into `node`'s arena, since arenas cannot link
+across each other."""
+@inline function _resolve_child_index!(node::ArenaNode{T,D}, child) where {T,D}
     child isa AbstractExpressionNode{T,D} || throw(
         ArgumentError(
             "ArenaNode children must be AbstractExpressionNode{$T,$D} (got $(typeof(child)))",
         ),
     )
-
-    # We cannot directly link across arenas, so we copy the subtree into `node`'s arena.
-    idx = if child isa ArenaNode{T,D} && child.arena === node.arena
-        child.idx
+    if child isa ArenaNode{T,D} && child.arena === node.arena
+        return child.idx
     else
-        _copy_to_arena!(node.arena, child)
+        return _copy_to_arena!(node.arena, child)
     end
+end
 
+@inline function set_child!(
+    node::ArenaNode{T,D}, child::AbstractNode{D}, i::Int
+) where {T,D}
+    idx = _resolve_child_index!(node, child)
     arena = node.arena
     entry = @inbounds arena[node.idx]
     if @inbounds(entry.children[i]) != idx
@@ -299,19 +304,7 @@ end
             child.null && continue
             child = child[]
         end
-
-        child isa AbstractExpressionNode{T,D} || throw(
-            ArgumentError(
-                "ArenaNode children must be AbstractExpressionNode{$T,$D} (got $(typeof(child)))",
-            ),
-        )
-
-        idx = if child isa ArenaNode{T,D} && child.arena === node.arena
-            child.idx
-        else
-            _copy_to_arena!(node.arena, child)
-        end
-        idxs = Base.setindex(idxs, idx, i)
+        idxs = Base.setindex(idxs, _resolve_child_index!(node, child), i)
     end
 
     arena = node.arena
