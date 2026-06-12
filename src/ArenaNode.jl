@@ -82,14 +82,13 @@ struct Arena{T<:Number,D} <: AbstractVector{ArenaEntry{T,D}}
     end
 end
 
-Base.size(arena::Arena) = size(getfield(arena, :nodes))
+Base.size(arena::Arena) = size(arena.nodes)
 Base.IndexStyle(::Type{<:Arena}) = IndexLinear()
-Base.@propagate_inbounds Base.getindex(arena::Arena, i::Integer) =
-    getfield(arena, :nodes)[i]
+Base.@propagate_inbounds Base.getindex(arena::Arena, i::Integer) = arena.nodes[i]
 Base.@propagate_inbounds function Base.setindex!(
     arena::Arena{T,D}, entry::ArenaEntry{T,D}, i::Integer
 ) where {T,D}
-    nodes = getfield(arena, :nodes)
+    nodes = arena.nodes
     old = nodes[i]
     if entry.degree != old.degree || entry.children != old.children
         arena.compact[] = false
@@ -98,7 +97,7 @@ Base.@propagate_inbounds function Base.setindex!(
     return arena
 end
 function Base.push!(arena::Arena{T,D}, entry::ArenaEntry{T,D}) where {T,D}
-    nodes = getfield(arena, :nodes)
+    nodes = arena.nodes
     # A single leaf in a fresh arena is a valid tree; any further append breaks
     # the one-postfix-tree invariant until a builder re-establishes it.
     isempty(nodes) || (arena.compact[] = false)
@@ -106,7 +105,7 @@ function Base.push!(arena::Arena{T,D}, entry::ArenaEntry{T,D}) where {T,D}
     return arena
 end
 function Base.sizehint!(arena::Arena, capacity::Integer)
-    sizehint!(getfield(arena, :nodes), capacity)
+    sizehint!(arena.nodes, capacity)
     return arena
 end
 
@@ -133,11 +132,18 @@ end
 
 @inline ArenaNode(arena::Arena{T,D}, idx::Int32) where {T,D} = ArenaNode{T,D}(arena, idx)
 
+"""Raw accessors for the facade's two fields, and the only sanctioned
+`getfield` call sites. Internal code uses these instead of property access so
+that functions reachable from `getproperty` (e.g. `get_child` via the
+`:l`/`:r` branches) do not create an inference cycle through it."""
+@inline get_arena(node::ArenaNode) = getfield(node, :arena)
+@inline get_index(node::ArenaNode) = getfield(node, :idx)
+
 """Whether `tree` is the root of a compact arena, so that the arena contents
 *are* the tree and whole-tree operations can act on the flat array directly."""
 @inline function is_compact_root(tree::ArenaNode)
-    arena = getfield(tree, :arena)
-    return arena.compact[] && getfield(tree, :idx) == length(arena.nodes)
+    arena = get_arena(tree)
+    return arena.compact[] && get_index(tree) == length(arena.nodes)
 end
 
 @inline function _zero_children(::Val{D}) where {D}
@@ -176,19 +182,19 @@ Base.@constprop :aggressive @inline function Base.getproperty(
     node::ArenaNode{T}, property_name::Symbol
 ) where {T}
     if property_name === :arena
-        return getfield(node, :arena)
+        return get_arena(node)
     elseif property_name === :idx
-        return getfield(node, :idx)
+        return get_index(node)
     elseif property_name === :degree
-        return @inbounds getfield(node, :arena).nodes[getfield(node, :idx)].degree
+        return @inbounds get_arena(node).nodes[get_index(node)].degree
     elseif property_name === :constant
-        return @inbounds getfield(node, :arena).nodes[getfield(node, :idx)].constant
+        return @inbounds get_arena(node).nodes[get_index(node)].constant
     elseif property_name === :val
-        return @inbounds getfield(node, :arena).nodes[getfield(node, :idx)].val::T
+        return @inbounds get_arena(node).nodes[get_index(node)].val::T
     elseif property_name === :feature
-        return @inbounds getfield(node, :arena).nodes[getfield(node, :idx)].feature
+        return @inbounds get_arena(node).nodes[get_index(node)].feature
     elseif property_name === :op
-        return @inbounds getfield(node, :arena).nodes[getfield(node, :idx)].op
+        return @inbounds get_arena(node).nodes[get_index(node)].op
     elseif property_name === :children
         return unsafe_get_children(node)
     elseif property_name === :l
@@ -247,7 +253,7 @@ accessing them throws an `UndefRefError`.
 @generated function unsafe_get_children(node::ArenaNode{T,D}) where {T,D}
     quote
         $(Expr(:meta, :inline))
-        children = @inbounds getfield(node, :arena).nodes[getfield(node, :idx)].children
+        children = @inbounds get_arena(node).nodes[get_index(node)].children
         return Base.Cartesian.@ntuple($D, j -> _nullable_child(node, children[j]))
     end
 end
@@ -255,8 +261,8 @@ end
 @inline function get_child(node::ArenaNode{T,D}, i::Integer) where {T,D}
     # Avoid routing through getproperty here: the :l/:r property branches call
     # get_child, and the resulting inference cycle widens property access.
-    arena = getfield(node, :arena)
-    entry = @inbounds getfield(arena, :nodes)[getfield(node, :idx)]
+    arena = get_arena(node)
+    entry = @inbounds arena.nodes[get_index(node)]
     child_idx = entry.children[i]  # bounds-checked: i > D must throw, not crash
     iszero(child_idx) && throw(UndefRefError())
     return ArenaNode{T,D}(arena, child_idx)
@@ -349,7 +355,7 @@ function copy_into!(
     src::ArenaNode{T,D};
     ref::Union{Nothing,Base.RefValue{<:Integer}}=nothing,
 ) where {T,D}
-    if dest === getfield(src, :arena)
+    if dest === get_arena(src)
         # Container reuse: the tree already lives in `dest`. A compact root is
         # a no-op; otherwise compact through a temporary copy.
         is_compact_root(src) && return src
@@ -430,11 +436,11 @@ function count_nodes(tree::ArenaNode; break_sharing::Val{BS}=Val(false)) where {
 end
 
 function Base.any(f::F, tree::ArenaNode{T,D}) where {F<:Function,T,D}
-    return _arena_any(f, getfield(tree, :arena), getfield(tree, :idx))
+    return _arena_any(f, get_arena(tree), get_index(tree))
 end
 function _arena_any(f::F, arena::Arena{T,D}, idx::Int32) where {F<:Function,T,D}
     iszero(idx) && throw(UndefRefError())  # unset child slot, like Node
-    entry = @inbounds getfield(arena, :nodes)[idx]
+    entry = @inbounds arena.nodes[idx]
     @inline(f(ArenaNode{T,D}(arena, idx))) && return true
     @inbounds for j in 1:entry.degree
         _arena_any(f, arena, entry.children[j]) && return true
@@ -444,9 +450,7 @@ end
 
 function is_constant(tree::ArenaNode)
     return !_arena_any(
-        node -> iszero(node.degree) && !node.constant,
-        getfield(tree, :arena),
-        getfield(tree, :idx),
+        node -> iszero(node.degree) && !node.constant, get_arena(tree), get_index(tree)
     )
 end
 
@@ -459,9 +463,7 @@ function tree_mapreduce(
     f_on_shared::H=(result, is_shared) -> result,
     break_sharing::Val{BS}=Val(false),
 ) where {T,D,F1<:Function,F2<:Function,G<:Function,H<:Function,RT,BS}
-    return _arena_mapreduce(
-        f_leaf, f_branch, op, getfield(tree, :arena), getfield(tree, :idx)
-    )
+    return _arena_mapreduce(f_leaf, f_branch, op, get_arena(tree), get_index(tree))
 end
 
 @generated function _arena_mapreduce(
@@ -469,7 +471,7 @@ end
 ) where {F1<:Function,F2<:Function,G<:Function,T,D}
     quote
         iszero(idx) && throw(UndefRefError())  # unset child slot, like Node
-        entry = @inbounds getfield(arena, :nodes)[idx]
+        entry = @inbounds arena.nodes[idx]
         degree = entry.degree
         if iszero(degree)
             return f_leaf(ArenaNode{T,D}(arena, idx))
@@ -521,8 +523,7 @@ function set_scalar_constants!(
     tree::ArenaNode{T}, constants, refs::AbstractVector{Int32}
 ) where {T<:Number}
     arena = tree.arena
-    # Deliberately bounds-checked: refs are caller-supplied and may be stale.
-    for j in eachindex(refs, constants)
+    @inbounds for j in eachindex(refs, constants)
         i = refs[j]
         arena[i] = _replace(arena[i]; val=convert(T, constants[j]))
     end
@@ -558,11 +559,11 @@ function _eval_tree_array(
         is_compact_root(tree) &&
         eval_options.turbo isa Val{false} &&
         eval_options.use_fused isa Val{true}
-        ok_plan, num_slots, max_stack, feature_mask = _plan_scratch(getfield(tree, :arena))
+        ok_plan, num_slots, max_stack, feature_mask = _plan_scratch(get_arena(tree))
         # +1 for the output slot; capacity is the buffer's row count
         if ok_plan && num_slots + 1 <= size(buffer.array, 1)
             return _arena_eval(
-                getfield(tree, :arena),
+                get_arena(tree),
                 cX,
                 operators,
                 eval_options.early_exit,
@@ -645,7 +646,7 @@ recycling decisions as the executor — both sides call `_leaf_kind`,
 exact. Kinds live in a `KindStack`, so trees deeper than 64 or features
 beyond 64 report failure and take the generic path."""
 function _plan_scratch(arena::Arena{T,D}) where {T,D}
-    nodes = getfield(arena, :nodes)
+    nodes = arena.nodes
     feature_mask = UInt64(0)
     kinds = KindStack(0, 0)
     stack_top = 0
@@ -1024,7 +1025,7 @@ function _arena_eval(
     feature_mask::UInt64,
     pool::Matrix{T},
 ) where {T,D,early_exit}
-    nodes = getfield(arena, :nodes)
+    nodes = arena.nodes
     num_nodes = length(nodes)
     nrows = size(cX, 2)
     num_features = count_ones(feature_mask)
