@@ -27,9 +27,9 @@ function bench(trees, X, operators, buffer; reps=300)
     return best
 end
 
-allocs_per_eval(tree, X, operators, buffer) = @allocated(
-    eval_tree_array(tree, X, operators; eval_options=EvalOptions(; buffer))
-)
+function allocs_per_eval(tree, X, operators, buffer)
+    @allocated(eval_tree_array(tree, X, operators; eval_options=EvalOptions(; buffer)))
+end
 
 for treesize in (7, 15, 31)
     trees = [gen_random_tree_fixed_size(treesize, operators, nfeat, T) for _ in 1:50]
@@ -61,5 +61,29 @@ for treesize in (7, 15, 31)
         "ArenaNode: $(round(t_arena/1e3; digits=2))us  " *
         "ratio=$(round(t_arena/t_node; digits=3))  " *
         "allocs/eval Node=$a_node Arena=$a_arena",
+    )
+
+    bench_nobuf(trees) = begin
+        best = Inf
+        for _ in 1:300
+            t0 = time_ns()
+            for tree in trees
+                eval_tree_array(tree, X, operators)
+            end
+            best = min(best, (time_ns() - t0) / length(trees))
+        end
+        best
+    end
+    bench_nobuf(trees[1:2]);
+    bench_nobuf(atrees[1:2])  # warmup
+    tn_nb = bench_nobuf(trees)
+    ta_nb = bench_nobuf(atrees)
+    an_nb = @allocated(eval_tree_array(trees[1], X, operators))
+    aa_nb = @allocated(eval_tree_array(atrees[1], X, operators))
+    println(
+        "n=$treesize  unbuffered:  Node: $(round(tn_nb/1e3; digits=2))us  " *
+        "ArenaNode: $(round(ta_nb/1e3; digits=2))us  " *
+        "ratio=$(round(ta_nb/tn_nb; digits=3))  " *
+        "allocs/eval Node=$an_nb Arena=$aa_nb",
     )
 end
