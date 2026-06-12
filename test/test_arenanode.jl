@@ -794,23 +794,24 @@ end
 
     # Valid mutations applied identically to both representations keep them
     # equivalent. Mutations are specified positionally (preorder index).
-    mutation_gen =
-        map(
-            (i, v) -> (:set_val, i, v),
-            Data.Integers(1, 64),
-            Data.Floats{T}(; nans=false, infs=false),
-        ) |
-        map((i, o) -> (:set_op, i, o), Data.Integers(1, 64), Data.Integers(1, 4)) |
-        map(
-            (i, v) -> (:to_leaf, i, v),
-            Data.Integers(1, 64),
-            Data.Floats{T}(; nans=false, infs=false),
-        ) |
-        map(
-            (i, f) -> (:to_feature, i, f),
-            Data.Integers(1, 64),
-            Data.Integers(1, N_FEATURES),
-        )
+    # a single multi-arg map (no Data.OneOf / generator unions, which older
+    # Supposition versions in the downgrade-compat CI job cannot handle)
+    mutation_gen = map(
+        (kind, i, value, op, feature) -> if kind == 1
+            (:set_val, i, value)
+        elseif kind == 2
+            (:set_op, i, op)
+        elseif kind == 3
+            (:to_leaf, i, value)
+        else
+            (:to_feature, i, feature)
+        end,
+        Data.SampledFrom(1:4),
+        Data.Integers(1, 64),
+        Data.Floats{T}(; nans=false, infs=false),
+        Data.Integers(1, 4),
+        Data.Integers(1, N_FEATURES),
+    )
 
     function apply_mutation!(tree, (kind, i, x))
         nodes = collect(tree)
