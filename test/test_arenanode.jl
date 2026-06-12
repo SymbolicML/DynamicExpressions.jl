@@ -731,3 +731,142 @@ end
         @test okb && yb ≈ Xb[1, :] .+ big"1.5"
     end
 end
+
+@testitem "ArenaNode supposition invariants" begin
+    using Test
+    using Supposition
+    using Supposition: @check, Data
+    using DynamicExpressions
+    using DynamicExpressions: Node, EvalOptions, ArrayBuffer, get_tree
+
+    using DynamicExpressions: ArenaNode
+
+    include("supposition_utils.jl")
+
+    const T = Float64
+    const N_FEATURES = 5
+    const OPERATORS = OperatorEnum(1 => (abs, cos), 2 => (+, -, *, /))
+
+    expr_gen = make_expression_generator(
+        T; num_features=N_FEATURES, max_layers=8, operators=OPERATORS
+    )
+    tree_gen = map(get_tree, expr_gen)
+    input_gen = make_input_matrix_generator(T; n_features=N_FEATURES)
+
+    # Round-trip and read-only properties are representation-independent.
+    roundtrip = @check function arena_roundtrip(tree=tree_gen)
+        atree = convert(ArenaNode{T,2}, tree)
+        back = convert(Node, atree)
+        return back == tree &&
+               string_tree(atree, OPERATORS) == string_tree(tree, OPERATORS) &&
+               count_nodes(atree) == count_nodes(tree) &&
+               count_constant_nodes(atree) == count_constant_nodes(tree) &&
+               count_depth(atree) == count_depth(tree) &&
+               has_constants(atree) == has_constants(tree) &&
+               has_operators(atree) == has_operators(tree) &&
+               copy(atree) == atree
+    end
+    @test something(roundtrip.result) isa Supposition.Pass
+
+    function evals_match(tree, atree, X)
+        # Unbuffered ArenaNode eval takes the same generic path as Node, so
+        # both the values and the `ok` flag must match exactly.
+        yn, okn = eval_tree_array(copy(tree), X, OPERATORS)
+        ya, oka = eval_tree_array(atree, X, OPERATORS)
+        okn == oka || return false
+        okn && !(yn ≈ ya) && return false
+        # The buffered plan path's `ok` is best-effort and may differ from the
+        # generic evaluator (which fuses some shapes without materializing the
+        # intermediate this path validates; the `is_valid(sum(...))` check can
+        # also overflow on finite-but-huge values). Values must agree whenever
+        # both sides report ok.
+        buffer = ArrayBuffer(zeros(T, 64, size(X, 2)), Ref(0))
+        yb, okb = eval_tree_array(atree, X, OPERATORS; eval_options=EvalOptions(; buffer))
+        okb && okn && !(yb ≈ yn) && return false
+        return true
+    end
+
+    evals = @check function arena_eval_matches_node(tree=tree_gen, X=input_gen)
+        return evals_match(tree, convert(ArenaNode{T,2}, tree), X)
+    end
+    @test something(evals.result) isa Supposition.Pass
+
+    # Valid mutations applied identically to both representations keep them
+    # equivalent. Mutations are specified positionally (preorder index).
+    mutation_gen =
+        map(
+            (i, v) -> (:set_val, i, v),
+            Data.Integers(1, 64),
+            Data.Floats{T}(; nans=false, infs=false),
+        ) |
+        map((i, o) -> (:set_op, i, o), Data.Integers(1, 64), Data.Integers(1, 4)) |
+        map(
+            (i, v) -> (:to_leaf, i, v),
+            Data.Integers(1, 64),
+            Data.Floats{T}(; nans=false, infs=false),
+        ) |
+        map(
+            (i, f) -> (:to_feature, i, f),
+            Data.Integers(1, 64),
+            Data.Integers(1, N_FEATURES),
+        )
+
+    function apply_mutation!(tree, (kind, i, x))
+        nodes = collect(tree)
+        node = nodes[mod1(i, length(nodes))]
+        if kind == :set_val
+            if node.degree == 0 && node.constant
+                node.val = x
+            end
+        elseif kind == :set_op
+            if node.degree == 2
+                node.op = mod1(x, 4)
+            elseif node.degree == 1
+                node.op = mod1(x, 2)
+            end
+        elseif kind == :to_leaf
+            node.degree = 0
+            node.constant = true
+            node.val = x
+        elseif kind == :to_feature
+            node.degree = 0
+            node.constant = false
+            node.feature = x
+        end
+        return tree
+    end
+
+    mutations = @check function arena_mutation_matches_node(
+        tree0=tree_gen, X=input_gen, muts=Data.Vectors(mutation_gen; min_size=1, max_size=5)
+    )
+        tree = copy(tree0)
+        atree = convert(ArenaNode{T,2}, tree0)
+        for mut in muts
+            apply_mutation!(tree, mut)
+            apply_mutation!(atree, mut)
+        end
+        return string_tree(atree, OPERATORS) == string_tree(tree, OPERATORS) &&
+               count_nodes(atree) == count_nodes(tree) &&
+               convert(Node, atree) == tree &&
+               evals_match(tree, atree, X)
+    end
+    @test something(mutations.result) isa Supposition.Pass
+
+    # Re-compacting after mutation (via copy) preserves the tree and re-enables
+    # the flat fast paths.
+    recompact = @check function arena_copy_recompacts(
+        tree0=tree_gen, X=input_gen, muts=Data.Vectors(mutation_gen; min_size=1, max_size=3)
+    )
+        tree = copy(tree0)
+        atree = convert(ArenaNode{T,2}, tree0)
+        for mut in muts
+            apply_mutation!(tree, mut)
+            apply_mutation!(atree, mut)
+        end
+        compacted = copy(atree)
+        return DynamicExpressions.ArenaNodeModule.is_compact_root(compacted) &&
+               compacted == atree &&
+               evals_match(tree, compacted, X)
+    end
+    @test something(recompact.result) isa Supposition.Pass
+end
