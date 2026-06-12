@@ -721,29 +721,57 @@ end
     end
 end
 
+"""Loop-invariant evaluation state: the slot pool, the descriptor/scalar
+stacks, and the free-list base. Immutable, so passing it compiles to the
+same code as passing the fields separately."""
+struct _PlanState{T}
+    pool::Matrix{T}
+    desc::Vector{Int64}
+    svals::Vector{T}
+    fbase::Int
+    nrows::Int
+end
+
+"""The evaluator's register-like counters: descriptor stack pointer, free-list
+length, and high-water slot. Threaded through `_push_leaf!`/`_exec_op!`."""
+struct _PlanRegs
+    sp::Int
+    nfree::Int
+    next_slot::Int32
+end
+
+@inline function _push_leaf!(
+    st::_PlanState{T}, regs::_PlanRegs, e::ArenaEntry{T}, fmask::UInt64
+) where {T}
+    sp = regs.sp + 1
+    @inbounds if e.constant
+        st.desc[sp] = Int64(_K_SCALAR)
+        st.svals[sp] = e.val
+    else
+        fslot = count_ones(fmask & ((UInt64(1) << (e.feature - 1)) - 1)) + 2
+        st.desc[sp] = Int64(_K_PSLOT) | (Int64(fslot) << 2)
+    end
+    return _PlanRegs(sp, regs.nfree, regs.next_slot)
+end
+
 """Execute one operator node of runtime degree `d` (dispatched to a
 compile-time arity with `Base.Cartesian.@nif`): gather the top `d` operand
 descriptors, fold if all are scalars, otherwise free recyclable argument
 slots, allocate the destination (slot 1 when at the root), and run the
-kernel. Returns the updated `(sp, nfree, next_slot, ok, doff)`; `doff == -1`
-means the result stayed in the scalar lane."""
+kernel. Returns `(regs, ok)`."""
 @generated function _exec_op!(
-    pool::Matrix{T},
-    desc::Vector{Int64},
-    svals::Vector{T},
-    fbase::Int,
-    sp::Int,
-    nfree::Int,
-    next_slot::Int32,
+    st::_PlanState{T},
+    regs::_PlanRegs,
     op_idx::UInt8,
     d::UInt8,
     is_root::Bool,
     early_exit::Bool,
-    nrows::Int,
     operators::O,
     ::Val{D},
 ) where {T,O<:OperatorEnum,D}
     quote
+        (; pool, desc, svals, fbase, nrows) = st
+        (; sp, nfree, next_slot) = regs
         return Base.Cartesian.@nif(
             $D,
             A -> A == d,  # COV_EXCL_LINE
@@ -766,9 +794,9 @@ means the result stayed in the scalar lane."""
                             desc[sp] = Int64(_K_SCALAR)
                             svals[sp] = v
                         end
-                        (sp, nfree, next_slot, ok, -1)
+                        (_PlanRegs(sp, nfree, next_slot), ok)
                     else
-                        (sp, nfree, next_slot, false, -1)
+                        (_PlanRegs(sp, nfree, next_slot), false)
                     end
                 else
                     # free recyclable argument slots first; the destination
@@ -806,7 +834,7 @@ means the result stayed in the scalar lane."""
                             _valid_slot(pool, offs[k], nrows)
                         end,
                     )
-                        (sp, nfree, next_slot, false, doff)
+                        (_PlanRegs(sp, nfree, next_slot), false)
                     else
                         _dispatch_degn!(
                             Val(A),
@@ -819,7 +847,7 @@ means the result stayed in the scalar lane."""
                             nrows,
                             operators,
                         )
-                        (sp, nfree, next_slot, true, doff)
+                        (_PlanRegs(sp, nfree, next_slot), true)
                     end
                 end
             end
@@ -861,42 +889,18 @@ function _arena_eval(
     # Per-call descriptor state (tiny; the pool itself is caller-owned):
     desc = Vector{Int64}(undef, sp_max + n_slots)
     svals = Vector{T}(undef, sp_max)
-    fbase = sp_max
-    sp = 0
-    nfree = 0
-    next_slot = Int32(1 + n_perm)
+    st = _PlanState(pool, desc, svals, sp_max, nrows)
+    regs = _PlanRegs(0, 0, Int32(1 + n_perm))
     out() = @inbounds @view(pool[1, :])
 
     @inbounds for i in 1:n
         e = nodes[i]
-        d = e.degree
-        is_root = i == n
-        if iszero(d)
-            sp += 1
-            if e.constant
-                desc[sp] = Int64(_K_SCALAR)
-                svals[sp] = e.val
-            else
-                f = e.feature
-                fslot = count_ones(fmask & ((UInt64(1) << (f - 1)) - 1)) + 2
-                desc[sp] = Int64(_K_PSLOT) | (Int64(fslot) << 2)
-            end
+        if iszero(e.degree)
+            regs = _push_leaf!(st, regs, e, fmask)
         else
-            sp, nfree, next_slot, ok, doff = _exec_op!(
-                pool,
-                desc,
-                svals,
-                fbase,
-                sp,
-                nfree,
-                next_slot,
-                e.op,
-                d,
-                is_root,
-                early_exit,
-                nrows,
-                operators,
-                Val(D),
+            is_root = i == n
+            regs, ok = _exec_op!(
+                st, regs, e.op, e.degree, is_root, early_exit, operators, Val(D)
             )
             ok || return ResultOk(out(), false)
         end
