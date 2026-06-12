@@ -762,6 +762,7 @@ end
                count_nodes(atree) == count_nodes(tree) &&
                count_constant_nodes(atree) == count_constant_nodes(tree) &&
                count_depth(atree) == count_depth(tree) &&
+               hash(atree) == hash(tree) &&
                has_constants(atree) == has_constants(tree) &&
                has_operators(atree) == has_operators(tree) &&
                copy(atree) == atree
