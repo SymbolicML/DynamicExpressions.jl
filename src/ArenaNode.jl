@@ -209,7 +209,7 @@ Base.@constprop :aggressive function Base.getproperty(
     end
 end
 
-function Base.setproperty!(node::ArenaNode{T,D}, property_name::Symbol, value) where {T,D}
+@inline function Base.setproperty!(node::ArenaNode{T,D}, property_name::Symbol, value) where {T,D}
     arena = get_arena(node)
     i = get_index(node)
     entry = @inbounds arena[i]
