@@ -464,6 +464,12 @@ end
 # children; reading each entry exactly once and dispatching on the local
 # degree recovers Node-level traversal speed for every tree_mapreduce
 # client (hash, collect, count_depth, count_constant_nodes, ...) at once.
+#
+# Recursion is load-bearing here: the f-application order (parent first,
+# siblings left to right) is observable through collect/filter/foreach and
+# must match Node's. A linear postfix scan over the compact arena benches
+# ~20% faster for pure reductions but visits leaves first, which reorders
+# collect and friends (caught by the supposition properties).
 # `f_leaf`/`f_branch` still receive facades, so semantics are unchanged.
 # Sharing kwargs are accepted and ignored: ArenaNode has
 # preserve_sharing == false, for which the generic path never uses them.
