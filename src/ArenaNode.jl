@@ -1,6 +1,6 @@
 module ArenaNodeModule
 
-using ..UtilsModule: Nullable
+using ..UtilsModule: Nullable, Undefined
 
 import ..NodeModule:
     AbstractNode,
@@ -12,10 +12,9 @@ import ..NodeModule:
     set_children!,
     count_nodes,
     copy_node,
-    filter_map
-import ..NodeModule: leaf_hash, branch_hash
-import ..NodeUtilsModule:
-    count_constant_nodes, get_scalar_constants, set_scalar_constants!, is_node_constant
+    filter_map,
+    tree_mapreduce
+import ..NodeUtilsModule: get_scalar_constants, set_scalar_constants!, is_node_constant
 import ..NodePreallocationModule: allocate_container, copy_into!
 import ..ValueInterfaceModule: get_number_type, is_valid, is_valid_array
 import ..OperatorEnumModule: OperatorEnum
@@ -460,41 +459,51 @@ function count_nodes(tree::ArenaNode; break_sharing::Val{BS}=Val(false)) where {
     return invoke(count_nodes, Tuple{AbstractNode}, tree; break_sharing=Val(BS))::Int64
 end
 
-function count_constant_nodes(tree::ArenaNode)
-    if is_compact_root(tree)
-        nodes = get_arena(tree).nodes
-        return count(entry -> iszero(entry.degree) && entry.constant, nodes)
-    end
-    return invoke(count_constant_nodes, Tuple{AbstractExpressionNode}, tree)
+# The deep traversal primitive. The generic skeleton re-reads the entry
+# through the facade for every field access and shuffles Nullable-wrapped
+# children; reading each entry exactly once and dispatching on the local
+# degree recovers Node-level traversal speed for every tree_mapreduce
+# client (hash, collect, count_depth, count_constant_nodes, ...) at once.
+# `f_leaf`/`f_branch` still receive facades, so semantics are unchanged.
+# Sharing kwargs are accepted and ignored: ArenaNode has
+# preserve_sharing == false, for which the generic path never uses them.
+function tree_mapreduce(
+    f_leaf::F1,
+    f_branch::F2,
+    op::G,
+    tree::ArenaNode{T,D},
+    result_type::Type{RT}=Undefined;
+    f_on_shared::H=(result, is_shared) -> result,
+    break_sharing::Val{BS}=Val(false),
+) where {T,D,F1<:Function,F2<:Function,G<:Function,H<:Function,RT,BS}
+    return _entry_mapreduce(f_leaf, f_branch, op, get_arena(tree), get_index(tree))
 end
 
-# Structural hash over entries: direct recursion through the shared
-# `leaf_hash`/`branch_hash` combinators, so the value is identical to the
-# generic implementation (required: `ArenaNode == Node` holds across
-# representations, so their hashes must agree). Skipping `tree_mapreduce`'s
-# machinery recovers the difference to Node; the hash arithmetic itself is
-# the remaining cost and is shared by all representations.
-@generated function _subtree_hash(arena::Arena{T,D}, idx::Int32, h::UInt) where {T,D}
+@generated function _entry_mapreduce(
+    f_leaf::F1, f_branch::F2, op::G, arena::Arena{T,D}, idx::Int32
+) where {F1<:Function,F2<:Function,G<:Function,T,D}
     quote
         entry = _load_entry(arena, idx)
         node = ArenaNode{T,D}(arena, idx)
         degree = entry.degree
-        iszero(degree) && return leaf_hash(h, node)
+        iszero(degree) && return @inline(f_leaf(node))
+        branch = @inline(f_branch(node))
         return Base.Cartesian.@nif(
             $D,
             i -> degree == i,  # COV_EXCL_LINE
-            i -> branch_hash(
-                h,
-                node,
-                Base.Cartesian.@ntuple(
-                    i, j -> _subtree_hash(arena, entry.children[j], h)
-                )...,
+            i -> @inline(
+                op(
+                    branch,
+                    Base.Cartesian.@ntuple(
+                        i,
+                        j -> _entry_mapreduce(
+                            f_leaf, f_branch, op, arena, entry.children[j]
+                        )
+                    )...,
+                )
             ),
         )
     end
-end
-function Base.hash(tree::ArenaNode, h::UInt)
-    return _subtree_hash(get_arena(tree), get_index(tree), h)
 end
 
 function Base.any(f::F, tree::ArenaNode{T,D}) where {F<:Function,T,D}

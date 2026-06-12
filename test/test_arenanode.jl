@@ -867,6 +867,7 @@ end
         compacted = copy(atree)
         return DynamicExpressions.ArenaNodeModule.is_compact_root(compacted) &&
                compacted == atree &&
+               hash(compacted) == hash(atree) &&
                evals_match(tree, compacted, X)
     end
     @test something(recompact.result) isa Supposition.Pass
