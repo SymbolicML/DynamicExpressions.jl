@@ -28,11 +28,12 @@ TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
-Aqua = "0.8"
+Aqua = "0.8.16"
 JET = "0.9, 0.10, 0.11"
 LoweredCodeUtils = "2, 3.4 - 3.5.99"
 LineSearches = "7 - 7.4"
 LoopVectorization = "0.12"
+Supposition = "0.3.5"
 SymbolicUtils = "4.35"
 TestItems = "1"
 TestItemRunner = "1"
