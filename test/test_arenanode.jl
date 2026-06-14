@@ -151,6 +151,12 @@ end
     @test ok_parent
     @test y_parent ≈ sin.(X[1, :] .* 3.2)
 
+    guarded = convert(ArenaNode{Float64}, sin(x1))
+    foreign_child = convert(ArenaNode{Float64}, x1 * 3.2)
+    n_before = length(guarded.arena.nodes)
+    @test_throws BoundsError set_child!(guarded, foreign_child, 3)
+    @test length(guarded.arena.nodes) == n_before
+
     @test_throws ArgumentError set_child!(parent, Node{Float32}(; val=1.0f0), 1)
     @test_throws UndefRefError get_child(convert(ArenaNode{Float64}, x1), 1)
 
@@ -317,11 +323,19 @@ end
 
     @testset "preallocated copy_into!" begin
         dest = allocate_container(atree)
-        out = copy_into!(dest, atree)
+        ref = Ref(-1)
+        out = copy_into!(dest, atree; ref)
         @test out.arena === dest
         @test convert(Node, out) == tree
-        out2 = copy_into!(dest, atree)
+        @test ref[] == length(atree)
+        out2 = copy_into!(dest, atree; ref)
         @test convert(Node, out2) == tree
+        @test ref[] == length(atree)
+
+        same_ref = Ref(-1)
+        same = copy_into!(out2.arena, out2; ref=same_ref)
+        @test same === out2
+        @test same_ref[] == length(out2)
     end
 
     @testset "copy_node entry point" begin
@@ -359,7 +373,7 @@ end
         @test refs isa Vector{Int32}
         @test DynamicExpressions.count_scalar_constants(fresh) == length(vals)
         @test vals == first(get_scalar_constants(tree))
-        set_scalar_constants!(fresh, vals .* 2, refs)
+        @test set_scalar_constants!(fresh, vals .* 2, refs) === fresh
         @test first(get_scalar_constants(fresh)) == vals .* 2
 
         # Indices remain valid in flat copies of the tree:

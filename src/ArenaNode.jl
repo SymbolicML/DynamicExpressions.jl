@@ -283,9 +283,10 @@ function _resolve_child_index!(node::ArenaNode{T,D}, child) where {T,D}
 end
 
 function set_child!(node::ArenaNode{T,D}, child::AbstractNode{D}, i::Int) where {T,D}
-    idx = _resolve_child_index!(node, child)
     arena = node.arena
     entry = @inbounds arena[node.idx]
+    1 <= i <= D || throw(BoundsError(entry.children, i))
+    idx = _resolve_child_index!(node, child)
     if @inbounds(entry.children[i]) != idx
         @inbounds arena[node.idx] = _replace(
             entry; children=Base.setindex(entry.children, idx, i)
@@ -378,10 +379,14 @@ function copy_into!(
     src::ArenaNode{T,D};
     ref::Union{Nothing,Base.RefValue{<:Integer}}=nothing,
 ) where {T,D}
+    set_ref!(n) = ref === nothing ? nothing : (ref[] = n)
     if dest === get_arena(src)
         # Container reuse: the tree already lives in `dest`. A compact root is
         # a no-op; otherwise compact through a temporary copy.
-        is_compact_root(src) && return src
+        if is_compact_root(src)
+            set_ref!(length(src))
+            return src
+        end
         return copy_into!(dest, copy_node(src); ref)
     end
     if is_compact_root(src)
@@ -389,11 +394,13 @@ function copy_into!(
         resize!(dest.nodes, length(nodes))
         copyto!(dest.nodes, nodes)
         mark_compact!(dest)
+        set_ref!(length(src))
         return ArenaNode{T,D}(dest, src.idx)
     end
     empty!(dest.nodes)
     idx = _append_subtree!(dest.nodes, get_arena(src).nodes, get_index(src))
     mark_compact!(dest)
+    set_ref!(length(dest.nodes))
     return ArenaNode{T,D}(dest, idx)
 end
 
@@ -632,7 +639,7 @@ function set_scalar_constants!(
         i = refs[j]
         nodes[i] = _replace(nodes[i]; val=convert(T, constants[j]))
     end
-    return nothing
+    return tree
 end
 
 end
