@@ -4,6 +4,7 @@ using LoopVectorization: @turbo
 using DynamicExpressions: AbstractExpressionNode
 using DynamicExpressions.NodeModule: get_child
 using DynamicExpressions.UtilsModule: ResultOk
+using DynamicExpressions.ValueInterfaceModule: can_eval_nonfinite
 using DynamicExpressions.EvaluateModule:
     @return_on_nonfinite_val, EvalContext, get_array, get_feature_array, get_filled_array
 import DynamicExpressions.EvaluateModule:
@@ -57,10 +58,16 @@ function deg1_l2_ll0_lr0_eval(
         @return_on_nonfinite_val(eval_context, val_ll, cX)
         feature_lr = get_child(get_child(tree, 1), 2).feature
         cumulator = get_array(eval_context.buffer, cX, axes(cX, 2))
-        @turbo for j in axes(cX, 2)
-            x_l = op_l(val_ll, cX[feature_lr, j])
-            x = op(x_l)
-            cumulator[j] = x
+        if can_eval_nonfinite(op)
+            @turbo for j in axes(cX, 2)
+                x_l = op_l(val_ll, cX[feature_lr, j])
+                cumulator[j] = op(x_l)
+            end
+        else
+            @turbo for j in axes(cX, 2)
+                x_l = op_l(val_ll, cX[feature_lr, j])
+                cumulator[j] = ifelse(isfinite(x_l), op(x_l), T(NaN))
+            end
         end
         return ResultOk(cumulator, true)
     elseif get_child(get_child(tree, 1), 2).constant
@@ -68,20 +75,32 @@ function deg1_l2_ll0_lr0_eval(
         val_lr = get_child(get_child(tree, 1), 2).val
         @return_on_nonfinite_val(eval_context, val_lr, cX)
         cumulator = get_array(eval_context.buffer, cX, axes(cX, 2))
-        @turbo for j in axes(cX, 2)
-            x_l = op_l(cX[feature_ll, j], val_lr)
-            x = op(x_l)
-            cumulator[j] = x
+        if can_eval_nonfinite(op)
+            @turbo for j in axes(cX, 2)
+                x_l = op_l(cX[feature_ll, j], val_lr)
+                cumulator[j] = op(x_l)
+            end
+        else
+            @turbo for j in axes(cX, 2)
+                x_l = op_l(cX[feature_ll, j], val_lr)
+                cumulator[j] = ifelse(isfinite(x_l), op(x_l), T(NaN))
+            end
         end
         return ResultOk(cumulator, true)
     else
         feature_ll = get_child(get_child(tree, 1), 1).feature
         feature_lr = get_child(get_child(tree, 1), 2).feature
         cumulator = get_array(eval_context.buffer, cX, axes(cX, 2))
-        @turbo for j in axes(cX, 2)
-            x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])
-            x = op(x_l)
-            cumulator[j] = x
+        if can_eval_nonfinite(op)
+            @turbo for j in axes(cX, 2)
+                x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])
+                cumulator[j] = op(x_l)
+            end
+        else
+            @turbo for j in axes(cX, 2)
+                x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])
+                cumulator[j] = ifelse(isfinite(x_l), op(x_l), T(NaN))
+            end
         end
         return ResultOk(cumulator, true)
     end
@@ -105,10 +124,16 @@ function deg1_l1_ll0_eval(
     else
         feature_ll = get_child(get_child(tree, 1), 1).feature
         cumulator = get_array(eval_context.buffer, cX, axes(cX, 2))
-        @turbo for j in axes(cX, 2)
-            x_l = op_l(cX[feature_ll, j])
-            x = op(x_l)
-            cumulator[j] = x
+        if can_eval_nonfinite(op)
+            @turbo for j in axes(cX, 2)
+                x_l = op_l(cX[feature_ll, j])
+                cumulator[j] = op(x_l)
+            end
+        else
+            @turbo for j in axes(cX, 2)
+                x_l = op_l(cX[feature_ll, j])
+                cumulator[j] = ifelse(isfinite(x_l), op(x_l), T(NaN))
+            end
         end
         return ResultOk(cumulator, true)
     end
