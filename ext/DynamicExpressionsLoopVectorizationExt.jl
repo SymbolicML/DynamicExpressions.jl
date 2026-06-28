@@ -4,7 +4,7 @@ using LoopVectorization: @turbo
 using DynamicExpressions: AbstractExpressionNode
 using DynamicExpressions.NodeModule: get_child
 using DynamicExpressions.UtilsModule: ResultOk
-using DynamicExpressions.ValueInterfaceModule: can_eval_nonfinite
+using DynamicExpressions.ValueInterfaceModule: turbo_can_eval_nonfinite
 using DynamicExpressions.EvaluateModule:
     @return_on_nonfinite_val, EvalContext, get_array, get_feature_array, get_filled_array
 import DynamicExpressions.EvaluateModule:
@@ -58,7 +58,7 @@ function deg1_l2_ll0_lr0_eval(
         @return_on_nonfinite_val(eval_context, val_ll, cX)
         feature_lr = get_child(get_child(tree, 1), 2).feature
         cumulator = get_array(eval_context.buffer, cX, axes(cX, 2))
-        if can_eval_nonfinite(op)
+        if turbo_can_eval_nonfinite(op)
             @turbo for j in axes(cX, 2)
                 x_l = op_l(val_ll, cX[feature_lr, j])
                 cumulator[j] = op(x_l)
@@ -75,7 +75,7 @@ function deg1_l2_ll0_lr0_eval(
         val_lr = get_child(get_child(tree, 1), 2).val
         @return_on_nonfinite_val(eval_context, val_lr, cX)
         cumulator = get_array(eval_context.buffer, cX, axes(cX, 2))
-        if can_eval_nonfinite(op)
+        if turbo_can_eval_nonfinite(op)
             @turbo for j in axes(cX, 2)
                 x_l = op_l(cX[feature_ll, j], val_lr)
                 cumulator[j] = op(x_l)
@@ -91,7 +91,7 @@ function deg1_l2_ll0_lr0_eval(
         feature_ll = get_child(get_child(tree, 1), 1).feature
         feature_lr = get_child(get_child(tree, 1), 2).feature
         cumulator = get_array(eval_context.buffer, cX, axes(cX, 2))
-        if can_eval_nonfinite(op)
+        if turbo_can_eval_nonfinite(op)
             @turbo for j in axes(cX, 2)
                 x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])
                 cumulator[j] = op(x_l)
@@ -124,7 +124,7 @@ function deg1_l1_ll0_eval(
     else
         feature_ll = get_child(get_child(tree, 1), 1).feature
         cumulator = get_array(eval_context.buffer, cX, axes(cX, 2))
-        if can_eval_nonfinite(op)
+        if turbo_can_eval_nonfinite(op)
             @turbo for j in axes(cX, 2)
                 x_l = op_l(cX[feature_ll, j])
                 cumulator[j] = op(x_l)

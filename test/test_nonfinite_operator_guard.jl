@@ -1,16 +1,16 @@
 @testitem "nonfinite operator guard" begin
     using DynamicExpressions
-    using DynamicExpressions.ValueInterfaceModule: can_eval_nonfinite
+    using DynamicExpressions.ValueInterfaceModule: turbo_can_eval_nonfinite
     using LoopVectorization
     using Test
 
-    @test !can_eval_nonfinite(sin)
-    @test can_eval_nonfinite(exp)
-    @test can_eval_nonfinite(+)
-    @test !can_eval_nonfinite(log)
-    @test !can_eval_nonfinite(sqrt)
+    @test !turbo_can_eval_nonfinite(sin)
+    @test turbo_can_eval_nonfinite(exp)
+    @test turbo_can_eval_nonfinite(+)
+    @test !turbo_can_eval_nonfinite(log)
+    @test !turbo_can_eval_nonfinite(sqrt)
     f(x) = x
-    @test !can_eval_nonfinite(f)
+    @test !turbo_can_eval_nonfinite(f)
 
     operators = OperatorEnum(;
         binary_operators=(+, *, /, -), unary_operators=(sin, cos, tan, exp, log, sqrt)
