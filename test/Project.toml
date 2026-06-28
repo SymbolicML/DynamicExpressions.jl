@@ -28,9 +28,19 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
 Aqua = "0.8.14"
+Bumper = "0.6"
+ChainRulesCore = "1.25.1"
+Compat = "4.16"
+DispatchDoctor = "0.4"
+Interfaces = "0.3"
 JET = "0.9, 0.10"
+LoopVectorization = "0.12.174"
+NLSolversBase = "7"
+Optim = "1"
+SymbolicUtils = "4.35"
 TestItemRunner = "1"
 TestItems = "1"
+Zygote = "0.7"
 
 [preferences.DynamicExpressions]
 dispatch_doctor_codegen_level = "min"
