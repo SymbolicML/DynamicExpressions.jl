@@ -38,7 +38,6 @@
     end
 end
 
-
 @testitem "nonfinite guard - compound binary+unary paths" begin
     using DynamicExpressions
     using DynamicExpressions.ValueInterfaceModule: turbo_can_eval_nonfinite
