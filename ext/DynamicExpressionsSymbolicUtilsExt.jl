@@ -113,8 +113,9 @@ function parse_tree_to_eqs(
             op = _sym_fn(Symbol(op), tree.degree)
             return subs_bad(op(sym_children...))
         else
-            traced = try
-                op(sym_children...)
+            local traced
+            try
+                traced = op(sym_children...)
             catch e
                 if e isa MethodError
                     throw(error("Unsupported operation $(op) in SymbolicUtils conversion"))
