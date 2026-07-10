@@ -12,6 +12,29 @@ using DynamicExpressions:
 import Optim: Optim, OptimizationResults
 using NLSolversBase: NLSolversBase
 
+# Optim v1's `ManifoldObjective.value_gradient!` returns a scalar instead of
+# the `(value, gradient)` tuple expected by LineSearches ≥ 7.5.  This causes a
+# `BoundsError` during BFGS line search on Julia ≥ 1.12.
+# Workaround: swap `HagerZhang` (which calls `value_gradient!`) with
+# `BackTracking` (which only calls `value!`) when running on Optim v1.
+# Upstream issue: https://github.com/JuliaNLSolvers/Optim.jl/issues
+@inline _compat_optim_arg(arg) = arg
+@inline function _compat_optim_arg(method::Optim.BFGS)
+    if pkgversion(Optim) < v"2" &&
+       getfield(method, :linesearch!) isa Optim.LineSearches.HagerZhang
+        return Optim.BFGS(;
+            alphaguess=getfield(method, :alphaguess!),
+            linesearch=Optim.LineSearches.BackTracking(),
+            initial_invH=method.initial_invH,
+            initial_stepnorm=method.initial_stepnorm,
+            manifold=method.manifold,
+        )
+    else
+        return method
+    end
+end
+@inline _compat_optim_args(args::Tuple) = map(_compat_optim_arg, args)
+
 #! format: off
 """
     ExpressionOptimizationResults{R,N<:AbstractExpressionNode}
@@ -211,11 +234,12 @@ function Optim.optimize(
             ),
         )
     end
+    optim_args = _compat_optim_args(args)
     base_res = if isnothing(g!)
-        Optim.optimize(wrap_func(f, tree, refs), x0, args...; kwargs...)
+        Optim.optimize(wrap_func(f, tree, refs), x0, optim_args...; kwargs...)
     else
         Optim.optimize(
-            wrap_func(f, tree, refs), wrap_func(g!, tree, refs), x0, args...; kwargs...
+            wrap_func(f, tree, refs), wrap_func(g!, tree, refs), x0, optim_args...; kwargs...
         )
     end
     minimizer = Optim.minimizer(base_res)
