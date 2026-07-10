@@ -52,7 +52,7 @@ end
         binary_operators=[+, -, *, /], unary_operators=[], define_helper_functions=false
     )
 
-    ex = parse_expression("0.1im + x"; operators, variable_names=["x"])
+    ex = parse_expression(Meta.parse("0.1im + x"); operators, variable_names=["x"])
     @test typeof(ex) <: Expression{ComplexF64}
 
     function count_vars(n)
@@ -79,7 +79,7 @@ end
     @test yc[1] ≈ 1.0 + 2.1im
 
     # If `"im"` is in `variable_names`, it should be treated as a variable
-    ex2 = parse_expression("im + x2"; operators, variable_names=["im", "x2"])
+    ex2 = parse_expression(Meta.parse("im + x2"); operators, variable_names=["im", "x2"])
     @test typeof(ex2) <: Expression
     @test count_vars(ex2.tree) == 2
 

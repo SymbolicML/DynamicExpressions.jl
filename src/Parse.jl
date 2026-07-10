@@ -258,8 +258,6 @@ end
     end
 end
 
-@unstable parse_expression(ex::String; kws...) = parse_expression(Meta.parse(ex); kws...)
-
 """An empty module for evaluation without collisions."""
 module EmptyModule end
 
