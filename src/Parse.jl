@@ -201,6 +201,21 @@ end
     )
 end
 
+_replace_imaginary_unit_symbol(ex) = ex
+@unstable _replace_imaginary_unit_symbol(ex::Symbol) = ex === :im ? im : ex
+function _replace_imaginary_unit_symbol(ex::Expr)
+    return Expr(ex.head, map(_replace_imaginary_unit_symbol, ex.args)...)
+end
+
+@unstable function _normalize_expression_for_parse(
+    ex, variable_names::Union{AbstractVector{<:AbstractString},Nothing}
+)
+    if variable_names !== nothing && ("im" in variable_names)
+        return ex
+    end
+    return _replace_imaginary_unit_symbol(ex)
+end
+
 """Parse an expression Julia `Expr` object."""
 @unstable function parse_expression(
     ex;
@@ -238,6 +253,7 @@ end
             operators
         end
 
+        ex = _normalize_expression_for_parse(ex, variable_names)
         tree = _parse_expression(ex, operators, variable_names, N, E, evaluate_on; kws...)
         return constructorof(E)(tree; operators, variable_names, kws...)
     end

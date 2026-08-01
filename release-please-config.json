@@ -1,0 +1,9 @@
+{
+  "bootstrap-sha": "bc05728fb69baeea89f59a2b08302d8137338df3",
+  "packages": {
+    ".": {
+      "release-type": "julia",
+      "include-component-in-tag": false
+    }
+  }
+}
