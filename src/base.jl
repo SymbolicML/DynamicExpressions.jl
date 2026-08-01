@@ -465,7 +465,7 @@ Compute a hash of a tree. This will compute a hash differently
 if nodes are shared in a tree. This is ignored if `break_sharing` is set to `Val(true)`.
 """
 function hash(
-    tree::AbstractExpressionNode{T}, h::UInt=zero(UInt); break_sharing::Val{BS}=Val(false)
+    tree::AbstractExpressionNode{T}, h::UInt; break_sharing::Val{BS}=Val(false)
 ) where {T,BS}
     return tree_mapreduce(
         t -> leaf_hash(h, t),
