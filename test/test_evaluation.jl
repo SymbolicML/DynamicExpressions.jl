@@ -120,6 +120,39 @@ end
             @test !ok
         end
     end
+
+    inf = Node(Float64; val=Inf)
+    for tree in (
+        Node(1, Node(2, inf, x2), x3),
+        Node(1, Node(2, x1, inf), x3),
+        Node(1, Node(2, x1, x2), inf),
+    )
+        _, ok = eval_tree_array(
+            tree,
+            ones(3, 1),
+            operators;
+            eval_options=EvalOptions(; turbo=true, early_exit=true),
+        )
+        @test !ok
+    end
+
+    finite_operators = OperatorEnum(; binary_operators=[+, *])
+    right_tree = Node(1, x1, Node(2, x2, x3))
+    X = [1.0 2.0; 3.0 4.0; 5.0 6.0]
+    expected, expected_ok = eval_tree_array(
+        right_tree,
+        X,
+        finite_operators;
+        eval_options=EvalOptions(; turbo=false, early_exit=false),
+    )
+    result, ok = eval_tree_array(
+        right_tree,
+        X,
+        finite_operators;
+        eval_options=EvalOptions(; turbo=true, early_exit=false),
+    )
+    @test result == expected
+    @test ok == expected_ok
 end
 
 @testitem "Test specific branches of evaluation" begin

@@ -16,6 +16,12 @@
     @test eval_options.buffer.array === buffer
     @test eval_options.buffer.index === buffer_ref
 
+    copied_buffer = copy(eval_options.buffer)
+    @test copied_buffer.array == buffer
+    @test copied_buffer.array !== buffer
+    @test copied_buffer.index[] == buffer_ref[]
+    @test copied_buffer.index !== buffer_ref
+
     # Test buffer is not allowed with bumper
     @test_throws AssertionError EvalOptions(;
         bumper=true, buffer=ArrayBuffer(buffer, buffer_ref)
@@ -51,12 +57,18 @@ end
 
     for n in (3, 20)
         resized_X = rand(2, n)
-        expected, expected_ok = eval_tree_array(tree, resized_X, operators)
-        result, ok = eval_tree_array(tree, resized_X, operators; eval_options)
+        local expected, expected_ok = eval_tree_array(tree, resized_X, operators)
+        local result, ok = eval_tree_array(tree, resized_X, operators; eval_options)
         @test result == expected
         @test ok == expected_ok
         @test axes(result) == axes(expected)
     end
+
+    constant_result, constant_ok = eval_tree_array(
+        Node(Float64; val=1.5), X, operators; eval_options
+    )
+    @test constant_result == fill(1.5, size(X, 2))
+    @test constant_ok
 
     copied = copy(buffer)
     @test copied.array !== buffer.array

@@ -39,7 +39,7 @@ struct ArrayBuffer{
     index::R
 end
 
-function Base.copy(buffer::ArrayBuffer)
+function Base.copy(buffer::ArrayBuffer{<:AbstractMatrix})
     return ArrayBuffer(copy(buffer.array), Ref(buffer.index[]))
 end
 function Base.copy(buffer::ArrayBuffer{<:Vector})
