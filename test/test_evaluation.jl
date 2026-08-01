@@ -97,13 +97,22 @@ end
     using DynamicExpressions, LoopVectorization
     using DynamicExpressions.EvaluateModule: EvalOptions
 
-    operators = OperatorEnum(; binary_operators=[min, /])
+    function finite_min(x, y)
+        isfinite(x) && isfinite(y) || error("nonfinite input")
+        return min(x, y)
+    end
+
+    operators = OperatorEnum(; binary_operators=[finite_min, /])
     x1 = Node(Float64; feature=1)
     x2 = Node(Float64; feature=2)
     x3 = Node(Float64; feature=3)
 
-    for (tree, X) in
-        ((min(x1 / x2, x3), [1.0; 0.0; 2.0;;]), (min(x1, x2 / x3), [2.0; 1.0; 0.0;;]))
+    for (tree, X) in (
+        (Node(1, Node(2, x1, x2), x3), [1.0; 0.0; 2.0;;]),
+        (Node(1, x1, Node(2, x2, x3)), [2.0; 1.0; 0.0;;]),
+        (Node(1, Node(2, x1, x2), x3), [1.0; 1.0; Inf;;]),
+        (Node(1, x1, Node(2, x2, x3)), [Inf; 1.0; 1.0;;]),
+    )
         for turbo in (false, true)
             _, ok = eval_tree_array(
                 tree, X, operators; eval_options=EvalOptions(; turbo, early_exit=true)

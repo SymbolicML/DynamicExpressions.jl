@@ -740,14 +740,22 @@ end
     op::F, branch_op::F2, x1::T, x2::T, x3::T, ::Val{:left}, ::Val{early_exit}
 ) where {T<:Number,F,F2,early_exit}
     branch_x = branch_op(x1, x2)::T
-    return early_exit && !is_valid(branch_x) ? T(Inf) : op(branch_x, x3)::T
+    return if early_exit && (!is_valid(branch_x) || !is_valid(x3))
+        T(Inf)
+    else
+        op(branch_x, x3)::T
+    end
 end
 
 @inline function _fused_binary3(
     op::F, branch_op::F2, x1::T, x2::T, x3::T, ::Val{:right}, ::Val{early_exit}
 ) where {T<:Number,F,F2,early_exit}
     branch_x = branch_op(x2, x3)::T
-    return early_exit && !is_valid(branch_x) ? T(Inf) : op(x1, branch_x)::T
+    return if early_exit && (!is_valid(x1) || !is_valid(branch_x))
+        T(Inf)
+    else
+        op(x1, branch_x)::T
+    end
 end
 
 function deg2_branch0_eval(
