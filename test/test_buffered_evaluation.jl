@@ -27,6 +27,33 @@
     @test size(result[1]) == (size(X, 2),)  # Output should match number of samples
 end
 
+@testitem "Vector buffer growth and copying" begin
+    using DynamicExpressions
+    using DynamicExpressions: ArrayBuffer
+
+    X = rand(2, 10)
+    operators = OperatorEnum(; binary_operators=[+], unary_operators=[sin])
+    tree = Node(;
+        op=1,
+        l=Node(; op=1, l=Node(Float64; feature=1)),
+        r=Node(; op=1, l=Node(Float64; feature=2)),
+    )
+    arrays = Vector{Vector{Float64}}()
+    buffer = ArrayBuffer(arrays, Ref(0))
+    eval_options = EvalOptions(; buffer)
+
+    expected, expected_ok = eval_tree_array(tree, X, operators)
+    result, ok = eval_tree_array(tree, X, operators; eval_options)
+
+    @test result == expected
+    @test ok == expected_ok
+    @test length(arrays) == buffer.index[]
+
+    copied = copy(buffer)
+    @test copied.array !== buffer.array
+    @test all(a !== b for (a, b) in zip(copied.array, buffer.array))
+end
+
 @testitem "Buffer correctness" begin
     using DynamicExpressions
     using DynamicExpressions: ArrayBuffer

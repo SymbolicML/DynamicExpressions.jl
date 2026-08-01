@@ -32,13 +32,18 @@ macro return_on_nonfinite_array(eval_options, array)
 end
 
 """Buffer management for array allocations during evaluation."""
-struct ArrayBuffer{A<:AbstractMatrix,R<:Base.RefValue{<:Integer}}
+struct ArrayBuffer{
+    A<:Union{AbstractMatrix,Vector{<:AbstractVector}},R<:Base.RefValue{<:Integer}
+}
     array::A
     index::R
 end
 
 function Base.copy(buffer::ArrayBuffer)
     return ArrayBuffer(copy(buffer.array), Ref(buffer.index[]))
+end
+function Base.copy(buffer::ArrayBuffer{<:Vector})
+    return ArrayBuffer(copy.(buffer.array), Ref(buffer.index[]))
 end
 
 reset_index!(buffer::ArrayBuffer) = buffer.index[] = 0
@@ -50,28 +55,50 @@ function get_array(::Nothing, template::AbstractArray, axes...)
     return similar(template, axes...)
 end
 
-function get_array(buffer::ArrayBuffer, template::AbstractArray, axes...)
+function get_array(buffer::ArrayBuffer{<:AbstractMatrix}, template::AbstractArray, axes...)
     i = next_index!(buffer)
     out = @view(buffer.array[i, :])
     return out
 end
 
+function get_array(buffer::ArrayBuffer{<:Vector}, template::AbstractArray, axes...)
+    i = next_index!(buffer)
+    i > length(buffer.array) && push!(buffer.array, similar(template, axes...))
+    return buffer.array[i]
+end
+
 function get_filled_array(::Nothing, value, template::AbstractArray, axes...)
     return fill_similar(value, template, axes...)
 end
-function get_filled_array(buffer::ArrayBuffer, value, template::AbstractArray, axes...)
+function get_filled_array(
+    buffer::ArrayBuffer{<:AbstractMatrix}, value, template::AbstractArray, axes...
+)
     i = next_index!(buffer)
     @inbounds buffer.array[i, :] .= value
     return @view(buffer.array[i, :])
+end
+function get_filled_array(
+    buffer::ArrayBuffer{<:Vector}, value, template::AbstractArray, axes...
+)
+    return fill!(get_array(buffer, template, axes...), value)
 end
 
 function get_feature_array(::Nothing, X::AbstractMatrix, feature::Integer)
     return @inbounds(X[feature, :])
 end
-function get_feature_array(buffer::ArrayBuffer, X::AbstractMatrix, feature::Integer)
+function get_feature_array(
+    buffer::ArrayBuffer{<:AbstractMatrix}, X::AbstractMatrix, feature::Integer
+)
     i = next_index!(buffer)
     @inbounds buffer.array[i, :] .= X[feature, :]
     return @view(buffer.array[i, :])
+end
+function get_feature_array(
+    buffer::ArrayBuffer{<:Vector}, X::AbstractMatrix, feature::Integer
+)
+    out = get_array(buffer, X, axes(X, 2))
+    @inbounds copyto!(out, @view(X[feature, :]))
+    return out
 end
 
 """
