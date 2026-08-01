@@ -49,9 +49,21 @@ end
     @test ok == expected_ok
     @test length(arrays) == buffer.index[]
 
+    for n in (3, 20)
+        resized_X = rand(2, n)
+        expected, expected_ok = eval_tree_array(tree, resized_X, operators)
+        result, ok = eval_tree_array(tree, resized_X, operators; eval_options)
+        @test result == expected
+        @test ok == expected_ok
+        @test axes(result) == axes(expected)
+    end
+
     copied = copy(buffer)
     @test copied.array !== buffer.array
     @test all(a !== b for (a, b) in zip(copied.array, buffer.array))
+
+    abstract_buffer = ArrayBuffer(AbstractVector{Float64}[], Ref(0))
+    @test copy(abstract_buffer).array isa Vector{AbstractVector{Float64}}
 end
 
 @testitem "Buffer correctness" begin

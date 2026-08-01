@@ -43,7 +43,7 @@ function Base.copy(buffer::ArrayBuffer)
     return ArrayBuffer(copy(buffer.array), Ref(buffer.index[]))
 end
 function Base.copy(buffer::ArrayBuffer{<:Vector})
-    return ArrayBuffer(copy.(buffer.array), Ref(buffer.index[]))
+    return ArrayBuffer(deepcopy(buffer.array), Ref(buffer.index[]))
 end
 
 reset_index!(buffer::ArrayBuffer) = buffer.index[] = 0
@@ -63,7 +63,11 @@ end
 
 function get_array(buffer::ArrayBuffer{<:Vector}, template::AbstractArray, axes...)
     i = next_index!(buffer)
-    i > length(buffer.array) && push!(buffer.array, similar(template, axes...))
+    if i > length(buffer.array)
+        push!(buffer.array, similar(template, axes...))
+    elseif Base.axes(buffer.array[i]) != axes
+        buffer.array[i] = similar(template, axes...)
+    end
     return buffer.array[i]
 end
 
@@ -455,6 +459,7 @@ end
 ) where {T}
     nbin = get_nops(operators, Val(2))
     long_compilation_time = nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
+    supports_branch_fusion = T <: Number
     if long_compilation_time
         return quote
             result_l = _eval_tree_array(get_child(tree, 1), cX, operators, eval_options)
@@ -477,7 +482,8 @@ end
                     deg2_l0_r0_eval(tree, cX, op, eval_options)
                 elseif fused && get_child(tree, 2).degree == 0
                     left = get_child(tree, 1)
-                    if left.degree == 2 &&
+                    if $supports_branch_fusion &&
+                        left.degree == 2 &&
                         get_child(left, 1).degree == 0 &&
                         get_child(left, 2).degree == 0
                         dispatch_deg2_branch0_eval(
@@ -498,7 +504,8 @@ end
                     end
                 elseif fused && get_child(tree, 1).degree == 0
                     right = get_child(tree, 2)
-                    if right.degree == 2 &&
+                    if $supports_branch_fusion &&
+                        right.degree == 2 &&
                         get_child(right, 1).degree == 0 &&
                         get_child(right, 2).degree == 0
                         dispatch_deg2_branch0_eval(
@@ -731,14 +738,14 @@ end
 
 @inline function _fused_binary3(
     op::F, branch_op::F2, x1::T, x2::T, x3::T, ::Val{:left}, ::Val{early_exit}
-) where {T,F,F2,early_exit}
+) where {T<:Number,F,F2,early_exit}
     branch_x = branch_op(x1, x2)::T
     return early_exit && !is_valid(branch_x) ? T(Inf) : op(branch_x, x3)::T
 end
 
 @inline function _fused_binary3(
     op::F, branch_op::F2, x1::T, x2::T, x3::T, ::Val{:right}, ::Val{early_exit}
-) where {T,F,F2,early_exit}
+) where {T<:Number,F,F2,early_exit}
     branch_x = branch_op(x2, x3)::T
     return early_exit && !is_valid(branch_x) ? T(Inf) : op(x1, branch_x)::T
 end
@@ -750,7 +757,7 @@ function deg2_branch0_eval(
     branch_op::F2,
     ::Val{side},
     eval_options::EvalOptions{false,false},
-) where {T,F,F2,side}
+) where {T<:Number,F,F2,side}
     branch = side === :left ? get_child(tree, 1) : get_child(tree, 2)
     leaf1 = side === :left ? get_child(branch, 1) : get_child(tree, 1)
     leaf2 = side === :left ? get_child(branch, 2) : get_child(branch, 1)

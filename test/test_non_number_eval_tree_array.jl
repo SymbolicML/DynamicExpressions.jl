@@ -189,6 +189,14 @@ Base.invokelatest(
         x4 = Node(Max2Tensor{Float64}; feature=4)
         x5 = Node(Max2Tensor{Float64}; feature=5)
         x6 = Node(Max2Tensor{Float64}; feature=6)
+        three_leaf_tree = a(a(x1, x2), x3)
+        three_leaf_input = reshape(
+            [Max2Tensor{Float64}(1.0), Max2Tensor{Float64}(2.0), Max2Tensor{Float64}(3.0)],
+            3,
+            1,
+        )
+        @test three_leaf_tree(three_leaf_input, operators) == [Max2Tensor{Float64}(6.0)]
+
         tree = a(
             a(a(a(x1, c1), q(a(x2, c2))), q(a(x3, c3))),
             q(a(a(q(a(x4, c4)), a(x5, c5)), q(a(x6, c6)))),

@@ -146,7 +146,25 @@ function deg2_branch0_eval(
     value3 = constant3 ? leaf3.val : zero(T)
     cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
 
-    if side === :left
+    if side === :left && eval_options.early_exit isa Val{true}
+        @inbounds @simd for j in axes(cX, 2)
+            x1 = ifelse(constant1, value1, cX[feature1, j])
+            x2 = ifelse(constant2, value2, cX[feature2, j])
+            x3 = ifelse(constant3, value3, cX[feature3, j])
+            branch_x = branch_op(x1, x2)
+            x = op(branch_x, x3)
+            cumulator[j] = ifelse(abs(branch_x) < T(Inf), x, T(Inf))
+        end
+    elseif side === :right && eval_options.early_exit isa Val{true}
+        @inbounds @simd for j in axes(cX, 2)
+            x1 = ifelse(constant1, value1, cX[feature1, j])
+            x2 = ifelse(constant2, value2, cX[feature2, j])
+            x3 = ifelse(constant3, value3, cX[feature3, j])
+            branch_x = branch_op(x2, x3)
+            x = op(x1, branch_x)
+            cumulator[j] = ifelse(abs(branch_x) < T(Inf), x, T(Inf))
+        end
+    elseif side === :left
         @turbo for j in axes(cX, 2)
             x1 = ifelse(constant1, value1, cX[feature1, j])
             x2 = ifelse(constant2, value2, cX[feature2, j])
