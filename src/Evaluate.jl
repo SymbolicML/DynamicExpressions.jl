@@ -290,8 +290,6 @@ function _eval_tree_array(
         op_idx = tree.op
         return dispatch_deg1_eval(tree, cX, op_idx, operators, eval_options)
     elseif D == 2 || tree.degree == 2
-        # TODO - add op(op2(x, y), z) and op(x, op2(y, z))
-        # op(x, y), where x, y are constants or variables.
         op_idx = tree.op
         return dispatch_deg2_eval(tree, cX, op_idx, operators, eval_options)
     else
@@ -451,17 +449,47 @@ end
                 if fused && get_child(tree, 1).degree == 0 && get_child(tree, 2).degree == 0
                     deg2_l0_r0_eval(tree, cX, op, eval_options)
                 elseif fused && get_child(tree, 2).degree == 0
-                    result_l = _eval_tree_array(get_child(tree, 1), cX, operators, eval_options)
-                    !result_l.ok && return result_l
-                    @return_on_nonfinite_array(eval_options, result_l.x)
-                    # op(x, y), where y is a constant or variable but x is not.
-                    deg2_r0_eval(tree, result_l.x, cX, op, eval_options)
+                    left = get_child(tree, 1)
+                    if left.degree == 2 &&
+                        get_child(left, 1).degree == 0 &&
+                        get_child(left, 2).degree == 0
+                        dispatch_deg2_branch0_eval(
+                            tree,
+                            cX,
+                            op,
+                            left.op,
+                            operators.binops,
+                            Val(:left),
+                            eval_options,
+                        )
+                    else
+                        result_l = _eval_tree_array(left, cX, operators, eval_options)
+                        !result_l.ok && return result_l
+                        @return_on_nonfinite_array(eval_options, result_l.x)
+                        # op(x, y), where y is a constant or variable but x is not.
+                        deg2_r0_eval(tree, result_l.x, cX, op, eval_options)
+                    end
                 elseif fused && get_child(tree, 1).degree == 0
-                    result_r = _eval_tree_array(get_child(tree, 2), cX, operators, eval_options)
-                    !result_r.ok && return result_r
-                    @return_on_nonfinite_array(eval_options, result_r.x)
-                    # op(x, y), where x is a constant or variable but y is not.
-                    deg2_l0_eval(tree, result_r.x, cX, op, eval_options)
+                    right = get_child(tree, 2)
+                    if right.degree == 2 &&
+                        get_child(right, 1).degree == 0 &&
+                        get_child(right, 2).degree == 0
+                        dispatch_deg2_branch0_eval(
+                            tree,
+                            cX,
+                            op,
+                            right.op,
+                            operators.binops,
+                            Val(:right),
+                            eval_options,
+                        )
+                    else
+                        result_r = _eval_tree_array(right, cX, operators, eval_options)
+                        !result_r.ok && return result_r
+                        @return_on_nonfinite_array(eval_options, result_r.x)
+                        # op(x, y), where x is a constant or variable but y is not.
+                        deg2_l0_eval(tree, result_r.x, cX, op, eval_options)
+                    end
                 else
                     result_l = _eval_tree_array(get_child(tree, 1), cX, operators, eval_options)
                     !result_l.ok && return result_l
@@ -475,6 +503,27 @@ end
                     deg2_eval(result_l.x, result_r.x, op, eval_options)
                 end
             end
+        )
+    end
+end
+
+@generated function dispatch_deg2_branch0_eval(
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    op::F,
+    branch_op_idx::Integer,
+    binops,
+    side_val::Val{side},
+    eval_options::EvalOptions,
+) where {T,F,side}
+    nbin = counttuple(binops)
+    quote
+        Base.Cartesian.@nif(
+            $nbin,
+            i -> i == branch_op_idx,  # COV_EXCL_LINE
+            i -> begin  # COV_EXCL_LINE
+                deg2_branch0_eval(tree, cX, op, binops[i], side_val, eval_options)
+            end,
         )
     end
 end
@@ -651,6 +700,62 @@ function deg1_l1_ll0_eval(
         end  # COV_EXCL_LINE
         return ResultOk(cumulator, true)
     end
+end
+
+@inline function _fused_binary3(
+    op::F, branch_op::F2, x1::T, x2::T, x3::T, ::Val{:left}, ::Val{early_exit}
+) where {T,F,F2,early_exit}
+    branch_x = branch_op(x1, x2)::T
+    return early_exit && !is_valid(branch_x) ? T(Inf) : op(branch_x, x3)::T
+end
+
+@inline function _fused_binary3(
+    op::F, branch_op::F2, x1::T, x2::T, x3::T, ::Val{:right}, ::Val{early_exit}
+) where {T,F,F2,early_exit}
+    branch_x = branch_op(x2, x3)::T
+    return early_exit && !is_valid(branch_x) ? T(Inf) : op(x1, branch_x)::T
+end
+
+function deg2_branch0_eval(
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    op::F,
+    branch_op::F2,
+    ::Val{side},
+    eval_options::EvalOptions{false,false},
+) where {T,F,F2,side}
+    branch = side === :left ? get_child(tree, 1) : get_child(tree, 2)
+    leaf1 = side === :left ? get_child(branch, 1) : get_child(tree, 1)
+    leaf2 = side === :left ? get_child(branch, 2) : get_child(branch, 1)
+    leaf3 = side === :left ? get_child(tree, 2) : get_child(branch, 2)
+
+    if eval_options.early_exit isa Val{true} && leaf1.constant && !is_valid(leaf1.val)
+        return ResultOk(get_array(eval_options.buffer, cX, axes(cX, 2)), false)
+    elseif eval_options.early_exit isa Val{true} && leaf2.constant && !is_valid(leaf2.val)
+        return ResultOk(get_array(eval_options.buffer, cX, axes(cX, 2)), false)
+    elseif eval_options.early_exit isa Val{true} && leaf3.constant && !is_valid(leaf3.val)
+        return ResultOk(get_array(eval_options.buffer, cX, axes(cX, 2)), false)
+    end
+
+    constant1 = leaf1.constant
+    constant2 = leaf2.constant
+    constant3 = leaf3.constant
+    feature1 = constant1 ? 1 : leaf1.feature
+    feature2 = constant2 ? 1 : leaf2.feature
+    feature3 = constant3 ? 1 : leaf3.feature
+    value1 = constant1 ? leaf1.val : zero(T)
+    value2 = constant2 ? leaf2.val : zero(T)
+    value3 = constant3 ? leaf3.val : zero(T)
+    side_val = Val(side)
+    early_exit = eval_options.early_exit
+    cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+    @inbounds @simd for j in axes(cX, 2)
+        x1 = ifelse(constant1, value1, cX[feature1, j])
+        x2 = ifelse(constant2, value2, cX[feature2, j])
+        x3 = ifelse(constant3, value3, cX[feature3, j])
+        cumulator[j] = _fused_binary3(op, branch_op, x1, x2, x3, side_val, early_exit)
+    end  # COV_EXCL_LINE
+    return ResultOk(cumulator, true)
 end
 
 # op(x, y), for x, y either constants or variables.

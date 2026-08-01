@@ -12,6 +12,7 @@ import DynamicExpressions.EvaluateModule:
     degn_eval,
     deg1_l2_ll0_lr0_eval,
     deg1_l1_ll0_eval,
+    deg2_branch0_eval,
     deg2_l0_r0_eval,
     deg2_l0_eval,
     deg2_r0_eval
@@ -111,6 +112,56 @@ function deg1_l1_ll0_eval(
         end
         return ResultOk(cumulator, true)
     end
+end
+
+function deg2_branch0_eval(
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    op::F,
+    branch_op::F2,
+    ::Val{side},
+    eval_options::EvalOptions{true,false},
+) where {T<:Number,F,F2,side}
+    branch = side === :left ? get_child(tree, 1) : get_child(tree, 2)
+    leaf1 = side === :left ? get_child(branch, 1) : get_child(tree, 1)
+    leaf2 = side === :left ? get_child(branch, 2) : get_child(branch, 1)
+    leaf3 = side === :left ? get_child(tree, 2) : get_child(branch, 2)
+
+    if eval_options.early_exit isa Val{true} && leaf1.constant && !isfinite(leaf1.val)
+        return ResultOk(get_array(eval_options.buffer, cX, axes(cX, 2)), false)
+    elseif eval_options.early_exit isa Val{true} && leaf2.constant && !isfinite(leaf2.val)
+        return ResultOk(get_array(eval_options.buffer, cX, axes(cX, 2)), false)
+    elseif eval_options.early_exit isa Val{true} && leaf3.constant && !isfinite(leaf3.val)
+        return ResultOk(get_array(eval_options.buffer, cX, axes(cX, 2)), false)
+    end
+
+    constant1 = leaf1.constant
+    constant2 = leaf2.constant
+    constant3 = leaf3.constant
+    feature1 = constant1 ? 1 : Int(leaf1.feature)
+    feature2 = constant2 ? 1 : Int(leaf2.feature)
+    feature3 = constant3 ? 1 : Int(leaf3.feature)
+    value1 = constant1 ? leaf1.val : zero(T)
+    value2 = constant2 ? leaf2.val : zero(T)
+    value3 = constant3 ? leaf3.val : zero(T)
+    cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+
+    if side === :left
+        @turbo for j in axes(cX, 2)
+            x1 = ifelse(constant1, value1, cX[feature1, j])
+            x2 = ifelse(constant2, value2, cX[feature2, j])
+            x3 = ifelse(constant3, value3, cX[feature3, j])
+            cumulator[j] = op(branch_op(x1, x2), x3)
+        end
+    else
+        @turbo for j in axes(cX, 2)
+            x1 = ifelse(constant1, value1, cX[feature1, j])
+            x2 = ifelse(constant2, value2, cX[feature2, j])
+            x3 = ifelse(constant3, value3, cX[feature3, j])
+            cumulator[j] = op(x1, branch_op(x2, x3))
+        end
+    end
+    return ResultOk(cumulator, true)
 end
 
 function deg2_l0_r0_eval(
