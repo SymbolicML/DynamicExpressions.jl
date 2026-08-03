@@ -32,11 +32,22 @@ macro return_on_nonfinite_array(eval_options, array)
 end
 
 """Buffer management for array allocations during evaluation."""
-struct ArrayBuffer{
-    A<:Union{AbstractMatrix,Vector{<:AbstractVector}},R<:Base.RefValue{<:Integer}
-}
+struct ArrayBuffer{A<:Union{AbstractMatrix,Vector},R<:Base.RefValue{<:Integer}}
     array::A
     index::R
+
+    function ArrayBuffer(
+        array::A, index::R
+    ) where {A<:Union{AbstractMatrix,Vector},R<:Base.RefValue{<:Integer}}
+        if A <: Vector && !isconcretetype(eltype(A))
+            throw(
+                ArgumentError(
+                    "ArrayBuffer storage must have a concrete element type, got $(eltype(A))",
+                ),
+            )
+        end
+        return new{A,R}(array, index)
+    end
 end
 
 function Base.copy(buffer::ArrayBuffer{<:AbstractMatrix})

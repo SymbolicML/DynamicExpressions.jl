@@ -74,8 +74,8 @@ end
     @test copied.array !== buffer.array
     @test all(a !== b for (a, b) in zip(copied.array, buffer.array))
 
-    abstract_buffer = ArrayBuffer(AbstractVector{Float64}[], Ref(0))
-    @test copy(abstract_buffer).array isa Vector{AbstractVector{Float64}}
+    # Abstractly-typed buffer storage is not allowed
+    @test_throws ArgumentError ArrayBuffer(AbstractVector{Float64}[], Ref(0))
 end
 
 @testitem "Buffer correctness" begin
