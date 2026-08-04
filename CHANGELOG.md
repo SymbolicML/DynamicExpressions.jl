@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.6.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.5.2...v2.6.0) (2026-08-04)
+
+
+### Bug Fixes
+
+* remove default zero(UInt) from hash seed ([#141](https://github.com/SymbolicML/DynamicExpressions.jl/issues/141)) ([bdf8e1b](https://github.com/SymbolicML/DynamicExpressions.jl/commit/bdf8e1bfb5d660a3206b4ddcb158010980564eed))
+
+
+### Performance Improvements
+
+* fuse three-leaf evaluation and reuse contiguous buffers ([#180](https://github.com/SymbolicML/DynamicExpressions.jl/issues/180)) ([e75a912](https://github.com/SymbolicML/DynamicExpressions.jl/commit/e75a9121763521c3c34b9f7ae57a2baa664f8a99))
+
 ## [2.5.2](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.5.1...v2.5.2) (2026-03-23)
 
 
