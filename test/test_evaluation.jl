@@ -21,6 +21,16 @@ functions = [
     (x1, x2, x3) -> sin(x1) * x2,
     (x1, x2, x3) -> sin(x1) * 3.0,
 
+    # deg2_branch0_eval
+    (x1, x2, x3) -> (x1 * x2) + x3,
+    (x1, x2, x3) -> (3.0 * x2) + x3,
+    (x1, x2, x3) -> (x1 * 3.0) + x3,
+    (x1, x2, x3) -> (x1 * x2) + 3.0,
+    (x1, x2, x3) -> x1 + (x2 * x3),
+    (x1, x2, x3) -> 3.0 + (x2 * x3),
+    (x1, x2, x3) -> x1 + (3.0 * x3),
+    (x1, x2, x3) -> x1 + (x2 * 3.0),
+
     # deg1_l2_ll0_lr0_eval
     (x1, x2, x3) -> cos(x1 * x2),
     (x1, x2, x3) -> cos(x1 * 3.0),
@@ -82,6 +92,68 @@ for turbo in [Val(false), Val(true)],
 end
 end
 #! format: on
+
+@testitem "Fused branch preserves early exit" begin
+    using DynamicExpressions, LoopVectorization
+    using DynamicExpressions.EvaluateModule: EvalOptions
+
+    function finite_min(x, y)
+        isfinite(x) && isfinite(y) || error("nonfinite input")
+        return min(x, y)
+    end
+
+    operators = OperatorEnum(; binary_operators=[finite_min, /])
+    x1 = Node(Float64; feature=1)
+    x2 = Node(Float64; feature=2)
+    x3 = Node(Float64; feature=3)
+
+    for (tree, X) in (
+        (Node(1, Node(2, x1, x2), x3), [1.0; 0.0; 2.0;;]),
+        (Node(1, x1, Node(2, x2, x3)), [2.0; 1.0; 0.0;;]),
+        (Node(1, Node(2, x1, x2), x3), [1.0; 1.0; Inf;;]),
+        (Node(1, x1, Node(2, x2, x3)), [Inf; 1.0; 1.0;;]),
+    )
+        for turbo in (false, true)
+            _, ok = eval_tree_array(
+                tree, X, operators; eval_options=EvalOptions(; turbo, early_exit=true)
+            )
+            @test !ok
+        end
+    end
+
+    inf = Node(Float64; val=Inf)
+    for tree in (
+        Node(1, Node(2, inf, x2), x3),
+        Node(1, Node(2, x1, inf), x3),
+        Node(1, Node(2, x1, x2), inf),
+    )
+        _, ok = eval_tree_array(
+            tree,
+            ones(3, 1),
+            operators;
+            eval_options=EvalOptions(; turbo=true, early_exit=true),
+        )
+        @test !ok
+    end
+
+    finite_operators = OperatorEnum(; binary_operators=[+, *])
+    right_tree = Node(1, x1, Node(2, x2, x3))
+    X = [1.0 2.0; 3.0 4.0; 5.0 6.0]
+    expected, expected_ok = eval_tree_array(
+        right_tree,
+        X,
+        finite_operators;
+        eval_options=EvalOptions(; turbo=false, early_exit=false),
+    )
+    result, ok = eval_tree_array(
+        right_tree,
+        X,
+        finite_operators;
+        eval_options=EvalOptions(; turbo=true, early_exit=false),
+    )
+    @test result == expected
+    @test ok == expected_ok
+end
 
 @testitem "Test specific branches of evaluation" begin
     using DynamicExpressions, DynamicExpressions, Bumper, LoopVectorization
