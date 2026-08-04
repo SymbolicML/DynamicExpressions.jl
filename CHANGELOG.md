@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.7.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.6.0...v2.7.0) (2026-08-04)
+
+
+### Features
+
+* let callers manage ArrayBuffer lifetimes ([#186](https://github.com/SymbolicML/DynamicExpressions.jl/issues/186)) ([622aa6e](https://github.com/SymbolicML/DynamicExpressions.jl/commit/622aa6e7ef0a9706f85b7a4bd4729c7ac0a36f31))
+
+
+### Bug Fixes
+
+* align downgrade compatibility floors ([#182](https://github.com/SymbolicML/DynamicExpressions.jl/issues/182)) ([8b0b87c](https://github.com/SymbolicML/DynamicExpressions.jl/commit/8b0b87cba749fd9a1a43f90abbaa6a127e1d4724))
+
 ## [2.6.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.5.2...v2.6.0) (2026-08-04)
 
 
