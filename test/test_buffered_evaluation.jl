@@ -107,41 +107,33 @@ end
     end
 end
 
-@testitem "Buffer index management" begin
+@testitem "Caller-owned buffer index management" begin
     using DynamicExpressions
     using DynamicExpressions: ArrayBuffer
-    X = rand(2, 10)
-    operators = OperatorEnum(; binary_operators=[+, *], unary_operators=[sin])
+    using DynamicExpressions.EvaluateModule: reset_index!
 
-    # Create a complex tree that will use multiple buffer slots
-    tree = Node(;
-        op=1,  # +
-        l=Node(; op=1, l=Node(Float64; feature=1)),  # sin(x1)
-        r=Node(; op=1, l=Node(Float64; feature=2), r=Node(Float64; val=2.0)),  # x2 + 2
-    )
+    X1 = reshape(1.0:10.0, 1, :)
+    X2 = reshape(11.0:20.0, 1, :)
+    operators = OperatorEnum(; unary_operators=[sin])
+    tree = Node(; op=1, l=Node(Float64; feature=1))
+    arrays = Vector{Vector{Float64}}()
+    buffer = ArrayBuffer(arrays, Ref(0))
+    eval_options = EvalOptions(; buffer)
 
-    # This tree needs more buffer space due to intermediate computations
-    buffer = zeros(10, size(X, 2))
-    buffer_ref = Ref(0)
-    eval_options = EvalOptions(; buffer=ArrayBuffer(buffer, buffer_ref))
+    result1, ok1 = eval_tree_array(tree, X1, operators; eval_options)
+    expected1 = copy(result1)
+    result2, ok2 = eval_tree_array(tree, X2, operators; eval_options)
 
-    # Index should start at 1
-    @test buffer_ref[] == 0
+    @test ok1 && ok2
+    @test result1 === arrays[1]
+    @test result2 === arrays[2]
+    @test result1 == expected1
 
-    # Evaluate
-    result, ok = eval_tree_array(tree, X, operators; eval_options)
-
-    # Index should have advanced
-    @test buffer_ref[] == 2
-
-    # Reset and evaluate again
-    result2, ok2 = eval_tree_array(tree, X, operators; eval_options)
-    # (We expect the index to automatically reset)
-
-    # Results should be identical
-    @test result ≈ result2
-    @test ok == ok2
-    @test buffer_ref[] == 2
+    reset_index!(buffer)
+    result3, ok3 = eval_tree_array(tree, X2, operators; eval_options)
+    @test ok3
+    @test result3 === result1
+    @test result3 == result2
 end
 
 @testitem "Buffer error handling" begin
@@ -196,7 +188,7 @@ end
 
         # Buffer evaluation
         buffer = Array{Float64}(undef, 2n_nodes, size(X, 2))
-        buffer_ref = Ref(rand(rng, 1:10))  # Random starting index (will be reset)
+        buffer_ref = Ref(0)
         eval_options = EvalOptions(; turbo, buffer=ArrayBuffer(buffer, buffer_ref))
         result2, ok2 = eval_tree_array(tree, X, operators; eval_options)
 

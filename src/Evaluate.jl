@@ -31,7 +31,12 @@ macro return_on_nonfinite_array(eval_options, array)
     )
 end
 
-"""Buffer management for array allocations during evaluation."""
+"""
+Internal arena for array allocations during evaluation.
+
+The creator must call `reset_index!` before each top-level evaluation. Returned arrays
+borrow arena slots and remain valid until the next reset.
+"""
 struct ArrayBuffer{A<:Union{AbstractMatrix,Vector},R<:Base.RefValue{<:Integer}}
     array::A
     index::R
@@ -135,7 +140,8 @@ This holds options for expression evaluation, such as evaluation backend.
     `NaN`s only in the elements that actually have `NaN`s.
 - `buffer::Union{ArrayBuffer,Nothing}`: If not `nothing`, use this buffer for evaluation.
     This should be an instance of `ArrayBuffer` which has an `array` field and an
-    `index` field used to iterate which buffer slot to use.
+    `index` field used to iterate which buffer slot to use. The buffer creator must
+    reset its index before each top-level evaluation.
 - `use_fused::Val{U}=Val(true)`: If `Val{true}`, use fused kernels for faster
     evaluation. Setting this to `Val{false}` will skip the fused kernels, meaning that
     you would only need to overload `deg0_eval`, `deg1_eval` and `deg2_eval` for custom
@@ -274,8 +280,6 @@ function eval_tree_array(
     if _eval_options.bumper isa Val{true}
         return bumper_eval_tree_array(tree, cX, operators, _eval_options)
     end
-
-    reset_index!(_eval_options.buffer)
 
     result = _eval_tree_array(tree, cX, operators, _eval_options)
     return (
