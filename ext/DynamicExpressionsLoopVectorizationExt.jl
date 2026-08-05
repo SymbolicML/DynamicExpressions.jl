@@ -5,7 +5,7 @@ using DynamicExpressions: AbstractExpressionNode
 using DynamicExpressions.NodeModule: get_child
 using DynamicExpressions.UtilsModule: ResultOk
 using DynamicExpressions.EvaluateModule:
-    @return_on_nonfinite_val, EvalOptions, get_array, get_feature_array, get_filled_array
+    @return_on_nonfinite_val, EvalContext, get_array, get_feature_array, get_filled_array
 import DynamicExpressions.EvaluateModule:
     deg1_eval,
     deg2_eval,
@@ -22,7 +22,7 @@ import DynamicExpressions.ExtensionInterfaceModule:
 _is_loopvectorization_loaded(::Int) = true
 
 @generated function degn_eval(
-    cumulators::NTuple{N,<:AbstractVector{T}}, op::F, ::EvalOptions{true}
+    cumulators::NTuple{N,<:AbstractVector{T}}, op::F, ::EvalContext{true}
 )::ResultOk where {N,T,F}
     # Fast general implementation of `cumulators[1] .= op.(cumulators[1], cumulators[2], ...)`
     quote
@@ -39,7 +39,7 @@ function deg1_l2_ll0_lr0_eval(
     cX::AbstractMatrix{T},
     op::F,
     op_l::F2,
-    eval_options::EvalOptions{true},
+    eval_options::EvalContext{true},
 ) where {T<:Number,F,F2}
     if get_child(get_child(tree, 1), 1).constant &&
         get_child(get_child(tree, 1), 2).constant
@@ -92,7 +92,7 @@ function deg1_l1_ll0_eval(
     cX::AbstractMatrix{T},
     op::F,
     op_l::F2,
-    eval_options::EvalOptions{true},
+    eval_options::EvalContext{true},
 ) where {T<:Number,F,F2}
     if get_child(get_child(tree, 1), 1).constant
         val_ll = get_child(get_child(tree, 1), 1).val
@@ -120,7 +120,7 @@ function deg2_branch0_eval(
     op::F,
     branch_op::F2,
     ::Val{side},
-    eval_options::EvalOptions{true,false},
+    eval_options::EvalContext{true,false},
 ) where {T<:Number,F,F2,side}
     branch = side === :left ? get_child(tree, 1) : get_child(tree, 2)
     leaf1 = side === :left ? get_child(branch, 1) : get_child(tree, 1)
@@ -184,7 +184,7 @@ function deg2_l0_r0_eval(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     op::F,
-    eval_options::EvalOptions{true},
+    eval_options::EvalContext{true},
 ) where {T<:Number,F}
     if get_child(tree, 1).constant && get_child(tree, 2).constant
         val_l = get_child(tree, 1).val
@@ -232,7 +232,7 @@ function deg2_l0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    eval_options::EvalOptions{true},
+    eval_options::EvalContext{true},
 ) where {T<:Number,F}
     if get_child(tree, 1).constant
         val = get_child(tree, 1).val
@@ -257,7 +257,7 @@ function deg2_r0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    eval_options::EvalOptions{true},
+    eval_options::EvalContext{true},
 ) where {T<:Number,F}
     if get_child(tree, 2).constant
         val = get_child(tree, 2).val
@@ -279,7 +279,7 @@ end
 
 # Interface with Bumper.jl
 function bumper_kern!(
-    op::F, cumulators::Tuple{Vararg{Any,degree}}, ::EvalOptions{true,true,early_exit}
+    op::F, cumulators::Tuple{Vararg{Any,degree}}, ::EvalContext{true,true,early_exit}
 ) where {F,degree,early_exit}
     cumulator_1 = first(cumulators)
     @turbo @. cumulator_1 = op(cumulators...)
