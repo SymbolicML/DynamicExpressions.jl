@@ -11,14 +11,12 @@ using SymbolicUtils
 using SymbolicUtils: BasicSymbolic, SymReal, iscall, issym, isconst, unwrap_const
 
 import DynamicExpressions.ExtensionInterfaceModule:
-    _is_extension_loaded,
+    is_extension_loaded,
     _node_to_symbolic,
     _symbolic_to_node,
     node_to_symbolic,
     symbolic_to_node
 import DynamicExpressions.ValueInterfaceModule: is_valid
-
-_is_extension_loaded(::Val{:SymbolicUtils}) = true
 
 const SYMBOLIC_UTILS_TYPES = Union{<:Number,BasicSymbolic}
 const SUPPORTED_OPS = (cos, sin, exp, cot, tan, csc, sec, +, -, *, /)
@@ -275,24 +273,6 @@ function Base.convert(
     return constructorof(E)(tree; operators, variable_names, kws...)
 end
 
-"""
-    node_to_symbolic(tree::AbstractExpressionNode, operators::AbstractOperatorEnum;
-                variable_names::Union{AbstractVector{<:AbstractString}, Nothing}=nothing,
-                index_functions::Bool=false)
-
-The interface to SymbolicUtils.jl. Passing a tree to this function
-will generate a symbolic equation in SymbolicUtils.jl format.
-
-## Arguments
-
-- `tree::AbstractExpressionNode`: The equation to convert.
-- `operators::AbstractOperatorEnum`: OperatorEnum, which contains the operators used in the equation.
-- `variable_names::Union{AbstractVector{<:AbstractString}, Nothing}=nothing`: What variable names to use for
-    each feature. Default is [x1, x2, x3, ...].
-- `index_functions::Bool=false`: Whether to generate special names for the
-    operators, which then allows one to convert back to a `AbstractExpressionNode` format
-    using `symbolic_to_node`.
-"""
 function _node_to_symbolic(
     tree::AbstractExpressionNode{T,2},
     operators::AbstractOperatorEnum;
@@ -435,5 +415,7 @@ function multiply_powers(
         return cumulator, true
     end
 end
+
+is_extension_loaded(::Val{:SymbolicUtils}) = true
 
 end

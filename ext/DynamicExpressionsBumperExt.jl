@@ -6,9 +6,7 @@ using DynamicExpressions:
 using DynamicExpressions.UtilsModule: ResultOk, counttuple
 
 import DynamicExpressions.ExtensionInterfaceModule:
-    _bumper_eval_tree_array, _is_extension_loaded, bumper_kern!
-
-_is_extension_loaded(::Val{:Bumper}) = true
+    _bumper_eval_tree_array, is_extension_loaded, bumper_kern!
 
 function _bumper_eval_tree_array(
     tree::AbstractExpressionNode{T},
@@ -89,5 +87,7 @@ function bumper_kern!(
     @. cumulator_1 = op(cumulators...)
     return cumulator_1
 end
+
+is_extension_loaded(::Val{:Bumper}) = true
 
 end
