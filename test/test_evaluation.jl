@@ -352,8 +352,11 @@ end
     @test EvalContext(; turbo=Val(true)) isa EvalContext{true}
     @test EvalContext(; turbo=false) isa EvalContext{false}
     @test EvalContext(; turbo=Val(false)) isa EvalContext{false}
-    old_context = @test_deprecated DynamicExpressions.EvalOptions()
-    @test old_context isa EvalContext
+    @test Base.isdeprecated(DynamicExpressions, :EvalOptions)
+    @test DynamicExpressions.EvalOptions === EvalContext
+    @test DynamicExpressions.EvalOptions() isa EvalContext
+    @test EvalContext(; turbo=true, bumper=true) isa
+        DynamicExpressions.EvalOptions{true,true}
 
     ex = Expression(Node{Float64}(; feature=1))
     @test_throws ArgumentError ex(randn(1, 5), OperatorEnum(); bad_arg=1)
