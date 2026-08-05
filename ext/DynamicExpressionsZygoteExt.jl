@@ -1,9 +1,12 @@
 module DynamicExpressionsZygoteExt
 
 using Zygote: gradient
-import DynamicExpressions.ExtensionInterfaceModule: _zygote_gradient, ZygoteGradient
+import DynamicExpressions.ExtensionInterfaceModule:
+    _is_extension_loaded, _zygote_gradient_impl, ZygoteGradient
 
-function _zygote_gradient(op::F, ::Val{degree}) where {F,degree}
+_is_extension_loaded(::Val{:Zygote}) = true
+
+function _zygote_gradient_impl(op::F, ::Val{degree}) where {F,degree}
     return ZygoteGradient{F,degree}(op)
 end
 

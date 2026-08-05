@@ -10,8 +10,15 @@ using DynamicExpressions.UtilsModule: deprecate_varmap
 using SymbolicUtils
 using SymbolicUtils: BasicSymbolic, SymReal, iscall, issym, isconst, unwrap_const
 
-import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
+import DynamicExpressions.ExtensionInterfaceModule:
+    _is_extension_loaded,
+    _node_to_symbolic,
+    _symbolic_to_node,
+    node_to_symbolic,
+    symbolic_to_node
 import DynamicExpressions.ValueInterfaceModule: is_valid
+
+_is_extension_loaded(::Val{:SymbolicUtils}) = true
 
 const SYMBOLIC_UTILS_TYPES = Union{<:Number,BasicSymbolic}
 const SUPPORTED_OPS = (cos, sin, exp, cot, tan, csc, sec, +, -, *, /)
@@ -286,7 +293,7 @@ will generate a symbolic equation in SymbolicUtils.jl format.
     operators, which then allows one to convert back to a `AbstractExpressionNode` format
     using `symbolic_to_node`.
 """
-function node_to_symbolic(
+function _node_to_symbolic(
     tree::AbstractExpressionNode{T,2},
     operators::AbstractOperatorEnum;
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
@@ -309,7 +316,7 @@ function node_to_symbolic(
     )
     return substitute(expr, subs)
 end
-function node_to_symbolic(
+function _node_to_symbolic(
     tree::AbstractExpression,
     operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
@@ -323,7 +330,7 @@ function node_to_symbolic(
     )
 end
 
-function symbolic_to_node(
+function _symbolic_to_node(
     eqn::BasicSymbolic,
     operators::AbstractOperatorEnum,
     ::Type{N}=Node;
