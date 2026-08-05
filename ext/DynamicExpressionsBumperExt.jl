@@ -2,7 +2,7 @@ module DynamicExpressionsBumperExt
 
 using Bumper: @no_escape, @alloc
 using DynamicExpressions:
-    OperatorEnum, AbstractExpressionNode, tree_mapreduce, is_valid_array, EvalOptions
+    OperatorEnum, AbstractExpressionNode, tree_mapreduce, is_valid_array, EvalContext
 using DynamicExpressions.UtilsModule: ResultOk, counttuple
 
 import DynamicExpressions.ExtensionInterfaceModule: bumper_eval_tree_array, bumper_kern!
@@ -11,7 +11,7 @@ function bumper_eval_tree_array(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    eval_options::EvalOptions{turbo,true,early_exit},
+    eval_options::EvalContext{turbo,true,early_exit},
 ) where {T,turbo,early_exit}
     result = similar(cX, axes(cX, 2))
     n = size(cX, 2)
@@ -47,12 +47,12 @@ function bumper_eval_tree_array(
     return (result, all_ok[])
 end
 
-struct KernelDispatcher{O<:OperatorEnum,E<:EvalOptions{<:Any,true,<:Any}} <: Function
+struct KernelDispatcher{O<:OperatorEnum,E<:EvalContext{<:Any,true,<:Any}} <: Function
     operators::O
     eval_options::E
 end
 
-@generated function (kd::KernelDispatcher{<:Any,<:EvalOptions{<:Any,true,early_exit}})(
+@generated function (kd::KernelDispatcher{<:Any,<:EvalContext{<:Any,true,early_exit}})(
     branch_node, inputs::Vararg{Any,degree}
 ) where {degree,early_exit}
     quote
@@ -66,7 +66,7 @@ end
     operators::OperatorEnum{OPS},
     branch_node,
     cumulators::Tuple{Vararg{Any,degree}},
-    eval_options::EvalOptions,
+    eval_options::EvalContext,
 ) where {OPS,degree}
     nops = length(OPS.types[degree].types)
     quote
@@ -80,7 +80,7 @@ end
 end
 
 function bumper_kern!(
-    op::F, cumulators::Tuple{Vararg{Any,degree}}, ::EvalOptions{false,true,early_exit}
+    op::F, cumulators::Tuple{Vararg{Any,degree}}, ::EvalContext{false,true,early_exit}
 ) where {F,degree,early_exit}
     cumulator_1 = first(cumulators)
     @. cumulator_1 = op(cumulators...)

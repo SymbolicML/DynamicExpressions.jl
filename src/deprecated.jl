@@ -74,6 +74,7 @@ Base.@deprecate_binding EquationUtilsModule NodeUtilsModule
 Base.@deprecate_binding EvaluateEquationModule EvaluateModule
 Base.@deprecate_binding EvaluateEquationDerivativeModule EvaluateDerivativeModule
 Base.@deprecate_binding SimplifyEquationModule SimplifyModule
+Base.@deprecate_binding EvalOptions EvalContext
 
 @deprecate(
     count_constants(tree::Union{AbstractExpression,AbstractExpressionNode}),

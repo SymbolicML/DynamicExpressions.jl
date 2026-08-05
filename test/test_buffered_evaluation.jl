@@ -12,7 +12,7 @@
     # Basic buffer creation - buffer shape should match (num_leafs, num_samples)
     buffer = zeros(5, size(X, 2))  # 5 leaves should be enough for our test tree
     buffer_ref = Ref(0)
-    eval_options = EvalOptions(; buffer=ArrayBuffer(buffer, buffer_ref))
+    eval_options = EvalContext(; buffer=ArrayBuffer(buffer, buffer_ref))
     @test eval_options.buffer.array === buffer
     @test eval_options.buffer.index === buffer_ref
 
@@ -23,7 +23,7 @@
     @test copied_buffer.index !== buffer_ref
 
     # Test buffer is not allowed with bumper
-    @test_throws AssertionError EvalOptions(;
+    @test_throws AssertionError EvalContext(;
         bumper=true, buffer=ArrayBuffer(buffer, buffer_ref)
     )
 
@@ -46,7 +46,7 @@ end
     )
     arrays = Vector{Vector{Float64}}()
     buffer = ArrayBuffer(arrays, Ref(0))
-    eval_options = EvalOptions(; buffer)
+    eval_options = EvalContext(; buffer)
 
     expected, expected_ok = eval_tree_array(tree, X, operators)
     result, ok = eval_tree_array(tree, X, operators; eval_options)
@@ -98,7 +98,7 @@ end
         # Evaluation with buffer
         buffer = zeros(5, size(X, 2))
         buffer_ref = Ref(0)
-        eval_options = EvalOptions(; buffer=ArrayBuffer(buffer, buffer_ref))
+        eval_options = EvalContext(; buffer=ArrayBuffer(buffer, buffer_ref))
         result2, ok2 = eval_tree_array(tree, X, operators; eval_options)
 
         # Results should be identical
@@ -118,7 +118,7 @@ end
     tree = Node(; op=1, l=Node(Float64; feature=1))
     arrays = Vector{Vector{Float64}}()
     buffer = ArrayBuffer(arrays, Ref(0))
-    eval_options = EvalOptions(; buffer)
+    eval_options = EvalContext(; buffer)
 
     result1, ok1 = eval_tree_array(tree, X1, operators; eval_options)
     expected1 = copy(result1)
@@ -152,7 +152,7 @@ end
 
     buffer = zeros(5, size(X, 2))
     buffer_ref = Ref(0)
-    eval_options = EvalOptions(; buffer=ArrayBuffer(buffer, buffer_ref))
+    eval_options = EvalContext(; buffer=ArrayBuffer(buffer, buffer_ref))
 
     # Test with early_exit=true
     result1, ok1 = eval_tree_array(tree, X, operators; eval_options)
@@ -181,7 +181,7 @@ end
         )
 
         # Regular evaluation
-        eval_options_no_buffer = EvalOptions(; turbo)
+        eval_options_no_buffer = EvalContext(; turbo)
         result1, ok1 = eval_tree_array(
             tree, X, operators; eval_options=eval_options_no_buffer
         )
@@ -189,7 +189,7 @@ end
         # Buffer evaluation
         buffer = Array{Float64}(undef, 2n_nodes, size(X, 2))
         buffer_ref = Ref(0)
-        eval_options = EvalOptions(; turbo, buffer=ArrayBuffer(buffer, buffer_ref))
+        eval_options = EvalContext(; turbo, buffer=ArrayBuffer(buffer, buffer_ref))
         result2, ok2 = eval_tree_array(tree, X, operators; eval_options)
 
         # Results should be identical

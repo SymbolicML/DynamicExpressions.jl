@@ -122,7 +122,7 @@ function get_feature_array(
 end
 
 """
-    EvalOptions
+    EvalContext
 
 This holds options for expression evaluation, such as evaluation backend.
 
@@ -147,7 +147,7 @@ This holds options for expression evaluation, such as evaluation backend.
     you would only need to overload `deg0_eval`, `deg1_eval` and `deg2_eval` for custom
     evaluation.
 """
-struct EvalOptions{T,B,E,BUF<:Union{ArrayBuffer,Nothing},U}
+struct EvalContext{T,B,E,BUF<:Union{ArrayBuffer,Nothing},U}
     turbo::Val{T}
     bumper::Val{B}
     early_exit::Val{E}
@@ -155,7 +155,7 @@ struct EvalOptions{T,B,E,BUF<:Union{ArrayBuffer,Nothing},U}
     use_fused::Val{U}
 end
 
-@unstable function EvalOptions(;
+@unstable function EvalContext(;
     turbo::Union{Bool,Val}=Val(false),
     bumper::Union{Bool,Val}=Val(false),
     early_exit::Union{Bool,Val}=Val(true),
@@ -171,18 +171,20 @@ end
         @assert buffer === nothing
     end
 
-    return EvalOptions(v_turbo, v_bumper, v_early_exit, buffer, v_use_fused)
+    return EvalContext(v_turbo, v_bumper, v_early_exit, buffer, v_use_fused)
 end
+
+Base.@deprecate_binding EvalOptions EvalContext
 
 @unstable @inline _to_bool_val(x::Bool) = x ? Val(true) : Val(false)
 @inline _to_bool_val(::Val{T}) where {T} = Val(T::Bool)
 
-@inline use_fused(eval_options::EvalOptions) = eval_options.use_fused isa Val{true}
+@inline use_fused(eval_options::EvalContext) = eval_options.use_fused isa Val{true}
 
 _copy(x) = copy(x)
 _copy(::Nothing) = nothing
-function Base.copy(eval_options::EvalOptions)
-    return EvalOptions(;
+function Base.copy(eval_options::EvalContext)
+    return EvalContext(;
         turbo=eval_options.turbo,
         bumper=eval_options.bumper,
         early_exit=eval_options.early_exit,
@@ -207,7 +209,7 @@ end
     if eval_options !== nothing
         return eval_options
     else
-        return EvalOptions(;
+        return EvalContext(;
             turbo=turbo === nothing ? Val(false) : turbo,
             bumper=bumper === nothing ? Val(false) : bumper,
         )
@@ -219,7 +221,7 @@ end
         tree::AbstractExpressionNode{T},
         cX::AbstractMatrix{T},
         operators::OperatorEnum;
-        eval_options::Union{EvalOptions,Nothing}=nothing,
+        eval_options::Union{EvalContext,Nothing}=nothing,
     ) where {T}
 
 Evaluate a binary tree (equation) over a given input data matrix. The
@@ -230,7 +232,7 @@ and triplets of operations for lower memory usage.
 - `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
 - `cX::AbstractMatrix{T}`: The input data to evaluate the tree on, with shape `[num_features, num_rows]`.
 - `operators::OperatorEnum`: The operators used in the tree.
-- `eval_options::Union{EvalOptions,Nothing}`: See [`EvalOptions`](@ref) for documentation
+- `eval_options::Union{EvalContext,Nothing}`: See [`EvalContext`](@ref) for documentation
     on the different evaluation modes.
 
 
@@ -260,7 +262,7 @@ function eval_tree_array(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
-    eval_options::Union{EvalOptions,Nothing}=nothing,
+    eval_options::Union{EvalContext,Nothing}=nothing,
     _deprecated_kws...,
 ) where {T}
     _eval_options = _process_deprecated_kws(eval_options, _deprecated_kws)
@@ -318,7 +320,7 @@ function _eval_tree_array(
     tree::AbstractExpressionNode{T,D},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    eval_options::EvalOptions,
+    eval_options::EvalContext,
 )::ResultOk where {T,D}
     # First, we see if there are only constants in the tree - meaning
     # we can just return the constant result.
@@ -344,7 +346,7 @@ function _eval_tree_array(
 end
 
 @generated function degn_eval(
-    cumulators::NTuple{N,<:AbstractVector{T}}, op::F, ::EvalOptions{false}
+    cumulators::NTuple{N,<:AbstractVector{T}}, op::F, ::EvalContext{false}
 )::ResultOk where {N,T,F}
     # Fast general implementation of `cumulators[1] .= op.(cumulators[1], cumulators[2], ...)`
     quote
@@ -360,19 +362,19 @@ function deg2_eval(
     cumulator_l::AbstractVector{T},
     cumulator_r::AbstractVector{T},
     op::F,
-    eval_options::EvalOptions,
+    eval_options::EvalContext,
 )::ResultOk where {T,F}
     return degn_eval((cumulator_l, cumulator_r), op, eval_options)
 end
 
 function deg1_eval(
-    cumulator::AbstractVector{T}, op::F, eval_options::EvalOptions
+    cumulator::AbstractVector{T}, op::F, eval_options::EvalContext
 )::ResultOk where {T,F}
     return degn_eval((cumulator,), op, eval_options)
 end
 
 function deg0_eval(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, eval_options::EvalOptions
+    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, eval_options::EvalContext
 )::ResultOk where {T}
     if tree.constant
         return ResultOk(
@@ -410,7 +412,7 @@ function inner_dispatch_degn_eval(
     cX::AbstractMatrix{T},
     ::Val{degree},
     operators::OperatorEnum,
-    eval_options::EvalOptions,
+    eval_options::EvalContext,
 ) where {T,degree}
     return _inner_dispatch_degn_eval(
         tree, cX, Val(degree), operators, eval_options
@@ -421,7 +423,7 @@ end
     cX::AbstractMatrix{T},
     ::Val{degree},
     operators::O,
-    eval_options::EvalOptions,
+    eval_options::EvalContext,
 ) where {T,degree,O<:OperatorEnum}
     nops = get_nops(O, Val(degree))
     return quote
@@ -451,7 +453,7 @@ end
     tree::AbstractExpressionNode{T,D},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    eval_options::EvalOptions,
+    eval_options::EvalContext,
 ) where {T,D}
     return quote
         # If statement over degrees
@@ -470,7 +472,7 @@ end
     cX::AbstractMatrix{T},
     op_idx::Integer,
     operators::OperatorEnum,
-    eval_options::EvalOptions,
+    eval_options::EvalContext,
 ) where {T}
     nbin = get_nops(operators, Val(2))
     long_compilation_time = nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
@@ -563,7 +565,7 @@ end
     branch_op_idx::Integer,
     binops,
     side_val::Val{side},
-    eval_options::EvalOptions,
+    eval_options::EvalContext,
 ) where {T,F,side}
     nbin = counttuple(binops)
     quote
@@ -581,7 +583,7 @@ end
     cX::AbstractMatrix{T},
     op_idx::Integer,
     operators::OperatorEnum,
-    eval_options::EvalOptions,
+    eval_options::EvalContext,
 ) where {T}
     nuna = get_nops(operators, Val(1))
     long_compilation_time = nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
@@ -635,7 +637,7 @@ end
     op::F,
     l_op_idx::Integer,
     binops,
-    eval_options::EvalOptions,
+    eval_options::EvalContext,
 ) where {T,F}
     nbin = counttuple(binops)
     # (Note this is only called from dispatch_deg1_eval, which has already
@@ -656,7 +658,7 @@ end
     op::F,
     l_op_idx::Integer,
     unaops,
-    eval_options::EvalOptions,
+    eval_options::EvalContext,
 )::ResultOk where {T,F}
     nuna = counttuple(unaops)
     quote
@@ -675,7 +677,7 @@ function deg1_l2_ll0_lr0_eval(
     cX::AbstractMatrix{T},
     op::F,
     op_l::F2,
-    eval_options::EvalOptions{false,false},
+    eval_options::EvalContext{false,false},
 ) where {T,F,F2}
     if get_child(get_child(tree, 1), 1).constant &&
         get_child(get_child(tree, 1), 2).constant
@@ -729,7 +731,7 @@ function deg1_l1_ll0_eval(
     cX::AbstractMatrix{T},
     op::F,
     op_l::F2,
-    eval_options::EvalOptions{false,false},
+    eval_options::EvalContext{false,false},
 ) where {T,F,F2}
     if get_child(get_child(tree, 1), 1).constant
         val_ll = get_child(get_child(tree, 1), 1).val
@@ -779,7 +781,7 @@ function deg2_branch0_eval(
     op::F,
     branch_op::F2,
     ::Val{side},
-    eval_options::EvalOptions{false,false},
+    eval_options::EvalContext{false,false},
 ) where {T<:Number,F,F2,side}
     branch = side === :left ? get_child(tree, 1) : get_child(tree, 2)
     leaf1 = side === :left ? get_child(branch, 1) : get_child(tree, 1)
@@ -820,7 +822,7 @@ function deg2_l0_r0_eval(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     op::F,
-    eval_options::EvalOptions{false,false},
+    eval_options::EvalContext{false,false},
 ) where {T,F}
     if get_child(tree, 1).constant && get_child(tree, 2).constant
         val_l = get_child(tree, 1).val
@@ -868,7 +870,7 @@ function deg2_l0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    eval_options::EvalOptions{false,false},
+    eval_options::EvalContext{false,false},
 ) where {T,F}
     if get_child(tree, 1).constant
         val = get_child(tree, 1).val
@@ -894,7 +896,7 @@ function deg2_r0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    eval_options::EvalOptions{false,false},
+    eval_options::EvalContext{false,false},
 ) where {T,F}
     if get_child(tree, 2).constant
         val = get_child(tree, 2).val
