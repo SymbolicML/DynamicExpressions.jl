@@ -1,5 +1,7 @@
 using DynamicExpressions
 using DynamicExpressions: EvalContext
+using DynamicExpressions.ExtensionInterfaceModule:
+    is_extension_loaded, _zygote_gradient, bumper_eval_tree_array
 using DispatchDoctor: allow_unstable
 using Test
 
@@ -46,3 +48,41 @@ tree = cos(2.1 * x1) + sin(x2)
         () -> tree(ones(2, 10), operators; eval_context=EvalContext(; turbo=Val(true)))
     )
 )
+
+# Loaded extensions should use normal dispatch for unsupported arguments instead of claiming
+# that the dependency is missing.
+using SymbolicUtils
+
+@test is_extension_loaded(Val(:SymbolicUtils))
+@test !is_extension_loaded(Val(:Zygote))
+@test !is_extension_loaded(Val(:Bumper))
+@test_throws "Please load the Zygote.jl package." _zygote_gradient(nothing)
+@test_throws "Please load the Bumper.jl package" bumper_eval_tree_array(nothing)
+
+symbolic_x1 = allow_unstable(() -> node_to_symbolic(x1, operators))
+@test string(symbolic_x1) == "x1"
+@test string(allow_unstable(() -> symbolic_to_node(symbolic_x1, operators))) == "x1"
+@test_throws MethodError node_to_symbolic(nothing)
+@test_throws MethodError symbolic_to_node(nothing)
+
+using Zygote
+
+@test is_extension_loaded(Val(:SymbolicUtils))
+@test is_extension_loaded(Val(:Zygote))
+@test !is_extension_loaded(Val(:Bumper))
+@test_throws "Please load the Bumper.jl package" bumper_eval_tree_array(nothing)
+
+@test allow_unstable(() -> only(_zygote_gradient(sin, Val(1))(1.0))) ≈ cos(1.0)
+@test_throws MethodError _zygote_gradient(nothing)
+
+using Bumper
+
+@test is_extension_loaded(Val(:SymbolicUtils))
+@test is_extension_loaded(Val(:Zygote))
+@test is_extension_loaded(Val(:Bumper))
+
+bumper_result = allow_unstable(
+    () -> tree(ones(2, 10), operators; eval_options=EvalContext(; bumper=Val(true)))
+)
+@test bumper_result ≈ fill(cos(2.1) + sin(1.0), 10)
+@test_throws MethodError bumper_eval_tree_array(nothing)

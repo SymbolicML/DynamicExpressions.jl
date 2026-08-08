@@ -10,7 +10,12 @@ using DynamicExpressions.UtilsModule: deprecate_varmap
 using SymbolicUtils
 using SymbolicUtils: BasicSymbolic, SymReal, iscall, issym, isconst, unwrap_const
 
-import DynamicExpressions.ExtensionInterfaceModule: node_to_symbolic, symbolic_to_node
+import DynamicExpressions.ExtensionInterfaceModule:
+    is_extension_loaded,
+    _node_to_symbolic,
+    _symbolic_to_node,
+    node_to_symbolic,
+    symbolic_to_node
 import DynamicExpressions.ValueInterfaceModule: is_valid
 
 const SYMBOLIC_UTILS_TYPES = Union{<:Number,BasicSymbolic}
@@ -268,25 +273,7 @@ function Base.convert(
     return constructorof(E)(tree; operators, variable_names, kws...)
 end
 
-"""
-    node_to_symbolic(tree::AbstractExpressionNode, operators::AbstractOperatorEnum;
-                variable_names::Union{AbstractVector{<:AbstractString}, Nothing}=nothing,
-                index_functions::Bool=false)
-
-The interface to SymbolicUtils.jl. Passing a tree to this function
-will generate a symbolic equation in SymbolicUtils.jl format.
-
-## Arguments
-
-- `tree::AbstractExpressionNode`: The equation to convert.
-- `operators::AbstractOperatorEnum`: OperatorEnum, which contains the operators used in the equation.
-- `variable_names::Union{AbstractVector{<:AbstractString}, Nothing}=nothing`: What variable names to use for
-    each feature. Default is [x1, x2, x3, ...].
-- `index_functions::Bool=false`: Whether to generate special names for the
-    operators, which then allows one to convert back to a `AbstractExpressionNode` format
-    using `symbolic_to_node`.
-"""
-function node_to_symbolic(
+function _node_to_symbolic(
     tree::AbstractExpressionNode{T,2},
     operators::AbstractOperatorEnum;
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
@@ -309,7 +296,7 @@ function node_to_symbolic(
     )
     return substitute(expr, subs)
 end
-function node_to_symbolic(
+function _node_to_symbolic(
     tree::AbstractExpression,
     operators::Union{AbstractOperatorEnum,Nothing}=nothing;
     variable_names::Union{AbstractVector{<:AbstractString},Nothing}=nothing,
@@ -323,7 +310,7 @@ function node_to_symbolic(
     )
 end
 
-function symbolic_to_node(
+function _symbolic_to_node(
     eqn::BasicSymbolic,
     operators::AbstractOperatorEnum,
     ::Type{N}=Node;
@@ -428,5 +415,7 @@ function multiply_powers(
         return cumulator, true
     end
 end
+
+is_extension_loaded(::Val{:SymbolicUtils}) = true
 
 end

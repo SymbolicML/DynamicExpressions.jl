@@ -5,9 +5,10 @@ using DynamicExpressions:
     OperatorEnum, AbstractExpressionNode, tree_mapreduce, is_valid_array, EvalContext
 using DynamicExpressions.UtilsModule: ResultOk, counttuple
 
-import DynamicExpressions.ExtensionInterfaceModule: bumper_eval_tree_array, bumper_kern!
+import DynamicExpressions.ExtensionInterfaceModule:
+    _bumper_eval_tree_array, is_extension_loaded, bumper_kern!
 
-function bumper_eval_tree_array(
+function _bumper_eval_tree_array(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
@@ -86,5 +87,7 @@ function bumper_kern!(
     @. cumulator_1 = op(cumulators...)
     return cumulator_1
 end
+
+is_extension_loaded(::Val{:Bumper}) = true
 
 end
