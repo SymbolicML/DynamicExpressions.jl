@@ -81,7 +81,7 @@ function benchmark_evaluation()
                     ntrees=100;
                     kws=$(
                         if @isdefined(EvalContext)
-                            (; eval_options=EvalContext(; turbo=turbo, extra_kws...))
+                            (; eval_context=EvalContext(; turbo=turbo, extra_kws...))
                         else
                             (; turbo, extra_kws...)
                         end

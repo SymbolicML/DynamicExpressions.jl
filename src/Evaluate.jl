@@ -13,19 +13,19 @@ import ..ValueInterfaceModule: is_valid, is_valid_array
 
 const OPERATOR_LIMIT_BEFORE_SLOWDOWN = 15
 
-macro return_on_nonfinite_val(eval_options, val, X)
+macro return_on_nonfinite_val(eval_context, val, X)
     :(
-        if $(esc(eval_options)).early_exit isa Val{true} && !is_valid($(esc(val)))
+        if $(esc(eval_context)).early_exit isa Val{true} && !is_valid($(esc(val)))
             return $(ResultOk)(
-                get_array($(esc(eval_options)).buffer, $(esc(X)), axes($(esc(X)), 2)), false
+                get_array($(esc(eval_context)).buffer, $(esc(X)), axes($(esc(X)), 2)), false
             )
         end
     )
 end
 
-macro return_on_nonfinite_array(eval_options, array)
+macro return_on_nonfinite_array(eval_context, array)
     :(
-        if $(esc(eval_options)).early_exit isa Val{true} && !is_valid_array($(esc(array)))
+        if $(esc(eval_context)).early_exit isa Val{true} && !is_valid_array($(esc(array)))
             return $(ResultOk)($(esc(array)), false)
         end
     )
@@ -124,7 +124,7 @@ end
 """
     EvalContext
 
-This holds options for expression evaluation, such as evaluation backend.
+This holds evaluation policy and call-scoped mutable state.
 
 # Fields
 
@@ -179,35 +179,47 @@ Base.@deprecate_binding EvalOptions EvalContext
 @unstable @inline _to_bool_val(x::Bool) = x ? Val(true) : Val(false)
 @inline _to_bool_val(::Val{T}) where {T} = Val(T::Bool)
 
-@inline use_fused(eval_options::EvalContext) = eval_options.use_fused isa Val{true}
+@inline use_fused(eval_context::EvalContext) = eval_context.use_fused isa Val{true}
 
 _copy(x) = copy(x)
 _copy(::Nothing) = nothing
-function Base.copy(eval_options::EvalContext)
+function Base.copy(eval_context::EvalContext)
     return EvalContext(;
-        turbo=eval_options.turbo,
-        bumper=eval_options.bumper,
-        early_exit=eval_options.early_exit,
-        buffer=_copy(eval_options.buffer),
-        use_fused=eval_options.use_fused,
+        turbo=eval_context.turbo,
+        bumper=eval_context.bumper,
+        early_exit=eval_context.early_exit,
+        buffer=_copy(eval_context.buffer),
+        use_fused=eval_context.use_fused,
     )
 end
 
-@unstable function _process_deprecated_kws(eval_options, deprecated_kws)
+@unstable function _process_deprecated_kws(eval_context, deprecated_kws)
+    eval_options = get(deprecated_kws, :eval_options, nothing)
     turbo = get(deprecated_kws, :turbo, nothing)
     bumper = get(deprecated_kws, :bumper, nothing)
-    if any(Base.Fix2(∉, (:turbo, :bumper)), keys(deprecated_kws))
+    if any(Base.Fix2(∉, (:eval_options, :turbo, :bumper)), keys(deprecated_kws))
         throw(ArgumentError("Invalid keyword argument(s): $(keys(deprecated_kws))"))
     end
-    if !isempty(deprecated_kws)
+    if haskey(deprecated_kws, :eval_options)
+        Base.depwarn(
+            "The `eval_options` keyword is deprecated; use `eval_context` instead.",
+            :eval_tree_array,
+        )
         @assert(
-            eval_options === nothing,
-            "Cannot use both `eval_options` and deprecated flags `turbo` and `bumper`."
+            eval_context === nothing,
+            "Cannot use both `eval_context` and deprecated `eval_options`."
+        )
+        eval_context = eval_options
+    end
+    if turbo !== nothing || bumper !== nothing
+        @assert(
+            eval_context === nothing,
+            "Cannot use both `eval_context` and deprecated flags `turbo` and `bumper`."
         )
         # TODO: We don't do a depwarn as it can GREATLY bottleneck the search speed.
     end
-    if eval_options !== nothing
-        return eval_options
+    if eval_context !== nothing
+        return eval_context
     else
         return EvalContext(;
             turbo=turbo === nothing ? Val(false) : turbo,
@@ -221,7 +233,7 @@ end
         tree::AbstractExpressionNode{T},
         cX::AbstractMatrix{T},
         operators::OperatorEnum;
-        eval_options::Union{EvalContext,Nothing}=nothing,
+        eval_context::Union{EvalContext,Nothing}=nothing,
     ) where {T}
 
 Evaluate a binary tree (equation) over a given input data matrix. The
@@ -232,7 +244,7 @@ and triplets of operations for lower memory usage.
 - `tree::AbstractExpressionNode`: The root node of the tree to evaluate.
 - `cX::AbstractMatrix{T}`: The input data to evaluate the tree on, with shape `[num_features, num_rows]`.
 - `operators::OperatorEnum`: The operators used in the tree.
-- `eval_options::Union{EvalContext,Nothing}`: See [`EvalContext`](@ref) for documentation
+- `eval_context::Union{EvalContext,Nothing}`: See [`EvalContext`](@ref) for documentation
     on the different evaluation modes.
 
 
@@ -262,31 +274,31 @@ function eval_tree_array(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
-    eval_options::Union{EvalContext,Nothing}=nothing,
+    eval_context::Union{EvalContext,Nothing}=nothing,
     _deprecated_kws...,
 ) where {T}
-    _eval_options = _process_deprecated_kws(eval_options, _deprecated_kws)
-    if _eval_options.turbo isa Val{true} || _eval_options.bumper isa Val{true}
+    _eval_context = _process_deprecated_kws(eval_context, _deprecated_kws)
+    if _eval_context.turbo isa Val{true} || _eval_context.bumper isa Val{true}
         @assert T in (Float32, Float64)
     end
-    if _eval_options.turbo isa Val{true}
+    if _eval_context.turbo isa Val{true}
         _is_loopvectorization_loaded(0) ||
             error("Please load the LoopVectorization.jl package to use this feature.")
     end
-    if (_eval_options.turbo isa Val{true} || _eval_options.bumper isa Val{true}) &&
+    if (_eval_context.turbo isa Val{true} || _eval_context.bumper isa Val{true}) &&
         !(T <: Number)
         error(
             "Bumper and LoopVectorization features are only compatible with numeric element types",
         )
     end
-    if _eval_options.bumper isa Val{true}
-        return bumper_eval_tree_array(tree, cX, operators, _eval_options)
+    if _eval_context.bumper isa Val{true}
+        return bumper_eval_tree_array(tree, cX, operators, _eval_context)
     end
 
-    result = _eval_tree_array(tree, cX, operators, _eval_options)
+    result = _eval_tree_array(tree, cX, operators, _eval_context)
     return (
         result.x,
-        result.ok && (_eval_options.early_exit isa Val{false} || is_valid_array(result.x)),
+        result.ok && (_eval_context.early_exit isa Val{false} || is_valid_array(result.x)),
     )
 end
 
@@ -320,28 +332,28 @@ function _eval_tree_array(
     tree::AbstractExpressionNode{T,D},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    eval_options::EvalContext,
+    eval_context::EvalContext,
 )::ResultOk where {T,D}
     # First, we see if there are only constants in the tree - meaning
     # we can just return the constant result.
     if tree.degree == 0
-        return deg0_eval(tree, cX, eval_options)
+        return deg0_eval(tree, cX, eval_context)
     elseif is_constant(tree)
         # Speed hack for constant trees.
         const_result = dispatch_constant_tree(tree, operators)::ResultOk{T}
         !const_result.ok &&
-            return ResultOk(get_array(eval_options.buffer, cX, axes(cX, 2)), false)
+            return ResultOk(get_array(eval_context.buffer, cX, axes(cX, 2)), false)
         return ResultOk(
-            get_filled_array(eval_options.buffer, const_result.x, cX, axes(cX, 2)), true
+            get_filled_array(eval_context.buffer, const_result.x, cX, axes(cX, 2)), true
         )
     elseif tree.degree == 1
         op_idx = tree.op
-        return dispatch_deg1_eval(tree, cX, op_idx, operators, eval_options)
+        return dispatch_deg1_eval(tree, cX, op_idx, operators, eval_context)
     elseif D == 2 || tree.degree == 2
         op_idx = tree.op
-        return dispatch_deg2_eval(tree, cX, op_idx, operators, eval_options)
+        return dispatch_deg2_eval(tree, cX, op_idx, operators, eval_context)
     else
-        return dispatch_degn_eval(tree, cX, operators, eval_options)
+        return dispatch_degn_eval(tree, cX, operators, eval_context)
     end
 end
 
@@ -362,26 +374,26 @@ function deg2_eval(
     cumulator_l::AbstractVector{T},
     cumulator_r::AbstractVector{T},
     op::F,
-    eval_options::EvalContext,
+    eval_context::EvalContext,
 )::ResultOk where {T,F}
-    return degn_eval((cumulator_l, cumulator_r), op, eval_options)
+    return degn_eval((cumulator_l, cumulator_r), op, eval_context)
 end
 
 function deg1_eval(
-    cumulator::AbstractVector{T}, op::F, eval_options::EvalContext
+    cumulator::AbstractVector{T}, op::F, eval_context::EvalContext
 )::ResultOk where {T,F}
-    return degn_eval((cumulator,), op, eval_options)
+    return degn_eval((cumulator,), op, eval_context)
 end
 
 function deg0_eval(
-    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, eval_options::EvalContext
+    tree::AbstractExpressionNode{T}, cX::AbstractMatrix{T}, eval_context::EvalContext
 )::ResultOk where {T}
     if tree.constant
         return ResultOk(
-            get_filled_array(eval_options.buffer, tree.val, cX, axes(cX, 2)), true
+            get_filled_array(eval_context.buffer, tree.val, cX, axes(cX, 2)), true
         )
     else
-        return ResultOk(get_feature_array(eval_options.buffer, cX, tree.feature), true)
+        return ResultOk(get_feature_array(eval_context.buffer, cX, tree.feature), true)
     end
 end
 
@@ -402,8 +414,8 @@ end
 
 # TODO: Hack to fix type instability in some branches that can't be inferred.
 # It does this using the other branches, which _can_ be inferred.
-@unstable function _get_return_type(tree, cX, eval_options)
-    return Core.Compiler.return_type(deg0_eval, typeof((tree, cX, eval_options)))
+@unstable function _get_return_type(tree, cX, eval_context)
+    return Core.Compiler.return_type(deg0_eval, typeof((tree, cX, eval_context)))
 end
 
 # This basically forms an if statement over the operators for the degree.
@@ -412,18 +424,18 @@ function inner_dispatch_degn_eval(
     cX::AbstractMatrix{T},
     ::Val{degree},
     operators::OperatorEnum,
-    eval_options::EvalContext,
+    eval_context::EvalContext,
 ) where {T,degree}
     return _inner_dispatch_degn_eval(
-        tree, cX, Val(degree), operators, eval_options
-    )::(_get_return_type(tree, cX, eval_options))
+        tree, cX, Val(degree), operators, eval_context
+    )::(_get_return_type(tree, cX, eval_context))
 end
 @generated function _inner_dispatch_degn_eval(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     ::Val{degree},
     operators::O,
-    eval_options::EvalContext,
+    eval_context::EvalContext,
 ) where {T,degree,O<:OperatorEnum}
     nops = get_nops(O, Val(degree))
     return quote
@@ -431,9 +443,9 @@ end
         Base.Cartesian.@nexprs(  # COV_EXCL_LINE
             $degree,
             i -> begin  # COV_EXCL_LINE
-                result_i = _eval_tree_array(cs[i], cX, operators, eval_options)
+                result_i = _eval_tree_array(cs[i], cX, operators, eval_context)
                 !result_i.ok && return result_i
-                @return_on_nonfinite_array(eval_options, result_i.x)
+                @return_on_nonfinite_array(eval_context, result_i.x)
             end
         )
         op_idx = tree.op
@@ -442,7 +454,7 @@ end
             $nops,
             i -> i == op_idx,  # COV_EXCL_LINE
             i -> begin  # COV_EXCL_LINE
-                degn_eval(cumulators, get_op(operators, Val($degree), Val(i)), eval_options)
+                degn_eval(cumulators, get_op(operators, Val($degree), Val(i)), eval_context)
             end,
         )
     end
@@ -453,7 +465,7 @@ end
     tree::AbstractExpressionNode{T,D},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    eval_options::EvalContext,
+    eval_context::EvalContext,
 ) where {T,D}
     return quote
         # If statement over degrees
@@ -462,7 +474,7 @@ end
             $D,
             d -> d == degree,  # COV_EXCL_LINE
             d -> begin  # COV_EXCL_LINE
-                inner_dispatch_degn_eval(tree, cX, Val(d), operators, eval_options)
+                inner_dispatch_degn_eval(tree, cX, Val(d), operators, eval_context)
             end,
         )
     end
@@ -472,31 +484,31 @@ end
     cX::AbstractMatrix{T},
     op_idx::Integer,
     operators::OperatorEnum,
-    eval_options::EvalContext,
+    eval_context::EvalContext,
 ) where {T}
     nbin = get_nops(operators, Val(2))
     long_compilation_time = nbin > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     supports_branch_fusion = T <: Number
     if long_compilation_time
         return quote
-            result_l = _eval_tree_array(get_child(tree, 1), cX, operators, eval_options)
+            result_l = _eval_tree_array(get_child(tree, 1), cX, operators, eval_context)
             !result_l.ok && return result_l
-            @return_on_nonfinite_array(eval_options, result_l.x)
-            result_r = _eval_tree_array(get_child(tree, 2), cX, operators, eval_options)
+            @return_on_nonfinite_array(eval_context, result_l.x)
+            result_r = _eval_tree_array(get_child(tree, 2), cX, operators, eval_context)
             !result_r.ok && return result_r
-            @return_on_nonfinite_array(eval_options, result_r.x)
+            @return_on_nonfinite_array(eval_context, result_r.x)
             # op(x, y), for any x or y
-            deg2_eval(result_l.x, result_r.x, operators.binops[op_idx], eval_options)
+            deg2_eval(result_l.x, result_r.x, operators.binops[op_idx], eval_context)
         end
     end
     return quote
-        fused = use_fused(eval_options)
+        fused = use_fused(eval_context)
         return Base.Cartesian.@nif(
             $nbin,
             i -> i == op_idx,  # COV_EXCL_LINE
             i -> let op = operators.binops[i]  # COV_EXCL_LINE
                 if fused && get_child(tree, 1).degree == 0 && get_child(tree, 2).degree == 0
-                    deg2_l0_r0_eval(tree, cX, op, eval_options)
+                    deg2_l0_r0_eval(tree, cX, op, eval_context)
                 elseif fused && get_child(tree, 2).degree == 0
                     left = get_child(tree, 1)
                     if $supports_branch_fusion &&
@@ -510,14 +522,14 @@ end
                             left.op,
                             operators.binops,
                             Val(:left),
-                            eval_options,
+                            eval_context,
                         )
                     else
-                        result_l = _eval_tree_array(left, cX, operators, eval_options)
+                        result_l = _eval_tree_array(left, cX, operators, eval_context)
                         !result_l.ok && return result_l
-                        @return_on_nonfinite_array(eval_options, result_l.x)
+                        @return_on_nonfinite_array(eval_context, result_l.x)
                         # op(x, y), where y is a constant or variable but x is not.
-                        deg2_r0_eval(tree, result_l.x, cX, op, eval_options)
+                        deg2_r0_eval(tree, result_l.x, cX, op, eval_context)
                     end
                 elseif fused && get_child(tree, 1).degree == 0
                     right = get_child(tree, 2)
@@ -532,26 +544,26 @@ end
                             right.op,
                             operators.binops,
                             Val(:right),
-                            eval_options,
+                            eval_context,
                         )
                     else
-                        result_r = _eval_tree_array(right, cX, operators, eval_options)
+                        result_r = _eval_tree_array(right, cX, operators, eval_context)
                         !result_r.ok && return result_r
-                        @return_on_nonfinite_array(eval_options, result_r.x)
+                        @return_on_nonfinite_array(eval_context, result_r.x)
                         # op(x, y), where x is a constant or variable but y is not.
-                        deg2_l0_eval(tree, result_r.x, cX, op, eval_options)
+                        deg2_l0_eval(tree, result_r.x, cX, op, eval_context)
                     end
                 else
-                    result_l = _eval_tree_array(get_child(tree, 1), cX, operators, eval_options)
+                    result_l = _eval_tree_array(get_child(tree, 1), cX, operators, eval_context)
                     !result_l.ok && return result_l
-                    @return_on_nonfinite_array(eval_options, result_l.x)
+                    @return_on_nonfinite_array(eval_context, result_l.x)
                     result_r = _eval_tree_array(
-                        get_child(tree, 2), cX, operators, eval_options
+                        get_child(tree, 2), cX, operators, eval_context
                     )
                     !result_r.ok && return result_r
-                    @return_on_nonfinite_array(eval_options, result_r.x)
+                    @return_on_nonfinite_array(eval_context, result_r.x)
                     # op(x, y), for any x or y
-                    deg2_eval(result_l.x, result_r.x, op, eval_options)
+                    deg2_eval(result_l.x, result_r.x, op, eval_context)
                 end
             end
         )
@@ -565,7 +577,7 @@ end
     branch_op_idx::Integer,
     binops,
     side_val::Val{side},
-    eval_options::EvalContext,
+    eval_context::EvalContext,
 ) where {T,F,side}
     nbin = counttuple(binops)
     quote
@@ -573,7 +585,7 @@ end
             $nbin,
             i -> i == branch_op_idx,  # COV_EXCL_LINE
             i -> begin  # COV_EXCL_LINE
-                deg2_branch0_eval(tree, cX, op, binops[i], side_val, eval_options)
+                deg2_branch0_eval(tree, cX, op, binops[i], side_val, eval_context)
             end,
         )
     end
@@ -583,22 +595,22 @@ end
     cX::AbstractMatrix{T},
     op_idx::Integer,
     operators::OperatorEnum,
-    eval_options::EvalContext,
+    eval_context::EvalContext,
 ) where {T}
     nuna = get_nops(operators, Val(1))
     long_compilation_time = nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     if long_compilation_time
         return quote
-            result = _eval_tree_array(get_child(tree, 1), cX, operators, eval_options)
+            result = _eval_tree_array(get_child(tree, 1), cX, operators, eval_context)
             !result.ok && return result
-            @return_on_nonfinite_array(eval_options, result.x)
-            deg1_eval(result.x, operators.unaops[op_idx], eval_options)
+            @return_on_nonfinite_array(eval_context, result.x)
+            deg1_eval(result.x, operators.unaops[op_idx], eval_context)
         end
     end
     # This @nif lets us generate an if statement over choice of operator,
     # which means the compiler will be able to completely avoid type inference on operators.
     return quote
-        fused = use_fused(eval_options)
+        fused = use_fused(eval_context)
         Base.Cartesian.@nif(
             $nuna,
             i -> i == op_idx,  # COV_EXCL_LINE
@@ -610,7 +622,7 @@ end
                     # op(op2(x, y)), where x, y, z are constants or variables.
                     l_op_idx = get_child(tree, 1).op
                     dispatch_deg1_l2_ll0_lr0_eval(
-                        tree, cX, op, l_op_idx, operators.binops, eval_options
+                        tree, cX, op, l_op_idx, operators.binops, eval_context
                     )
                 elseif fused &&
                     get_child(tree, 1).degree == 1 &&
@@ -618,14 +630,14 @@ end
                     # op(op2(x)), where x is a constant or variable.
                     l_op_idx = get_child(tree, 1).op
                     dispatch_deg1_l1_ll0_eval(
-                        tree, cX, op, l_op_idx, operators.unaops, eval_options
+                        tree, cX, op, l_op_idx, operators.unaops, eval_context
                     )
                 else
                     # op(x), for any x.
-                    result = _eval_tree_array(get_child(tree, 1), cX, operators, eval_options)
+                    result = _eval_tree_array(get_child(tree, 1), cX, operators, eval_context)
                     !result.ok && return result
-                    @return_on_nonfinite_array(eval_options, result.x)
-                    deg1_eval(result.x, op, eval_options)
+                    @return_on_nonfinite_array(eval_context, result.x)
+                    deg1_eval(result.x, op, eval_context)
                 end
             end
         )
@@ -637,7 +649,7 @@ end
     op::F,
     l_op_idx::Integer,
     binops,
-    eval_options::EvalContext,
+    eval_context::EvalContext,
 ) where {T,F}
     nbin = counttuple(binops)
     # (Note this is only called from dispatch_deg1_eval, which has already
@@ -647,7 +659,7 @@ end
             $nbin,
             j -> j == l_op_idx,  # COV_EXCL_LINE
             j -> let op_l = binops[j]  # COV_EXCL_LINE
-                deg1_l2_ll0_lr0_eval(tree, cX, op, op_l, eval_options)
+                deg1_l2_ll0_lr0_eval(tree, cX, op, op_l, eval_context)
             end,
         )
     end
@@ -658,7 +670,7 @@ end
     op::F,
     l_op_idx::Integer,
     unaops,
-    eval_options::EvalContext,
+    eval_context::EvalContext,
 )::ResultOk where {T,F}
     nuna = counttuple(unaops)
     quote
@@ -666,7 +678,7 @@ end
             $nuna,
             j -> j == l_op_idx,  # COV_EXCL_LINE
             j -> let op_l = unaops[j]  # COV_EXCL_LINE
-                deg1_l1_ll0_eval(tree, cX, op, op_l, eval_options)
+                deg1_l1_ll0_eval(tree, cX, op, op_l, eval_context)
             end,
         )
     end
@@ -677,24 +689,24 @@ function deg1_l2_ll0_lr0_eval(
     cX::AbstractMatrix{T},
     op::F,
     op_l::F2,
-    eval_options::EvalContext{false,false},
+    eval_context::EvalContext{false,false},
 ) where {T,F,F2}
     if get_child(get_child(tree, 1), 1).constant &&
         get_child(get_child(tree, 1), 2).constant
         val_ll = get_child(get_child(tree, 1), 1).val
         val_lr = get_child(get_child(tree, 1), 2).val
-        @return_on_nonfinite_val(eval_options, val_ll, cX)
-        @return_on_nonfinite_val(eval_options, val_lr, cX)
+        @return_on_nonfinite_val(eval_context, val_ll, cX)
+        @return_on_nonfinite_val(eval_context, val_lr, cX)
         x_l = op_l(val_ll, val_lr)::T
-        @return_on_nonfinite_val(eval_options, x_l, cX)
+        @return_on_nonfinite_val(eval_context, x_l, cX)
         x = op(x_l)::T
-        @return_on_nonfinite_val(eval_options, x, cX)
-        return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
+        @return_on_nonfinite_val(eval_context, x, cX)
+        return ResultOk(get_filled_array(eval_context.buffer, x, cX, axes(cX, 2)), true)
     elseif get_child(get_child(tree, 1), 1).constant
         val_ll = get_child(get_child(tree, 1), 1).val
-        @return_on_nonfinite_val(eval_options, val_ll, cX)
+        @return_on_nonfinite_val(eval_context, val_ll, cX)
         feature_lr = get_child(get_child(tree, 1), 2).feature
-        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        cumulator = get_array(eval_context.buffer, cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(val_ll, cX[feature_lr, j])::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
@@ -704,8 +716,8 @@ function deg1_l2_ll0_lr0_eval(
     elseif get_child(get_child(tree, 1), 2).constant
         feature_ll = get_child(get_child(tree, 1), 1).feature
         val_lr = get_child(get_child(tree, 1), 2).val
-        @return_on_nonfinite_val(eval_options, val_lr, cX)
-        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        @return_on_nonfinite_val(eval_context, val_lr, cX)
+        cumulator = get_array(eval_context.buffer, cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j], val_lr)::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
@@ -715,7 +727,7 @@ function deg1_l2_ll0_lr0_eval(
     else
         feature_ll = get_child(get_child(tree, 1), 1).feature
         feature_lr = get_child(get_child(tree, 1), 2).feature
-        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        cumulator = get_array(eval_context.buffer, cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j], cX[feature_lr, j])::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
@@ -731,19 +743,19 @@ function deg1_l1_ll0_eval(
     cX::AbstractMatrix{T},
     op::F,
     op_l::F2,
-    eval_options::EvalContext{false,false},
+    eval_context::EvalContext{false,false},
 ) where {T,F,F2}
     if get_child(get_child(tree, 1), 1).constant
         val_ll = get_child(get_child(tree, 1), 1).val
-        @return_on_nonfinite_val(eval_options, val_ll, cX)
+        @return_on_nonfinite_val(eval_context, val_ll, cX)
         x_l = op_l(val_ll)::T
-        @return_on_nonfinite_val(eval_options, x_l, cX)
+        @return_on_nonfinite_val(eval_context, x_l, cX)
         x = op(x_l)::T
-        @return_on_nonfinite_val(eval_options, x, cX)
-        return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
+        @return_on_nonfinite_val(eval_context, x, cX)
+        return ResultOk(get_filled_array(eval_context.buffer, x, cX, axes(cX, 2)), true)
     else
         feature_ll = get_child(get_child(tree, 1), 1).feature
-        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        cumulator = get_array(eval_context.buffer, cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(cX[feature_ll, j])::T
             x = is_valid(x_l) ? op(x_l)::T : T(Inf)
@@ -781,19 +793,19 @@ function deg2_branch0_eval(
     op::F,
     branch_op::F2,
     ::Val{side},
-    eval_options::EvalContext{false,false},
+    eval_context::EvalContext{false,false},
 ) where {T<:Number,F,F2,side}
     branch = side === :left ? get_child(tree, 1) : get_child(tree, 2)
     leaf1 = side === :left ? get_child(branch, 1) : get_child(tree, 1)
     leaf2 = side === :left ? get_child(branch, 2) : get_child(branch, 1)
     leaf3 = side === :left ? get_child(tree, 2) : get_child(branch, 2)
 
-    if eval_options.early_exit isa Val{true} && leaf1.constant && !is_valid(leaf1.val)
-        return ResultOk(get_array(eval_options.buffer, cX, axes(cX, 2)), false)
-    elseif eval_options.early_exit isa Val{true} && leaf2.constant && !is_valid(leaf2.val)
-        return ResultOk(get_array(eval_options.buffer, cX, axes(cX, 2)), false)
-    elseif eval_options.early_exit isa Val{true} && leaf3.constant && !is_valid(leaf3.val)
-        return ResultOk(get_array(eval_options.buffer, cX, axes(cX, 2)), false)
+    if eval_context.early_exit isa Val{true} && leaf1.constant && !is_valid(leaf1.val)
+        return ResultOk(get_array(eval_context.buffer, cX, axes(cX, 2)), false)
+    elseif eval_context.early_exit isa Val{true} && leaf2.constant && !is_valid(leaf2.val)
+        return ResultOk(get_array(eval_context.buffer, cX, axes(cX, 2)), false)
+    elseif eval_context.early_exit isa Val{true} && leaf3.constant && !is_valid(leaf3.val)
+        return ResultOk(get_array(eval_context.buffer, cX, axes(cX, 2)), false)
     end
 
     constant1 = leaf1.constant
@@ -806,8 +818,8 @@ function deg2_branch0_eval(
     value2 = constant2 ? leaf2.val : zero(T)
     value3 = constant3 ? leaf3.val : zero(T)
     side_val = Val(side)
-    early_exit = eval_options.early_exit
-    cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+    early_exit = eval_context.early_exit
+    cumulator = get_array(eval_context.buffer, cX, axes(cX, 2))
     @inbounds @simd for j in axes(cX, 2)
         x1 = ifelse(constant1, value1, cX[feature1, j])
         x2 = ifelse(constant2, value2, cX[feature2, j])
@@ -822,20 +834,20 @@ function deg2_l0_r0_eval(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     op::F,
-    eval_options::EvalContext{false,false},
+    eval_context::EvalContext{false,false},
 ) where {T,F}
     if get_child(tree, 1).constant && get_child(tree, 2).constant
         val_l = get_child(tree, 1).val
-        @return_on_nonfinite_val(eval_options, val_l, cX)
+        @return_on_nonfinite_val(eval_context, val_l, cX)
         val_r = get_child(tree, 2).val
-        @return_on_nonfinite_val(eval_options, val_r, cX)
+        @return_on_nonfinite_val(eval_context, val_r, cX)
         x = op(val_l, val_r)::T
-        @return_on_nonfinite_val(eval_options, x, cX)
-        return ResultOk(get_filled_array(eval_options.buffer, x, cX, axes(cX, 2)), true)
+        @return_on_nonfinite_val(eval_context, x, cX)
+        return ResultOk(get_filled_array(eval_context.buffer, x, cX, axes(cX, 2)), true)
     elseif get_child(tree, 1).constant
-        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        cumulator = get_array(eval_context.buffer, cX, axes(cX, 2))
         val_l = get_child(tree, 1).val
-        @return_on_nonfinite_val(eval_options, val_l, cX)
+        @return_on_nonfinite_val(eval_context, val_l, cX)
         feature_r = get_child(tree, 2).feature
         @inbounds @simd for j in axes(cX, 2)
             x = op(val_l, cX[feature_r, j])::T
@@ -843,17 +855,17 @@ function deg2_l0_r0_eval(
         end  # COV_EXCL_LINE
         return ResultOk(cumulator, true)
     elseif get_child(tree, 2).constant
-        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        cumulator = get_array(eval_context.buffer, cX, axes(cX, 2))
         feature_l = get_child(tree, 1).feature
         val_r = get_child(tree, 2).val
-        @return_on_nonfinite_val(eval_options, val_r, cX)
+        @return_on_nonfinite_val(eval_context, val_r, cX)
         @inbounds @simd for j in axes(cX, 2)
             x = op(cX[feature_l, j], val_r)::T
             cumulator[j] = x
         end  # COV_EXCL_LINE
         return ResultOk(cumulator, true)
     else
-        cumulator = get_array(eval_options.buffer, cX, axes(cX, 2))
+        cumulator = get_array(eval_context.buffer, cX, axes(cX, 2))
         feature_l = get_child(tree, 1).feature
         feature_r = get_child(tree, 2).feature
         @inbounds @simd for j in axes(cX, 2)
@@ -870,11 +882,11 @@ function deg2_l0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    eval_options::EvalContext{false,false},
+    eval_context::EvalContext{false,false},
 ) where {T,F}
     if get_child(tree, 1).constant
         val = get_child(tree, 1).val
-        @return_on_nonfinite_val(eval_options, val, cX)
+        @return_on_nonfinite_val(eval_context, val, cX)
         @inbounds @simd for j in eachindex(cumulator)
             x = op(val, cumulator[j])::T
             cumulator[j] = x
@@ -896,11 +908,11 @@ function deg2_r0_eval(
     cumulator::AbstractVector{T},
     cX::AbstractArray{T},
     op::F,
-    eval_options::EvalContext{false,false},
+    eval_context::EvalContext{false,false},
 ) where {T,F}
     if get_child(tree, 2).constant
         val = get_child(tree, 2).val
-        @return_on_nonfinite_val(eval_options, val, cX)
+        @return_on_nonfinite_val(eval_context, val, cX)
         @inbounds @simd for j in eachindex(cumulator)
             x = op(cumulator[j], val)::T
             cumulator[j] = x

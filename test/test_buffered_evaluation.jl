@@ -12,11 +12,11 @@
     # Basic buffer creation - buffer shape should match (num_leafs, num_samples)
     buffer = zeros(5, size(X, 2))  # 5 leaves should be enough for our test tree
     buffer_ref = Ref(0)
-    eval_options = EvalContext(; buffer=ArrayBuffer(buffer, buffer_ref))
-    @test eval_options.buffer.array === buffer
-    @test eval_options.buffer.index === buffer_ref
+    eval_context = EvalContext(; buffer=ArrayBuffer(buffer, buffer_ref))
+    @test eval_context.buffer.array === buffer
+    @test eval_context.buffer.index === buffer_ref
 
-    copied_buffer = copy(eval_options.buffer)
+    copied_buffer = copy(eval_context.buffer)
     @test copied_buffer.array == buffer
     @test copied_buffer.array !== buffer
     @test copied_buffer.index[] == buffer_ref[]
@@ -28,7 +28,7 @@
     )
 
     # Basic evaluation should work
-    result = eval_tree_array(tree, X, operators; eval_options)
+    result = eval_tree_array(tree, X, operators; eval_context)
     @test length(result) == 2  # Returns (output, ok)
     @test size(result[1]) == (size(X, 2),)  # Output should match number of samples
 end
@@ -46,10 +46,10 @@ end
     )
     arrays = Vector{Vector{Float64}}()
     buffer = ArrayBuffer(arrays, Ref(0))
-    eval_options = EvalContext(; buffer)
+    eval_context = EvalContext(; buffer)
 
     expected, expected_ok = eval_tree_array(tree, X, operators)
-    result, ok = eval_tree_array(tree, X, operators; eval_options)
+    result, ok = eval_tree_array(tree, X, operators; eval_context)
 
     @test result == expected
     @test ok == expected_ok
@@ -58,14 +58,14 @@ end
     for n in (3, 20)
         resized_X = rand(2, n)
         local expected, expected_ok = eval_tree_array(tree, resized_X, operators)
-        local result, ok = eval_tree_array(tree, resized_X, operators; eval_options)
+        local result, ok = eval_tree_array(tree, resized_X, operators; eval_context)
         @test result == expected
         @test ok == expected_ok
         @test axes(result) == axes(expected)
     end
 
     constant_result, constant_ok = eval_tree_array(
-        Node(Float64; val=1.5), X, operators; eval_options
+        Node(Float64; val=1.5), X, operators; eval_context
     )
     @test constant_result == fill(1.5, size(X, 2))
     @test constant_ok
@@ -98,8 +98,8 @@ end
         # Evaluation with buffer
         buffer = zeros(5, size(X, 2))
         buffer_ref = Ref(0)
-        eval_options = EvalContext(; buffer=ArrayBuffer(buffer, buffer_ref))
-        result2, ok2 = eval_tree_array(tree, X, operators; eval_options)
+        eval_context = EvalContext(; buffer=ArrayBuffer(buffer, buffer_ref))
+        result2, ok2 = eval_tree_array(tree, X, operators; eval_context)
 
         # Results should be identical
         @test result1 ≈ result2
@@ -118,11 +118,11 @@ end
     tree = Node(; op=1, l=Node(Float64; feature=1))
     arrays = Vector{Vector{Float64}}()
     buffer = ArrayBuffer(arrays, Ref(0))
-    eval_options = EvalContext(; buffer)
+    eval_context = EvalContext(; buffer)
 
-    result1, ok1 = eval_tree_array(tree, X1, operators; eval_options)
+    result1, ok1 = eval_tree_array(tree, X1, operators; eval_context)
     expected1 = copy(result1)
-    result2, ok2 = eval_tree_array(tree, X2, operators; eval_options)
+    result2, ok2 = eval_tree_array(tree, X2, operators; eval_context)
 
     @test ok1 && ok2
     @test result1 === arrays[1]
@@ -130,7 +130,7 @@ end
     @test result1 == expected1
 
     reset_index!(buffer)
-    result3, ok3 = eval_tree_array(tree, X2, operators; eval_options)
+    result3, ok3 = eval_tree_array(tree, X2, operators; eval_context)
     @test ok3
     @test result3 === result1
     @test result3 == result2
@@ -152,10 +152,10 @@ end
 
     buffer = zeros(5, size(X, 2))
     buffer_ref = Ref(0)
-    eval_options = EvalContext(; buffer=ArrayBuffer(buffer, buffer_ref))
+    eval_context = EvalContext(; buffer=ArrayBuffer(buffer, buffer_ref))
 
     # Test with early_exit=true
-    result1, ok1 = eval_tree_array(tree, X, operators; eval_options)
+    result1, ok1 = eval_tree_array(tree, X, operators; eval_context)
     @test !ok1
 end
 
@@ -183,14 +183,14 @@ end
         # Regular evaluation
         eval_options_no_buffer = EvalContext(; turbo)
         result1, ok1 = eval_tree_array(
-            tree, X, operators; eval_options=eval_options_no_buffer
+            tree, X, operators; eval_context=eval_options_no_buffer
         )
 
         # Buffer evaluation
         buffer = Array{Float64}(undef, 2n_nodes, size(X, 2))
         buffer_ref = Ref(0)
-        eval_options = EvalContext(; turbo, buffer=ArrayBuffer(buffer, buffer_ref))
-        result2, ok2 = eval_tree_array(tree, X, operators; eval_options)
+        eval_context = EvalContext(; turbo, buffer=ArrayBuffer(buffer, buffer_ref))
+        result2, ok2 = eval_tree_array(tree, X, operators; eval_context)
 
         # Results should be identical
         @test isapprox(result1, result2; atol=1e-10) || (!ok1 && !ok2)
