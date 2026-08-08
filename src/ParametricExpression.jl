@@ -8,7 +8,7 @@ using ..NodeModule: AbstractExpressionNode, Node, tree_mapreduce
 using ..ExpressionModule:
     AbstractExpression, Metadata, with_contents, with_metadata, unpack_metadata
 using ..ChainRulesModule: NodeTangent
-using ..UtilsModule: Nullable, set_nan!
+using ..UtilsModule: Nullable, set_invalid!
 
 import ..NodeModule:
     constructorof,
@@ -365,7 +365,7 @@ function (ex::ParametricExpression)(
     kws...,
 ) where {T}
     (output, flag) = eval_tree_array(ex, X, classes, operators; kws...)
-    !flag && set_nan!(output)
+    !flag && set_invalid!(output)
     return output
 end
 function eval_tree_array(

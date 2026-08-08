@@ -3,8 +3,8 @@ module DynamicExpressions
 using DispatchDoctor: @stable, @unstable
 
 @stable default_mode = "disable" begin
-    include("Utils.jl")
     include("ValueInterface.jl")
+    include("Utils.jl")
     include("ExtensionInterface.jl")
     include("OperatorEnum.jl")
     include("Node.jl")
@@ -33,6 +33,7 @@ macro ignore(args...) end
 import .UtilsModule: Nullable
 import .ValueInterfaceModule:
     is_valid,
+    invalid_value,
     is_valid_array,
     get_number_type,
     pack_scalar_constants!,
@@ -83,7 +84,7 @@ import .StringsModule: get_op_name, get_pretty_op_name
 @reexport import .OperatorEnumConstructionModule:
     OperatorEnum, GenericOperatorEnum, @extend_operators, set_default_variable_names!
 @reexport import .EvaluateModule:
-    eval_tree_array, differentiable_eval_tree_array, EvalOptions
+    eval_tree_array, differentiable_eval_tree_array, EvalContext
 import .EvaluateModule: ArrayBuffer, ResultOk
 @reexport import .EvaluateDerivativeModule: eval_diff_tree_array, eval_grad_tree_array
 @reexport import .ChainRulesModule: NodeTangent, extract_gradient

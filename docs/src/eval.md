@@ -10,7 +10,7 @@ eval_tree_array(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
-    eval_options::Union{EvalOptions,Nothing}=nothing,
+    eval_context::Union{EvalContext,Nothing}=nothing,
 ) where {T}
 ```
 
@@ -31,8 +31,9 @@ and triplets of operations for lower memory usage.
 
 # Returns
 - `output::AbstractVector{T}`: the result, which is a 1D array.
-    Any NaN, Inf, or other failure during the evaluation will result in the entire
-    output array being set to NaN.
+    A failed evaluation fills the output with `DynamicExpressions.invalid_value(T)`.
+    Floating-point types return NaN. Custom types need this optional method to
+    represent failed outputs; otherwise use `eval_tree_array` and its completion flag.
 ```
 
 For example,
@@ -58,15 +59,23 @@ It also re-defines `print`, `show`, and the various operators, to work with the 
 
     For safer behavior, you should use [`Expression`](@ref) objects.
 
-Evaluation options are specified using `EvalOptions`:
+Evaluation context is specified using `EvalContext`:
 
 ```@docs
-EvalOptions
+EvalContext
 ```
 
-You can also work with arbitrary types, by defining a `GenericOperatorEnum` instead.
-The notation is the same for `eval_tree_array`, though it will return `nothing`
-when it can't find a method, and not do any NaN checks:
+`EvalOptions` remains available as a deprecated alias for `EvalContext`.
+The `eval_options` keyword remains available as a deprecated alias for `eval_context`.
+
+`OperatorEnum` also supports arbitrary element types when every operator has the
+form `(T, ...) -> T` for the tree and input element type `T`. This uses the
+type-stable evaluator, which reuses intermediate buffers and is generally faster.
+
+Use `GenericOperatorEnum` when intermediate types may change or when evaluating
+arbitrary-dimensional arrays. The notation is the same for `eval_tree_array`,
+though it will return `nothing` when it can't find a method and does not perform
+NaN checks:
 
 ```@docs
 eval_tree_array(tree::Node, cX::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)

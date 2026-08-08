@@ -495,7 +495,7 @@ end
 
 @testitem "ArenaNode buffered plan eval" setup = [ArenaTreeGen] begin
     using DynamicExpressions
-    using DynamicExpressions: Node, EvalOptions, ArrayBuffer
+    using DynamicExpressions: Node, EvalContext, ArrayBuffer
     using Random
 
     using DynamicExpressions: ArenaNode, Arena
@@ -512,14 +512,14 @@ end
         for trial in 1:60, early_exit in (true, false)
             tree = ArenaTreeGen.random_tree(rng, rand(rng, 1:30); T, nfeat=5, const_p=0.4)
             atree = convert(ArenaNode{T}, tree)
-            opts_a = EvalOptions(; early_exit, buffer=ArrayBuffer(buf_a, Ref(0)))
-            opts_n = EvalOptions(; early_exit, buffer=ArrayBuffer(buf_n, Ref(0)))
+            opts_a = EvalContext(; early_exit, buffer=ArrayBuffer(buf_a, Ref(0)))
+            opts_n = EvalContext(; early_exit, buffer=ArrayBuffer(buf_n, Ref(0)))
             # Unbuffered ground truth; results of buffered evals are views, so
             # copy before they can alias each other.
             rt = try
                 (
                     eval_tree_array(
-                        tree, X, operators; eval_options=EvalOptions(; early_exit)
+                        tree, X, operators; eval_context=EvalContext(; early_exit)
                     ),
                     false,
                 )
@@ -527,7 +527,7 @@ end
                 (nothing, true)
             end
             ra = try
-                (eval_tree_array(atree, X, operators; eval_options=opts_a), false)
+                (eval_tree_array(atree, X, operators; eval_context=opts_a), false)
             catch
                 (nothing, true)
             end
@@ -540,7 +540,7 @@ end
                 @test yref ≈ ya || (any(!isfinite, yref) && any(!isfinite, ya))
             end
             # buffered Node evaluation agrees too
-            (yn, okn) = eval_tree_array(tree, X, operators; eval_options=opts_n)
+            (yn, okn) = eval_tree_array(tree, X, operators; eval_context=opts_n)
             @test okn == okref
         end
 
@@ -551,9 +551,9 @@ end
         end
         adeep = convert(ArenaNode{T}, deep)
         big = zeros(T, 80, 37)
-        o = EvalOptions(; buffer=ArrayBuffer(big, Ref(0)))
+        o = EvalContext(; buffer=ArrayBuffer(big, Ref(0)))
         y1, ok1 = eval_tree_array(copy(deep), X, operators)
-        y2, ok2 = eval_tree_array(adeep, X, operators; eval_options=o)
+        y2, ok2 = eval_tree_array(adeep, X, operators; eval_context=o)
         @test ok1 == ok2
         ok1 && @test y1 ≈ y2
     end
@@ -561,7 +561,7 @@ end
 
 @testitem "ArenaNode buffered eval, degree 3" setup = [ArenaTreeGen] begin
     using DynamicExpressions
-    using DynamicExpressions: Node, EvalOptions, ArrayBuffer
+    using DynamicExpressions: Node, EvalContext, ArrayBuffer
     using Random
 
     using DynamicExpressions: ArenaNode, Arena
@@ -586,11 +586,11 @@ end
             const_p=0.4,
         )
         atree = convert(ArenaNode{T,3}, tree)
-        o = EvalOptions(; early_exit, buffer=ArrayBuffer(buf, Ref(0)))
+        o = EvalContext(; early_exit, buffer=ArrayBuffer(buf, Ref(0)))
         rt = try
             (
                 eval_tree_array(
-                    copy(tree), X, operators; eval_options=EvalOptions(; early_exit)
+                    copy(tree), X, operators; eval_context=EvalContext(; early_exit)
                 ),
                 false,
             )
@@ -598,7 +598,7 @@ end
             (nothing, true)
         end
         ra = try
-            (eval_tree_array(atree, X, operators; eval_options=o), false)
+            (eval_tree_array(atree, X, operators; eval_context=o), false)
         catch
             (nothing, true)
         end
@@ -615,7 +615,7 @@ end
 
 @testitem "ArenaNode review regressions" begin
     using DynamicExpressions
-    using DynamicExpressions: Node, EvalOptions, ArrayBuffer
+    using DynamicExpressions: Node, EvalContext, ArrayBuffer
     using DynamicExpressions.NodePreallocationModule: allocate_container, copy_into!
 
     using DynamicExpressions: ArenaNode, Arena
@@ -638,7 +638,7 @@ end
         n2 = ArenaNode(a, i2)
         @test !is_compact_root(n2)
         @test count_nodes(n2) == 1
-        y, ok = eval_tree_array(n2, X, operators; eval_options=EvalOptions(; buffer=buf()))
+        y, ok = eval_tree_array(n2, X, operators; eval_context=EvalContext(; buffer=buf()))
         @test ok && y ≈ X[2, :]
     end
 
@@ -665,10 +665,10 @@ end
     function check_parity(tree, ops, Xm; early_exit)
         atree = convert(ArenaNode{T,2}, tree)
         yn, okn = eval_tree_array(
-            copy(tree), Xm, ops; eval_options=EvalOptions(; early_exit)
+            copy(tree), Xm, ops; eval_context=EvalContext(; early_exit)
         )
-        o = EvalOptions(; early_exit, buffer=ArrayBuffer(zeros(T, 16, size(Xm, 2)), Ref(0)))
-        ya, oka = eval_tree_array(atree, Xm, ops; eval_options=o)
+        o = EvalContext(; early_exit, buffer=ArrayBuffer(zeros(T, 16, size(Xm, 2)), Ref(0)))
+        ya, oka = eval_tree_array(atree, Xm, ops; eval_context=o)
         @test okn == oka
         if okn
             @test yn ≈ ya || (any(!isfinite, yn) && any(!isfinite, ya))
@@ -707,13 +707,18 @@ end
 
     @testset "use_fused=false takes the generic path" begin
         t = to_arena(Node{T}(; op=1, l=x1, r=Node{T}(; op=2, l=x2, r=Node{T}(; val=3.0))))
-        o_nofuse = EvalOptions(; buffer=buf(), use_fused=Val(false))
-        y1, ok1 = eval_tree_array(t, X, operators; eval_options=o_nofuse)
+        o_nofuse = EvalContext(; buffer=buf(), use_fused=Val(false))
+        y1, ok1 = eval_tree_array(t, X, operators; eval_context=o_nofuse)
         @test ok1 && o_nofuse.buffer.index[] > 0  # generic buffer protocol engaged
-        o_plan = EvalOptions(; buffer=buf())
-        y2, ok2 = eval_tree_array(t, X, operators; eval_options=o_plan)
-        @test ok2 && o_plan.buffer.index[] == 0  # plan path bypasses the index
+        o_plan = EvalContext(; buffer=buf())
+        y2, ok2 = eval_tree_array(t, X, operators; eval_context=o_plan)
+        @test ok2 && o_plan.buffer.index[] > 0  # plan path reserves its rows
         @test y1 ≈ y2
+        first = copy(y2)
+        y3, ok3 = eval_tree_array(t, X, operators; eval_context=o_plan)
+        @test ok3
+        @test y2 == first
+        @test y3 ≈ first
     end
 
     @testset "cross-representation ==" begin
@@ -740,7 +745,7 @@ end
         Xb = BigFloat.(X)
         bufb = ArrayBuffer(Matrix{BigFloat}(undef, 16, nrows), Ref(0))
         yb, okb = eval_tree_array(
-            ab, Xb, operators; eval_options=EvalOptions(; buffer=bufb)
+            ab, Xb, operators; eval_context=EvalContext(; buffer=bufb)
         )
         @test okb && yb ≈ Xb[1, :] .+ big"1.5"
     end
@@ -751,7 +756,7 @@ end
     using Supposition
     using Supposition: @check, Data
     using DynamicExpressions
-    using DynamicExpressions: Node, EvalOptions, ArrayBuffer, get_tree
+    using DynamicExpressions: Node, EvalContext, ArrayBuffer, get_tree
 
     using DynamicExpressions: ArenaNode
 
@@ -796,7 +801,7 @@ end
         # also overflow on finite-but-huge values). Values must agree whenever
         # both sides report ok.
         buffer = ArrayBuffer(zeros(T, 64, size(X, 2)), Ref(0))
-        yb, okb = eval_tree_array(atree, X, OPERATORS; eval_options=EvalOptions(; buffer))
+        yb, okb = eval_tree_array(atree, X, OPERATORS; eval_context=EvalContext(; buffer))
         okb && okn && !(yb ≈ yn) && return false
         return true
     end

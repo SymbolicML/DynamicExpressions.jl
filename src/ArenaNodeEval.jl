@@ -4,7 +4,7 @@ using ..UtilsModule: ResultOk
 import ..NodeModule: AbstractExpressionNode
 using ..ValueInterfaceModule: is_valid
 import ..OperatorEnumModule: OperatorEnum
-import ..EvaluateModule: _eval_tree_array, EvalOptions, ArrayBuffer, get_nops
+import ..EvaluateModule: _eval_tree_array, EvalContext, ArrayBuffer, get_nops, next_index!
 import ..ArenaNodeModule:
     ArenaNode, Arena, ArenaEntry, get_arena, get_index, is_compact_root
 
@@ -12,55 +12,56 @@ import ..ArenaNodeModule:
 # Plan-style buffered evaluation
 ################################################################################
 
-# Plan-style postfix evaluation into the caller-provided `EvalOptions.buffer`,
-# treated as a flat pool of contiguous `n_rows` slots (slot 1 is the output;
-# the `index` protocol is bypassed). Each used feature materializes once into
-# a permanent slot, intermediates are register-allocated with a free list,
-# and constant subtrees fold in a scalar lane. Addressing the buffer
-# contiguously is the point: the generic evaluator hands out strided buffer
-# rows, which vectorize poorly. Without a (sufficient) buffer the generic
-# evaluator is used -- its fused unbuffered path benches even with a
-# self-allocated plan pool while allocating half the bytes, so we do not
-# build a pool ourselves. Other fallbacks: non-compact arena, non-isbits `T`
-# (the branchless kernels issue dead loads from unwritten slots), depth or
-# feature count over 64, turbo, or `use_fused=Val(false)` (callers may
-# overload `deg1_eval` etc., which this path bypasses).
+# Plan-style postfix evaluation into reserved rows of the caller-provided
+# EvalContext.buffer. The first reserved row is the output; used features and
+# recyclable intermediates occupy the remaining rows. The buffer index advances
+# past the entire reservation so earlier results remain valid until reset.
+# Without a sufficient buffer the generic evaluator is used. Other fallbacks:
+# non-compact arena, non-isbits T (the branchless kernels issue dead loads from
+# unwritten slots), depth or feature count over 64, turbo, or
+# use_fused=Val(false) (callers may overload deg1_eval etc., which this path
+# bypasses).
 function _eval_tree_array(
     tree::ArenaNode{T,D},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    eval_options::EvalOptions,
+    eval_context::EvalContext,
 )::ResultOk where {T<:Number,D}
-    buffer = eval_options.buffer
+    buffer = eval_context.buffer
     if buffer isa ArrayBuffer{Matrix{T}} &&
         isbitstype(T) &&
         cX isa Matrix{T} &&
         size(buffer.array, 2) == size(cX, 2) &&
         is_compact_root(tree) &&
-        eval_options.turbo isa Val{false} &&
-        eval_options.use_fused isa Val{true}
+        eval_context.turbo isa Val{false} &&
+        eval_context.use_fused isa Val{true}
         ok_plan, num_slots, max_stack, feature_mask = _plan_scratch(get_arena(tree))
-        # +1 for the output slot; capacity is the buffer's row count
-        if ok_plan && num_slots + 1 <= size(buffer.array, 1)
+        # +1 for the output slot; reserve the whole range so earlier results
+        # remain valid until the caller explicitly resets the buffer.
+        available_slots = size(buffer.array, 1) - buffer.index[]
+        if ok_plan && num_slots + 1 <= available_slots
+            output_slot = next_index!(buffer)
+            buffer.index[] += num_slots
             return _arena_eval(
                 get_arena(tree),
                 cX,
                 operators,
-                eval_options.early_exit,
+                eval_context.early_exit,
                 num_slots,
                 max_stack,
                 feature_mask,
                 buffer.array,
+                output_slot,
             )
         end
     end
     return invoke(
         _eval_tree_array,
-        Tuple{AbstractExpressionNode{T,D},AbstractMatrix{T},OperatorEnum,EvalOptions},
+        Tuple{AbstractExpressionNode{T,D},AbstractMatrix{T},OperatorEnum,EvalContext},
         tree,
         cX,
         operators,
-        eval_options,
+        eval_context,
     )
 end
 
@@ -192,11 +193,12 @@ end
 end
 
 # Branchless arity-generic kernel: each operand selects per element between
-# its scalar value and its pool slot (scalar operands carry offset 0), so an
-# arity-A operator needs one kernel rather than 2^A variants.
+# its scalar value and its pool row (scalar operands use the output row as a
+# harmless address for the unselected branch), so an arity-A operator needs
+# one kernel rather than 2^A variants.
 @generated function _kern_n!(
     pool::Matrix{T},
-    dest_offset::Int,
+    dest_slot::Int,
     op::F,
     is_scalar::NTuple{A,Bool},
     scalar_args::NTuple{A,T},
@@ -205,27 +207,26 @@ end
 ) where {T,F,A}
     quote
         @inbounds @simd for j in 1:num_rows
-            pool[dest_offset + j] = Base.Cartesian.@ncall(
-                $A, op, k -> ifelse(is_scalar[k], scalar_args[k], pool[offsets[k] + j])
+            pool[dest_slot, j] = Base.Cartesian.@ncall(
+                $A, op, k -> ifelse(is_scalar[k], scalar_args[k], pool[offsets[k], j])
             )
         end
         return nothing
     end
 end
-# `is_valid_array` over a pool slot without constructing a view.
-function _valid_slot(pool::Matrix{T}, offset::Int, num_rows::Int) where {T}
+# Validity check over a pool row without constructing a view.
+function _valid_slot(pool::Matrix{T}, slot::Int, num_rows::Int) where {T}
     total = zero(T)
     @inbounds @simd for j in 1:num_rows
-        total += pool[offset + j]
+        total += pool[slot, j]
     end
     return is_valid(total)
 end
-_slot_offset(slot::Int32, nrows::Int) = (slot - 1) * nrows
 
 @generated function _dispatch_degn!(
     ::Val{A},
     pool::Matrix{T},
-    dest_offset::Int,
+    dest_slot::Int,
     op_idx::UInt8,
     is_scalar::NTuple{A,Bool},
     scalar_args::NTuple{A,T},
@@ -241,7 +242,7 @@ _slot_offset(slot::Int32, nrows::Int) = (slot - 1) * nrows
             i -> i == op_idx,  # COV_EXCL_LINE
             i -> _kern_n!(
                 pool,
-                dest_offset,
+                dest_slot,
                 operators.ops[$A][i],
                 is_scalar,
                 scalar_args,
@@ -260,6 +261,7 @@ struct PlanState{T}
     scalar_vals::Vector{T}
     free_base::Int
     nrows::Int
+    base_slot::Int
 end
 
 # Descriptor stack top, free-list length, and high-water slot, threaded
@@ -386,7 +388,7 @@ end
     operators::O,
 ) where {A,T,O<:OperatorEnum}
     quote
-        (; pool, descriptors, free_base, nrows) = state
+        (; pool, descriptors, free_base, nrows, base_slot) = state
         (; stack_top, num_free, next_slot) = regs
         # free recyclable argument slots first; the destination may then reuse
         # one (kernels are alias-safe: reads and writes of the same slot are
@@ -407,10 +409,10 @@ end
             slot = next_slot
         end
         @inbounds descriptors[stack_top] = _pack_descriptor(_K_SLOT, slot)
-        dest_offset = _slot_offset(slot, nrows)
+        dest_slot = base_slot + slot - 1
         is_scalar = Base.Cartesian.@ntuple($A, k -> kinds[k] == _K_SCALAR)
         offsets = Base.Cartesian.@ntuple(
-            $A, k -> kinds[k] == _K_SCALAR ? 0 : _slot_offset(idxs[k], nrows)
+            $A, k -> kinds[k] == _K_SCALAR ? base_slot : base_slot + idxs[k] - 1
         )
         regs = PlanRegisters(stack_top, num_free, next_slot)
         scalars_valid =
@@ -420,7 +422,7 @@ end
         _dispatch_degn!(
             Val($A),
             pool,
-            dest_offset,
+            dest_slot,
             op_idx,
             is_scalar,
             scalar_args,
@@ -428,7 +430,7 @@ end
             nrows,
             operators,
         )
-        if early_exit && !is_root && !_valid_slot(pool, dest_offset, nrows)
+        if early_exit && !is_root && !_valid_slot(pool, dest_slot, nrows)
             return (regs, false)
         end
         return (regs, true)
@@ -442,56 +444,54 @@ end
 # single-leaf tree, where `check_validity` is passed as false to match
 # `deg0_eval`, which never validates a bare leaf.
 function _materialize_features!(
-    pool::Matrix{T}, cX::Matrix{T}, feature_mask::UInt64, nrows::Int, check_validity::Bool
+    pool::Matrix{T},
+    cX::Matrix{T},
+    feature_mask::UInt64,
+    nrows::Int,
+    check_validity::Bool,
+    base_slot::Int,
 ) where {T}
     slot = 1
     remaining = feature_mask
     while !iszero(remaining)
         feature = trailing_zeros(remaining) + 1
         slot += 1
-        offset = (slot - 1) * nrows
+        pool_slot = base_slot + slot - 1
         @inbounds @simd for j in 1:nrows
-            pool[offset + j] = cX[feature, j]
+            pool[pool_slot, j] = cX[feature, j]
         end
-        # Separate validity pass over the just-written (cache-hot) slot keeps
-        # the copy loop a pure memcpy pattern.
-        check_validity && !_valid_slot(pool, offset, nrows) && return false
+        # Separate validity pass over the just-written row keeps the copy
+        # loop independent from validation.
+        check_validity && !_valid_slot(pool, pool_slot, nrows) && return false
         remaining &= remaining - 1
     end
     return true
 end
 
-# Land the result in pool row 1: copy a scalar or passthrough root into the
-# output chunk if needed, then convert the contiguous chunk into the strided
-# row the generic buffered evaluator returns (keeps `eval_tree_array`
-# type stable).
+# Land the result in the caller-owned output row.
 function _write_root_to_output!(
-    pool::Matrix{T}, descriptors::Vector{Int64}, scalar_vals::Vector{T}, nrows::Int
+    pool::Matrix{T},
+    descriptors::Vector{Int64},
+    scalar_vals::Vector{T},
+    nrows::Int,
+    output_slot::Int,
+    base_slot::Int,
 ) where {T}
     # Root never went through a kernel (bare leaf or fully folded scalar), or
     # an op-root wrote into a non-output slot via in-place deg1 reuse. A bare
-    # leaf root is never validity-checked (`deg0_eval` semantics); a folded
+    # leaf root is never validity-checked (deg0_eval semantics); a folded
     # scalar root is already valid by induction.
     root_kind = _descriptor_kind(descriptors[1])
     root_slot = _descriptor_slot(descriptors[1])
     if root_kind == _K_SCALAR
         value = scalar_vals[1]
         @inbounds @simd for j in 1:nrows
-            pool[j] = value
+            pool[output_slot, j] = value
         end
     elseif !isone(root_slot)
-        root_offset = _slot_offset(root_slot, nrows)
+        root_row = base_slot + root_slot - 1
         @inbounds @simd for j in 1:nrows
-            pool[j] = pool[root_offset + j]
-        end
-    end
-    # The chunk and row 1 overlap in memory; iterating downward is safe: when
-    # reading chunk index j, every already-written row position (j''-1)*B+1
-    # with j'' > j exceeds j for B = size(pool, 1) >= 2, and for B == 1 the
-    # chunk and row coincide elementwise.
-    if size(pool, 1) > 1
-        @inbounds for j in nrows:-1:1
-            pool[1, j] = pool[j]
+            pool[output_slot, j] = pool[root_row, j]
         end
     end
     return nothing
@@ -506,22 +506,24 @@ function _arena_eval(
     max_stack::Int,
     feature_mask::UInt64,
     pool::Matrix{T},
+    output_slot::Int,
 ) where {T,D,early_exit}
     nodes = arena.nodes
     num_nodes = length(nodes)
     nrows = size(cX, 2)
     num_features = count_ones(feature_mask)
-    output = @view(pool[1, :])
+    base_slot = output_slot
+    output = @view(pool[output_slot, :])
 
     check_features = early_exit && num_nodes > 1
-    if !_materialize_features!(pool, cX, feature_mask, nrows, check_features)
+    if !_materialize_features!(pool, cX, feature_mask, nrows, check_features, base_slot)
         return ResultOk(output, false)
     end
 
     # Per-call descriptor state (tiny; the pool itself is caller-owned):
     descriptors = Vector{Int64}(undef, max_stack + num_slots)
     scalar_vals = Vector{T}(undef, max_stack)
-    state = PlanState(pool, descriptors, scalar_vals, max_stack, nrows)
+    state = PlanState(pool, descriptors, scalar_vals, max_stack, nrows, base_slot)
     regs = PlanRegisters(0, 0, Int32(1 + num_features))
 
     @inbounds for i in 1:num_nodes
@@ -537,7 +539,9 @@ function _arena_eval(
         end
     end
 
-    _write_root_to_output!(pool, descriptors, scalar_vals, nrows)
+    _write_root_to_output!(
+        pool, descriptors, scalar_vals, nrows, output_slot, base_slot
+    )
     return ResultOk(output, true)
 end
 

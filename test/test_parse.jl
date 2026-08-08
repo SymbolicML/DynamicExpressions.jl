@@ -120,6 +120,31 @@ end
     @test y2[1] == 5.0f0
 end
 
+@testitem "Parsing round-trips complex number constants" begin
+    using DynamicExpressions
+    using Test
+
+    operators = OperatorEnum(2 => [+, -, *, /])
+
+    function count_nodes(n)
+        n.degree == 0 && return 1
+        return 1 + sum(count_nodes(c.x) for c in n.children)
+    end
+
+    line = "(-0.21000202f0 - 0.016444953f0im) + (RC_vector / (0.97645104f0 + 0.00017897492f0im))"
+    ex = parse_expression(
+        line; operators, variable_names=["RC_vector"], node_type=Node{ComplexF32}
+    )
+    @test count_nodes(ex.tree) == 5
+    @test ex.tree.children[1].x.val == ComplexF32(-0.21000202f0, -0.016444953f0)
+    @test ex.tree.children[2].x.children[2].x.val ==
+        ComplexF32(0.97645104f0, 0.00017897492f0)
+    s = string_tree(ex.tree, operators; variable_names=["RC_vector"])
+    @test parse_expression(
+        s; operators, variable_names=["RC_vector"], node_type=Node{ComplexF32}
+    ).tree == ex.tree
+end
+
 @testitem "Can also parse just a float" begin
     using DynamicExpressions
     operators = OperatorEnum()  # Tests empty operators
@@ -470,5 +495,150 @@ end
         parse_expression(
             "custom_cos(x1, x2)", operators=operators, variable_names=["x1", "x2"]
         )
+    )
+end
+
+@testitem "parse_expression resolves symbols via eval_module" begin
+    using DynamicExpressions
+    using Test
+
+    module MyTypesModule
+    struct Vec2{T}
+        x::T
+        y::T
+    end
+    rotate90(v::Vec2) = Vec2(-v.y, v.x)
+    const SCALE = 2.5
+    end
+
+    operators = OperatorEnum(; binary_operators=[+, -, *], unary_operators=[sin])
+
+    # Constructor call folds into a single constant leaf of the custom type
+    ex = parse_expression(
+        "Vec2(1.0, 2.0) * x1";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{MyTypesModule.Vec2{Float64}},
+        eval_module=MyTypesModule,
+    )
+    c1 = ex.tree.children[1].x
+    @test ex.tree.degree == 2
+    @test c1.constant == true
+    @test c1.val isa MyTypesModule.Vec2{Float64}
+    @test (c1.val.x, c1.val.y) == (1.0, 2.0)
+
+    # Nested user-function calls fold eagerly
+    ex2 = parse_expression(
+        "rotate90(Vec2(0.0, 1.0)) + x1";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{MyTypesModule.Vec2{Float64}},
+        eval_module=MyTypesModule,
+    )
+    c2 = ex2.tree.children[1].x
+    @test c2.constant == true
+    @test (c2.val.x, c2.val.y) == (-1.0, 0.0)
+
+    # Bare symbols resolve as constants from eval_module
+    ex3 = parse_expression(
+        "x1 * SCALE";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=MyTypesModule,
+    )
+    @test ex3.tree.children[2].x.val == 2.5
+
+    # Nested custom struct: dotted keyword constructor folding a vector, a Dict,
+    # and locally bound lambda/comprehension variables that reuse a feature name
+    module NestedModule
+    module Inner
+        struct Bundle{T}
+            items::Vector{T}
+            table::Dict{String,T}
+        end
+        function Bundle{T}(; xs, shift) where {T}
+            return Bundle{T}(collect(xs) .+ shift, Dict("shift" => shift))
+        end
+        const SHIFT = 0.5
+        apply(f) = f(SHIFT)
+        const FACTORY_CALLS = Ref(0)
+        function bundle_type()
+            FACTORY_CALLS[] += 1
+            return Bundle{Float64}
+        end
+    end
+    end
+
+    ex4 = parse_expression(
+        "Inner.Bundle{Float64}(xs=[x1 for x1 in (1.0, 2.0)], shift=Inner.apply(x1 -> x1)) * x1";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{NestedModule.Inner.Bundle{Float64}},
+        eval_module=NestedModule,
+    )
+    c4 = ex4.tree.children[1].x
+    @test c4.constant == true
+    @test c4.val isa NestedModule.Inner.Bundle{Float64}
+    @test c4.val.items == [1.5, 2.5]
+    @test c4.val.table["shift"] == 0.5
+
+    # Expression-valued constructor heads are evaluated exactly once
+    ex5 = parse_expression(
+        "Inner.bundle_type()(xs=[1.0, 2.0], shift=0.5) * x1";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{NestedModule.Inner.Bundle{Float64}},
+        eval_module=NestedModule,
+    )
+    @test ex5.tree.children[1].x.val.items == [1.5, 2.5]
+    @test NestedModule.Inner.FACTORY_CALLS[] == 1
+
+    # Undefined symbols still error
+    @test_throws ArgumentError parse_expression(
+        "x1 * NOPE";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=MyTypesModule,
+    )
+
+    @test_throws ArgumentError parse_expression(
+        "Vec2(1.0, NOPE) * x1";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{MyTypesModule.Vec2{Float64}},
+        eval_module=MyTypesModule,
+    )
+
+    @test_throws "Symbol `x1` is declared in `variable_names`" parse_expression(
+        "Vec2(x1, 2.0) * x1";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{MyTypesModule.Vec2{Float64}},
+        eval_module=MyTypesModule,
+    )
+
+    # Module functions applied to variables cannot form tree nodes
+    @test_throws ArgumentError parse_expression(
+        "rotate90(x1)";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{MyTypesModule.Vec2{Float64}},
+        eval_module=MyTypesModule,
+    )
+
+    # Symbols declared in variable_names are never folded from eval_module
+    module ShadowModule
+    const x1 = 99.0
+    wrap(v) = v + x1
+    end
+    @test_throws ArgumentError parse_expression(
+        "wrap(x1)"; operators, variable_names=["x1"], eval_module=ShadowModule
+    )
+
+    # Without eval_module, behavior is unchanged
+    @test_throws ArgumentError parse_expression(
+        "NOPE * x1"; operators, variable_names=["x1"], node_type=Node{Float64}
     )
 end

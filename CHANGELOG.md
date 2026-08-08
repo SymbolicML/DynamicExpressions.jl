@@ -1,5 +1,83 @@
 # Changelog
 
+## [2.11.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.10.1...v2.11.0) (2026-09-10)
+
+
+### Features
+
+* support optional invalid value construction ([#210](https://github.com/SymbolicML/DynamicExpressions.jl/issues/210)) ([328057c](https://github.com/SymbolicML/DynamicExpressions.jl/commit/328057c7bde07291b2c592d6dc96bd4403fc82ea))
+
+## [2.10.1](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.10.0...v2.10.1) (2026-08-24)
+
+
+### Bug Fixes
+
+* evaluate module constants generically ([#207](https://github.com/SymbolicML/DynamicExpressions.jl/issues/207)) ([c684f79](https://github.com/SymbolicML/DynamicExpressions.jl/commit/c684f798490299297e98d4342c82ef604fb2e6a9))
+
+## [2.10.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.9.2...v2.10.0) (2026-08-23)
+
+
+### Features
+
+* add eval_module option to parse_expression ([#204](https://github.com/SymbolicML/DynamicExpressions.jl/issues/204)) ([3f3843b](https://github.com/SymbolicML/DynamicExpressions.jl/commit/3f3843bce882381a7d91b45c9d39896fa7b0b01c))
+
+## [2.9.2](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.9.1...v2.9.2) (2026-08-18)
+
+
+### Bug Fixes
+
+* round-trip complex constants ([#201](https://github.com/SymbolicML/DynamicExpressions.jl/issues/201)) ([b422ce3](https://github.com/SymbolicML/DynamicExpressions.jl/commit/b422ce3445930517f3659b38b6b92bafad63700e))
+
+## [2.9.1](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.9.0...v2.9.1) (2026-08-11)
+
+
+### Bug Fixes
+
+* support Symbolics.Num conversion ([#196](https://github.com/SymbolicML/DynamicExpressions.jl/issues/196)) ([61ae8a3](https://github.com/SymbolicML/DynamicExpressions.jl/commit/61ae8a3005245ddede8072bc1ad2c8fa4b807f8f))
+
+
+### Performance Improvements
+
+* streamline fused feature indexing ([#198](https://github.com/SymbolicML/DynamicExpressions.jl/issues/198)) ([7b93216](https://github.com/SymbolicML/DynamicExpressions.jl/commit/7b93216c25c437939d0456e169ffc0f2972b2510))
+
+## [2.9.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.8.0...v2.9.0) (2026-08-08)
+
+
+### Features
+
+* rename eval_options keyword to eval_context ([#192](https://github.com/SymbolicML/DynamicExpressions.jl/issues/192)) ([0ae85fa](https://github.com/SymbolicML/DynamicExpressions.jl/commit/0ae85fac168894ec8732a27763212b5efcee14f1))
+
+## [2.8.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.7.0...v2.8.0) (2026-08-05)
+
+
+### Features
+
+* rename EvalOptions to EvalContext ([#187](https://github.com/SymbolicML/DynamicExpressions.jl/issues/187)) ([5e7f1bd](https://github.com/SymbolicML/DynamicExpressions.jl/commit/5e7f1bd13076041328cf57638c228f156a157639))
+
+## [2.7.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.6.0...v2.7.0) (2026-08-04)
+
+
+### Features
+
+* let callers manage ArrayBuffer lifetimes ([#186](https://github.com/SymbolicML/DynamicExpressions.jl/issues/186)) ([622aa6e](https://github.com/SymbolicML/DynamicExpressions.jl/commit/622aa6e7ef0a9706f85b7a4bd4729c7ac0a36f31))
+
+
+### Bug Fixes
+
+* align downgrade compatibility floors ([#182](https://github.com/SymbolicML/DynamicExpressions.jl/issues/182)) ([8b0b87c](https://github.com/SymbolicML/DynamicExpressions.jl/commit/8b0b87cba749fd9a1a43f90abbaa6a127e1d4724))
+
+## [2.6.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.5.2...v2.6.0) (2026-08-04)
+
+
+### Bug Fixes
+
+* remove default zero(UInt) from hash seed ([#141](https://github.com/SymbolicML/DynamicExpressions.jl/issues/141)) ([bdf8e1b](https://github.com/SymbolicML/DynamicExpressions.jl/commit/bdf8e1bfb5d660a3206b4ddcb158010980564eed))
+
+
+### Performance Improvements
+
+* fuse three-leaf evaluation and reuse contiguous buffers ([#180](https://github.com/SymbolicML/DynamicExpressions.jl/issues/180)) ([e75a912](https://github.com/SymbolicML/DynamicExpressions.jl/commit/e75a9121763521c3c34b9f7ae57a2baa664f8a99))
+
 ## [2.5.2](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.5.1...v2.5.2) (2026-03-23)
 
 

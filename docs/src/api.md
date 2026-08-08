@@ -228,6 +228,7 @@ tested using Interfaces.jl. You can see the interfaces with:
 ```@docs
 DynamicExpressions.ExpressionInterface
 DynamicExpressions.NodeInterface
+DynamicExpressions.ValueInterface
 ```
 
 You can declare a new type as implementing these with, e.g.,

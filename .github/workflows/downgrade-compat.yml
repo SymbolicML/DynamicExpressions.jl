@@ -19,6 +19,8 @@ jobs:
         with:
           version: ${{ matrix.julia-version }}
       - uses: julia-actions/cache@v2
+        with:
+          cache-compiled: false
       - uses: julia-actions/julia-downgrade-compat@v2
         with:
           mode: "deps"

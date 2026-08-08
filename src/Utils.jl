@@ -3,6 +3,7 @@ module UtilsModule
 
 using MacroTools: postwalk, @capture, splitdef, combinedef
 using DispatchDoctor: @unstable
+import ..ValueInterfaceModule: invalid_value
 
 # Returns two arrays
 macro return_on_false2(flag, retval, retval2)
@@ -70,8 +71,8 @@ end
     return Nullable(x.null, convert(T, x.x))
 end
 
-function set_nan!(out)
-    out .= convert(eltype(out), NaN)
+function set_invalid!(out)
+    fill!(out, invalid_value(eltype(out)))
     return nothing
 end
 

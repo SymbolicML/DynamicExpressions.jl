@@ -3,7 +3,7 @@ module NonDifferentiableDeclarationsModule
 # COV_EXCL_START
 
 using ChainRulesCore: @non_differentiable
-import ..UtilsModule: set_nan!
+import ..UtilsModule: set_invalid!
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..NodeModule: AbstractExpressionNode, AbstractNode
 import ..NodeUtilsModule: tree_mapreduce
@@ -16,7 +16,7 @@ import ..ExpressionModule:
 @non_differentiable get_operators(ex::Union{AbstractExpression,AbstractExpressionNode}, operators::Union{AbstractOperatorEnum,Nothing})
 @non_differentiable get_variable_names(ex::AbstractExpression, variable_names::Union{AbstractVector{<:AbstractString},Nothing})
 @non_differentiable _validate_input(ex::AbstractExpression, X, operators::Union{AbstractOperatorEnum,Nothing})
-@non_differentiable set_nan!(::Any)
+@non_differentiable set_invalid!(::Any)
 #! format: on
 
 # COV_EXCL_STOP

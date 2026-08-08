@@ -1,5 +1,5 @@
 using DynamicExpressions
-using DynamicExpressions: EvalOptions, ArrayBuffer
+using DynamicExpressions: EvalContext, ArrayBuffer
 using Random: MersenneTwister
 
 include(joinpath(@__DIR__, "..", "test", "tree_gen_utils.jl"))
@@ -20,7 +20,7 @@ function bench(trees, X, operators, buffer; reps=300)
         t0 = time_ns()
         for tree in trees
             buffer.index[] = 0
-            eval_tree_array(tree, X, operators; eval_options=EvalOptions(; buffer))
+            eval_tree_array(tree, X, operators; eval_context=EvalContext(; buffer))
         end
         best = min(best, (time_ns() - t0) / length(trees))
     end
@@ -28,7 +28,7 @@ function bench(trees, X, operators, buffer; reps=300)
 end
 
 function allocs_per_eval(tree, X, operators, buffer)
-    @allocated(eval_tree_array(tree, X, operators; eval_options=EvalOptions(; buffer)))
+    @allocated(eval_tree_array(tree, X, operators; eval_context=EvalContext(; buffer)))
 end
 
 for treesize in (7, 15, 31)
@@ -39,11 +39,12 @@ for treesize in (7, 15, 31)
     # correctness sanity: both paths must agree
     for (t, a) in zip(trees, atrees)
         buffer.index[] = 0
-        yn, okn = eval_tree_array(t, X, operators; eval_options=EvalOptions(; buffer))
+        yn, okn = eval_tree_array(t, X, operators; eval_context=EvalContext(; buffer))
+        yn_copy = copy(yn)
         buffer.index[] = 0
-        ya, oka = eval_tree_array(a, X, operators; eval_options=EvalOptions(; buffer))
+        ya, oka = eval_tree_array(a, X, operators; eval_context=EvalContext(; buffer))
         okn == oka || error("ok mismatch at size $treesize")
-        okn && (yn ≈ ya || error("value mismatch at size $treesize"))
+        okn && (yn_copy ≈ ya || error("value mismatch at size $treesize"))
     end
 
     # warmup
