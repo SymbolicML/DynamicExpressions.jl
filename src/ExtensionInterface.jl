@@ -29,7 +29,7 @@ will generate a symbolic equation in SymbolicUtils.jl format.
 end
 function _node_to_symbolic end
 
-function symbolic_to_node(args...; kws...)
+@unstable function symbolic_to_node(args...; kws...)
     is_extension_loaded(Val(:SymbolicUtils)) ||
         error("Please load the `SymbolicUtils` package to use `symbolic_to_node`.")
     return _symbolic_to_node(args...; kws...)
