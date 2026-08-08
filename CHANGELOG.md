@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.8.0...v2.9.0) (2026-08-08)
+
+
+### Features
+
+* rename eval_options keyword to eval_context ([#192](https://github.com/SymbolicML/DynamicExpressions.jl/issues/192)) ([0ae85fa](https://github.com/SymbolicML/DynamicExpressions.jl/commit/0ae85fac168894ec8732a27763212b5efcee14f1))
+
 ## [2.8.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.7.0...v2.8.0) (2026-08-05)
 
 
