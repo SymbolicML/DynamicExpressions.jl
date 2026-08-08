@@ -21,6 +21,16 @@ functions = [
     (x1, x2, x3) -> sin(x1) * x2,
     (x1, x2, x3) -> sin(x1) * 3.0,
 
+    # deg2_branch0_eval
+    (x1, x2, x3) -> (x1 * x2) + x3,
+    (x1, x2, x3) -> (3.0 * x2) + x3,
+    (x1, x2, x3) -> (x1 * 3.0) + x3,
+    (x1, x2, x3) -> (x1 * x2) + 3.0,
+    (x1, x2, x3) -> x1 + (x2 * x3),
+    (x1, x2, x3) -> 3.0 + (x2 * x3),
+    (x1, x2, x3) -> x1 + (3.0 * x3),
+    (x1, x2, x3) -> x1 + (x2 * 3.0),
+
     # deg1_l2_ll0_lr0_eval
     (x1, x2, x3) -> cos(x1 * x2),
     (x1, x2, x3) -> cos(x1 * 3.0),
@@ -83,9 +93,71 @@ end
 end
 #! format: on
 
+@testitem "Fused branch preserves early exit" begin
+    using DynamicExpressions, LoopVectorization
+    using DynamicExpressions.EvaluateModule: EvalContext
+
+    function finite_min(x, y)
+        isfinite(x) && isfinite(y) || error("nonfinite input")
+        return min(x, y)
+    end
+
+    operators = OperatorEnum(; binary_operators=[finite_min, /])
+    x1 = Node(Float64; feature=1)
+    x2 = Node(Float64; feature=2)
+    x3 = Node(Float64; feature=3)
+
+    for (tree, X) in (
+        (Node(1, Node(2, x1, x2), x3), [1.0; 0.0; 2.0;;]),
+        (Node(1, x1, Node(2, x2, x3)), [2.0; 1.0; 0.0;;]),
+        (Node(1, Node(2, x1, x2), x3), [1.0; 1.0; Inf;;]),
+        (Node(1, x1, Node(2, x2, x3)), [Inf; 1.0; 1.0;;]),
+    )
+        for turbo in (false, true)
+            _, ok = eval_tree_array(
+                tree, X, operators; eval_context=EvalContext(; turbo, early_exit=true)
+            )
+            @test !ok
+        end
+    end
+
+    inf = Node(Float64; val=Inf)
+    for tree in (
+        Node(1, Node(2, inf, x2), x3),
+        Node(1, Node(2, x1, inf), x3),
+        Node(1, Node(2, x1, x2), inf),
+    )
+        _, ok = eval_tree_array(
+            tree,
+            ones(3, 1),
+            operators;
+            eval_context=EvalContext(; turbo=true, early_exit=true),
+        )
+        @test !ok
+    end
+
+    finite_operators = OperatorEnum(; binary_operators=[+, *])
+    right_tree = Node(1, x1, Node(2, x2, x3))
+    X = [1.0 2.0; 3.0 4.0; 5.0 6.0]
+    expected, expected_ok = eval_tree_array(
+        right_tree,
+        X,
+        finite_operators;
+        eval_context=EvalContext(; turbo=false, early_exit=false),
+    )
+    result, ok = eval_tree_array(
+        right_tree,
+        X,
+        finite_operators;
+        eval_context=EvalContext(; turbo=true, early_exit=false),
+    )
+    @test result == expected
+    @test ok == expected_ok
+end
+
 @testitem "Test specific branches of evaluation" begin
     using DynamicExpressions, DynamicExpressions, Bumper, LoopVectorization
-    using DynamicExpressions.EvaluateModule: EvalOptions
+    using DynamicExpressions.EvaluateModule: EvalContext
 
     include("test_params.jl")
 
@@ -103,7 +175,7 @@ end
         @test repr(tree) == "cos(cos(3.0))"
         tree = convert(Node{T}, tree)
         truth = cos(cos(T(3.0f0)))
-        @test DynamicExpressions.EvaluateModule.deg1_l1_ll0_eval(tree, [zero(T)]', cos, cos, EvalOptions(; turbo)).x[1] ≈
+        @test DynamicExpressions.EvaluateModule.deg1_l1_ll0_eval(tree, [zero(T)]', cos, cos, EvalContext(; turbo)).x[1] ≈
             truth
 
         # op(<constant>, <constant>)
@@ -111,7 +183,7 @@ end
         @test repr(tree) == "3.0 + 4.0"
         tree = convert(Node{T}, tree)
         truth = T(3.0f0) + T(4.0f0)
-        @test DynamicExpressions.EvaluateModule.deg2_l0_r0_eval(tree, [zero(T)]', (+), EvalOptions(; turbo)).x[1] ≈
+        @test DynamicExpressions.EvaluateModule.deg2_l0_r0_eval(tree, [zero(T)]', (+), EvalContext(; turbo)).x[1] ≈
             truth
 
         # op(op(<constant>, <constant>))
@@ -119,7 +191,7 @@ end
         @test repr(tree) == "cos(3.0 + 4.0)"
         tree = convert(Node{T}, tree)
         truth = cos(T(3.0f0) + T(4.0f0))
-        @test DynamicExpressions.EvaluateModule.deg1_l2_ll0_lr0_eval(tree, [zero(T)]', cos, (+), EvalOptions(; turbo)).x[1] ≈
+        @test DynamicExpressions.EvaluateModule.deg1_l2_ll0_lr0_eval(tree, [zero(T)]', cos, (+), EvalContext(; turbo)).x[1] ≈
             truth
 
         # Test for presence of NaNs:
@@ -247,7 +319,7 @@ end
         )
         X = T[1.0 floatmax(T)]
         @test all(isnan.(ex(X)))
-        @test ex(X; eval_options=EvalOptions(; early_exit=Val(false))) ≈ [2.0, Inf]
+        @test ex(X; eval_context=EvalContext(; early_exit=Val(false))) ≈ [2.0, Inf]
     end
 
     for turbo in [Val(false), Val(true)],
@@ -266,33 +338,50 @@ end
             1 floatmax(T)
             1 1
         ]
-        @test all(isnan.(ex(X; eval_options=EvalOptions(; bumper, turbo))))
-        y = ex(X; eval_options=EvalOptions(; bumper, turbo, early_exit=Val(false)))
+        @test all(isnan.(ex(X; eval_context=EvalContext(; bumper, turbo))))
+        y = ex(X; eval_context=EvalContext(; bumper, turbo, early_exit=Val(false)))
         @test y[1] ≈ T(-1.618033988749895)
         @test !isfinite(y[2])
     end
 end
 
-@testitem "Test EvalOptions constructor" begin
+@testitem "Test EvalContext constructor" begin
     using DynamicExpressions, LoopVectorization
 
-    @test EvalOptions(; turbo=true) isa EvalOptions{true}
-    @test EvalOptions(; turbo=Val(true)) isa EvalOptions{true}
-    @test EvalOptions(; turbo=false) isa EvalOptions{false}
-    @test EvalOptions(; turbo=Val(false)) isa EvalOptions{false}
+    @test EvalContext(; turbo=true) isa EvalContext{true}
+    @test EvalContext(; turbo=Val(true)) isa EvalContext{true}
+    @test EvalContext(; turbo=false) isa EvalContext{false}
+    @test EvalContext(; turbo=Val(false)) isa EvalContext{false}
+    @test Base.isdeprecated(DynamicExpressions, :EvalOptions)
+    @test DynamicExpressions.EvalOptions === EvalContext
+    @test DynamicExpressions.EvalOptions() isa EvalContext
+    @test EvalContext(; turbo=true, bumper=true) isa
+        DynamicExpressions.EvalOptions{true,true}
 
-    ex = Expression(Node{Float64}(; feature=1))
-    @test_throws ArgumentError ex(randn(1, 5), OperatorEnum(); bad_arg=1)
+    tree = Node{Float64}(; feature=1)
+    X = randn(1, 5)
+    operators = OperatorEnum()
+    eval_context = EvalContext()
+    expected = eval_tree_array(tree, X, operators; eval_context)
+    @test (@test_deprecated eval_tree_array(
+        tree, X, operators; eval_options=DynamicExpressions.EvalOptions()
+    )) == expected
+    @test_throws AssertionError eval_tree_array(
+        tree, X, operators; eval_context, eval_options=eval_context
+    )
+
+    ex = Expression(tree)
+    @test_throws ArgumentError ex(X, operators; bad_arg=1)
 end
 
-@testitem "Test EvalOptions copy" begin
+@testitem "Test EvalContext copy" begin
     using DynamicExpressions
     using DynamicExpressions: ArrayBuffer
 
     # Test copying with various configurations
     buffer = zeros(5, 10)
     buffer_ref = Ref(0)
-    original = EvalOptions(;
+    original = EvalContext(;
         turbo=true, bumper=false, early_exit=true, buffer=ArrayBuffer(buffer, buffer_ref)
     )
     copied = copy(original)
@@ -310,7 +399,7 @@ end
     @test copied.buffer.index !== original.buffer.index
 
     # Test without buffer
-    original_no_buffer = EvalOptions(; turbo=true, bumper=false, early_exit=true)
+    original_no_buffer = EvalContext(; turbo=true, bumper=false, early_exit=true)
     copied_no_buffer = copy(original_no_buffer)
     @test copied_no_buffer.buffer === nothing
 end

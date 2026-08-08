@@ -44,6 +44,8 @@ jobs:
           version: ${{ matrix.julia-version }}
       - name: "Cache artifacts"
         uses: julia-actions/cache@v2
+        with:
+          cache-compiled: false
       - name: "Build package"
         uses: julia-actions/julia-buildpkg@v1
       - name: "Run tests"
@@ -80,6 +82,8 @@ jobs:
         with:
           version: ${{ matrix.julia-version }}
       - uses: julia-actions/cache@v2
+        with:
+          cache-compiled: false
       - uses: julia-actions/julia-buildpkg@v1
       - name: Run tests
         id: run-tests
@@ -107,6 +111,8 @@ jobs:
         with:
           version: '1'
       - uses: julia-actions/cache@v2
+        with:
+          cache-compiled: false
       - uses: julia-actions/julia-buildpkg@v1
       - name: Pin Optim v1 + NLSolversBase v7
         run: |

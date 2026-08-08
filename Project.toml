@@ -1,7 +1,7 @@
 name = "DynamicExpressions"
 uuid = "a40a106e-89c9-4ca8-8020-a735e8728b6b"
 authors = ["MilesCranmer <miles.cranmer@gmail.com>"]
-version = "2.5.2"
+version = "2.8.0"
 
 [deps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
@@ -35,10 +35,10 @@ ChainRulesCore = "1.25.1"
 Compat = "4.16"
 DispatchDoctor = "0.4"
 Interfaces = "0.3"
-LoopVectorization = "0.12"
+LoopVectorization = "0.12.174"
 MacroTools = "0.5.16"
-Optim = "1, 2"
-NLSolversBase = "7, 8"
+Optim = "1.13.3, 2"
+NLSolversBase = "7.10, 8"
 PrecompileTools = "1.2.1"
 Reexport = "1.2.2"
 SymbolicUtils = "4.35"

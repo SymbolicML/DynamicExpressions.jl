@@ -81,6 +81,8 @@ testitem_suffixes = String[]
 
 if "main" in test_names
     push!(testitem_suffixes, joinpath("test", "unittest.jl"))
+    push!(testitem_suffixes, joinpath("test", "test_evaluation.jl"))
+    push!(testitem_suffixes, joinpath("test", "test_buffered_evaluation.jl"))
     push!(testitem_suffixes, joinpath("test", "test_optim.jl"))
     # NOTE: `@testitem`s defined in a file that `unittest.jl` merely `include`s are
     # attributed to *their own* filename by TestItemRunner, so files with their own
