@@ -36,13 +36,13 @@ tree = cos(2.1 * x1) + sin(x2)
 @test_throws(
     "Please load the Bumper.jl package",
     allow_unstable(
-        () -> tree(ones(2, 10), operators; eval_options=EvalContext(; bumper=Val(true)))
+        () -> tree(ones(2, 10), operators; eval_context=EvalContext(; bumper=Val(true)))
     )
 )
 
 @test_throws(
     "Please load the LoopVectorization.jl package",
     allow_unstable(
-        () -> tree(ones(2, 10), operators; eval_options=EvalContext(; turbo=Val(true)))
+        () -> tree(ones(2, 10), operators; eval_context=EvalContext(; turbo=Val(true)))
     )
 )

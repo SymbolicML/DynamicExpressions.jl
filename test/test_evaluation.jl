@@ -115,7 +115,7 @@ end
     )
         for turbo in (false, true)
             _, ok = eval_tree_array(
-                tree, X, operators; eval_options=EvalContext(; turbo, early_exit=true)
+                tree, X, operators; eval_context=EvalContext(; turbo, early_exit=true)
             )
             @test !ok
         end
@@ -131,7 +131,7 @@ end
             tree,
             ones(3, 1),
             operators;
-            eval_options=EvalContext(; turbo=true, early_exit=true),
+            eval_context=EvalContext(; turbo=true, early_exit=true),
         )
         @test !ok
     end
@@ -143,13 +143,13 @@ end
         right_tree,
         X,
         finite_operators;
-        eval_options=EvalContext(; turbo=false, early_exit=false),
+        eval_context=EvalContext(; turbo=false, early_exit=false),
     )
     result, ok = eval_tree_array(
         right_tree,
         X,
         finite_operators;
-        eval_options=EvalContext(; turbo=true, early_exit=false),
+        eval_context=EvalContext(; turbo=true, early_exit=false),
     )
     @test result == expected
     @test ok == expected_ok
@@ -319,7 +319,7 @@ end
         )
         X = T[1.0 floatmax(T)]
         @test all(isnan.(ex(X)))
-        @test ex(X; eval_options=EvalContext(; early_exit=Val(false))) ≈ [2.0, Inf]
+        @test ex(X; eval_context=EvalContext(; early_exit=Val(false))) ≈ [2.0, Inf]
     end
 
     for turbo in [Val(false), Val(true)],
@@ -338,8 +338,8 @@ end
             1 floatmax(T)
             1 1
         ]
-        @test all(isnan.(ex(X; eval_options=EvalContext(; bumper, turbo))))
-        y = ex(X; eval_options=EvalContext(; bumper, turbo, early_exit=Val(false)))
+        @test all(isnan.(ex(X; eval_context=EvalContext(; bumper, turbo))))
+        y = ex(X; eval_context=EvalContext(; bumper, turbo, early_exit=Val(false)))
         @test y[1] ≈ T(-1.618033988749895)
         @test !isfinite(y[2])
     end
@@ -358,8 +358,20 @@ end
     @test EvalContext(; turbo=true, bumper=true) isa
         DynamicExpressions.EvalOptions{true,true}
 
-    ex = Expression(Node{Float64}(; feature=1))
-    @test_throws ArgumentError ex(randn(1, 5), OperatorEnum(); bad_arg=1)
+    tree = Node{Float64}(; feature=1)
+    X = randn(1, 5)
+    operators = OperatorEnum()
+    eval_context = EvalContext()
+    expected = eval_tree_array(tree, X, operators; eval_context)
+    @test (@test_deprecated eval_tree_array(
+        tree, X, operators; eval_options=DynamicExpressions.EvalOptions()
+    )) == expected
+    @test_throws AssertionError eval_tree_array(
+        tree, X, operators; eval_context, eval_options=eval_context
+    )
+
+    ex = Expression(tree)
+    @test_throws ArgumentError ex(X, operators; bad_arg=1)
 end
 
 @testitem "Test EvalContext copy" begin

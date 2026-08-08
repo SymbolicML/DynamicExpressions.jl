@@ -11,7 +11,7 @@ function bumper_eval_tree_array(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum,
-    eval_options::EvalContext{turbo,true,early_exit},
+    eval_context::EvalContext{turbo,true,early_exit},
 ) where {T,turbo,early_exit}
     result = similar(cX, axes(cX, 2))
     n = size(cX, 2)
@@ -36,7 +36,7 @@ function bumper_eval_tree_array(
             branch_node -> branch_node,
             # In the evaluation kernel, we combine the branch nodes
             # with the arrays created by the leaf nodes:
-            KernelDispatcher(operators, eval_options),
+            KernelDispatcher(operators, eval_context),
             tree;
             break_sharing=Val(true),
         )
@@ -49,7 +49,7 @@ end
 
 struct KernelDispatcher{O<:OperatorEnum,E<:EvalContext{<:Any,true,<:Any}} <: Function
     operators::O
-    eval_options::E
+    eval_context::E
 end
 
 @generated function (kd::KernelDispatcher{<:Any,<:EvalContext{<:Any,true,early_exit}})(
@@ -58,7 +58,7 @@ end
     quote
         Base.Cartesian.@nexprs($degree, i -> inputs[i].ok || return inputs[i])
         cumulators = Base.Cartesian.@ntuple($degree, i -> inputs[i].x)
-        out = dispatch_kerns!(kd.operators, branch_node, cumulators, kd.eval_options)
+        out = dispatch_kerns!(kd.operators, branch_node, cumulators, kd.eval_context)
         return ResultOk(out, early_exit ? is_valid_array(out) : true)
     end
 end
@@ -66,7 +66,7 @@ end
     operators::OperatorEnum{OPS},
     branch_node,
     cumulators::Tuple{Vararg{Any,degree}},
-    eval_options::EvalContext,
+    eval_context::EvalContext,
 ) where {OPS,degree}
     nops = length(OPS.types[degree].types)
     quote
@@ -74,7 +74,7 @@ end
         Base.Cartesian.@nif(
             $nops,
             i -> i == op_idx,
-            i -> bumper_kern!(operators[$degree][i], cumulators, eval_options)
+            i -> bumper_kern!(operators[$degree][i], cumulators, eval_context)
         )
     end
 end

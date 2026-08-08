@@ -10,7 +10,7 @@ eval_tree_array(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     operators::OperatorEnum;
-    eval_options::Union{EvalContext,Nothing}=nothing,
+    eval_context::Union{EvalContext,Nothing}=nothing,
 ) where {T}
 ```
 
@@ -58,13 +58,14 @@ It also re-defines `print`, `show`, and the various operators, to work with the 
 
     For safer behavior, you should use [`Expression`](@ref) objects.
 
-Evaluation options are specified using `EvalContext`:
+Evaluation context is specified using `EvalContext`:
 
 ```@docs
 EvalContext
 ```
 
 `EvalOptions` remains available as a deprecated alias for `EvalContext`.
+The `eval_options` keyword remains available as a deprecated alias for `eval_context`.
 
 You can also work with arbitrary types, by defining a `GenericOperatorEnum` instead.
 The notation is the same for `eval_tree_array`, though it will return `nothing`
