@@ -1,5 +1,7 @@
 module ExtensionInterfaceModule
 
+using DispatchDoctor: @unstable
+
 is_extension_loaded(::Val) = false
 
 """
@@ -20,7 +22,7 @@ will generate a symbolic equation in SymbolicUtils.jl format.
     operators, which then allows one to convert back to a `AbstractExpressionNode` format
     using `symbolic_to_node`.
 """
-function node_to_symbolic(args...; kws...)
+@unstable function node_to_symbolic(args...; kws...)
     is_extension_loaded(Val(:SymbolicUtils)) ||
         error("Please load the `SymbolicUtils` package to use `node_to_symbolic`.")
     return _node_to_symbolic(args...; kws...)
