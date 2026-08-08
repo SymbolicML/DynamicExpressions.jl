@@ -60,6 +60,15 @@ Note that this will return 1 for scalars.
 """
 @inline count_scalar_constants(::T) where {T<:Number} = 1  # COV_EXCL_LINE
 
+turbo_can_eval_nonfinite(::Any) = false
+
+#! format: off
+for op in (exp, cbrt, abs, abs2, sign, floor, ceil, round,
+           atan, sinh, cosh, tanh, asinh, identity, one, zero, inv, +, -)
+    @eval turbo_can_eval_nonfinite(::typeof($op)) = true
+end
+#! format: on
+
 ################################################################################
 # Interface.jl integration #####################################################
 ################################################################################
