@@ -363,8 +363,8 @@ end
     operators = OperatorEnum()
     eval_context = EvalContext()
     expected = eval_tree_array(tree, X, operators; eval_context)
-    @test (@test_deprecated r"eval_options.*deprecated" eval_tree_array(
-        tree, X, operators; eval_options=eval_context
+    @test (@test_deprecated eval_tree_array(
+        tree, X, operators; eval_options=DynamicExpressions.EvalOptions()
     )) == expected
     @test_throws AssertionError eval_tree_array(
         tree, X, operators; eval_context, eval_options=eval_context
