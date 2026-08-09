@@ -249,6 +249,95 @@ end
     end
 end
 
+@testitem "Generic evaluation reuses compatible arrays" begin
+    using DynamicExpressions
+
+    add(x, y) = x + y
+    mul(x, y) = x * y
+    operators = GenericOperatorEnum(2 => (add, mul))
+    x1, x2, x3 = (Node(Float64; feature=i) for i in 1:3)
+    tree = Node(1, Node(1, x1, x2), Node(2, x2, x3))
+    X = [
+        0.0 -0.0 Inf -Inf NaN 1.5
+        -0.0 0.0 1.0 -1.0 2.0 -2.0
+        1.0 1.0 1.0 1.0 1.0 -3.0
+    ]
+    X_before = copy(X)
+    expected = (X[1, :] .+ X[2, :]) .+ (X[2, :] .* X[3, :])
+    actual, complete = eval_tree_array(tree, X, operators)
+    @test complete
+    @test reinterpret(UInt64, actual) == reinterpret(UInt64, expected)
+    @test reinterpret(UInt64, vec(X)) == reinterpret(UInt64, vec(X_before))
+
+    narrow(x) = Float32(x)
+    narrow_tree = Node(Float64; op=1, children=(x1,))
+    narrow_output, narrow_complete = eval_tree_array(
+        narrow_tree, X, GenericOperatorEnum(1 => (narrow,))
+    )
+    @test narrow_complete
+    @test narrow_output isa Vector{Float32}
+    @test reinterpret(UInt32, narrow_output) == reinterpret(UInt32, Float32.(X[1, :]))
+
+    struct SameTypeConverter
+        target::Union{Type{Float32},Type{Float64}}
+    end
+    (converter::SameTypeConverter)(x) = converter.target(x)
+    float_x = Node(Float32; feature=1)
+    converted_once = Node(Float32; op=1, children=(float_x,))
+    converted_twice = Node(Float32; op=1, children=(converted_once,))
+    converted_tree = Node(Float32; op=2, children=(converted_twice,))
+    float_X = reshape(Float32[1.25, -2.5, 3.75], 1, :)
+    conversion_operators = GenericOperatorEnum(
+        1 => (SameTypeConverter(Float32), SameTypeConverter(Float64))
+    )
+    converted_output, converted_complete = eval_tree_array(
+        converted_tree, float_X, conversion_operators
+    )
+    expected_converted = Float64.(Float32.(Float32.(float_X[1, :])))
+    @test converted_complete
+    @test typeof(converted_output) === typeof(expected_converted)
+    @test reinterpret(UInt64, converted_output) == reinterpret(UInt64, expected_converted)
+
+    leaf_output, leaf_complete = eval_tree_array(x1, X, operators)
+    @test leaf_complete
+    @test reinterpret(UInt64, leaf_output) == reinterpret(UInt64, X[1, :])
+    leaf_output[1] = 10.0
+    @test reinterpret(UInt64, vec(X)) == reinterpret(UInt64, vec(X_before))
+
+    keep_left(x, _) = x
+    sx1, sx2 = (Node(String; feature=i) for i in 1:2)
+    string_tree = Node(1, Node(1, sx1, sx2), sx2)
+    string_X = ["a" "b" "c"; "d" "e" "f"]
+    string_before = copy(string_X)
+    string_output, string_complete = eval_tree_array(
+        string_tree, string_X, GenericOperatorEnum(2 => (keep_left,))
+    )
+    @test string_complete
+    @test string_output == string_X[1, :]
+    @test typeof(string_output) === Vector{String}
+    @test string_X == string_before
+
+    V = Union{Float64,Vector{Float64}}
+    union_X = reshape(V[1.0, [4.0], [2.0], 5.0, 3.0, [6.0]], 2, 3)
+    union_before = deepcopy(union_X)
+    ux1, ux2 = (Node(V; feature=i) for i in 1:2)
+    union_tree = Node(1, Node(1, ux1, ux2), ux2)
+    union_output, union_complete = eval_tree_array(
+        union_tree, union_X, GenericOperatorEnum(2 => (keep_left,))
+    )
+    @test union_complete
+    @test union_output == union_X[1, :]
+    @test typeof(union_output) === Vector{Any}
+    @test union_X == union_before
+
+    string_X3 = reshape(string.(1:16), 2, 2, 4)
+    output3, complete3 = eval_tree_array(
+        string_tree, string_X3, GenericOperatorEnum(2 => (keep_left,))
+    )
+    @test complete3
+    @test output3 == copy(selectdim(string_X3, 1, 1))
+end
+
 @testitem "Test many operators" begin
     using DynamicExpressions
 

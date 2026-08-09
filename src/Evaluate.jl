@@ -1125,6 +1125,20 @@ function eval(current_node)
     A `false` complete means an operator was called on input types
     that it was not defined for.
 """
+struct BorrowedGeneric{A}
+    array::A
+end
+
+struct OwnedGeneric{A}
+    array::A
+end
+
+unwrap_generic(x) = x
+unwrap_generic(x::Union{BorrowedGeneric,OwnedGeneric}) = x.array
+materialize_generic(x) = x
+materialize_generic(x::BorrowedGeneric) = copy(x.array)
+materialize_generic(x::OwnedGeneric) = x.array
+
 @unstable function eval_tree_array(
     tree::AbstractExpressionNode{T1},
     cX::AbstractArray{T2,N},
@@ -1133,7 +1147,8 @@ function eval(current_node)
 ) where {T1,T2,N}
     v_throw_errors = _to_bool_val(throw_errors)
     try
-        return _eval_tree_array_generic(tree, cX, operators, v_throw_errors)
+        result, complete = _eval_tree_array_generic(tree, cX, operators, v_throw_errors)
+        return materialize_generic(result), complete
     catch e
         if v_throw_errors isa Val{false}
             return nothing, false
@@ -1186,7 +1201,7 @@ end
         if N == 1
             return (cX[tree.feature]), true
         else
-            return copy(selectdim(cX, 1, tree.feature)), true
+            return BorrowedGeneric(selectdim(cX, 1, tree.feature)), true
         end
     end
 end
@@ -1194,15 +1209,35 @@ end
 @unstable function degn_eval_generic(
     cumulators::C, op::F, ::Val{N}, ::Val{throw_errors}
 ) where {C<:Tuple,F,N,throw_errors}
+    prepared = N == 1 ? cumulators : map(unwrap_generic, cumulators)
     if !throw_errors
-        input_type = N == 1 ? C : Tuple{map(eltype, cumulators)...}
+        input_type = N == 1 ? C : Tuple{map(eltype, prepared)...}
         !hasmethod(op, input_type) && return nothing, false
     end
     if N == 1
-        return op(cumulators...), true
+        return op(prepared...), true
     else
-        return op.(cumulators...), true
+        broadcasted = Base.Broadcast.broadcasted(op, prepared...)
+        if cumulators[1] isa OwnedGeneric && can_reuse_generic(prepared, op, broadcasted)
+            return OwnedGeneric(Base.materialize!(prepared[1], broadcasted)), true
+        else
+            return OwnedGeneric(Base.materialize(broadcasted)), true
+        end
     end
+end
+
+@inline function can_reuse_generic(cumulators::C, op::F, broadcasted) where {C<:Tuple,F}
+    styles = map(Base.BroadcastStyle, map(typeof, cumulators))
+    style = foldl(Base.Broadcast.result_style, styles)
+    expected_type = Base.Broadcast.Broadcasted{typeof(style),Nothing,F,C}
+    output_type = Base.Broadcast.combine_eltypes(op, cumulators)
+    return isconcretetype(output_type) &&
+           output_type === eltype(cumulators[1]) &&
+           Base.ismutabletype(typeof(cumulators[1])) &&
+           Base.Broadcast.combine_axes(cumulators...) == axes(cumulators[1]) &&
+           typeof(broadcasted) === expected_type &&
+           broadcasted.f === op &&
+           broadcasted.args === cumulators
 end
 
 @generated function dispatch_degn_eval_generic(
