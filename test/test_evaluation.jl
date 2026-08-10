@@ -93,6 +93,47 @@ end
 end
 #! format: on
 
+@testitem "Fused evaluation preserves Cartesian indexing" begin
+    using DynamicExpressions
+
+    struct CartesianOnlyIndexStyle <: IndexStyle end
+    struct CartesianOnlyMatrix{T,A<:AbstractMatrix{T}} <: AbstractMatrix{T}
+        parent::A
+    end
+    Base.size(X::CartesianOnlyMatrix) = size(X.parent)
+    Base.axes(X::CartesianOnlyMatrix) = axes(X.parent)
+    Base.IndexStyle(::Type{<:CartesianOnlyMatrix}) = CartesianOnlyIndexStyle()
+    Base.getindex(X::CartesianOnlyMatrix, i::Integer, j::Integer) = X.parent[i, j]
+    Base.getindex(X::CartesianOnlyMatrix, i::Integer, ::Colon) = X.parent[i, :]
+    Base.getindex(::CartesianOnlyMatrix, ::Int) = error("linear indexing is unsupported")
+
+    operators = OperatorEnum(1 => (sin,), 2 => (+,); define_helper_functions=false)
+    x1, x2, x3 = (Node(Float64; feature=i) for i in 1:3)
+    c = Node(Float64; val=2.0)
+    trees = (
+        Node(1, x1, x2),
+        Node(1, c, x2),
+        Node(1, x1, c),
+        Node(1, x1, Node(1, x2)),
+        Node(1, Node(1, x1), x2),
+        Node(1, Node(1, x1, x2), x3),
+        Node(1, x1, Node(1, x2, x3)),
+        Node(1, Node(1, x1, x2)),
+        Node(1, Node(1, c, x2)),
+        Node(1, Node(1, x1, c)),
+        Node(1, Node(1, x1)),
+    )
+    X = reshape(Float64.(1:30), 3, :)
+    cX = CartesianOnlyMatrix(X)
+    @test_throws ErrorException cX[1]
+
+    for tree in trees
+        expected = eval_tree_array(tree, X, operators)[1]
+        actual = eval_tree_array(tree, cX, operators)[1]
+        @test actual == expected
+    end
+end
+
 @testitem "Fused branch preserves early exit" begin
     using DynamicExpressions, LoopVectorization
     using DynamicExpressions.EvaluateModule: EvalContext
