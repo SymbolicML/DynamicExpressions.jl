@@ -67,9 +67,14 @@ EvalContext
 `EvalOptions` remains available as a deprecated alias for `EvalContext`.
 The `eval_options` keyword remains available as a deprecated alias for `eval_context`.
 
-You can also work with arbitrary types, by defining a `GenericOperatorEnum` instead.
-The notation is the same for `eval_tree_array`, though it will return `nothing`
-when it can't find a method, and not do any NaN checks:
+`OperatorEnum` also supports arbitrary element types when every operator has the
+form `(T, ...) -> T` for the tree and input element type `T`. This uses the
+type-stable evaluator, which reuses intermediate buffers and is generally faster.
+
+Use `GenericOperatorEnum` when intermediate types may change or when evaluating
+arbitrary-dimensional arrays. The notation is the same for `eval_tree_array`,
+though it will return `nothing` when it can't find a method and does not perform
+NaN checks:
 
 ```@docs
 eval_tree_array(tree::Node, cX::AbstractMatrix, operators::GenericOperatorEnum; throw_errors::Bool=true)

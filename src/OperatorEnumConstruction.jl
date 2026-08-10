@@ -433,6 +433,15 @@ Construct an `OperatorEnum` object, defining the possible expressions. This will
 redefine operators for `AbstractExpressionNode` types, as well as `show`, `print`, and
 `(::AbstractExpressionNode)(X)`. It will automatically compute derivatives with `Zygote.jl`.
 
+`OperatorEnum` supports arbitrary element types when every operator maps values of the
+tree and input element type `T` back to `T`, i.e., each operator has the form
+`(T, ...) -> T`. For this case, its type-stable evaluator is generally faster and
+allocates less than the more flexible [`GenericOperatorEnum`](@ref).
+
+This condition is sufficient for evaluation. Convenience operations on raw nonnumeric
+`Node{T}` objects also require `@extend_operators operators on_type=T`; wrapped
+`Expression` objects provide their own operator methods.
+
 # Arguments
 
 - `pairs::Pair{Int,<:Tuple}...`: A variable number of `degree => operators` pairs, where each
@@ -510,7 +519,9 @@ end
     GenericOperatorEnum(pairs::Pair{Int,<:Tuple}...; options...)
 
 Construct a `GenericOperatorEnum` object, defining possible expressions.
-Unlike `OperatorEnum`, this enum one will work arbitrary operators and data types.
+This supports operators whose input and output types may vary between nodes, as well
+as evaluation over arbitrary-dimensional input arrays. When every operator has the
+form `(T, ...) -> T`, prefer [`OperatorEnum`](@ref) for its type-stable evaluator.
 This will also redefine operators for `AbstractExpressionNode` types, as well as `show`, `print`,
 and `(::AbstractExpressionNode)(X)`.
 
@@ -534,8 +545,9 @@ vec_add(x, y) = x .+ y
 vec_square(x) = x .* x
 GenericOperatorEnum(1 => (vec_square,), 2 => (vec_add,))
 
-# For string operations
-GenericOperatorEnum(1 => (reverse,), 2 => (*,))
+# For type-changing operations
+string_length(x::String) = length(x)
+GenericOperatorEnum(1 => (string_length,))
 ```
 """
 function GenericOperatorEnum(

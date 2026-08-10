@@ -135,13 +135,15 @@ result, grad, did_finish = eval_grad_tree_array(expression, X; variable=false)
 
 > Does this work for only scalar operators on real numbers, or will it work for `MyCrazyType`?
 
-I'm so glad you asked. `DynamicExpressions.jl` actually will work for **arbitrary types**! However, to work on operators other than real scalars, you need to use the `GenericOperatorEnum <: AbstractOperatorEnum` instead of the normal `OperatorEnum`. Let's try it with strings!
+I'm so glad you asked. `DynamicExpressions.jl` works with **arbitrary types**! You can use the normal `OperatorEnum` whenever every operator maps values of one element type `T` back to `T`, i.e., each operator has the form `(T, ...) -> T`. Use `GenericOperatorEnum` when intermediate types may change or when evaluating arbitrary-dimensional arrays. Let's try `OperatorEnum` with strings!
 
 ```julia
 _x1 = Node{String}(; feature=1) 
 ```
 
-This node, will be used to index input data (whatever it may be) with either `data[feature]` (1D abstract arrays) or `selectdim(data, 1, feature)` (ND abstract arrays). Let's now define some operators to use:
+Raw nodes can index arrays of any rank. The `Expression` interface used below
+expects a feature-by-sample matrix, with one feature per row and one sample per
+column. Let's now define some operators to use:
 
 ```julia
 using DynamicExpressions: @declare_expression_operator
@@ -149,7 +151,7 @@ using DynamicExpressions: @declare_expression_operator
 my_string_func(x::String) = "ello $x"
 @declare_expression_operator(my_string_func, 1)
 
-operators = GenericOperatorEnum(1 => (my_string_func,), 2 => (*,))
+operators = OperatorEnum(1 => (my_string_func,), 2 => (*,))
 
 x1 = Expression(_x1; operators, variable_names)
 ```
@@ -160,16 +162,13 @@ Now, let's create an expression:
 expression = "H" * my_string_func(x1)
 # ^ `(H * my_string_func(x1))`
 
-expression(["World!", "Me?"])
+only(expression(reshape(["World!", "Me?"], :, 1)))
 # Hello World!
 ```
 
-So indeed it works for arbitrary types. It is a bit slower due to the potential for type instability, but it's not too bad:
-
-```julia
-@btime expression(["Hello", "Me?"])
-# 103.105 ns (4 allocations: 144 bytes)
-``` 
+So indeed it works for arbitrary types. For operators closed over one type `T`,
+`OperatorEnum` uses a type-stable evaluator that reuses intermediate buffers and is
+generally faster than `GenericOperatorEnum`.
 
 ## Tensors
 
