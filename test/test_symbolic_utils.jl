@@ -1,4 +1,5 @@
 using SymbolicUtils
+using Symbolics
 using DynamicExpressions
 using DynamicExpressions: get_operators, get_variable_names
 using Test
@@ -29,6 +30,12 @@ eqn = node_to_symbolic(tree, operators; variable_names=["energy"], index_functio
 
 tree2 = symbolic_to_node(eqn, operators; variable_names=["energy"])
 @test string_tree(tree, operators) == string_tree(tree2, operators)
+
+a, b = Symbolics.@variables a b
+symbolics_tree = symbolic_to_node(
+    a + b, OperatorEnum(; binary_operators=(+,)); variable_names=["a", "b"]
+)
+@test string(symbolics_tree) == "x2 + x1"
 
 # Test variable name conversion with Expression objects
 let
