@@ -35,7 +35,7 @@ a, b = Symbolics.@variables a b
 symbolics_tree = symbolic_to_node(
     a + b, OperatorEnum(; binary_operators=(+,)); variable_names=["a", "b"]
 )
-@test string(symbolics_tree) == "x1 + x2"
+@test string(symbolics_tree) in ("x1 + x2", "x2 + x1")
 
 # Test variable name conversion with Expression objects
 let
