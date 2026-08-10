@@ -323,10 +323,7 @@ function _symbolic_to_node(
 end
 
 function _symbolic_to_node(
-    eqn::Real,
-    operators::AbstractOperatorEnum,
-    ::Type{N}=Node;
-    kws...,
+    eqn::Real, operators::AbstractOperatorEnum, ::Type{N}=Node; kws...
 ) where {N<:AbstractExpressionNode}
     unwrapped_eqn = SymbolicUtils.unwrap(eqn)
     unwrapped_eqn === eqn && throw(MethodError(_symbolic_to_node, (eqn, operators, N)))
