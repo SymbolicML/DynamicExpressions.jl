@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.9.1](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.9.0...v2.9.1) (2026-08-11)
+
+
+### Bug Fixes
+
+* support Symbolics.Num conversion ([#196](https://github.com/SymbolicML/DynamicExpressions.jl/issues/196)) ([61ae8a3](https://github.com/SymbolicML/DynamicExpressions.jl/commit/61ae8a3005245ddede8072bc1ad2c8fa4b807f8f))
+
+
+### Performance Improvements
+
+* streamline fused feature indexing ([#198](https://github.com/SymbolicML/DynamicExpressions.jl/issues/198)) ([7b93216](https://github.com/SymbolicML/DynamicExpressions.jl/commit/7b93216c25c437939d0456e169ffc0f2972b2510))
+
 ## [2.9.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.8.0...v2.9.0) (2026-08-08)
 
 
