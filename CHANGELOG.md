@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.1](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v1.11.0...v1.11.1) (2026-08-11)
+
+
+### Bug Fixes
+
+* backport im string parsing fix to release-v1 ([#169](https://github.com/SymbolicML/DynamicExpressions.jl/issues/169)) ([3981aa4](https://github.com/SymbolicML/DynamicExpressions.jl/commit/3981aa494f43b86af5bb54857d80a0d8330da4f3))
+
 ## [1.11.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v1.10.4...v1.11.0) (2026-03-21)
 
 ## [1.10.4](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v1.10.3...v1.10.4) (2026-03-08)
