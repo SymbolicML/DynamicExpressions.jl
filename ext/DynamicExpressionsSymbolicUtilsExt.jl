@@ -322,6 +322,14 @@ function _symbolic_to_node(
     return convert(N, eqn, operators; variable_names=variable_names)
 end
 
+function _symbolic_to_node(
+    eqn::Real, operators::AbstractOperatorEnum, ::Type{N}=Node; kws...
+) where {N<:AbstractExpressionNode}
+    unwrapped_eqn = SymbolicUtils.unwrap(eqn)
+    unwrapped_eqn === eqn && throw(MethodError(_symbolic_to_node, (eqn, operators, N)))
+    return _symbolic_to_node(unwrapped_eqn, operators, N; kws...)
+end
+
 function multiply_powers(eqn::Number)::Tuple{SYMBOLIC_UTILS_TYPES,Bool}
     return eqn, true
 end
