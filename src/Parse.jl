@@ -203,8 +203,24 @@ end
 
 _replace_imaginary_unit_symbol(ex) = ex
 @unstable _replace_imaginary_unit_symbol(ex::Symbol) = ex === :im ? im : ex
-function _replace_imaginary_unit_symbol(ex::Expr)
-    return Expr(ex.head, map(_replace_imaginary_unit_symbol, ex.args)...)
+@unstable function _replace_imaginary_unit_symbol(ex::Expr)
+    args = map(_replace_imaginary_unit_symbol, ex.args)
+    # Fold constant arithmetic involving the imaginary unit, so that the
+    # normalized string form of a complex constant (`a + b*im`) parses back
+    # into a single constant leaf:
+    if ex.head == :call && length(args) == 3 && first(args) isa Symbol
+        op, l, r = args
+        if op === :+
+            (l isa Real && r isa Complex && iszero(real(r))) && return l + r
+            (l isa Complex && iszero(real(l)) && r isa Real) && return l + r
+        elseif op === :-
+            (l isa Real && r isa Complex && iszero(real(r))) && return l - r
+        elseif op === :*
+            (l isa Real && r isa Complex && iszero(real(r))) && return l * r
+            (l isa Complex && iszero(real(l)) && r isa Real) && return l * r
+        end
+    end
+    return Expr(ex.head, args...)
 end
 
 @unstable function _normalize_expression_for_parse(
