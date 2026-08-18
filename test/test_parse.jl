@@ -120,6 +120,31 @@ end
     @test y2[1] == 5.0f0
 end
 
+@testitem "Parsing round-trips complex number constants" begin
+    using DynamicExpressions
+    using Test
+
+    operators = OperatorEnum(2 => [+, -, *, /])
+
+    function count_nodes(n)
+        n.degree == 0 && return 1
+        return 1 + sum(count_nodes(c.x) for c in n.children)
+    end
+
+    line = "(-0.21000202f0 - 0.016444953f0im) + (RC_vector / (0.97645104f0 + 0.00017897492f0im))"
+    ex = parse_expression(
+        line; operators, variable_names=["RC_vector"], node_type=Node{ComplexF32}
+    )
+    @test count_nodes(ex.tree) == 5
+    @test ex.tree.children[1].x.val == ComplexF32(-0.21000202f0, -0.016444953f0)
+    @test ex.tree.children[2].x.children[2].x.val ==
+        ComplexF32(0.97645104f0, 0.00017897492f0)
+    s = string_tree(ex.tree, operators; variable_names=["RC_vector"])
+    @test parse_expression(
+        s; operators, variable_names=["RC_vector"], node_type=Node{ComplexF32}
+    ).tree == ex.tree
+end
+
 @testitem "Can also parse just a float" begin
     using DynamicExpressions
     operators = OperatorEnum()  # Tests empty operators
