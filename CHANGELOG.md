@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.2](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.9.1...v2.9.2) (2026-08-18)
+
+
+### Bug Fixes
+
+* round-trip complex constants ([#201](https://github.com/SymbolicML/DynamicExpressions.jl/issues/201)) ([b422ce3](https://github.com/SymbolicML/DynamicExpressions.jl/commit/b422ce3445930517f3659b38b6b92bafad63700e))
+
 ## [2.9.1](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.9.0...v2.9.1) (2026-08-11)
 
 
