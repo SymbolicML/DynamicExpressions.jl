@@ -56,7 +56,7 @@ if "jet" in test_names
             )
                 s_mod = string(mod.mod)
                 any(report.vst) do vst
-                    occursin(s_mod, string(JET.linfomod(vst.linfo)))
+                    return occursin(s_mod, string(JET.linfomod(vst.linfo)))
                 end
             end
             # On JET 0.10, `target_defined_modules` is not available and also
@@ -84,6 +84,10 @@ if "main" in test_names
     push!(testitem_suffixes, joinpath("test", "test_evaluation.jl"))
     push!(testitem_suffixes, joinpath("test", "test_buffered_evaluation.jl"))
     push!(testitem_suffixes, joinpath("test", "test_optim.jl"))
+    # NOTE: `@testitem`s defined in a file that `unittest.jl` merely `include`s are
+    # attributed to *their own* filename by TestItemRunner, so files with their own
+    # testitems must be listed here explicitly or they will be silently skipped.
+    push!(testitem_suffixes, joinpath("test", "test_arenanode.jl"))
 end
 if "optim" in test_names
     push!(testitem_suffixes, joinpath("test", "test_optim.jl"))
