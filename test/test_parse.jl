@@ -497,3 +497,39 @@ end
         )
     )
 end
+@testitem "module-scoped constants" begin
+    using DynamicExpressions
+    using Test
+
+    module EvalScope
+    struct Vec2
+        x::Float64
+        y::Float64
+    end
+    Vec2(values::AbstractVector{<:Real}) = Vec2(values[1], values[2])
+    end
+
+    operators = OperatorEnum()
+    custom = parse_expression(
+        "Vec2([1.0 + 2.0, 3.0 * 2.0])";
+        operators,
+        variable_names=String[],
+        node_type=Node{EvalScope.Vec2},
+        eval_module=EvalScope,
+    )
+    @test custom.tree.val == EvalScope.Vec2(3.0, 6.0)
+
+    vector = parse_expression(
+        "[1.0, 2.0]";
+        operators,
+        variable_names=String[],
+        node_type=Node{Vector{Float64}},
+        eval_module=EvalScope,
+    )
+    @test vector.tree.val == [1.0, 2.0]
+
+    @test_throws(
+        "Unrecognized expression type: `Expr(:vect, ...)`.",
+        parse_expression(:([1.0, 2.0]); operators, variable_names=String[])
+    )
+end
