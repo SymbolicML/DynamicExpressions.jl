@@ -532,4 +532,56 @@ end
         "Unrecognized expression type: `Expr(:vect, ...)`.",
         parse_expression(:([1.0, 2.0]); operators, variable_names=String[])
     )
+
+    # Symbol constants resolve in the module
+    module WithConstant
+    const C = 42.0
+    shadow(x) = -x
+    end
+    binops = OperatorEnum(2 => (+,), 1 => (cos,))
+    scoped_symbol = parse_expression(
+        "x1 + C";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test string_tree(scoped_symbol) == "x1 + 42.0"
+
+    # A module binding shadowing an operator name still parses as the operator
+    module ShadowsCos
+    cos(x) = error("should not be called")
+    end
+    shadowed = parse_expression(
+        "cos(x1)";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=ShadowsCos,
+    )
+    @test shadowed.tree.op == 1 && shadowed.tree.degree == 1
+
+    # Unregistered calls referencing variables are rejected, not constant-folded
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "shadow(x1)";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # Non-operator calls that fail to evaluate get a clear error
+    @test_throws(
+        "Failed to evaluate",
+        parse_expression(
+            "missing_func(1.0)";
+            operators=binops,
+            variable_names=String[],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
 end

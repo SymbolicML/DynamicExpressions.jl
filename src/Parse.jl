@@ -358,24 +358,19 @@ module EmptyModule end
         func = try
             Core.eval(something(eval_module, EmptyModule), first(args))
         catch
-            try
+            nothing
+        end
+        if func === nothing ||
+            (eval_module !== nothing && !_matches_operator(func, operators, evaluate_on))
+            named = try
                 _find_operator_by_name(first(args), length(args) - 1, operators)
             catch
                 eval_module === nothing && rethrow()
                 nothing
             end
+            named === nothing || (func = named)
         end
-        is_operator =
-            func isa Function && (
-                (evaluate_on !== nothing && func in evaluate_on) ||
-                any(1:length(operators.ops)) do arity
-                    any(
-                        op -> op == func || declare_operator_alias(op, Val(arity)) == func,
-                        operators[arity],
-                    )
-                end
-            )
-        if eval_module === nothing || is_operator
+        if eval_module === nothing || _matches_operator(func, operators, evaluate_on)
             return _parse_expression(
                 func::Function,
                 args,
@@ -396,8 +391,47 @@ module EmptyModule end
             ),
         )
     end
-    return parse_leaf(Core.eval(eval_module, ex), variable_names, N, E; eval_module, kws...)
+    if _references_variable(ex, variable_names)
+        throw(
+            ArgumentError(
+                "Cannot evaluate `$(ex)` as a constant since it references variables. " *
+                "If it is meant as an operator call, pass the operator via `operators` " *
+                "or `evaluate_on`.",
+            ),
+        )
+    end
+    val = try
+        Core.eval(eval_module, ex)
+    catch
+        throw(
+            ArgumentError(
+                "Failed to evaluate `$(ex)` as a constant in `$(eval_module)`. " *
+                "It is not an operator call, so it must evaluate in the given module.",
+            ),
+        )
+    end
+    return parse_leaf(val, variable_names, N, E; eval_module, kws...)
 end
+
+@unstable function _matches_operator(func, operators, evaluate_on)
+    return func isa Function && (
+        (evaluate_on !== nothing && func in evaluate_on) ||
+        any(1:length(operators.ops)) do arity
+            any(
+                op -> op == func || declare_operator_alias(op, Val(arity)) == func,
+                operators[arity],
+            )
+        end
+    )
+end
+
+function _references_variable(ex::Symbol, variable_names)
+    return variable_names !== nothing && string(ex) in variable_names
+end
+function _references_variable(ex::Expr, variable_names)
+    return any(arg -> _references_variable(arg, variable_names), ex.args)
+end
+_references_variable(_, _) = false
 @unstable function _parse_expression(
     func::F,
     args,
@@ -548,8 +582,8 @@ end
     ex,
     variable_names,
     node_type::Type{<:AbstractExpressionNode},
-    expression_type::Type{<:AbstractExpression},
-    eval_module::Union{Module,Nothing}=nothing;
+    expression_type::Type{<:AbstractExpression};
+    eval_module::Union{Module,Nothing}=nothing,
     kws...,
 )
     if ex isa AbstractExpression
@@ -578,8 +612,6 @@ end
         return node_type(; feature=i::Int)
     elseif ex isa AbstractExpressionNode
         return ex
-    elseif eval_module !== nothing
-        return node_type(; val=Core.eval(eval_module, ex))
     else
         return node_type(; val=ex)
     end
