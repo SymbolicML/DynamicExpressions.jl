@@ -1041,6 +1041,55 @@ end
     )
     @test aliased.tree.degree == 1 && aliased.tree.op == 1
 
+    # Type annotations in hard-scope assignments are reads, not bindings
+    @test_throws(
+        "declared variable",
+        parse_expression(
+            "(() -> begin; y::x1 = 2.0; y; end)()";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # Annotated short-form function definitions are module writes
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "f(x)::Int = x";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # Assignments inside a loop body are local to the loop
+    folded_loop = parse_expression(
+        "begin; for _i in 1:1; x1 = 2.0; end; 1.0; end";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_loop.tree.val == 1.0
+
+    # Missing arithmetic bindings in the evaluation module skip normalization
+    baremodule BareIm
+    const im = Main.im
+    end
+    @test_throws(
+        "Failed to evaluate",
+        parse_expression(
+            "1.0 + 2.0im";
+            operators=OperatorEnum(2 => (+,)),
+            variable_names=String[],
+            node_type=Node{ComplexF64},
+            eval_module=BareIm,
+        )
+    )
+
     # Parameter names count as declared names for parametric expressions
     module ParamScope
     const p1 = 3.0

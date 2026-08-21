@@ -248,8 +248,9 @@ end
         return ex
     elseif eval_module !== nothing && any((:im, :+, :-, :*)) do s
         # The evaluation module rebinds `im` or the arithmetic used to fold
-        # imaginary constants; let scoped resolution handle it
-        isdefined(eval_module, s) && getproperty(eval_module, s) !== getproperty(Base, s)
+        # imaginary constants, or does not bind it at all (e.g. a baremodule);
+        # let scoped resolution handle it
+        !isdefined(eval_module, s) || getproperty(eval_module, s) !== getproperty(Base, s)
     end
         return ex
     end
@@ -522,7 +523,11 @@ function _references_variable(ex::Expr, variable_names, bound)
         # An unbound identifier in an assignment target may write a module
         # global when evaluated in `eval_module`, so declared names there
         # count as references; compound targets read theirs.
-        if ex.args[1] isa Expr && ex.args[1].head == :call
+        target = ex.args[1]
+        while target isa Expr && target.head in (:(::), :where)
+            target = target.args[1]
+        end
+        if target isa Expr && target.head == :call
             # Short-form named function definition writes a module binding
             return true
         end
@@ -587,6 +592,10 @@ function _references_variable(ex::Expr, variable_names, bound)
                 return true  # unknown iteration form; reject conservatively
             end
         end
+        # Assignments in the loop body are local to the loop, not module writes
+        _collect_assignments!(bound, ex.args[2])
+        # Explicit `global` declarations inside the loop are module bindings
+        _collect_globals!(bound, ex.args[2])
         return _references_variable(ex.args[2], variable_names, bound)
     elseif ex.head == :macrocall
         # Cannot see what a macro expansion reads; reject conservatively
@@ -614,16 +623,19 @@ function _collect_bound!(bound, ex::Expr)
     return bound
 end
 _collect_bound!(bound, _) = bound
-
-"""Bind simple local targets: plain symbols, tuples, and type annotations."""
+"""Bind simple local targets: plain symbols, destructuring tuples, and
+type annotations (only the name side binds; the type expression is a read)."""
 function _local_target!(bound, ex)
     if ex isa Symbol
         _collect_bound!(bound, ex)
-    elseif ex isa Expr && (ex.head == :tuple || ex.head == :(::))
+    elseif ex isa Expr && ex.head == :tuple
         foreach(arg -> _local_target!(bound, arg), ex.args)
+    elseif ex isa Expr && ex.head == :(::)
+        _local_target!(bound, ex.args[1])
     end
     return bound
 end
+
 """Collect simple assignment targets local to a hard scope.
 
 Plain symbols, destructuring tuples, and type-annotated names bind; compound
