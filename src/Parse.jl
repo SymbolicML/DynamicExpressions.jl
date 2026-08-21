@@ -492,10 +492,30 @@ function _references_variable(ex::Expr, variable_names, bound)
             end
         end
         return _references_variable(ex.args[1], variable_names, bound)
-    elseif ex.head == :(=) || ex.head == :kw
-        # A plain identifier target binds a name; compound targets read theirs
+    elseif ex.head == :kw
+        # Call keyword arguments bind a name; compound targets read theirs
         _lhs_reads(ex.args[1], variable_names, bound) && return true
         return _references_variable(ex.args[2], variable_names, bound)
+    elseif ex.head == :(=)
+        lhs = ex.args[1]
+        # A bare identifier target may assign a module global when evaluated
+        # in `eval_module`, so a declared name counts as a reference; compound
+        # targets read theirs.
+        if lhs isa Symbol
+            _references_variable(lhs, variable_names, bound) && return true
+        else
+            _lhs_reads(lhs, variable_names, bound) && return true
+        end
+        return _references_variable(ex.args[2], variable_names, bound)
+    elseif ex.head == :tuple
+        # In tuple context, `(x=1.0,)` names a NamedTuple field
+        return any(ex.args) do arg
+            if arg isa Expr && arg.head == :(=)
+                _references_variable(arg.args[2], variable_names, bound)
+            else
+                _references_variable(arg, variable_names, bound)
+            end
+        end
     elseif ex.head == :let
         bound = copy(bound)
         bindings = ex.args[1]
@@ -513,8 +533,20 @@ function _references_variable(ex::Expr, variable_names, bound)
         return _references_variable(ex.args[2], variable_names, bound)
     elseif ex.head == :->
         bound = copy(bound)
-        _collect_bound!(bound, ex.args[1])
+        _bind_params!(bound, ex.args[1], variable_names) && return true
         return _references_variable(ex.args[2], variable_names, bound)
+    elseif ex.head == :try
+        _references_variable(ex.args[1], variable_names, bound) && return true
+        catch_bound = if ex.args[2] isa Symbol
+            _collect_bound!(copy(bound), ex.args[2])
+        else
+            bound
+        end
+        length(ex.args) >= 3 &&
+            ex.args[3] !== false &&
+            _references_variable(ex.args[3], variable_names, catch_bound) &&
+            return true
+        return any(arg -> _references_variable(arg, variable_names, bound), ex.args[4:end])
     else
         return any(arg -> _references_variable(arg, variable_names, bound), ex.args)
     end
@@ -527,6 +559,28 @@ function _collect_bound!(bound, ex::Expr)
     return bound
 end
 _collect_bound!(bound, _) = bound
+
+"""Bind lambda parameter names; defaults and type annotations are reads."""
+function _bind_params!(bound, ex, variable_names)::Bool
+    if ex isa Symbol
+        _collect_bound!(bound, ex)
+        return false
+    elseif ex isa Expr && (ex.head == :tuple || ex.head == :parameters)
+        return any(arg -> _bind_params!(bound, arg, variable_names), ex.args)
+    elseif ex isa Expr && (ex.head == :kw || ex.head == :(=))
+        _references_variable(ex.args[2], variable_names, copy(bound)) && return true
+        return _bind_params!(bound, ex.args[1], variable_names)
+    elseif ex isa Expr && ex.head == :(::)
+        length(ex.args) == 2 &&
+            _references_variable(ex.args[2], variable_names, copy(bound)) &&
+            return true
+        return _bind_params!(bound, ex.args[1], variable_names)
+    elseif ex isa Expr && ex.head == :...
+        return _bind_params!(bound, ex.args[1], variable_names)
+    else
+        return true  # unknown parameter form; reject conservatively
+    end
+end
 
 _lhs_reads(::Symbol, _, _) = false
 function _lhs_reads(ex::Expr, variable_names, bound)
@@ -628,7 +682,11 @@ end
         i = variable_names === nothing ? nothing : findfirst(==(string(ex)), variable_names)
         if i === nothing
             if eval_module !== nothing
-                return node_type(; val=Core.eval(eval_module, ex))
+                val = Core.eval(eval_module, ex)
+                val isa Symbol && return node_type(; val)
+                return parse_leaf(
+                    val, variable_names, node_type, expression_type; eval_module, kws...
+                )
             end
             throw(
                 ArgumentError(

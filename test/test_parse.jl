@@ -720,6 +720,80 @@ end
         eval_module=WithConstant,
     )
     @test folded_let.tree.val == 3.0
+
+    # Lambda parameter defaults are reads, not bindings
+    @test_throws(
+        "Cannot use a declared variable in the callee",
+        parse_expression(
+            "((y=x1) -> y)()";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # ...but the parameter names themselves still bind
+    folded_lambda = parse_expression(
+        "((x1,) -> x1)(2.0)";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_lambda.tree.val == 2.0
+
+    # A module-level assignment to a declared variable is a reference
+    module AssignScope
+    x1 = 1.0
+    end
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "x1 = 2.0";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=AssignScope,
+        )
+    )
+    @test AssignScope.x1 == 1.0
+
+    # NamedTuple-literal fields are names, not assignments
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "first((x1=x1,))";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # `catch` variables shadow declared variables
+    folded_catch = parse_expression(
+        "try error(); catch x1; 2.0 end";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_catch.tree.val == 2.0
+
+    # A scoped symbol resolving to a node is spliced, not wrapped
+    module NodeScope
+    using DynamicExpressions
+    const n = Node{Float64}(; val=1.5)
+    end
+    spliced = parse_expression(
+        "n";
+        operators=binops,
+        variable_names=String[],
+        node_type=Node{Float64},
+        eval_module=NodeScope,
+    )
+    @test spliced.tree === NodeScope.n
 end
 
 @testitem "computed callees still work without eval_module" begin
