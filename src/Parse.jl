@@ -376,15 +376,31 @@ end
     (; operators, evaluate_on, eval_module) = p
     if ex.head == :call
         args = ex.args
-        func = try
-            Core.eval(something(eval_module, EmptyModule), first(args))
-        catch
+        callee = first(args)
+        if eval_module !== nothing &&
+            callee isa Symbol &&
+            p.variable_names !== nothing &&
+            string(callee) in p.variable_names
+            throw(
+                ArgumentError(
+                    "Cannot use variable `$(callee)` as a callee. " *
+                    "Declared variables cannot be called in an expression.",
+                ),
+            )
+        end
+        func = if _safe_to_eval(callee)
+            try
+                Core.eval(something(eval_module, EmptyModule), callee)
+            catch
+                nothing
+            end
+        else
             nothing
         end
         if func === nothing ||
             (eval_module !== nothing && !_matches_operator(func, operators, evaluate_on))
             named = try
-                _find_operator_by_name(first(args), length(args) - 1, operators)
+                _find_operator_by_name(callee, length(args) - 1, operators)
             catch
                 eval_module === nothing && rethrow()
                 nothing
@@ -438,13 +454,46 @@ end
     )
 end
 
-function _references_variable(ex::Symbol, variable_names)
-    return variable_names !== nothing && string(ex) in variable_names
+"""Whether evaluating `ex` cannot run arbitrary code (a literal or a dotted name)."""
+_safe_to_eval(ex::Expr) = ex.head == :. && all(_safe_to_eval, ex.args)
+_safe_to_eval(_) = true
+
+function _references_variable(ex, variable_names)
+    return _references_variable(ex, variable_names, String[])
 end
-function _references_variable(ex::Expr, variable_names)
-    return any(arg -> _references_variable(arg, variable_names), ex.args)
+function _references_variable(ex::Symbol, variable_names, bound)
+    return string(ex) ∉ bound && variable_names !== nothing && string(ex) in variable_names
 end
-_references_variable(_, _) = false
+function _references_variable(ex::Expr, variable_names, bound)
+    if ex.head == :generator
+        bound = copy(bound)
+        for spec in ex.args[2:end]
+            specs = spec isa Expr && spec.head == :filter ? spec.args[2:end] : (spec,)
+            for s in specs
+                s isa Expr && s.head == :(=) || return true
+                _references_variable(s.args[2], variable_names, bound) && return true
+                _collect_bound!(bound, s.args[1])
+            end
+            if spec isa Expr && spec.head == :filter
+                _references_variable(spec.args[1], variable_names, bound) && return true
+            end
+        end
+        return _references_variable(ex.args[1], variable_names, bound)
+    elseif ex.head == :(=) || ex.head == :kw
+        # The left-hand side binds a name rather than reading it
+        return _references_variable(ex.args[2], variable_names, bound)
+    else
+        return any(arg -> _references_variable(arg, variable_names, bound), ex.args)
+    end
+end
+_references_variable(_, _, _) = false
+
+_collect_bound!(bound, name::Symbol) = push!(bound, string(name))
+function _collect_bound!(bound, ex::Expr)
+    foreach(arg -> _collect_bound!(bound, arg), ex.args)
+    return bound
+end
+_collect_bound!(bound, _) = bound
 @unstable function _parse_expression(
     p::ExpressionParser{<:Any,<:Any,N}, func::F, args
 )::N where {F<:Function,N<:AbstractExpressionNode}

@@ -594,4 +594,60 @@ end
             eval_module=WithConstant,
         )
     )
+
+    # A callee that is itself a declared variable is rejected, even if the
+    # module binds that name to a function
+    module CalleeScope
+    const x1 = sin
+    end
+    @test_throws(
+        "Cannot use variable `x1` as a callee",
+        parse_expression(
+            "x1(x2)";
+            operators=OperatorEnum(1 => (sin,)),
+            variable_names=["x1", "x2"],
+            node_type=Node{Float64},
+            eval_module=CalleeScope,
+        )
+    )
+
+    # Computed callees are evaluated exactly once
+    module CountingScope
+    const calls = Ref(0)
+    function factory()
+        calls[] += 1
+        return identity
+    end
+    end
+    counted = parse_expression(
+        "(factory())(2.0)";
+        operators=binops,
+        variable_names=String[],
+        node_type=Node{Float64},
+        eval_module=CountingScope,
+    )
+    @test counted.tree.val == 2.0
+    @test CountingScope.calls[] == 1
+
+    # Binding occurrences of a feature name do not block constant folding
+    folded_comprehension = parse_expression(
+        "sum([x1 for x1 in 1:3])";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_comprehension.tree.val == 6.0
+
+    # ...but reads of a feature inside a constant expression still reject
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "sum([x1 for _ in 1:3])";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
 end
