@@ -116,7 +116,7 @@ end
     expression_type = Expression
     node_type = nothing
     evaluate_on = nothing
-    eval_module = nothing  # COV_EXCL_LINE
+    eval_module = nothing
     extra_metadata = ()
     binops = nothing
     unaops = nothing
@@ -165,7 +165,7 @@ end
             elseif kw.args[1] == :expression_type
                 expression_type = kw.args[2]
                 continue
-            elseif kw.args[1] == :eval_module  # COV_EXCL_LINE
+            elseif kw.args[1] == :eval_module
                 eval_module = kw.args[2]
                 continue
             elseif kw.args[1] == :evaluate_on
@@ -285,11 +285,9 @@ end
         end
 
         ex = _normalize_expression_for_parse(ex, variable_names)
-        # COV_EXCL_START
         tree = _parse_expression(
             ex, operators, variable_names, N, E, evaluate_on, eval_module; kws...
         )
-        # COV_EXCL_STOP
         return constructorof(E)(tree; operators, variable_names, kws...)
     end
 end
@@ -355,7 +353,6 @@ module EmptyModule end
     eval_module::Union{Module,Nothing};
     kws...,
 ) where {N<:AbstractExpressionNode,E<:AbstractExpression}
-    # COV_EXCL_START
     if ex.head == :call
         args = ex.args
         func = try
@@ -386,7 +383,6 @@ module EmptyModule end
                 kws...,
             )
         end
-        # COV_EXCL_STOP
     elseif eval_module === nothing
         throw(
             ArgumentError(
@@ -579,7 +575,7 @@ end
     eval_module::Union{Module,Nothing}=nothing;
     kws...,
 )
-    return parse_leaf(ex, variable_names, node_type, expression_type; eval_module, kws...)  # COV_EXCL_LINE
+    return parse_leaf(ex, variable_names, node_type, expression_type; eval_module, kws...)
 end
 
 @unstable function parse_leaf(
