@@ -435,20 +435,42 @@ end
     node_type::Type{<:ParametricNode},
     expression_type::Type{<:ParametricExpression};
     parameter_names,
+    eval_module::Union{Module,Nothing}=nothing,
     kws...,
 )
     @assert !(ex isa AbstractExpression)
     if ex isa Symbol
-        @assert (!isnothing(parameter_names) && string(ex) ∈ parameter_names) ||
-            (!isnothing(variable_names) && string(ex) ∈ variable_names)
         if !isnothing(variable_names)
             i = findfirst(==(string(ex)), variable_names)
             if i !== nothing
                 return node_type(Float64; feature=i::Int)
             end
         end
-        # Special logic for parsing parameter:
-        j = findfirst(==(string(ex)), parameter_names)
+        j = if isnothing(parameter_names)
+            nothing
+        else
+            findfirst(==(string(ex)), parameter_names)
+        end
+        if j === nothing
+            eval_module === nothing && throw(
+                ArgumentError(
+                    "Symbol `$(ex)` not found in `variable_names` or `parameter_names`."
+                ),
+            )
+            # Resolve scoped symbols (e.g. module constants) like the base parser
+            val = Core.eval(eval_module, ex)
+            # Already a value; must not be re-interpreted as a name
+            val isa Symbol && return node_type(; val)
+            return parse_leaf(
+                val,
+                variable_names,
+                node_type,
+                expression_type;
+                parameter_names,
+                eval_module,
+                kws...,
+            )
+        end
         n = node_type{Float64}()
         # HACK: Should implement conversion so we don't need this
         n.degree = 0

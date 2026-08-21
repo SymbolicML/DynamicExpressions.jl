@@ -246,10 +246,11 @@ end
 )
     if variable_names !== nothing && ("im" in variable_names)
         return ex
-    elseif eval_module !== nothing &&
-        isdefined(eval_module, :im) &&
-        getproperty(eval_module, :im) !== im
-        # The evaluation module rebinds `im`; let it resolve there
+    elseif eval_module !== nothing && any((:im, :+, :-, :*)) do s
+        # The evaluation module rebinds `im` or the arithmetic used to fold
+        # imaginary constants; let scoped resolution handle it
+        isdefined(eval_module, s) && getproperty(eval_module, s) !== getproperty(Base, s)
+    end
         return ex
     end
     return _replace_imaginary_unit_symbol(ex)
@@ -313,7 +314,8 @@ Throws appropriate errors for ambiguous or missing matches.
 
     for arity in 1:length(operators.ops)
         for op in operators.ops[arity]
-            if nameof(op) == func_symbol
+            if nameof(op) == func_symbol ||
+                nameof(declare_operator_alias(op, Val(arity))) == func_symbol
                 push!(matches, (op, arity))
             end
         end
@@ -377,6 +379,14 @@ struct ExpressionParser{
     kws::K
 end
 
+"""All declared names: variable names plus any parameter names (e.g. parametric)."""
+@unstable function _declared_names(p::ExpressionParser)
+    parameter_names = get(p.kws, :parameter_names, nothing)
+    parameter_names === nothing && return p.variable_names
+    p.variable_names === nothing && return map(string, parameter_names)
+    return vcat(map(string, collect(p.variable_names)), map(string, parameter_names))
+end
+
 @unstable function (p::ExpressionParser)(ex)
     return _parse_expression(p, ex)
 end
@@ -386,7 +396,7 @@ end
     if ex.head == :call
         args = ex.args
         callee = first(args)
-        if eval_module !== nothing && _references_variable(callee, p.variable_names)
+        if eval_module !== nothing && _references_variable(callee, _declared_names(p))
             throw(
                 ArgumentError(
                     "Cannot use a declared variable in the callee `$(callee)`. " *
@@ -427,7 +437,7 @@ end
             ),
         )
     end
-    if _references_variable(ex, p.variable_names)
+    if _references_variable(ex, _declared_names(p))
         throw(
             ArgumentError(
                 "Cannot evaluate `$(ex)` as a constant since it references variables. " *
@@ -541,6 +551,8 @@ function _references_variable(ex::Expr, variable_names, bound)
         (ex.head == :function && ex.args[1] isa Expr && ex.args[1].head == :tuple)
         bound = copy(bound)
         _bind_params!(bound, ex.args[1], variable_names) && return true
+        # Assignments inside a hard scope are local bindings, not module writes
+        _collect_assignments!(bound, ex.args[2])
         return _references_variable(ex.args[2], variable_names, bound)
     elseif ex.head == :function
         # A named function definition writes a module binding
@@ -595,6 +607,15 @@ function _collect_bound!(bound, ex::Expr)
     return bound
 end
 _collect_bound!(bound, _) = bound
+
+"""Collect assignment targets inside a hard scope; quoted syntax is data."""
+function _collect_assignments!(bound, ex::Expr)
+    ex.head == :quote && return bound
+    ex.head == :(=) && _collect_bound!(bound, ex.args[1])
+    foreach(arg -> _collect_assignments!(bound, arg), ex.args)
+    return bound
+end
+_collect_assignments!(bound, _) = bound
 
 """Bind lambda parameter names; defaults and type annotations are reads."""
 function _bind_params!(bound, ex, variable_names)::Bool

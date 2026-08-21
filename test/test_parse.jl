@@ -944,6 +944,74 @@ end
         eval_module=WithConstant,
     )
     @test folded_function.tree.val == 3.0
+
+    # Shadowed arithmetic wins over eager imaginary-constant folding
+    module ShadowPlus
+    +(a, b) = 99.0
+    end
+    shadow_plus = parse_expression(
+        "1.0 + 2.0im";
+        operators=OperatorEnum(2 => (*,)),
+        variable_names=String[],
+        node_type=Node{Float64},
+        eval_module=ShadowPlus,
+    )
+    @test shadow_plus.tree.val == 99.0
+
+    # Assignments inside a hard scope are local, not module writes
+    folded_local = parse_expression(
+        "(() -> begin; x1 = 2.0; x1 + 1.0; end)()";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_local.tree.val == 3.0
+
+    # Aliased operators are found during scoped name fallback
+    myop(x) = x - 1.0
+    DynamicExpressions.declare_operator_alias(::typeof(myop), ::Val{1}) = sqrt
+    module ShadowSqrt
+    const sqrt = 1
+    end
+    aliased = parse_expression(
+        "sqrt(x1)";
+        operators=OperatorEnum(1 => (myop,)),
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=ShadowSqrt,
+    )
+    @test aliased.tree.degree == 1 && aliased.tree.op == 1
+
+    # Parameter names count as declared names for parametric expressions
+    module ParamScope
+    const p1 = 3.0
+    shadow(x) = x
+    end
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "shadow(p1) + x1";
+            operators=binops,
+            variable_names=["x1"],
+            expression_type=ParametricExpression,
+            eval_module=ParamScope,
+            parameters=Array{Float64}(undef, 1, 0),
+            parameter_names=["p1"],
+        )
+    )
+
+    # Scoped constants resolve inside parametric expressions
+    scoped_parametric = parse_expression(
+        "x1 + C";
+        operators=binops,
+        variable_names=["x1"],
+        expression_type=ParametricExpression,
+        eval_module=WithConstant,
+        parameters=Array{Float64}(undef, 1, 0),
+        parameter_names=["p1"],
+    )
+    @test any(n -> n.degree == 0 && n.constant && n.val == 42.0, scoped_parametric.tree)
 end
 
 @testitem "computed callees still work without eval_module" begin
