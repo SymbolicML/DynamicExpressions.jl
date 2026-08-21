@@ -395,7 +395,8 @@ end
         func = if eval_module === nothing
             try
                 Core.eval(EmptyModule, callee)
-            catch
+            catch e
+                e isa InterruptException && rethrow()
                 nothing
             end
         else
@@ -435,7 +436,8 @@ end
     end
     val = try
         Core.eval(eval_module, ex)
-    catch
+    catch e
+        e isa InterruptException && rethrow()
         throw(
             ArgumentError(
                 "Failed to evaluate `$(ex)` as a constant in `$(eval_module)`. " *
@@ -569,11 +571,22 @@ function _references_variable(ex::Expr, variable_names, bound)
     elseif ex.head == :macrocall
         # Cannot see what a macro expansion reads; reject conservatively
         return true
+    elseif ex.head == :quote
+        # Quoted syntax is data; only interpolations read
+        return _quoted_interpolation_reads(ex, variable_names, bound)
     else
         return any(arg -> _references_variable(arg, variable_names, bound), ex.args)
     end
 end
 _references_variable(_, _, _) = false
+
+_quoted_interpolation_reads(_, _, _) = false
+function _quoted_interpolation_reads(ex::Expr, variable_names, bound)
+    if ex.head == :$
+        return any(arg -> _references_variable(arg, variable_names, bound), ex.args)
+    end
+    return any(arg -> _quoted_interpolation_reads(arg, variable_names, bound), ex.args)
+end
 
 _collect_bound!(bound, name::Symbol) = push!(bound, string(name))
 function _collect_bound!(bound, ex::Expr)

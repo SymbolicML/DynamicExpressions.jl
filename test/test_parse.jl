@@ -862,6 +862,43 @@ end
         eval_module=ImScope,
     )
     @test scoped_im.tree.val == 6.0
+
+    # Quoted syntax is data, not reads
+    quoted = parse_expression(
+        "quote x1 + 1 end";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Expr},
+        eval_module=WithConstant,
+    )
+    @test quoted.tree.val isa Expr
+
+    # ...but interpolations inside quotes are reads
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "quote \$x1 + 1 end";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Expr},
+            eval_module=WithConstant,
+        )
+    )
+
+    # Interrupts propagate instead of becoming ArgumentErrors
+    module IntScope
+    boom() = throw(InterruptException())
+    end
+    @test_throws(
+        InterruptException,
+        parse_expression(
+            "boom()";
+            operators=binops,
+            variable_names=String[],
+            node_type=Node{Float64},
+            eval_module=IntScope,
+        )
+    )
 end
 
 @testitem "computed callees still work without eval_module" begin
