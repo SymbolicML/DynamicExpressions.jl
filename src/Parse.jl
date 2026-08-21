@@ -218,6 +218,8 @@ end
 _replace_imaginary_unit_symbol(ex) = ex
 @unstable _replace_imaginary_unit_symbol(ex::Symbol) = ex === :im ? im : ex
 @unstable function _replace_imaginary_unit_symbol(ex::Expr)
+    # Quoted syntax is data; leave its contents untouched
+    ex.head == :quote && return ex
     args = map(_replace_imaginary_unit_symbol, ex.args)
     # Fold constant arithmetic involving the imaginary unit, so that the
     # normalized string form of a complex constant (`a + b*im`) parses back
@@ -494,7 +496,7 @@ function _references_variable(ex::Expr, variable_names, bound)
             for s in specs
                 s isa Expr && s.head == :(=) || return true
                 _references_variable(s.args[2], variable_names, bound) && return true
-                _collect_bound!(bound, s.args[1])
+                _bind_params!(bound, s.args[1], variable_names) && return true
             end
             if spec isa Expr && spec.head == :filter
                 _references_variable(spec.args[1], variable_names, bound) && return true
@@ -506,15 +508,10 @@ function _references_variable(ex::Expr, variable_names, bound)
         _lhs_reads(ex.args[1], variable_names, bound) && return true
         return _references_variable(ex.args[2], variable_names, bound)
     elseif ex.head == :(=)
-        lhs = ex.args[1]
-        # A bare identifier target may assign a module global when evaluated
-        # in `eval_module`, so a declared name counts as a reference; compound
-        # targets read theirs.
-        if lhs isa Symbol
-            _references_variable(lhs, variable_names, bound) && return true
-        else
-            _lhs_reads(lhs, variable_names, bound) && return true
-        end
+        # An unbound identifier in an assignment target may write a module
+        # global when evaluated in `eval_module`, so declared names there
+        # count as references; compound targets read theirs.
+        _assignment_target_reads(ex.args[1], variable_names, bound) && return true
         return _references_variable(ex.args[2], variable_names, bound)
     elseif ex.head == :tuple
         # In tuple context, `(x=1.0,)` names a NamedTuple field
@@ -540,10 +537,14 @@ function _references_variable(ex::Expr, variable_names, bound)
             end
         end
         return _references_variable(ex.args[2], variable_names, bound)
-    elseif ex.head == :->
+    elseif ex.head == :-> ||
+        (ex.head == :function && ex.args[1] isa Expr && ex.args[1].head == :tuple)
         bound = copy(bound)
         _bind_params!(bound, ex.args[1], variable_names) && return true
         return _references_variable(ex.args[2], variable_names, bound)
+    elseif ex.head == :function
+        # A named function definition writes a module binding
+        return true
     elseif ex.head == :try
         _references_variable(ex.args[1], variable_names, bound) && return true
         catch_bound = if ex.args[2] isa Symbol
@@ -626,6 +627,23 @@ function _lhs_reads(ex::Expr, variable_names, bound)
     end
 end
 _lhs_reads(_, _, _) = false
+
+function _assignment_target_reads(s::Symbol, variable_names, bound)
+    return _references_variable(s, variable_names, bound)
+end
+function _assignment_target_reads(ex::Expr, variable_names, bound)
+    if ex.head == :tuple || ex.head == :parameters
+        return any(arg -> _assignment_target_reads(arg, variable_names, bound), ex.args)
+    elseif ex.head == :(::)
+        length(ex.args) == 2 &&
+            _references_variable(ex.args[2], variable_names, bound) &&
+            return true
+        return _assignment_target_reads(ex.args[1], variable_names, bound)
+    else
+        return _references_variable(ex, variable_names, bound)
+    end
+end
+_assignment_target_reads(_, _, _) = false
 @unstable function _parse_expression(
     p::ExpressionParser{<:Any,<:Any,N}, func::F, args
 )::N where {F<:Function,N<:AbstractExpressionNode}

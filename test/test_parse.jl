@@ -899,6 +899,51 @@ end
             eval_module=IntScope,
         )
     )
+
+    # Generator type annotations are reads, not part of the bound name
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "sum([y for y::x1 in 1:3])";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=AnnScope,
+        )
+    )
+
+    # Quoted `im` symbols survive normalization
+    quoted_im = parse_expression(
+        "quote im end";
+        operators=binops,
+        variable_names=String[],
+        node_type=Node{Expr},
+        eval_module=WithConstant,
+    )
+    @test any(a -> a === :im, quoted_im.tree.val.args)
+
+    # Destructuring assignments to declared variables are references
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "(x1,) = (2.0,)";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=AssignScope,
+        )
+    )
+    @test AssignScope.x1 == 1.0
+
+    # Long-form anonymous functions bind their parameters
+    folded_function = parse_expression(
+        "(function (x1); x1 + 1.0 end)(2.0)";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_function.tree.val == 3.0
 end
 
 @testitem "computed callees still work without eval_module" begin
