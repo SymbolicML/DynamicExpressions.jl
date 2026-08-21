@@ -1090,6 +1090,64 @@ end
         )
     )
 
+    # Vararg anonymous functions are anonymous, not named definitions
+    vararg_fn = parse_expression(
+        "(function (x1...); x1[1] + 1.0 end)(2.0)";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test vararg_fn.tree.val == 3.0
+
+    # Typed let declarations bind the name; the annotation is a read
+    typed_let = parse_expression(
+        "let x1::Float64; 2.0 end";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test typed_let.tree.val == 2.0
+
+    # Assignments inside a while body are local to the loop
+    folded_while = parse_expression(
+        "(() -> begin; while false; x1 = 2.0; end; 0.0; end)()";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_while.tree.val == 0.0
+
+    # Ambiguity errors from the operator fallback propagate when scoped
+    mycos2(x) = 7.0
+    DynamicExpressions.declare_operator_alias(::typeof(mycos2), ::Val{1}) = cos
+    ops_amb = OperatorEnum(1 => (cos, mycos2))
+    module HasCos
+    const cos = sin
+    end
+    @test_throws(
+        "Ambiguous operator `cos`",
+        parse_expression(
+            "cos(1.0)";
+            operators=ops_amb,
+            variable_names=String[],
+            node_type=Node{Float64},
+            eval_module=HasCos,
+        )
+    )
+
+    # Explicit local declarations bind in hard scopes
+    folded_local_decl = parse_expression(
+        "(() -> begin; local x1 = 2.0; x1; end)()";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_local_decl.tree.val == 2.0
+
     # Parameter names count as declared names for parametric expressions
     module ParamScope
     const p1 = 3.0

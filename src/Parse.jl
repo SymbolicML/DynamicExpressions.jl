@@ -308,8 +308,23 @@ end
 
 """
 Find an operator function by its name in the OperatorEnum, considering the arity.
-Throws appropriate errors for ambiguous or missing matches.
+
+Not-found is signaled with `OperatorNotFoundError`; ambiguity errors use
+`ArgumentError` so they can propagate through the scoped fallback instead of
+being suppressed.
 """
+struct OperatorNotFoundError <: Exception
+    func_symbol::Any
+end
+
+function Base.showerror(io::IO, e::OperatorNotFoundError)
+    return print(
+        io,
+        "ArgumentError: Tried to interpolate function `$(e.func_symbol)` but failed. " *
+        "Function not found in operators.",
+    )
+end
+
 @unstable function _find_operator_by_name(func_symbol, degree, operators)
     matches = Tuple{Function,Int}[]
 
@@ -323,12 +338,7 @@ Throws appropriate errors for ambiguous or missing matches.
     end
 
     if isempty(matches)
-        throw(
-            ArgumentError(
-                "Tried to interpolate function `$(func_symbol)` but failed. " *
-                "Function not found in operators.",
-            ),
-        )
+        throw(OperatorNotFoundError(func_symbol))
     end
 
     arity_matches = filter(m -> m[2] == degree, matches)
@@ -423,6 +433,8 @@ end
                 _find_operator_by_name(callee, length(args) - 1, operators)
             catch e
                 e isa InterruptException && rethrow()
+                # Ambiguity and arity errors are real problems, not misses
+                e isa OperatorNotFoundError || rethrow()
                 eval_module === nothing && rethrow()
                 nothing
             end
@@ -552,13 +564,20 @@ function _references_variable(ex::Expr, variable_names, bound)
                 _bind_params!(bound, s.args[1], variable_names) && return true
             elseif s isa Symbol
                 _collect_bound!(bound, s)
+            elseif s isa Expr && s.head == :(::)
+                # Typed declarations bind the name; the annotation is a read
+                _local_target!(bound, s.args[1])
+                length(s.args) > 1 &&
+                    _references_variable(s.args[2], variable_names, bound) &&
+                    return true
             else
                 return true  # unknown binding form; reject conservatively
             end
         end
         return _references_variable(ex.args[2], variable_names, bound)
-    elseif ex.head == :-> ||
-        (ex.head == :function && ex.args[1] isa Expr && ex.args[1].head == :tuple)
+    elseif ex.head == :-> || (
+        ex.head == :function && ex.args[1] isa Expr && ex.args[1].head in (:tuple, :...)
+    )
         bound = copy(bound)
         _bind_params!(bound, ex.args[1], variable_names) && return true
         # Assignments inside a hard scope are local bindings, not module writes
@@ -603,6 +622,14 @@ function _references_variable(ex::Expr, variable_names, bound)
     elseif ex.head == :quote
         # Quoted syntax is data; only interpolations read
         return _quoted_interpolation_reads(ex, variable_names, bound)
+    elseif ex.head == :while
+        _references_variable(ex.args[1], variable_names, bound) && return true
+        bound = copy(bound)
+        # Assignments in the loop body are local to the loop, not module writes
+        _collect_assignments!(bound, ex.args[2])
+        # Explicit `global` declarations inside the loop are module bindings
+        _collect_globals!(bound, ex.args[2])
+        return _references_variable(ex.args[2], variable_names, bound)
     else
         return any(arg -> _references_variable(arg, variable_names, bound), ex.args)
     end
@@ -623,6 +650,7 @@ function _collect_bound!(bound, ex::Expr)
     return bound
 end
 _collect_bound!(bound, _) = bound
+
 """Bind simple local targets: plain symbols, destructuring tuples, and
 type annotations (only the name side binds; the type expression is a read)."""
 function _local_target!(bound, ex)
@@ -644,6 +672,9 @@ conservatively."""
 function _collect_assignments!(bound, ex::Expr)
     if ex.head == :(=)
         _local_target!(bound, ex.args[1])
+    elseif ex.head == :local
+        # Explicit local declarations wrap an assignment or a bare name
+        foreach(arg -> _collect_assignments!(bound, arg), ex.args)
     end
     if ex.head in (:block, :if, :elseif, :&&, :||, :(=))
         foreach(arg -> _collect_assignments!(bound, arg), ex.args)
@@ -662,6 +693,7 @@ function _collect_globals!(bound, ex::Expr)
     return bound
 end
 _collect_globals!(bound, _) = bound
+
 _delete_name!(bound, name::Symbol) = filter!(!=(string(name)), bound)
 _delete_name!(bound, ex::Expr) = foreach(arg -> _delete_name!(bound, arg), ex.args)
 _delete_name!(bound, _) = bound
