@@ -294,10 +294,10 @@ end
             operators
         end
 
-        ex = _normalize_expression_for_parse(ex, variable_names, eval_module)
         parser = ExpressionParser(
             operators, variable_names, N, E, evaluate_on, eval_module, NamedTuple(kws)
         )
+        ex = _normalize_expression_for_parse(ex, _declared_names(parser), eval_module)
         tree = parser(ex)
         return constructorof(E)(tree; operators, variable_names, kws...)
     end
@@ -420,7 +420,8 @@ end
             (eval_module !== nothing && !_matches_operator(func, operators, evaluate_on))
             named = try
                 _find_operator_by_name(callee, length(args) - 1, operators)
-            catch
+            catch e
+                e isa InterruptException && rethrow()
                 eval_module === nothing && rethrow()
                 nothing
             end
@@ -521,6 +522,10 @@ function _references_variable(ex::Expr, variable_names, bound)
         # An unbound identifier in an assignment target may write a module
         # global when evaluated in `eval_module`, so declared names there
         # count as references; compound targets read theirs.
+        if ex.args[1] isa Expr && ex.args[1].head == :call
+            # Short-form named function definition writes a module binding
+            return true
+        end
         _assignment_target_reads(ex.args[1], variable_names, bound) && return true
         return _references_variable(ex.args[2], variable_names, bound)
     elseif ex.head == :tuple
@@ -553,6 +558,8 @@ function _references_variable(ex::Expr, variable_names, bound)
         _bind_params!(bound, ex.args[1], variable_names) && return true
         # Assignments inside a hard scope are local bindings, not module writes
         _collect_assignments!(bound, ex.args[2])
+        # Explicit `global` declarations are module bindings, not locals
+        _collect_globals!(bound, ex.args[2])
         return _references_variable(ex.args[2], variable_names, bound)
     elseif ex.head == :function
         # A named function definition writes a module binding
@@ -608,14 +615,23 @@ function _collect_bound!(bound, ex::Expr)
 end
 _collect_bound!(bound, _) = bound
 
+"""Bind simple local targets: plain symbols, tuples, and type annotations."""
+function _local_target!(bound, ex)
+    if ex isa Symbol
+        _collect_bound!(bound, ex)
+    elseif ex isa Expr && (ex.head == :tuple || ex.head == :(::))
+        foreach(arg -> _local_target!(bound, arg), ex.args)
+    end
+    return bound
+end
 """Collect simple assignment targets local to a hard scope.
 
-Only plain-symbol targets in the scope's direct control flow bind; compound
+Plain symbols, destructuring tuples, and type-annotated names bind; compound
 targets and nested scopes are left to the main scan, which rejects them
 conservatively."""
 function _collect_assignments!(bound, ex::Expr)
-    if ex.head == :(=) && ex.args[1] isa Symbol
-        _collect_bound!(bound, ex.args[1])
+    if ex.head == :(=)
+        _local_target!(bound, ex.args[1])
     end
     if ex.head in (:block, :if, :elseif, :&&, :||, :(=))
         foreach(arg -> _collect_assignments!(bound, arg), ex.args)
@@ -623,6 +639,20 @@ function _collect_assignments!(bound, ex::Expr)
     return bound
 end
 _collect_assignments!(bound, _) = bound
+
+"""Delete names explicitly declared `global` inside a hard scope."""
+function _collect_globals!(bound, ex::Expr)
+    if ex.head == :global
+        foreach(arg -> _delete_name!(bound, arg), ex.args)
+    elseif ex.head in (:block, :if, :elseif, :&&, :||, :(=))
+        foreach(arg -> _collect_globals!(bound, arg), ex.args)
+    end
+    return bound
+end
+_collect_globals!(bound, _) = bound
+_delete_name!(bound, name::Symbol) = filter!(!=(string(name)), bound)
+_delete_name!(bound, ex::Expr) = foreach(arg -> _delete_name!(bound, arg), ex.args)
+_delete_name!(bound, _) = bound
 
 """Bind lambda parameter names; defaults and type annotations are reads."""
 function _bind_params!(bound, ex, variable_names)::Bool

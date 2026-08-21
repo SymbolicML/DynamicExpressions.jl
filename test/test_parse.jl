@@ -992,6 +992,40 @@ end
         )
     )
 
+    # Destructured locals still bind
+    folded_destructure = parse_expression(
+        "(() -> begin; (x1,) = (2.0,); x1; end)()";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_destructure.tree.val == 2.0
+
+    # Explicit `global` declarations are module bindings, not locals
+    @test_throws(
+        "declared variable",
+        parse_expression(
+            "(() -> begin; global x1; x1 = 2.0; x1; end)()";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # Short-form named function definitions are module writes
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "f(y) = y + 1";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
     # Aliased operators are found during scoped name fallback
     myop(x) = x - 1.0
     DynamicExpressions.declare_operator_alias(::typeof(myop), ::Val{1}) = sqrt
@@ -1036,6 +1070,18 @@ end
         parameter_names=["p1"],
     )
     @test any(n -> n.degree == 0 && n.constant && n.val == 42.0, scoped_parametric.tree)
+
+    # Parameter names are protected from imaginary-unit normalization
+    im_parametric = parse_expression(
+        "im + x1";
+        operators=binops,
+        variable_names=["x1"],
+        expression_type=ParametricExpression,
+        parameters=Array{Float64}(undef, 1, 0),
+        parameter_names=["im"],
+    )
+    @test any(n -> n.is_parameter && n.parameter == 1, im_parametric.tree)
+    @test any(n -> n.degree == 2 && n.op == 1, im_parametric.tree)
 end
 
 @testitem "computed callees still work without eval_module" begin
