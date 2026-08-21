@@ -794,6 +794,74 @@ end
         eval_module=NodeScope,
     )
     @test spliced.tree === NodeScope.n
+
+    # `let` type annotations are reads, not part of the bound name
+    module AnnScope
+    const x1 = Int
+    end
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "let y::x1 = 2.0; y end";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=AnnScope,
+        )
+    )
+
+    # `for` iteration variables shadow declared variables
+    folded_for = parse_expression(
+        "begin; for x1 in 1:3; nothing; end; 2.0; end";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_for.tree.val == 2.0
+
+    # ...but the iterator expression itself is a read
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "begin; for y in 1:Int(x1); nothing; end; 2.0; end";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # Macro calls are opaque and rejected conservatively
+    module MacroScope
+    const x1 = 42.0
+    macro readx()
+        return esc(:x1)
+    end
+    end
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "@readx()";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=MacroScope,
+        )
+    )
+
+    # A scoped `im` binding wins over the imaginary-unit normalization
+    module ImScope
+    const im = 2.0
+    end
+    scoped_im = parse_expression(
+        "im * 3.0";
+        operators=binops,
+        variable_names=String[],
+        node_type=Node{Float64},
+        eval_module=ImScope,
+    )
+    @test scoped_im.tree.val == 6.0
 end
 
 @testitem "computed callees still work without eval_module" begin

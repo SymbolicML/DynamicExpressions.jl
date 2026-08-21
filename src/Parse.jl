@@ -238,9 +238,16 @@ _replace_imaginary_unit_symbol(ex) = ex
 end
 
 @unstable function _normalize_expression_for_parse(
-    ex, variable_names::Union{AbstractVector{<:AbstractString},Nothing}
+    ex,
+    variable_names::Union{AbstractVector{<:AbstractString},Nothing},
+    eval_module::Union{Module,Nothing},
 )
     if variable_names !== nothing && ("im" in variable_names)
+        return ex
+    elseif eval_module !== nothing &&
+        isdefined(eval_module, :im) &&
+        getproperty(eval_module, :im) !== im
+        # The evaluation module rebinds `im`; let it resolve there
         return ex
     end
     return _replace_imaginary_unit_symbol(ex)
@@ -284,7 +291,7 @@ end
             operators
         end
 
-        ex = _normalize_expression_for_parse(ex, variable_names)
+        ex = _normalize_expression_for_parse(ex, variable_names, eval_module)
         parser = ExpressionParser(
             operators, variable_names, N, E, evaluate_on, eval_module, NamedTuple(kws)
         )
@@ -523,7 +530,7 @@ function _references_variable(ex::Expr, variable_names, bound)
             (bindings isa Expr && bindings.head == :block ? bindings.args : (bindings,))
             if s isa Expr && s.head == :(=)
                 _references_variable(s.args[2], variable_names, bound) && return true
-                _collect_bound!(bound, s.args[1])
+                _bind_params!(bound, s.args[1], variable_names) && return true
             elseif s isa Symbol
                 _collect_bound!(bound, s)
             else
@@ -547,6 +554,21 @@ function _references_variable(ex::Expr, variable_names, bound)
             _references_variable(ex.args[3], variable_names, catch_bound) &&
             return true
         return any(arg -> _references_variable(arg, variable_names, bound), ex.args[4:end])
+    elseif ex.head == :for
+        bound = copy(bound)
+        spec = ex.args[1]
+        for s in (spec isa Expr && spec.head == :block ? spec.args : (spec,))
+            if s isa Expr && s.head == :(=)
+                _references_variable(s.args[2], variable_names, bound) && return true
+                _bind_params!(bound, s.args[1], variable_names) && return true
+            else
+                return true  # unknown iteration form; reject conservatively
+            end
+        end
+        return _references_variable(ex.args[2], variable_names, bound)
+    elseif ex.head == :macrocall
+        # Cannot see what a macro expansion reads; reject conservatively
+        return true
     else
         return any(arg -> _references_variable(arg, variable_names, bound), ex.args)
     end
