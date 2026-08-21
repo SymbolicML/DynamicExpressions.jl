@@ -548,6 +548,16 @@ end
     )
     @test string_tree(scoped_symbol) == "x1 + 42.0"
 
+    # The macro form accepts eval_module too
+    macro_scoped = @parse_expression(
+        x1 + C,
+        operators = binops,
+        variable_names = ["x1"],
+        node_type = Node{Float64},
+        eval_module = WithConstant,
+    )
+    @test string_tree(macro_scoped) == "x1 + 42.0"
+
     # A module binding shadowing an operator name still parses as the operator
     module ShadowsCos
     cos(x) = error("should not be called")
