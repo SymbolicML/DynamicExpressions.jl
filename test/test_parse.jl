@@ -968,6 +968,30 @@ end
     )
     @test folded_local.tree.val == 3.0
 
+    # Indexed assignment targets still count as reads of the container
+    @test_throws(
+        "declared variable",
+        parse_expression(
+            "(() -> begin; x1[1] = 2.0; 0.0; end)()";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # Locals of a nested lambda do not leak into the outer scope
+    @test_throws(
+        "declared variable",
+        parse_expression(
+            "(() -> begin; (() -> (x1 = 2.0))(); x1; end)()";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
     # Aliased operators are found during scoped name fallback
     myop(x) = x - 1.0
     DynamicExpressions.declare_operator_alias(::typeof(myop), ::Val{1}) = sqrt

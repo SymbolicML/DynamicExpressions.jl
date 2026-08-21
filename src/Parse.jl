@@ -608,11 +608,18 @@ function _collect_bound!(bound, ex::Expr)
 end
 _collect_bound!(bound, _) = bound
 
-"""Collect assignment targets inside a hard scope; quoted syntax is data."""
+"""Collect simple assignment targets local to a hard scope.
+
+Only plain-symbol targets in the scope's direct control flow bind; compound
+targets and nested scopes are left to the main scan, which rejects them
+conservatively."""
 function _collect_assignments!(bound, ex::Expr)
-    ex.head == :quote && return bound
-    ex.head == :(=) && _collect_bound!(bound, ex.args[1])
-    foreach(arg -> _collect_assignments!(bound, arg), ex.args)
+    if ex.head == :(=) && ex.args[1] isa Symbol
+        _collect_bound!(bound, ex.args[1])
+    end
+    if ex.head in (:block, :if, :elseif, :&&, :||, :(=))
+        foreach(arg -> _collect_assignments!(bound, arg), ex.args)
+    end
     return bound
 end
 _collect_assignments!(bound, _) = bound
