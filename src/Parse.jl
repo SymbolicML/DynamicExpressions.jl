@@ -285,9 +285,10 @@ end
         end
 
         ex = _normalize_expression_for_parse(ex, variable_names)
-        tree = _parse_expression(
-            ex, operators, variable_names, N, E, evaluate_on, eval_module; kws...
+        parser = ExpressionParser(
+            operators, variable_names, N, E, evaluate_on, eval_module, NamedTuple(kws)
         )
+        tree = parser(ex)
         return constructorof(E)(tree; operators, variable_names, kws...)
     end
 end
@@ -343,16 +344,36 @@ end
 """An empty module for evaluation without collisions."""
 module EmptyModule end
 
-@unstable function _parse_expression(
-    ex::Expr,
-    operators::AbstractOperatorEnum,
-    variable_names::Union{AbstractVector{<:AbstractString},Nothing},
-    ::Type{N},
-    ::Type{E},
-    evaluate_on::Union{Nothing,AbstractVector},
-    eval_module::Union{Module,Nothing};
-    kws...,
-) where {N<:AbstractExpressionNode,E<:AbstractExpression}
+"""
+    ExpressionParser
+
+Internal carrier for the fixed arguments of the parsing recursion.
+Calling `parser(ex)` parses `ex` into a node.
+"""
+struct ExpressionParser{
+    O<:AbstractOperatorEnum,
+    V<:Union{AbstractVector{<:AbstractString},Nothing},
+    N<:AbstractExpressionNode,
+    E<:AbstractExpression,
+    EV<:Union{Nothing,AbstractVector},
+    M<:Union{Module,Nothing},
+    K<:NamedTuple,
+}
+    operators::O
+    variable_names::V
+    node_type::Type{N}
+    expression_type::Type{E}
+    evaluate_on::EV
+    eval_module::M
+    kws::K
+end
+
+@unstable function (p::ExpressionParser)(ex)
+    return _parse_expression(p, ex)
+end
+
+@unstable function _parse_expression(p::ExpressionParser, ex::Expr)
+    (; operators, evaluate_on, eval_module) = p
     if ex.head == :call
         args = ex.args
         func = try
@@ -371,17 +392,7 @@ module EmptyModule end
             named === nothing || (func = named)
         end
         if eval_module === nothing || _matches_operator(func, operators, evaluate_on)
-            return _parse_expression(
-                func::Function,
-                args,
-                operators,
-                variable_names,
-                N,
-                E,
-                evaluate_on,
-                eval_module;
-                kws...,
-            )
+            return _parse_expression(p, func::Function, args)
         end
     elseif eval_module === nothing
         throw(
@@ -391,7 +402,7 @@ module EmptyModule end
             ),
         )
     end
-    if _references_variable(ex, variable_names)
+    if _references_variable(ex, p.variable_names)
         throw(
             ArgumentError(
                 "Cannot evaluate `$(ex)` as a constant since it references variables. " *
@@ -410,7 +421,9 @@ module EmptyModule end
             ),
         )
     end
-    return parse_leaf(val, variable_names, N, E; eval_module, kws...)
+    return parse_leaf(
+        val, p.variable_names, p.node_type, p.expression_type; eval_module, p.kws...
+    )
 end
 
 @unstable function _matches_operator(func, operators, evaluate_on)
@@ -433,16 +446,9 @@ function _references_variable(ex::Expr, variable_names)
 end
 _references_variable(_, _) = false
 @unstable function _parse_expression(
-    func::F,
-    args,
-    operators::AbstractOperatorEnum,
-    variable_names::Union{AbstractVector{<:AbstractString},Nothing},
-    ::Type{N},
-    ::Type{E},
-    evaluate_on::Union{Nothing,AbstractVector},
-    eval_module::Union{Module,Nothing};
-    kws...,
-)::N where {F<:Function,N<:AbstractExpressionNode,E<:AbstractExpression}
+    p::ExpressionParser{<:Any,<:Any,N}, func::F, args
+)::N where {F<:Function,N<:AbstractExpressionNode}
+    (; operators, evaluate_on) = p
     degree = length(args) - 1
     if degree <= length(operators.ops) && (
         op_idx = findfirst(
@@ -451,22 +457,7 @@ _references_variable(_, _) = false
         );
         !isnothing(op_idx)
     )
-        return N(;
-            op=op_idx::Int,
-            children=map(
-                arg -> _parse_expression(
-                    arg,
-                    operators,
-                    variable_names,
-                    N,
-                    E,
-                    evaluate_on,
-                    eval_module;
-                    kws...,
-                ),
-                (args[2:end]...,),
-            ),
-        )
+        return N(; op=op_idx::Int, children=map(p, (args[2:end]...,)))
     end
 
     # Handle chaining for +, -, * operators
@@ -478,69 +469,16 @@ _references_variable(_, _) = false
             );
             !isnothing(op_idx)
         )
-        inner = N(;
-            op=op_idx::Int,
-            children=(
-                _parse_expression(
-                    args[2],
-                    operators,
-                    variable_names,
-                    N,
-                    E,
-                    evaluate_on,
-                    eval_module;
-                    kws...,
-                ),
-                _parse_expression(
-                    args[3],
-                    operators,
-                    variable_names,
-                    N,
-                    E,
-                    evaluate_on,
-                    eval_module;
-                    kws...,
-                ),
-            ),
-        )
+        inner = N(; op=op_idx::Int, children=(p(args[2]), p(args[3])))
         for arg in args[4:end]
-            inner = N(;
-                op=op_idx::Int,
-                children=(
-                    inner,
-                    _parse_expression(
-                        arg,
-                        operators,
-                        variable_names,
-                        N,
-                        E,
-                        evaluate_on,
-                        eval_module;
-                        kws...,
-                    ),
-                ),
-            )
+            inner = N(; op=op_idx::Int, children=(inner, p(arg)))
         end
         return inner
     end
 
     if evaluate_on !== nothing && func in evaluate_on
         # External function
-        func(
-            map(
-                arg -> _parse_expression(
-                    arg,
-                    operators,
-                    variable_names,
-                    N,
-                    E,
-                    evaluate_on,
-                    eval_module;
-                    kws...,
-                ),
-                args[2:end],
-            )...,
-        )
+        func(map(p, args[2:end])...)
     else
         matching_s = let
             s = if degree <= length(operators.ops)
@@ -565,17 +503,15 @@ _references_variable(_, _) = false
         )
     end
 end
-@unstable function _parse_expression(
-    ex,
-    operators::AbstractOperatorEnum,
-    variable_names::Union{AbstractVector{<:AbstractString},Nothing},
-    node_type::Type{<:AbstractExpressionNode},
-    expression_type::Type{<:AbstractExpression},
-    evaluate_on::Union{Nothing,AbstractVector},
-    eval_module::Union{Module,Nothing}=nothing;
-    kws...,
-)
-    return parse_leaf(ex, variable_names, node_type, expression_type; eval_module, kws...)
+@unstable function _parse_expression(p::ExpressionParser, ex)
+    return parse_leaf(
+        ex,
+        p.variable_names,
+        p.node_type,
+        p.expression_type;
+        eval_module=p.eval_module,
+        p.kws...,
+    )
 end
 
 @unstable function parse_leaf(
