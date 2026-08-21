@@ -601,7 +601,7 @@ end
     const x1 = sin
     end
     @test_throws(
-        "Cannot use variable `x1` as a callee",
+        "Cannot use a declared variable in the callee",
         parse_expression(
             "x1(x2)";
             operators=OperatorEnum(1 => (sin,)),
@@ -650,4 +650,86 @@ end
             eval_module=WithConstant,
         )
     )
+
+    # ...including when the declared variable is the base of a dotted callee
+    module DottedScope
+    const x1 = Base
+    end
+    @test_throws(
+        "Cannot use a declared variable in the callee",
+        parse_expression(
+            "x1.sin(x2)";
+            operators=OperatorEnum(1 => (sin,)),
+            variable_names=["x1", "x2"],
+            node_type=Node{Float64},
+            eval_module=DottedScope,
+        )
+    )
+
+    # Dotted callees on non-module values are not probed, so an overloaded
+    # `getproperty` runs exactly once (during constant folding)
+    module PropScope
+    const count = Ref(0)
+    struct Obj end
+    function Base.getproperty(::Obj, ::Symbol)
+        count[] += 1
+        return identity
+    end
+    const obj = Obj()
+    end
+    propped = parse_expression(
+        "obj.factory(2.0)";
+        operators=binops,
+        variable_names=String[],
+        node_type=Node{Float64},
+        eval_module=PropScope,
+    )
+    @test propped.tree.val == 2.0
+    @test PropScope.count[] == 1
+
+    # Compound assignment targets read their base
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "(x1[1] = 2.0)";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # A constant that evaluates to a Symbol stays a constant, even if it
+    # collides with a declared variable name
+    sym_const = parse_expression(
+        "Symbol(\"x1\")";
+        operators=OperatorEnum(2 => (+,)),
+        variable_names=["x1"],
+        node_type=Node{Symbol},
+        eval_module=WithConstant,
+    )
+    @test sym_const.tree.degree == 0 && sym_const.tree.constant
+    @test sym_const.tree.val == :x1
+
+    # `let` bindings shadow declared variables
+    folded_let = parse_expression(
+        "let x1 = 2.0; x1 + 1.0 end";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_let.tree.val == 3.0
+end
+
+@testitem "computed callees still work without eval_module" begin
+    using DynamicExpressions
+
+    legacy = parse_expression(
+        "getfield(Base, :sin)(x1)";
+        operators=OperatorEnum(1 => (sin,)),
+        variable_names=["x1"],
+        node_type=Node{Float64},
+    )
+    @test legacy.tree.degree == 1 && legacy.tree.op == 1
 end

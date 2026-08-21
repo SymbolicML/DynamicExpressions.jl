@@ -377,25 +377,24 @@ end
     if ex.head == :call
         args = ex.args
         callee = first(args)
-        if eval_module !== nothing &&
-            callee isa Symbol &&
-            p.variable_names !== nothing &&
-            string(callee) in p.variable_names
+        if eval_module !== nothing && _references_variable(callee, p.variable_names)
             throw(
                 ArgumentError(
-                    "Cannot use variable `$(callee)` as a callee. " *
+                    "Cannot use a declared variable in the callee `$(callee)`. " *
                     "Declared variables cannot be called in an expression.",
                 ),
             )
         end
-        func = if _safe_to_eval(callee)
+        func = if eval_module === nothing
             try
-                Core.eval(something(eval_module, EmptyModule), callee)
+                Core.eval(EmptyModule, callee)
             catch
                 nothing
             end
         else
-            nothing
+            # Only pure name resolution: computed callees and value property
+            # accesses are left for (single) evaluation during constant folding.
+            _try_resolve(eval_module, callee)
         end
         if func === nothing ||
             (eval_module !== nothing && !_matches_operator(func, operators, evaluate_on))
@@ -437,6 +436,10 @@ end
             ),
         )
     end
+    if val isa Symbol
+        # Already a value; must not be re-interpreted as a variable name
+        return p.node_type(; val)
+    end
     return parse_leaf(
         val, p.variable_names, p.node_type, p.expression_type; eval_module, p.kws...
     )
@@ -454,9 +457,19 @@ end
     )
 end
 
-"""Whether evaluating `ex` cannot run arbitrary code (a literal or a dotted name)."""
-_safe_to_eval(ex::Expr) = ex.head == :. && all(_safe_to_eval, ex.args)
-_safe_to_eval(_) = true
+"""Resolve a literal or (dotted) name in `mod` without running arbitrary code."""
+_try_resolve(mod::Module, s::Symbol) = isdefined(mod, s) ? getproperty(mod, s) : nothing
+_try_resolve(::Module, q::QuoteNode) = q.value
+function _try_resolve(mod::Module, ex::Expr)
+    (ex.head == :. && length(ex.args) == 2) || return nothing
+    base = _try_resolve(mod, ex.args[1])
+    base isa Module || return nothing
+    name = ex.args[2]
+    s = name isa QuoteNode ? name.value : name
+    s isa Symbol || return nothing
+    return isdefined(base, s) ? getproperty(base, s) : nothing
+end
+_try_resolve(::Module, x) = x
 
 function _references_variable(ex, variable_names)
     return _references_variable(ex, variable_names, String[])
@@ -480,7 +493,27 @@ function _references_variable(ex::Expr, variable_names, bound)
         end
         return _references_variable(ex.args[1], variable_names, bound)
     elseif ex.head == :(=) || ex.head == :kw
-        # The left-hand side binds a name rather than reading it
+        # A plain identifier target binds a name; compound targets read theirs
+        _lhs_reads(ex.args[1], variable_names, bound) && return true
+        return _references_variable(ex.args[2], variable_names, bound)
+    elseif ex.head == :let
+        bound = copy(bound)
+        bindings = ex.args[1]
+        for s in
+            (bindings isa Expr && bindings.head == :block ? bindings.args : (bindings,))
+            if s isa Expr && s.head == :(=)
+                _references_variable(s.args[2], variable_names, bound) && return true
+                _collect_bound!(bound, s.args[1])
+            elseif s isa Symbol
+                _collect_bound!(bound, s)
+            else
+                return true  # unknown binding form; reject conservatively
+            end
+        end
+        return _references_variable(ex.args[2], variable_names, bound)
+    elseif ex.head == :->
+        bound = copy(bound)
+        _collect_bound!(bound, ex.args[1])
         return _references_variable(ex.args[2], variable_names, bound)
     else
         return any(arg -> _references_variable(arg, variable_names, bound), ex.args)
@@ -494,6 +527,16 @@ function _collect_bound!(bound, ex::Expr)
     return bound
 end
 _collect_bound!(bound, _) = bound
+
+_lhs_reads(::Symbol, _, _) = false
+function _lhs_reads(ex::Expr, variable_names, bound)
+    if ex.head == :tuple || ex.head == :parameters
+        return any(arg -> _lhs_reads(arg, variable_names, bound), ex.args)
+    else
+        return _references_variable(ex, variable_names, bound)
+    end
+end
+_lhs_reads(_, _, _) = false
 @unstable function _parse_expression(
     p::ExpressionParser{<:Any,<:Any,N}, func::F, args
 )::N where {F<:Function,N<:AbstractExpressionNode}
