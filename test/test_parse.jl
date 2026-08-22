@@ -1148,6 +1148,45 @@ end
     )
     @test folded_local_decl.tree.val == 2.0
 
+    # Locally shadowed arithmetic skips imaginary-constant folding
+    shadow_let = parse_expression(
+        "let (+) = (a, b) -> 99.0; 1.0 + 2.0im end";
+        operators=OperatorEnum(2 => (*,)),
+        variable_names=String[],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test shadow_let.tree.val == 99.0
+
+    shadow_local = parse_expression(
+        "(() -> begin; local im = 5.0; im; end)()";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test shadow_local.tree.val == 5.0
+
+    # try/catch/finally sections scope their own assignments
+    folded_try = parse_expression(
+        "(() -> (try; x1 = 2.0; x1; finally; nothing; end))()";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_try.tree.val == 2.0
+
+    # Global initializers delete only their declared target
+    global_init = parse_expression(
+        "((x1) -> begin; global z = x1; x1; end)(2.0)";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test global_init.tree.val == 2.0
+
     # Parameter names count as declared names for parametric expressions
     module ParamScope
     const p1 = 3.0

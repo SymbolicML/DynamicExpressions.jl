@@ -239,6 +239,58 @@ _replace_imaginary_unit_symbol(ex) = ex
     return Expr(ex.head, args...)
 end
 
+const _IM_ARITH_NAMES = (:im, :+, :-, :*)
+
+_binds_im_name(s::Symbol) = s in _IM_ARITH_NAMES
+function _binds_im_name(ex::Expr)
+    if ex.head in (:(::), :where, :..., :tuple, :parameters)
+        # Declaration targets bind through these forms
+        return any(_binds_im_name, ex.args)
+    elseif ex.head == :call
+        # Short-form definition parameters bind
+        return any(_binds_im_name, @view ex.args[2:end])
+    end
+    return false
+end
+_binds_im_name(_) = false
+
+function _declaration_binds_im_arith(arg)
+    arg isa Symbol && return _binds_im_name(arg)
+    arg isa Expr || return false
+    if arg.head == :(=) || arg.head == :kw
+        return _binds_im_name(arg.args[1]) ||
+               (length(arg.args) >= 2 && _expression_binds_im_arith(arg.args[2]))
+    end
+    return _binds_im_name(arg)
+end
+
+"""True if the expression locally binds any name used by imaginary folding."""
+function _expression_binds_im_arith(ex)
+    ex isa Expr || return false
+    ex.head == :quote && return false
+    if ex.head in (:let, :local, :global)
+        any(_declaration_binds_im_arith, ex.args) && return true
+    elseif ex.head == :(=)
+        _declaration_binds_im_arith(ex) && return true
+    elseif ex.head == :-> || (
+        ex.head == :function &&
+        length(ex.args) >= 1 &&
+        ex.args[1] isa Expr &&
+        ex.args[1].head != :call
+    )
+        # Anonymous-function parameters bind
+        length(ex.args) >= 1 && _binds_im_name(ex.args[1]) && return true
+    elseif ex.head == :for
+        spec = first(ex.args)
+        if spec isa Expr && spec.head == :block
+            any(_declaration_binds_im_arith, spec.args) && return true
+        else
+            _declaration_binds_im_arith(spec) && return true
+        end
+    end
+    return any(_expression_binds_im_arith, filter(a -> a isa Expr, ex.args))
+end
+
 @unstable function _normalize_expression_for_parse(
     ex,
     variable_names::Union{AbstractVector{<:AbstractString},Nothing},
@@ -252,6 +304,9 @@ end
         # let scoped resolution handle it
         !isdefined(eval_module, s) || getproperty(eval_module, s) !== getproperty(Base, s)
     end
+        return ex
+    elseif _expression_binds_im_arith(ex)
+        # Local bindings shadow Base arithmetic; keep scoped evaluation
         return ex
     end
     return _replace_imaginary_unit_symbol(ex)
@@ -435,7 +490,15 @@ end
                 e isa InterruptException && rethrow()
                 # Ambiguity and arity errors are real problems, not misses
                 e isa OperatorNotFoundError || rethrow()
-                eval_module === nothing && rethrow()
+                if eval_module === nothing
+                    # Preserve the public exception type for unscoped parsing
+                    throw(
+                        ArgumentError(
+                            "Tried to interpolate function `$(callee)` but failed. " *
+                            "Function not found in operators.",
+                        ),
+                    )
+                end
                 nothing
             end
             named === nothing || (func = named)
@@ -589,17 +652,22 @@ function _references_variable(ex::Expr, variable_names, bound)
         # A named function definition writes a module binding
         return true
     elseif ex.head == :try
-        _references_variable(ex.args[1], variable_names, bound) && return true
-        catch_bound = if ex.args[2] isa Symbol
-            _collect_bound!(copy(bound), ex.args[2])
-        else
-            bound
-        end
+        # Each try/catch/finally section has its own scope
+        sections = Tuple{Int,Any}[(1, nothing)]
         length(ex.args) >= 3 &&
-            ex.args[3] !== false &&
-            _references_variable(ex.args[3], variable_names, catch_bound) &&
-            return true
-        return any(arg -> _references_variable(arg, variable_names, bound), ex.args[4:end])
+            push!(sections, (3, ex.args[2] isa Symbol ? ex.args[2] : nothing))
+        length(ex.args) >= 4 && push!(sections, (4, nothing))
+        for (i, section_catch_var) in sections
+            ex.args[i] isa Expr || continue
+            section_bound = copy(bound)
+            section_catch_var isa Symbol &&
+                _collect_bound!(section_bound, section_catch_var)
+            # Assignments inside the section are local to it
+            _collect_assignments!(section_bound, ex.args[i])
+            _collect_globals!(section_bound, ex.args[i])
+            _references_variable(ex.args[i], variable_names, section_bound) && return true
+        end
+        return false
     elseif ex.head == :for
         bound = copy(bound)
         spec = ex.args[1]
@@ -695,8 +763,15 @@ end
 _collect_globals!(bound, _) = bound
 
 _delete_name!(bound, name::Symbol) = filter!(!=(string(name)), bound)
-_delete_name!(bound, ex::Expr) = foreach(arg -> _delete_name!(bound, arg), ex.args)
-_delete_name!(bound, _) = bound
+function _delete_name!(bound, ex::Expr)
+    if ex.head == :(=)
+        # Only the declared target is a module binding; the value side is a read
+        _delete_name!(bound, ex.args[1])
+    else
+        foreach(arg -> _delete_name!(bound, arg), ex.args)
+    end
+    return bound
+end
 
 """Bind lambda parameter names; defaults and type annotations are reads."""
 function _bind_params!(bound, ex, variable_names)::Bool
@@ -707,8 +782,6 @@ function _bind_params!(bound, ex, variable_names)::Bool
         return any(arg -> _bind_params!(bound, arg, variable_names), ex.args)
     elseif ex isa Expr && (ex.head == :kw || ex.head == :(=))
         _references_variable(ex.args[2], variable_names, copy(bound)) && return true
-        return _bind_params!(bound, ex.args[1], variable_names)
-    elseif ex isa Expr && ex.head == :(::)
         length(ex.args) == 2 &&
             _references_variable(ex.args[2], variable_names, copy(bound)) &&
             return true
