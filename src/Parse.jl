@@ -103,6 +103,7 @@ macro parse_expression(ex, kws...)
             node_type=$(parsed_kws.node_type),
             expression_type=$(parsed_kws.expression_type),
             evaluate_on=$(parsed_kws.evaluate_on),
+            eval_module=$(parsed_kws.eval_module),
             $(parsed_kws.extra_metadata)...,
         )),
     )
@@ -115,6 +116,7 @@ end
     expression_type = Expression
     node_type = nothing
     evaluate_on = nothing
+    eval_module = nothing
     extra_metadata = ()
     binops = nothing
     unaops = nothing
@@ -136,6 +138,9 @@ end
                 continue
             elseif kw == :evaluate_on
                 evaluate_on = kw
+                continue
+            elseif kw == :eval_module
+                eval_module = kw
                 continue
             elseif kw == :extra_metadata
                 extra_metadata = kw
@@ -160,6 +165,9 @@ end
             elseif kw.args[1] == :expression_type
                 expression_type = kw.args[2]
                 continue
+            elseif kw.args[1] == :eval_module
+                eval_module = kw.args[2]
+                continue
             elseif kw.args[1] == :evaluate_on
                 evaluate_on = kw.args[2]
                 continue
@@ -176,7 +184,7 @@ end
         end
         throw(
             ArgumentError(
-                "Unrecognized argument: `$kw`. The available arguments are `operators`, `variable_names`, `node_type`, `expression_type`, `evaluate_on`, and `extra_metadata`.",
+                "Unrecognized argument: `$kw`. The available arguments are `operators`, `variable_names`, `node_type`, `expression_type`, `evaluate_on`, `eval_module`, and `extra_metadata`.",
             ),
         )
     end
@@ -197,13 +205,21 @@ end
     end
 
     return (;
-        operators, variable_names, node_type, expression_type, evaluate_on, extra_metadata
+        operators,
+        variable_names,
+        node_type,
+        expression_type,
+        evaluate_on,
+        eval_module,
+        extra_metadata,
     )
 end
 
 _replace_imaginary_unit_symbol(ex) = ex
 @unstable _replace_imaginary_unit_symbol(ex::Symbol) = ex === :im ? im : ex
 @unstable function _replace_imaginary_unit_symbol(ex::Expr)
+    # Quoted syntax is data; leave its contents untouched
+    ex.head == :quote && return ex
     args = map(_replace_imaginary_unit_symbol, ex.args)
     # Fold constant arithmetic involving the imaginary unit, so that the
     # normalized string form of a complex constant (`a + b*im`) parses back
@@ -223,10 +239,74 @@ _replace_imaginary_unit_symbol(ex) = ex
     return Expr(ex.head, args...)
 end
 
+const _IM_ARITH_NAMES = (:im, :+, :-, :*)
+
+_binds_im_name(s::Symbol) = s in _IM_ARITH_NAMES
+function _binds_im_name(ex::Expr)
+    if ex.head in (:(::), :where, :..., :tuple, :parameters)
+        # Declaration targets bind through these forms
+        return any(_binds_im_name, ex.args)
+    elseif ex.head == :call
+        # Short-form definition parameters bind
+        return any(_binds_im_name, @view ex.args[2:end])
+    end
+    return false
+end
+_binds_im_name(_) = false
+
+function _declaration_binds_im_arith(arg)
+    arg isa Symbol && return _binds_im_name(arg)
+    arg isa Expr || return false
+    if arg.head == :(=) || arg.head == :kw
+        return _binds_im_name(arg.args[1]) ||
+               (length(arg.args) >= 2 && _expression_binds_im_arith(arg.args[2]))
+    end
+    return _binds_im_name(arg)
+end
+
+"""True if the expression locally binds any name used by imaginary folding."""
+function _expression_binds_im_arith(ex)
+    ex isa Expr || return false
+    ex.head == :quote && return false
+    if ex.head in (:let, :local, :global)
+        any(_declaration_binds_im_arith, ex.args) && return true
+    elseif ex.head == :(=)
+        _declaration_binds_im_arith(ex) && return true
+    elseif ex.head == :-> || (
+        ex.head == :function &&
+        length(ex.args) >= 1 &&
+        ex.args[1] isa Expr &&
+        ex.args[1].head != :call
+    )
+        # Anonymous-function parameters bind
+        length(ex.args) >= 1 && _binds_im_name(ex.args[1]) && return true
+    elseif ex.head == :for
+        spec = first(ex.args)
+        if spec isa Expr && spec.head == :block
+            any(_declaration_binds_im_arith, spec.args) && return true
+        else
+            _declaration_binds_im_arith(spec) && return true
+        end
+    end
+    return any(_expression_binds_im_arith, filter(a -> a isa Expr, ex.args))
+end
+
 @unstable function _normalize_expression_for_parse(
-    ex, variable_names::Union{AbstractVector{<:AbstractString},Nothing}
+    ex,
+    variable_names::Union{AbstractVector{<:AbstractString},Nothing},
+    eval_module::Union{Module,Nothing},
 )
     if variable_names !== nothing && ("im" in variable_names)
+        return ex
+    elseif eval_module !== nothing && any((:im, :+, :-, :*)) do s
+        # The evaluation module rebinds `im` or the arithmetic used to fold
+        # imaginary constants, or does not bind it at all (e.g. a baremodule);
+        # let scoped resolution handle it
+        !isdefined(eval_module, s) || getproperty(eval_module, s) !== getproperty(Base, s)
+    end
+        return ex
+    elseif _expression_binds_im_arith(ex)
+        # Local bindings shadow Base arithmetic; keep scoped evaluation
         return ex
     end
     return _replace_imaginary_unit_symbol(ex)
@@ -242,6 +322,7 @@ end
     expression_type::Type{E}=Expression,
     node_type::Type{N}=default_node_type(expression_type),
     evaluate_on::Union{Nothing,AbstractVector}=nothing,
+    eval_module::Union{Module,Nothing}=nothing,
     kws...,
 ) where {N<:AbstractExpressionNode,E<:AbstractExpression}
     empty_all_globals!(; force=false)
@@ -269,8 +350,11 @@ end
             operators
         end
 
-        ex = _normalize_expression_for_parse(ex, variable_names)
-        tree = _parse_expression(ex, operators, variable_names, N, E, evaluate_on; kws...)
+        parser = ExpressionParser(
+            operators, variable_names, N, E, evaluate_on, eval_module, NamedTuple(kws)
+        )
+        ex = _normalize_expression_for_parse(ex, _declared_names(parser), eval_module)
+        tree = parser(ex)
         return constructorof(E)(tree; operators, variable_names, kws...)
     end
 end
@@ -279,26 +363,37 @@ end
 
 """
 Find an operator function by its name in the OperatorEnum, considering the arity.
-Throws appropriate errors for ambiguous or missing matches.
+
+Not-found is signaled with `OperatorNotFoundError`; ambiguity errors use
+`ArgumentError` so they can propagate through the scoped fallback instead of
+being suppressed.
 """
+struct OperatorNotFoundError <: Exception
+    func_symbol::Any
+end
+
+function Base.showerror(io::IO, e::OperatorNotFoundError)
+    return print(
+        io,
+        "ArgumentError: Tried to interpolate function `$(e.func_symbol)` but failed. " *
+        "Function not found in operators.",
+    )
+end
+
 @unstable function _find_operator_by_name(func_symbol, degree, operators)
     matches = Tuple{Function,Int}[]
 
     for arity in 1:length(operators.ops)
         for op in operators.ops[arity]
-            if nameof(op) == func_symbol
+            if nameof(op) == func_symbol ||
+                nameof(declare_operator_alias(op, Val(arity))) == func_symbol
                 push!(matches, (op, arity))
             end
         end
     end
 
     if isempty(matches)
-        throw(
-            ArgumentError(
-                "Tried to interpolate function `$(func_symbol)` but failed. " *
-                "Function not found in operators.",
-            ),
-        )
+        throw(OperatorNotFoundError(func_symbol))
     end
 
     arity_matches = filter(m -> m[2] == degree, matches)
@@ -326,43 +421,408 @@ end
 """An empty module for evaluation without collisions."""
 module EmptyModule end
 
-@unstable function _parse_expression(
-    ex::Expr,
-    operators::AbstractOperatorEnum,
-    variable_names::Union{AbstractVector{<:AbstractString},Nothing},
-    ::Type{N},
-    ::Type{E},
-    evaluate_on::Union{Nothing,AbstractVector};
-    kws...,
-) where {N<:AbstractExpressionNode,E<:AbstractExpression}
-    ex.head != :call && throw(
-        ArgumentError(
-            "Unrecognized expression type: `Expr(:$(ex.head), ...)`. " *
-            "Please only pass a function call or a variable.",
-        ),
-    )
-    args = ex.args
-    func = try
-        Core.eval(EmptyModule, first(ex.args))
-    catch
-        # Try to find the function in operators by name
-        degree = length(args) - 1
-        _find_operator_by_name(first(ex.args), degree, operators)
-    end::Function
-    return _parse_expression(
-        func, args, operators, variable_names, N, E, evaluate_on; kws...
+"""
+    ExpressionParser
+
+Internal carrier for the fixed arguments of the parsing recursion.
+Calling `parser(ex)` parses `ex` into a node.
+"""
+struct ExpressionParser{
+    O<:AbstractOperatorEnum,
+    V<:Union{AbstractVector{<:AbstractString},Nothing},
+    N<:AbstractExpressionNode,
+    E<:AbstractExpression,
+    EV<:Union{Nothing,AbstractVector},
+    M<:Union{Module,Nothing},
+    K<:NamedTuple,
+}
+    operators::O
+    variable_names::V
+    node_type::Type{N}
+    expression_type::Type{E}
+    evaluate_on::EV
+    eval_module::M
+    kws::K
+end
+
+"""All declared names: variable names plus any parameter names (e.g. parametric)."""
+@unstable function _declared_names(p::ExpressionParser)
+    parameter_names = get(p.kws, :parameter_names, nothing)
+    parameter_names === nothing && return p.variable_names
+    p.variable_names === nothing && return map(string, parameter_names)
+    return vcat(map(string, collect(p.variable_names)), map(string, parameter_names))
+end
+
+@unstable function (p::ExpressionParser)(ex)
+    return _parse_expression(p, ex)
+end
+
+@unstable function _parse_expression(p::ExpressionParser, ex::Expr)
+    (; operators, evaluate_on, eval_module) = p
+    if ex.head == :call
+        args = ex.args
+        callee = first(args)
+        if eval_module !== nothing && _references_variable(callee, _declared_names(p))
+            throw(
+                ArgumentError(
+                    "Cannot use a declared variable in the callee `$(callee)`. " *
+                    "Declared variables cannot be called in an expression.",
+                ),
+            )
+        end
+        func = if eval_module === nothing
+            try
+                Core.eval(EmptyModule, callee)
+            catch e
+                e isa InterruptException && rethrow()
+                nothing
+            end
+        else
+            # Only pure name resolution: computed callees and value property
+            # accesses are left for (single) evaluation during constant folding.
+            _try_resolve(eval_module, callee)
+        end
+        if func === nothing ||
+            (eval_module !== nothing && !_matches_operator(func, operators, evaluate_on))
+            named = try
+                _find_operator_by_name(callee, length(args) - 1, operators)
+            catch e
+                e isa InterruptException && rethrow()
+                # Ambiguity and arity errors are real problems, not misses
+                e isa OperatorNotFoundError || rethrow()
+                if eval_module === nothing
+                    # Preserve the public exception type for unscoped parsing
+                    throw(
+                        ArgumentError(
+                            "Tried to interpolate function `$(callee)` but failed. " *
+                            "Function not found in operators.",
+                        ),
+                    )
+                end
+                nothing
+            end
+            named === nothing || (func = named)
+        end
+        if eval_module === nothing || _matches_operator(func, operators, evaluate_on)
+            return _parse_expression(p, func::Function, args)
+        end
+    elseif eval_module === nothing
+        throw(
+            ArgumentError(
+                "Unrecognized expression type: `Expr(:$(ex.head), ...)`. " *
+                "Please only pass a function call or a variable.",
+            ),
+        )
+    end
+    if _references_variable(ex, _declared_names(p))
+        throw(
+            ArgumentError(
+                "Cannot evaluate `$(ex)` as a constant since it references variables. " *
+                "If it is meant as an operator call, pass the operator via `operators` " *
+                "or `evaluate_on`.",
+            ),
+        )
+    end
+    val = try
+        Core.eval(eval_module, ex)
+    catch e
+        e isa InterruptException && rethrow()
+        throw(
+            ArgumentError(
+                "Failed to evaluate `$(ex)` as a constant in `$(eval_module)`. " *
+                "It is not an operator call, so it must evaluate in the given module.",
+            ),
+        )
+    end
+    if val isa Symbol
+        # Already a value; must not be re-interpreted as a variable name
+        return p.node_type(; val)
+    end
+    return parse_leaf(
+        val, p.variable_names, p.node_type, p.expression_type; eval_module, p.kws...
     )
 end
+
+@unstable function _matches_operator(func, operators, evaluate_on)
+    return func isa Function && (
+        (evaluate_on !== nothing && func in evaluate_on) ||
+        any(1:length(operators.ops)) do arity
+            any(
+                op -> op == func || declare_operator_alias(op, Val(arity)) == func,
+                operators[arity],
+            )
+        end
+    )
+end
+
+"""Resolve a literal or (dotted) name in `mod` without running arbitrary code."""
+_try_resolve(mod::Module, s::Symbol) = isdefined(mod, s) ? getproperty(mod, s) : nothing
+_try_resolve(::Module, q::QuoteNode) = q.value
+function _try_resolve(mod::Module, ex::Expr)
+    (ex.head == :. && length(ex.args) == 2) || return nothing
+    base = _try_resolve(mod, ex.args[1])
+    base isa Module || return nothing
+    name = ex.args[2]
+    s = name isa QuoteNode ? name.value : name
+    s isa Symbol || return nothing
+    return isdefined(base, s) ? getproperty(base, s) : nothing
+end
+_try_resolve(::Module, x) = x
+
+function _references_variable(ex, variable_names)
+    return _references_variable(ex, variable_names, String[])
+end
+function _references_variable(ex::Symbol, variable_names, bound)
+    return string(ex) ∉ bound && variable_names !== nothing && string(ex) in variable_names
+end
+function _references_variable(ex::Expr, variable_names, bound)
+    if ex.head == :generator
+        bound = copy(bound)
+        for spec in ex.args[2:end]
+            specs = spec isa Expr && spec.head == :filter ? spec.args[2:end] : (spec,)
+            for s in specs
+                s isa Expr && s.head == :(=) || return true
+                _references_variable(s.args[2], variable_names, bound) && return true
+                _bind_params!(bound, s.args[1], variable_names) && return true
+            end
+            if spec isa Expr && spec.head == :filter
+                _references_variable(spec.args[1], variable_names, bound) && return true
+            end
+        end
+        return _references_variable(ex.args[1], variable_names, bound)
+    elseif ex.head == :kw
+        # Call keyword arguments bind a name; compound targets read theirs
+        _lhs_reads(ex.args[1], variable_names, bound) && return true
+        return _references_variable(ex.args[2], variable_names, bound)
+    elseif ex.head == :(=)
+        # An unbound identifier in an assignment target may write a module
+        # global when evaluated in `eval_module`, so declared names there
+        # count as references; compound targets read theirs.
+        target = ex.args[1]
+        while target isa Expr && target.head in (:(::), :where)
+            target = target.args[1]
+        end
+        if target isa Expr && target.head == :call
+            # Short-form named function definition writes a module binding
+            return true
+        end
+        _assignment_target_reads(ex.args[1], variable_names, bound) && return true
+        return _references_variable(ex.args[2], variable_names, bound)
+    elseif ex.head == :tuple
+        # In tuple context, `(x=1.0,)` names a NamedTuple field
+        return any(ex.args) do arg
+            if arg isa Expr && arg.head == :(=)
+                _references_variable(arg.args[2], variable_names, bound)
+            else
+                _references_variable(arg, variable_names, bound)
+            end
+        end
+    elseif ex.head == :let
+        bound = copy(bound)
+        bindings = ex.args[1]
+        for s in
+            (bindings isa Expr && bindings.head == :block ? bindings.args : (bindings,))
+            if s isa Expr && s.head == :(=)
+                _references_variable(s.args[2], variable_names, bound) && return true
+                _bind_params!(bound, s.args[1], variable_names) && return true
+            elseif s isa Symbol
+                _collect_bound!(bound, s)
+            elseif s isa Expr && s.head == :(::)
+                # Typed declarations bind the name; the annotation is a read
+                _local_target!(bound, s.args[1])
+                length(s.args) > 1 &&
+                    _references_variable(s.args[2], variable_names, bound) &&
+                    return true
+            else
+                return true  # unknown binding form; reject conservatively
+            end
+        end
+        return _references_variable(ex.args[2], variable_names, bound)
+    elseif ex.head == :-> || (
+        ex.head == :function && ex.args[1] isa Expr && ex.args[1].head in (:tuple, :...)
+    )
+        bound = copy(bound)
+        _bind_params!(bound, ex.args[1], variable_names) && return true
+        # Assignments inside a hard scope are local bindings, not module writes
+        _collect_assignments!(bound, ex.args[2])
+        # Explicit `global` declarations are module bindings, not locals
+        _collect_globals!(bound, ex.args[2])
+        return _references_variable(ex.args[2], variable_names, bound)
+    elseif ex.head == :function
+        # A named function definition writes a module binding
+        return true
+    elseif ex.head == :try
+        # Each try/catch/finally section has its own scope
+        sections = Tuple{Int,Any}[(1, nothing)]
+        length(ex.args) >= 3 &&
+            push!(sections, (3, ex.args[2] isa Symbol ? ex.args[2] : nothing))
+        length(ex.args) >= 4 && push!(sections, (4, nothing))
+        for (i, section_catch_var) in sections
+            ex.args[i] isa Expr || continue
+            section_bound = copy(bound)
+            section_catch_var isa Symbol &&
+                _collect_bound!(section_bound, section_catch_var)
+            # Assignments inside the section are local to it
+            _collect_assignments!(section_bound, ex.args[i])
+            _collect_globals!(section_bound, ex.args[i])
+            _references_variable(ex.args[i], variable_names, section_bound) && return true
+        end
+        return false
+    elseif ex.head == :for
+        bound = copy(bound)
+        spec = ex.args[1]
+        for s in (spec isa Expr && spec.head == :block ? spec.args : (spec,))
+            if s isa Expr && s.head == :(=)
+                _references_variable(s.args[2], variable_names, bound) && return true
+                _bind_params!(bound, s.args[1], variable_names) && return true
+            else
+                return true  # unknown iteration form; reject conservatively
+            end
+        end
+        # Assignments in the loop body are local to the loop, not module writes
+        _collect_assignments!(bound, ex.args[2])
+        # Explicit `global` declarations inside the loop are module bindings
+        _collect_globals!(bound, ex.args[2])
+        return _references_variable(ex.args[2], variable_names, bound)
+    elseif ex.head == :macrocall
+        # Cannot see what a macro expansion reads; reject conservatively
+        return true
+    elseif ex.head == :quote
+        # Quoted syntax is data; only interpolations read
+        return _quoted_interpolation_reads(ex, variable_names, bound)
+    elseif ex.head == :while
+        _references_variable(ex.args[1], variable_names, bound) && return true
+        bound = copy(bound)
+        # Assignments in the loop body are local to the loop, not module writes
+        _collect_assignments!(bound, ex.args[2])
+        # Explicit `global` declarations inside the loop are module bindings
+        _collect_globals!(bound, ex.args[2])
+        return _references_variable(ex.args[2], variable_names, bound)
+    else
+        return any(arg -> _references_variable(arg, variable_names, bound), ex.args)
+    end
+end
+_references_variable(_, _, _) = false
+
+_quoted_interpolation_reads(_, _, _) = false
+function _quoted_interpolation_reads(ex::Expr, variable_names, bound)
+    if ex.head == :$
+        return any(arg -> _references_variable(arg, variable_names, bound), ex.args)
+    end
+    return any(arg -> _quoted_interpolation_reads(arg, variable_names, bound), ex.args)
+end
+
+_collect_bound!(bound, name::Symbol) = push!(bound, string(name))
+function _collect_bound!(bound, ex::Expr)
+    foreach(arg -> _collect_bound!(bound, arg), ex.args)
+    return bound
+end
+_collect_bound!(bound, _) = bound
+
+"""Bind simple local targets: plain symbols, destructuring tuples, and
+type annotations (only the name side binds; the type expression is a read)."""
+function _local_target!(bound, ex)
+    if ex isa Symbol
+        _collect_bound!(bound, ex)
+    elseif ex isa Expr && ex.head == :tuple
+        foreach(arg -> _local_target!(bound, arg), ex.args)
+    elseif ex isa Expr && ex.head == :(::)
+        _local_target!(bound, ex.args[1])
+    end
+    return bound
+end
+
+"""Collect simple assignment targets local to a hard scope.
+
+Plain symbols, destructuring tuples, and type-annotated names bind; compound
+targets and nested scopes are left to the main scan, which rejects them
+conservatively."""
+function _collect_assignments!(bound, ex::Expr)
+    if ex.head == :(=)
+        _local_target!(bound, ex.args[1])
+    elseif ex.head == :local
+        # Explicit local declarations wrap an assignment or a bare name
+        foreach(arg -> _collect_assignments!(bound, arg), ex.args)
+    end
+    if ex.head in (:block, :if, :elseif, :&&, :||, :(=))
+        foreach(arg -> _collect_assignments!(bound, arg), ex.args)
+    end
+    return bound
+end
+_collect_assignments!(bound, _) = bound
+
+"""Delete names explicitly declared `global` inside a hard scope."""
+function _collect_globals!(bound, ex::Expr)
+    if ex.head == :global
+        foreach(arg -> _delete_name!(bound, arg), ex.args)
+    elseif ex.head in (:block, :if, :elseif, :&&, :||, :(=))
+        foreach(arg -> _collect_globals!(bound, arg), ex.args)
+    end
+    return bound
+end
+_collect_globals!(bound, _) = bound
+
+_delete_name!(bound, name::Symbol) = filter!(!=(string(name)), bound)
+function _delete_name!(bound, ex::Expr)
+    if ex.head == :(=)
+        # Only the declared target is a module binding; the value side is a read
+        _delete_name!(bound, ex.args[1])
+    else
+        foreach(arg -> _delete_name!(bound, arg), ex.args)
+    end
+    return bound
+end
+
+"""Bind lambda parameter names; defaults and type annotations are reads."""
+function _bind_params!(bound, ex, variable_names)::Bool
+    if ex isa Symbol
+        _collect_bound!(bound, ex)
+        return false
+    elseif ex isa Expr && (ex.head == :tuple || ex.head == :parameters)
+        return any(arg -> _bind_params!(bound, arg, variable_names), ex.args)
+    elseif ex isa Expr && (ex.head == :kw || ex.head == :(=))
+        _references_variable(ex.args[2], variable_names, copy(bound)) && return true
+        length(ex.args) == 2 &&
+            _references_variable(ex.args[2], variable_names, copy(bound)) &&
+            return true
+        return _bind_params!(bound, ex.args[1], variable_names)
+    elseif ex isa Expr && ex.head == :...
+        return _bind_params!(bound, ex.args[1], variable_names)
+    else
+        return true  # unknown parameter form; reject conservatively
+    end
+end
+
+_lhs_reads(::Symbol, _, _) = false
+function _lhs_reads(ex::Expr, variable_names, bound)
+    if ex.head == :tuple || ex.head == :parameters
+        return any(arg -> _lhs_reads(arg, variable_names, bound), ex.args)
+    else
+        return _references_variable(ex, variable_names, bound)
+    end
+end
+_lhs_reads(_, _, _) = false
+
+function _assignment_target_reads(s::Symbol, variable_names, bound)
+    return _references_variable(s, variable_names, bound)
+end
+function _assignment_target_reads(ex::Expr, variable_names, bound)
+    if ex.head == :tuple || ex.head == :parameters
+        return any(arg -> _assignment_target_reads(arg, variable_names, bound), ex.args)
+    elseif ex.head == :(::)
+        length(ex.args) == 2 &&
+            _references_variable(ex.args[2], variable_names, bound) &&
+            return true
+        return _assignment_target_reads(ex.args[1], variable_names, bound)
+    else
+        return _references_variable(ex, variable_names, bound)
+    end
+end
+_assignment_target_reads(_, _, _) = false
 @unstable function _parse_expression(
-    func::F,
-    args,
-    operators::AbstractOperatorEnum,
-    variable_names::Union{AbstractVector{<:AbstractString},Nothing},
-    ::Type{N},
-    ::Type{E},
-    evaluate_on::Union{Nothing,AbstractVector};
-    kws...,
-)::N where {F<:Function,N<:AbstractExpressionNode,E<:AbstractExpression}
+    p::ExpressionParser{<:Any,<:Any,N}, func::F, args
+)::N where {F<:Function,N<:AbstractExpressionNode}
+    (; operators, evaluate_on) = p
     degree = length(args) - 1
     if degree <= length(operators.ops) && (
         op_idx = findfirst(
@@ -371,15 +831,7 @@ end
         );
         !isnothing(op_idx)
     )
-        return N(;
-            op=op_idx::Int,
-            children=map(
-                arg -> _parse_expression(
-                    arg, operators, variable_names, N, E, evaluate_on; kws...
-                ),
-                (args[2:end]...,),
-            ),
-        )
+        return N(; op=op_idx::Int, children=map(p, (args[2:end]...,)))
     end
 
     # Handle chaining for +, -, * operators
@@ -391,41 +843,16 @@ end
             );
             !isnothing(op_idx)
         )
-        inner = N(;
-            op=op_idx::Int,
-            children=(
-                _parse_expression(
-                    args[2], operators, variable_names, N, E, evaluate_on; kws...
-                ),
-                _parse_expression(
-                    args[3], operators, variable_names, N, E, evaluate_on; kws...
-                ),
-            ),
-        )
+        inner = N(; op=op_idx::Int, children=(p(args[2]), p(args[3])))
         for arg in args[4:end]
-            inner = N(;
-                op=op_idx::Int,
-                children=(
-                    inner,
-                    _parse_expression(
-                        arg, operators, variable_names, N, E, evaluate_on; kws...
-                    ),
-                ),
-            )
+            inner = N(; op=op_idx::Int, children=(inner, p(arg)))
         end
         return inner
     end
 
     if evaluate_on !== nothing && func in evaluate_on
         # External function
-        func(
-            map(
-                arg -> _parse_expression(
-                    arg, operators, variable_names, N, E, evaluate_on; kws...
-                ),
-                args[2:end],
-            )...,
-        )
+        func(map(p, args[2:end])...)
     else
         matching_s = let
             s = if degree <= length(operators.ops)
@@ -450,16 +877,15 @@ end
         )
     end
 end
-@unstable function _parse_expression(
-    ex,
-    operators::AbstractOperatorEnum,
-    variable_names::Union{AbstractVector{<:AbstractString},Nothing},
-    node_type::Type{<:AbstractExpressionNode},
-    expression_type::Type{<:AbstractExpression},
-    evaluate_on::Union{Nothing,AbstractVector};
-    kws...,
-)
-    return parse_leaf(ex, variable_names, node_type, expression_type; kws...)
+@unstable function _parse_expression(p::ExpressionParser, ex)
+    return parse_leaf(
+        ex,
+        p.variable_names,
+        p.node_type,
+        p.expression_type;
+        eval_module=p.eval_module,
+        p.kws...,
+    )
 end
 
 @unstable function parse_leaf(
@@ -467,6 +893,7 @@ end
     variable_names,
     node_type::Type{<:AbstractExpressionNode},
     expression_type::Type{<:AbstractExpression};
+    eval_module::Union{Module,Nothing}=nothing,
     kws...,
 )
     if ex isa AbstractExpression
@@ -482,6 +909,13 @@ end
     if ex isa Symbol
         i = variable_names === nothing ? nothing : findfirst(==(string(ex)), variable_names)
         if i === nothing
+            if eval_module !== nothing
+                val = Core.eval(eval_module, ex)
+                val isa Symbol && return node_type(; val)
+                return parse_leaf(
+                    val, variable_names, node_type, expression_type; eval_module, kws...
+                )
+            end
             throw(
                 ArgumentError(
                     "Variable `$(ex)` not found in `variable_names`. " *

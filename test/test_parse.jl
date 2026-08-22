@@ -118,6 +118,11 @@ end
     y2 = ex2(X2)
     @test eltype(y2) == Float32
     @test y2[1] == 5.0f0
+
+    # A tree that locally binds `im` via a multi-spec `for` header also keeps
+    # `im` symbolic; the parser then rejects the non-call head cleanly
+    for_header = Meta.parse("for im = 1:2, j = 1:3; im + x2; end")
+    @test_throws ArgumentError parse_expression(for_header; operators, variable_names=["x2"])
 end
 
 @testitem "Parsing round-trips complex number constants" begin
@@ -496,4 +501,753 @@ end
             "custom_cos(x1, x2)", operators=operators, variable_names=["x1", "x2"]
         )
     )
+end
+@testitem "module-scoped constants" begin
+    using DynamicExpressions
+    using Test
+
+    module EvalScope
+    struct Vec2
+        x::Float64
+        y::Float64
+    end
+    Vec2(values::AbstractVector{<:Real}) = Vec2(values[1], values[2])
+    end
+
+    operators = OperatorEnum()
+    custom = parse_expression(
+        "Vec2([1.0 + 2.0, 3.0 * 2.0])";
+        operators,
+        variable_names=String[],
+        node_type=Node{EvalScope.Vec2},
+        eval_module=EvalScope,
+    )
+    @test custom.tree.val == EvalScope.Vec2(3.0, 6.0)
+
+    vector = parse_expression(
+        "[1.0, 2.0]";
+        operators,
+        variable_names=String[],
+        node_type=Node{Vector{Float64}},
+        eval_module=EvalScope,
+    )
+    @test vector.tree.val == [1.0, 2.0]
+
+    @test_throws(
+        "Unrecognized expression type: `Expr(:vect, ...)`.",
+        parse_expression(:([1.0, 2.0]); operators, variable_names=String[])
+    )
+
+    # Symbol constants resolve in the module
+    module WithConstant
+    const C = 42.0
+    shadow(x) = -x
+    end
+    binops = OperatorEnum(2 => (+,), 1 => (cos,))
+    scoped_symbol = parse_expression(
+        "x1 + C";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test string_tree(scoped_symbol) == "x1 + 42.0"
+
+    # The macro form accepts eval_module too
+    macro_scoped = @parse_expression(
+        x1 + C,
+        operators = binops,
+        variable_names = ["x1"],
+        node_type = Node{Float64},
+        eval_module = WithConstant,
+    )
+    @test string_tree(macro_scoped) == "x1 + 42.0"
+
+    # The shorthand form passes a local binding by its bare name
+    eval_module = WithConstant
+    shorthand_scoped = @parse_expression x1 + C operators=binops variable_names=["x1"] node_type=Node{Float64} eval_module
+    @test string_tree(shorthand_scoped) == "x1 + 42.0"
+
+    # A module binding shadowing an operator name still parses as the operator
+    module ShadowsCos
+    cos(x) = error("should not be called")
+    end
+    shadowed = parse_expression(
+        "cos(x1)";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=ShadowsCos,
+    )
+    @test shadowed.tree.op == 1 && shadowed.tree.degree == 1
+
+    # Unregistered calls referencing variables are rejected, not constant-folded
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "shadow(x1)";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # Non-operator calls that fail to evaluate get a clear error
+    @test_throws(
+        "Failed to evaluate",
+        parse_expression(
+            "missing_func(1.0)";
+            operators=binops,
+            variable_names=String[],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # A callee that is itself a declared variable is rejected, even if the
+    # module binds that name to a function
+    module CalleeScope
+    const x1 = sin
+    end
+    @test_throws(
+        "Cannot use a declared variable in the callee",
+        parse_expression(
+            "x1(x2)";
+            operators=OperatorEnum(1 => (sin,)),
+            variable_names=["x1", "x2"],
+            node_type=Node{Float64},
+            eval_module=CalleeScope,
+        )
+    )
+
+    # Computed callees are evaluated exactly once
+    module CountingScope
+    const calls = Ref(0)
+    function factory()
+        calls[] += 1
+        return identity
+    end
+    end
+    counted = parse_expression(
+        "(factory())(2.0)";
+        operators=binops,
+        variable_names=String[],
+        node_type=Node{Float64},
+        eval_module=CountingScope,
+    )
+    @test counted.tree.val == 2.0
+    @test CountingScope.calls[] == 1
+
+    # Binding occurrences of a feature name do not block constant folding
+    folded_comprehension = parse_expression(
+        "sum([x1 for x1 in 1:3])";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_comprehension.tree.val == 6.0
+
+    # ...but reads of a feature inside a constant expression still reject
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "sum([x1 for _ in 1:3])";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # ...including when the declared variable is the base of a dotted callee
+    module DottedScope
+    const x1 = Base
+    end
+    @test_throws(
+        "Cannot use a declared variable in the callee",
+        parse_expression(
+            "x1.sin(x2)";
+            operators=OperatorEnum(1 => (sin,)),
+            variable_names=["x1", "x2"],
+            node_type=Node{Float64},
+            eval_module=DottedScope,
+        )
+    )
+
+    # Dotted callees on non-module values are not probed, so an overloaded
+    # `getproperty` runs exactly once (during constant folding)
+    module PropScope
+    const count = Ref(0)
+    struct Obj end
+    function Base.getproperty(::Obj, ::Symbol)
+        count[] += 1
+        return identity
+    end
+    const obj = Obj()
+    end
+    propped = parse_expression(
+        "obj.factory(2.0)";
+        operators=binops,
+        variable_names=String[],
+        node_type=Node{Float64},
+        eval_module=PropScope,
+    )
+    @test propped.tree.val == 2.0
+    @test PropScope.count[] == 1
+
+    # Compound assignment targets read their base
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "(x1[1] = 2.0)";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # A constant that evaluates to a Symbol stays a constant, even if it
+    # collides with a declared variable name
+    sym_const = parse_expression(
+        "Symbol(\"x1\")";
+        operators=OperatorEnum(2 => (+,)),
+        variable_names=["x1"],
+        node_type=Node{Symbol},
+        eval_module=WithConstant,
+    )
+    @test sym_const.tree.degree == 0 && sym_const.tree.constant
+    @test sym_const.tree.val == :x1
+
+    # `let` bindings shadow declared variables
+    folded_let = parse_expression(
+        "let x1 = 2.0; x1 + 1.0 end";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_let.tree.val == 3.0
+
+    # Lambda parameter defaults are reads, not bindings
+    @test_throws(
+        "Cannot use a declared variable in the callee",
+        parse_expression(
+            "((y=x1) -> y)()";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # ...but the parameter names themselves still bind
+    folded_lambda = parse_expression(
+        "((x1,) -> x1)(2.0)";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_lambda.tree.val == 2.0
+
+    # A module-level assignment to a declared variable is a reference
+    module AssignScope
+    x1 = 1.0
+    end
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "x1 = 2.0";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=AssignScope,
+        )
+    )
+    @test AssignScope.x1 == 1.0
+
+    # NamedTuple-literal fields are names, not assignments
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "first((x1=x1,))";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # `catch` variables shadow declared variables
+    folded_catch = parse_expression(
+        "try error(); catch x1; 2.0 end";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_catch.tree.val == 2.0
+
+    # A scoped symbol resolving to a node is spliced, not wrapped
+    module NodeScope
+    using DynamicExpressions
+    const n = Node{Float64}(; val=1.5)
+    end
+    spliced = parse_expression(
+        "n";
+        operators=binops,
+        variable_names=String[],
+        node_type=Node{Float64},
+        eval_module=NodeScope,
+    )
+    @test spliced.tree === NodeScope.n
+
+    # `let` type annotations are reads, not part of the bound name
+    module AnnScope
+    const x1 = Int
+    end
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "let y::x1 = 2.0; y end";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=AnnScope,
+        )
+    )
+
+    # `for` iteration variables shadow declared variables
+    folded_for = parse_expression(
+        "begin; for x1 in 1:3; nothing; end; 2.0; end";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_for.tree.val == 2.0
+
+    # ...but the iterator expression itself is a read
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "begin; for y in 1:Int(x1); nothing; end; 2.0; end";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # Macro calls are opaque and rejected conservatively
+    module MacroScope
+    const x1 = 42.0
+    macro readx()
+        return esc(:x1)
+    end
+    end
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "@readx()";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=MacroScope,
+        )
+    )
+
+    # A scoped `im` binding wins over the imaginary-unit normalization
+    module ImScope
+    const im = 2.0
+    end
+    scoped_im = parse_expression(
+        "im * 3.0";
+        operators=binops,
+        variable_names=String[],
+        node_type=Node{Float64},
+        eval_module=ImScope,
+    )
+    @test scoped_im.tree.val == 6.0
+
+    # Quoted syntax is data, not reads
+    quoted = parse_expression(
+        "quote x1 + 1 end";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Expr},
+        eval_module=WithConstant,
+    )
+    @test quoted.tree.val isa Expr
+
+    # ...but interpolations inside quotes are reads
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "quote \$x1 + 1 end";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Expr},
+            eval_module=WithConstant,
+        )
+    )
+
+    # Interrupts propagate instead of becoming ArgumentErrors
+    module IntScope
+    boom() = throw(InterruptException())
+    end
+    @test_throws(
+        InterruptException,
+        parse_expression(
+            "boom()";
+            operators=binops,
+            variable_names=String[],
+            node_type=Node{Float64},
+            eval_module=IntScope,
+        )
+    )
+
+    # Generator type annotations are reads, not part of the bound name
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "sum([y for y::x1 in 1:3])";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=AnnScope,
+        )
+    )
+
+    # Quoted `im` symbols survive normalization
+    quoted_im = parse_expression(
+        "quote im end";
+        operators=binops,
+        variable_names=String[],
+        node_type=Node{Expr},
+        eval_module=WithConstant,
+    )
+    @test any(a -> a === :im, quoted_im.tree.val.args)
+
+    # Destructuring assignments to declared variables are references
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "(x1,) = (2.0,)";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=AssignScope,
+        )
+    )
+    @test AssignScope.x1 == 1.0
+
+    # Long-form anonymous functions bind their parameters
+    folded_function = parse_expression(
+        "(function (x1); x1 + 1.0 end)(2.0)";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_function.tree.val == 3.0
+
+    # Shadowed arithmetic wins over eager imaginary-constant folding
+    module ShadowPlus
+    +(a, b) = 99.0
+    end
+    shadow_plus = parse_expression(
+        "1.0 + 2.0im";
+        operators=OperatorEnum(2 => (*,)),
+        variable_names=String[],
+        node_type=Node{Float64},
+        eval_module=ShadowPlus,
+    )
+    @test shadow_plus.tree.val == 99.0
+
+    # Assignments inside a hard scope are local, not module writes
+    folded_local = parse_expression(
+        "(() -> begin; x1 = 2.0; x1 + 1.0; end)()";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_local.tree.val == 3.0
+
+    # Indexed assignment targets still count as reads of the container
+    @test_throws(
+        "declared variable",
+        parse_expression(
+            "(() -> begin; x1[1] = 2.0; 0.0; end)()";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # Locals of a nested lambda do not leak into the outer scope
+    @test_throws(
+        "declared variable",
+        parse_expression(
+            "(() -> begin; (() -> (x1 = 2.0))(); x1; end)()";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # Destructured locals still bind
+    folded_destructure = parse_expression(
+        "(() -> begin; (x1,) = (2.0,); x1; end)()";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_destructure.tree.val == 2.0
+
+    # Explicit `global` declarations are module bindings, not locals
+    @test_throws(
+        "declared variable",
+        parse_expression(
+            "(() -> begin; global x1; x1 = 2.0; x1; end)()";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # Short-form named function definitions are module writes
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "f(y) = y + 1";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # Aliased operators are found during scoped name fallback
+    myop(x) = x - 1.0
+    DynamicExpressions.declare_operator_alias(::typeof(myop), ::Val{1}) = sqrt
+    module ShadowSqrt
+    const sqrt = 1
+    end
+    aliased = parse_expression(
+        "sqrt(x1)";
+        operators=OperatorEnum(1 => (myop,)),
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=ShadowSqrt,
+    )
+    @test aliased.tree.degree == 1 && aliased.tree.op == 1
+
+    # Type annotations in hard-scope assignments are reads, not bindings
+    @test_throws(
+        "declared variable",
+        parse_expression(
+            "(() -> begin; y::x1 = 2.0; y; end)()";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # Annotated short-form function definitions are module writes
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "f(x)::Int = x";
+            operators=binops,
+            variable_names=["x1"],
+            node_type=Node{Float64},
+            eval_module=WithConstant,
+        )
+    )
+
+    # Assignments inside a loop body are local to the loop
+    folded_loop = parse_expression(
+        "begin; for _i in 1:1; x1 = 2.0; end; 1.0; end";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_loop.tree.val == 1.0
+
+    # Missing arithmetic bindings in the evaluation module skip normalization
+    baremodule BareIm
+    const im = Main.im
+    end
+    @test_throws(
+        "Failed to evaluate",
+        parse_expression(
+            "1.0 + 2.0im";
+            operators=OperatorEnum(2 => (+,)),
+            variable_names=String[],
+            node_type=Node{ComplexF64},
+            eval_module=BareIm,
+        )
+    )
+
+    # Vararg anonymous functions are anonymous, not named definitions
+    vararg_fn = parse_expression(
+        "(function (x1...); x1[1] + 1.0 end)(2.0)";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test vararg_fn.tree.val == 3.0
+
+    # Typed let declarations bind the name; the annotation is a read
+    typed_let = parse_expression(
+        "let x1::Float64; 2.0 end";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test typed_let.tree.val == 2.0
+
+    # Assignments inside a while body are local to the loop
+    folded_while = parse_expression(
+        "(() -> begin; while false; x1 = 2.0; end; 0.0; end)()";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_while.tree.val == 0.0
+
+    # Ambiguity errors from the operator fallback propagate when scoped
+    mycos2(x) = 7.0
+    DynamicExpressions.declare_operator_alias(::typeof(mycos2), ::Val{1}) = cos
+    ops_amb = OperatorEnum(1 => (cos, mycos2))
+    module HasCos
+    const cos = sin
+    end
+    @test_throws(
+        "Ambiguous operator `cos`",
+        parse_expression(
+            "cos(1.0)";
+            operators=ops_amb,
+            variable_names=String[],
+            node_type=Node{Float64},
+            eval_module=HasCos,
+        )
+    )
+
+    # Explicit local declarations bind in hard scopes
+    folded_local_decl = parse_expression(
+        "(() -> begin; local x1 = 2.0; x1; end)()";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_local_decl.tree.val == 2.0
+
+    # Locally shadowed arithmetic skips imaginary-constant folding
+    shadow_let = parse_expression(
+        "let (+) = (a, b) -> 99.0; 1.0 + 2.0im end";
+        operators=OperatorEnum(2 => (*,)),
+        variable_names=String[],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test shadow_let.tree.val == 99.0
+
+    shadow_local = parse_expression(
+        "(() -> begin; local im = 5.0; im; end)()";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test shadow_local.tree.val == 5.0
+
+    # try/catch/finally sections scope their own assignments
+    folded_try = parse_expression(
+        "(() -> (try; x1 = 2.0; x1; finally; nothing; end))()";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test folded_try.tree.val == 2.0
+
+    # Global initializers delete only their declared target
+    global_init = parse_expression(
+        "((x1) -> begin; global z = x1; x1; end)(2.0)";
+        operators=binops,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=WithConstant,
+    )
+    @test global_init.tree.val == 2.0
+
+    # Parameter names count as declared names for parametric expressions
+    module ParamScope
+    const p1 = 3.0
+    shadow(x) = x
+    end
+    @test_throws(
+        "references variables",
+        parse_expression(
+            "shadow(p1) + x1";
+            operators=binops,
+            variable_names=["x1"],
+            expression_type=ParametricExpression,
+            eval_module=ParamScope,
+            parameters=Array{Float64}(undef, 1, 0),
+            parameter_names=["p1"],
+        )
+    )
+
+    # Scoped constants resolve inside parametric expressions
+    scoped_parametric = parse_expression(
+        "x1 + C";
+        operators=binops,
+        variable_names=["x1"],
+        expression_type=ParametricExpression,
+        eval_module=WithConstant,
+        parameters=Array{Float64}(undef, 1, 0),
+        parameter_names=["p1"],
+    )
+    @test any(n -> n.degree == 0 && n.constant && n.val == 42.0, scoped_parametric.tree)
+
+    # Parameter names are protected from imaginary-unit normalization
+    im_parametric = parse_expression(
+        "im + x1";
+        operators=binops,
+        variable_names=["x1"],
+        expression_type=ParametricExpression,
+        parameters=Array{Float64}(undef, 1, 0),
+        parameter_names=["im"],
+    )
+    @test any(n -> n.is_parameter && n.parameter == 1, im_parametric.tree)
+    @test any(n -> n.degree == 2 && n.op == 1, im_parametric.tree)
+end
+
+@testitem "computed callees still work without eval_module" begin
+    using DynamicExpressions
+
+    legacy = parse_expression(
+        "getfield(Base, :sin)(x1)";
+        operators=OperatorEnum(1 => (sin,)),
+        variable_names=["x1"],
+        node_type=Node{Float64},
+    )
+    @test legacy.tree.degree == 1 && legacy.tree.op == 1
 end
