@@ -118,6 +118,11 @@ end
     y2 = ex2(X2)
     @test eltype(y2) == Float32
     @test y2[1] == 5.0f0
+
+    # A tree that locally binds `im` via a multi-spec `for` header also keeps
+    # `im` symbolic; the parser then rejects the non-call head cleanly
+    for_header = Meta.parse("for im = 1:2, j = 1:3; im + x2; end")
+    @test_throws ArgumentError parse_expression(for_header; operators, variable_names=["x2"])
 end
 
 @testitem "Parsing round-trips complex number constants" begin
@@ -557,6 +562,11 @@ end
         eval_module = WithConstant,
     )
     @test string_tree(macro_scoped) == "x1 + 42.0"
+
+    # The shorthand form passes a local binding by its bare name
+    eval_module = WithConstant
+    shorthand_scoped = @parse_expression x1 + C operators=binops variable_names=["x1"] node_type=Node{Float64} eval_module
+    @test string_tree(shorthand_scoped) == "x1 + 42.0"
 
     # A module binding shadowing an operator name still parses as the operator
     module ShadowsCos
