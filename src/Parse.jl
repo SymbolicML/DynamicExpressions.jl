@@ -418,11 +418,7 @@ end
             if eval_module !== nothing &&
                 head isa Symbol &&
                 isdefined(eval_module, head)
-                vals = map(
-                    arg -> _resolve_module_value(arg, eval_module, variable_names),
-                    args[2:end],
-                )
-                return N(; val=f(vals...))
+                return N(; val=_resolve_module_value(ex, eval_module, variable_names))
             end
             rethrow()
         end

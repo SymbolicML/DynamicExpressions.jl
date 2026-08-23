@@ -81,6 +81,7 @@ testitem_suffixes = String[]
 
 if "main" in test_names
     push!(testitem_suffixes, joinpath("test", "unittest.jl"))
+    push!(testitem_suffixes, joinpath("test", "test_parse.jl"))
     push!(testitem_suffixes, joinpath("test", "test_evaluation.jl"))
     push!(testitem_suffixes, joinpath("test", "test_buffered_evaluation.jl"))
     push!(testitem_suffixes, joinpath("test", "test_optim.jl"))
