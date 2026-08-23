@@ -497,3 +497,87 @@ end
         )
     )
 end
+
+@testitem "parse_expression resolves symbols via eval_module" begin
+    using DynamicExpressions
+    using Test
+
+    module MyTypesModule
+    struct Vec2{T}
+        x::T
+        y::T
+    end
+    rotate90(v::Vec2) = Vec2(-v.y, v.x)
+    const SCALE = 2.5
+    end
+
+    operators = OperatorEnum(; binary_operators=[+, -, *], unary_operators=[sin])
+
+    # Constructor call folds into a single constant leaf of the custom type
+    ex = parse_expression(
+        "Vec2(1.0, 2.0) * x1";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{MyTypesModule.Vec2{Float64}},
+        eval_module=MyTypesModule,
+    )
+    c1 = ex.tree.children[1].x
+    @test ex.tree.constant == false
+    @test c1.constant == true
+    @test c1.val isa MyTypesModule.Vec2{Float64}
+    @test (c1.val.x, c1.val.y) == (1.0, 2.0)
+
+    # Nested user-function calls fold eagerly
+    ex2 = parse_expression(
+        "rotate90(Vec2(0.0, 1.0)) + x1";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{MyTypesModule.Vec2{Float64}},
+        eval_module=MyTypesModule,
+    )
+    c2 = ex2.tree.children[1].x
+    @test c2.constant == true
+    @test (c2.val.x, c2.val.y) == (-1.0, 0.0)
+
+    # Bare symbols resolve as constants from eval_module
+    ex3 = parse_expression(
+        "x1 * SCALE";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=MyTypesModule,
+    )
+    @test ex3.tree.children[2].x.val == 2.5
+
+    # Undefined symbols still error
+    @test_throws ArgumentError parse_expression(
+        "x1 * NOPE";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{Float64},
+        eval_module=MyTypesModule,
+    )
+
+    # Module functions applied to variables cannot form tree nodes
+    @test_throws ArgumentError parse_expression(
+        "rotate90(x1)";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{MyTypesModule.Vec2{Float64}},
+        eval_module=MyTypesModule,
+    )
+
+    # Symbols declared in variable_names are never folded from eval_module
+    module ShadowModule
+    const x1 = 99.0
+    wrap(v) = v + x1
+    end
+    @test_throws ArgumentError parse_expression(
+        "wrap(x1)"; operators, variable_names=["x1"], eval_module=ShadowModule
+    )
+
+    # Without eval_module, behavior is unchanged
+    @test_throws ArgumentError parse_expression(
+        "NOPE * x1"; operators, variable_names=["x1"], node_type=Node{Float64}
+    )
+end
