@@ -206,7 +206,12 @@ end
     end
 
     return (;
-        operators, variable_names, node_type, expression_type, evaluate_on, eval_module,
+        operators,
+        variable_names,
+        node_type,
+        expression_type,
+        evaluate_on,
+        eval_module,
         extra_metadata,
     )
 end
@@ -366,7 +371,9 @@ Symbols declared in `variable_names` always refer to variables, never module glo
             return getglobal(eval_module, ex)
         elseif ex.head == :call
             f = _resolve_module_value(first(ex.args), eval_module, variable_names)
-            vals = map(a -> _resolve_module_value(a, eval_module, variable_names), ex.args[2:end])
+            vals = map(
+                a -> _resolve_module_value(a, eval_module, variable_names), ex.args[2:end]
+            )
             return f(vals...)
         else
             throw(
@@ -376,11 +383,7 @@ Symbols declared in `variable_names` always refer to variables, never module glo
             )
         end
     elseif ex isa QuoteNode
-        throw(
-            ArgumentError(
-                "Quoted expressions cannot be folded via `eval_module`.",
-            ),
-        )
+        throw(ArgumentError("Quoted expressions cannot be folded via `eval_module`."))
     else
         return ex
     end
@@ -412,7 +415,9 @@ end
             _find_operator_by_name(first(ex.args), degree, operators)
         catch e
             head = first(ex.args)
-            if eval_module !== nothing && head isa Symbol && isdefined(eval_module, head)
+            if eval_module !== nothing &&
+                head isa Symbol &&
+                isdefined(eval_module, head)
                 vals = map(
                     arg -> _resolve_module_value(arg, eval_module, variable_names),
                     args[2:end],
@@ -569,9 +574,7 @@ end
     eval_module::Union{Nothing,Module};
     kws...,
 )
-    return parse_leaf(
-        ex, variable_names, node_type, expression_type; eval_module, kws...
-    )
+    return parse_leaf(ex, variable_names, node_type, expression_type; eval_module, kws...)
 end
 
 @unstable function parse_leaf(
@@ -601,7 +604,8 @@ end
             throw(
                 ArgumentError(
                     "Variable `$(ex)` not found in `variable_names`" *
-                    (eval_module === nothing ? "" : " or `eval_module`") * ". " *
+                    (eval_module === nothing ? "" : " or `eval_module`") *
+                    ". " *
                     "Consider interpolating with \$ if passing a value.",
                 ),
             )

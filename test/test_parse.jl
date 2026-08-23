@@ -573,10 +573,7 @@ end
     wrap(v) = v + x1
     end
     @test_throws ArgumentError parse_expression(
-        "wrap(x1)";
-        operators,
-        variable_names=["x1"],
-        eval_module=ShadowModule,
+        "wrap(x1)"; operators, variable_names=["x1"], eval_module=ShadowModule
     )
 
     # Without eval_module, behavior is unchanged
