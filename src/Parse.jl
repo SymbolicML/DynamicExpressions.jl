@@ -342,10 +342,21 @@ module EmptyModule end
 """
 Resolve an expression fragment to a plain value using bindings from `eval_module`.
 Used to fold calls to user functions and constructors into constant leaves.
+Symbols declared in `variable_names` always refer to variables, never module globals.
 """
-@unstable function _resolve_module_value(ex, eval_module::Module)
+@unstable function _resolve_module_value(
+    ex, eval_module::Module, variable_names::Union{AbstractVector{<:AbstractString},Nothing}
+)
     if ex isa Union{Symbol,Expr}
         if ex isa Symbol
+            if variable_names !== nothing && string(ex) in variable_names
+                throw(
+                    ArgumentError(
+                        "Symbol `$(ex)` is declared in `variable_names`, so it cannot " *
+                        "be folded as a constant from `eval_module`.",
+                    ),
+                )
+            end
             isdefined(eval_module, ex) || throw(
                 ArgumentError(
                     "Symbol `$(ex)` is not defined in `eval_module` " *
@@ -354,8 +365,8 @@ Used to fold calls to user functions and constructors into constant leaves.
             )
             return getglobal(eval_module, ex)
         elseif ex.head == :call
-            f = _resolve_module_value(first(ex.args), eval_module)
-            vals = map(a -> _resolve_module_value(a, eval_module), ex.args[2:end])
+            f = _resolve_module_value(first(ex.args), eval_module, variable_names)
+            vals = map(a -> _resolve_module_value(a, eval_module, variable_names), ex.args[2:end])
             return f(vals...)
         else
             throw(
@@ -402,8 +413,10 @@ end
         catch e
             head = first(ex.args)
             if eval_module !== nothing && head isa Symbol && isdefined(eval_module, head)
-                f = getglobal(eval_module, head)
-                vals = map(arg -> _resolve_module_value(arg, eval_module), args[2:end])
+                vals = map(
+                    arg -> _resolve_module_value(arg, eval_module, variable_names),
+                    args[2:end],
+                )
                 return N(; val=f(vals...))
             end
             rethrow()

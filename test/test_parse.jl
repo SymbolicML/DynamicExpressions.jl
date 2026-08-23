@@ -567,6 +567,18 @@ end
         eval_module=MyTypesModule,
     )
 
+    # Symbols declared in variable_names are never folded from eval_module
+    module ShadowModule
+    const x1 = 99.0
+    wrap(v) = v + x1
+    end
+    @test_throws ArgumentError parse_expression(
+        "wrap(x1)";
+        operators,
+        variable_names=["x1"],
+        eval_module=ShadowModule,
+    )
+
     # Without eval_module, behavior is unchanged
     @test_throws ArgumentError parse_expression(
         "NOPE * x1"; operators, variable_names=["x1"], node_type=Node{Float64}
