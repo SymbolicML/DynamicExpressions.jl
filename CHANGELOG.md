@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.10.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.9.2...v2.10.0) (2026-08-23)
+
+
+### Features
+
+* add eval_module option to parse_expression ([#204](https://github.com/SymbolicML/DynamicExpressions.jl/issues/204)) ([3f3843b](https://github.com/SymbolicML/DynamicExpressions.jl/commit/3f3843bce882381a7d91b45c9d39896fa7b0b01c))
+
 ## [2.9.2](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.9.1...v2.9.2) (2026-08-18)
 
 
