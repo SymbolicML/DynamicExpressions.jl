@@ -345,47 +345,31 @@ end
 module EmptyModule end
 
 """
-Resolve an expression fragment to a plain value using bindings from `eval_module`.
-Used to fold calls to user functions and constructors into constant leaves.
-Symbols declared in `variable_names` always refer to variables, never module globals.
+Fold a constant expression using Julia's evaluator inside `eval_module`.
 """
 @unstable function _resolve_module_value(
     ex, eval_module::Module, variable_names::Union{AbstractVector{<:AbstractString},Nothing}
 )
-    if ex isa Union{Symbol,Expr}
-        if ex isa Symbol
-            if variable_names !== nothing && string(ex) in variable_names
-                throw(
-                    ArgumentError(
-                        "Symbol `$(ex)` is declared in `variable_names`, so it cannot " *
-                        "be folded as a constant from `eval_module`.",
-                    ),
-                )
-            end
-            isdefined(eval_module, ex) || throw(
-                ArgumentError(
-                    "Symbol `$(ex)` is not defined in `eval_module` " *
-                    "(`$(nameof(eval_module))`), so it cannot be used as a constant.",
-                ),
-            )
-            return getglobal(eval_module, ex)
-        elseif ex.head == :call
-            f = _resolve_module_value(first(ex.args), eval_module, variable_names)
-            vals = map(
-                a -> _resolve_module_value(a, eval_module, variable_names), ex.args[2:end]
-            )
-            return f(vals...)
-        else
-            throw(
-                ArgumentError(
-                    "Unsupported expression `$(ex)` in a constant call resolved via `eval_module`.",
-                ),
-            )
-        end
-    elseif ex isa QuoteNode
-        throw(ArgumentError("Quoted expressions cannot be folded via `eval_module`."))
+    declarations = if variable_names === nothing
+        ()
     else
-        return ex
+        map(name -> Expr(:local, Symbol(name)), variable_names)
+    end
+    thunk = Core.eval(eval_module, :(() -> $(Expr(:block, declarations..., ex))))
+    try
+        return Base.invokelatest(thunk)
+    catch err
+        if err isa UndefVarError
+            message = if variable_names !== nothing && string(err.var) in variable_names
+                "Symbol `$(err.var)` is declared in `variable_names`, so it cannot " *
+                "be folded as a constant from `eval_module`."
+            else
+                "Symbol `$(err.var)` is not defined in `eval_module` " *
+                "(`$(nameof(eval_module))`), so it cannot be used as a constant."
+            end
+            throw(ArgumentError(message))
+        end
+        rethrow()
     end
 end
 
@@ -416,8 +400,7 @@ end
         catch e
             head = first(ex.args)
             if eval_module !== nothing &&
-                head isa Symbol &&
-                isdefined(eval_module, head)
+                !(head isa Symbol && !isdefined(eval_module, head))
                 return N(; val=_resolve_module_value(ex, eval_module, variable_names))
             end
             rethrow()
