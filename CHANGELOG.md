@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.10.1](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.10.0...v2.10.1) (2026-08-24)
+
+
+### Bug Fixes
+
+* evaluate module constants generically ([#207](https://github.com/SymbolicML/DynamicExpressions.jl/issues/207)) ([c684f79](https://github.com/SymbolicML/DynamicExpressions.jl/commit/c684f798490299297e98d4342c82ef604fb2e6a9))
+
 ## [2.10.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.9.2...v2.10.0) (2026-08-23)
 
 
