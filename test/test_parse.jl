@@ -522,7 +522,7 @@ end
         eval_module=MyTypesModule,
     )
     c1 = ex.tree.children[1].x
-    @test ex.tree.constant == false
+    @test ex.tree.degree == 2
     @test c1.constant == true
     @test c1.val isa MyTypesModule.Vec2{Float64}
     @test (c1.val.x, c1.val.y) == (1.0, 2.0)
