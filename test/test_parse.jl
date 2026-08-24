@@ -549,12 +549,73 @@ end
     )
     @test ex3.tree.children[2].x.val == 2.5
 
+    # Nested custom struct: dotted keyword constructor folding a vector, a Dict,
+    # and locally bound lambda/comprehension variables that reuse a feature name
+    module NestedModule
+    module Inner
+        struct Bundle{T}
+            items::Vector{T}
+            table::Dict{String,T}
+        end
+        function Bundle{T}(; xs, shift) where {T}
+            return Bundle{T}(collect(xs) .+ shift, Dict("shift" => shift))
+        end
+        const SHIFT = 0.5
+        apply(f) = f(SHIFT)
+        const FACTORY_CALLS = Ref(0)
+        function bundle_type()
+            FACTORY_CALLS[] += 1
+            return Bundle{Float64}
+        end
+    end
+    end
+
+    ex4 = parse_expression(
+        "Inner.Bundle{Float64}(xs=[x1 for x1 in (1.0, 2.0)], shift=Inner.apply(x1 -> x1)) * x1";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{NestedModule.Inner.Bundle{Float64}},
+        eval_module=NestedModule,
+    )
+    c4 = ex4.tree.children[1].x
+    @test c4.constant == true
+    @test c4.val isa NestedModule.Inner.Bundle{Float64}
+    @test c4.val.items == [1.5, 2.5]
+    @test c4.val.table["shift"] == 0.5
+
+    # Expression-valued constructor heads are evaluated exactly once
+    ex5 = parse_expression(
+        "Inner.bundle_type()(xs=[1.0, 2.0], shift=0.5) * x1";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{NestedModule.Inner.Bundle{Float64}},
+        eval_module=NestedModule,
+    )
+    @test ex5.tree.children[1].x.val.items == [1.5, 2.5]
+    @test NestedModule.Inner.FACTORY_CALLS[] == 1
+
     # Undefined symbols still error
     @test_throws ArgumentError parse_expression(
         "x1 * NOPE";
         operators,
         variable_names=["x1"],
         node_type=Node{Float64},
+        eval_module=MyTypesModule,
+    )
+
+    @test_throws ArgumentError parse_expression(
+        "Vec2(1.0, NOPE) * x1";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{MyTypesModule.Vec2{Float64}},
+        eval_module=MyTypesModule,
+    )
+
+    @test_throws "Symbol `x1` is declared in `variable_names`" parse_expression(
+        "Vec2(x1, 2.0) * x1";
+        operators,
+        variable_names=["x1"],
+        node_type=Node{MyTypesModule.Vec2{Float64}},
         eval_module=MyTypesModule,
     )
 
