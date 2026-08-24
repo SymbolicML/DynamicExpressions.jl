@@ -346,9 +346,6 @@ module EmptyModule end
 
 """
 Fold a constant expression using Julia's evaluator inside `eval_module`.
-
-Symbols in `variable_names` are declared as uninitialized locals, so Julia's
-lexical scoping rejects free uses while allowing keyword names and local bindings.
 """
 @unstable function _resolve_module_value(
     ex, eval_module::Module, variable_names::Union{AbstractVector{<:AbstractString},Nothing}
