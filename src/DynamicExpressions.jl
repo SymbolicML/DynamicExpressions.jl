@@ -12,6 +12,8 @@ using DispatchDoctor: @stable, @unstable
     include("NodePreallocation.jl")
     include("Strings.jl")
     include("Evaluate.jl")
+    include("ArenaNode.jl")
+    include("ArenaNodeEval.jl")
     include("EvaluateDerivative.jl")
     include("ChainRules.jl")
     include("EvaluationHelpers.jl")
@@ -51,6 +53,7 @@ import .ValueInterfaceModule:
     filter_map,
     filter_map!
 import .NodePreallocationModule: allocate_container, copy_into!
+import .ArenaNodeModule: ArenaNode, Arena
 import .NodeModule:
     constructorof,
     with_type_parameters,
