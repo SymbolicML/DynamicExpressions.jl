@@ -13,6 +13,7 @@ using ..OperatorEnumModule: OperatorEnum
 using ..NodeModule: AbstractExpressionNode, with_type_parameters, tree_mapreduce
 using ..EvaluateModule: eval_tree_array
 using ..EvaluateDerivativeModule: eval_grad_tree_array
+using ..UtilsModule: set_invalid!
 
 struct NodeTangent{T,N<:AbstractExpressionNode{T},A<:AbstractArray{T}} <: AbstractTangent
     tree::N
@@ -39,7 +40,7 @@ function CRC.rrule(
     primal, complete = eval_tree_array(tree, X, operators; kws...)
 
     if !complete
-        primal .= NaN
+        set_invalid!(primal)
     end
 
     return (primal, complete), EvalPullback(tree, X, operators)
@@ -60,7 +61,7 @@ function (e::EvalPullback)((thunked_dY, _))
     )
 
     if !complete
-        dX_constants_dY .= NaN
+        set_invalid!(dX_constants_dY)
     end
 
     nfeatures = size(e.X, 1)

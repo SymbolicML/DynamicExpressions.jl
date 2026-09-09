@@ -31,8 +31,9 @@ and triplets of operations for lower memory usage.
 
 # Returns
 - `output::AbstractVector{T}`: the result, which is a 1D array.
-    Any NaN, Inf, or other failure during the evaluation will result in the entire
-    output array being set to NaN.
+    A failed evaluation fills the output with `DynamicExpressions.invalid_value(T)`.
+    Floating-point types return NaN. Custom types need this optional method to
+    represent failed outputs; otherwise use `eval_tree_array` and its completion flag.
 ```
 
 For example,

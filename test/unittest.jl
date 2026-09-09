@@ -57,6 +57,10 @@ end
     include("test_nan_detection.jl")
 end
 
+@testitem "Test custom invalid values" begin
+    include("test_invalid_values.jl")
+end
+
 @testitem "Test OperatorEnum with non-number type" begin
     include("test_non_number_eval_tree_array.jl")
 end

@@ -5,6 +5,23 @@ using Interfaces: Interfaces, @interface, @implements, Arguments
 is_valid(x::T) where {T} = true  # COV_EXCL_LINE
 is_valid(x::T) where {T<:Number} = isfinite(x) && !isnan(x)
 
+"""
+    invalid_value(::Type{T})
+
+Construct a value of type `T` for which `is_valid` returns `false`.
+This optional part of [`ValueInterface`](@ref) is used by convenience evaluation
+to fill failed outputs. Floating-point and complex floating-point types return NaN.
+Custom types representing invalid states may implement this method. Types with
+no invalid member, such as integers, need not implement it; use `eval_tree_array`
+and its completion flag when failed outputs cannot be represented.
+
+The constructor receives only the type, so it cannot preserve runtime-dependent
+shapes. Every value returned must have type `T` and be invalid.
+"""
+function invalid_value end
+invalid_value(::Type{T}) where {T<:AbstractFloat} = T(NaN)
+invalid_value(::Type{Complex{T}}) where {T<:AbstractFloat} = Complex{T}(T(NaN), zero(T))
+
 is_valid_array(x::AbstractArray{T}) where {T} = all(is_valid, x)
 is_valid_array(x::AbstractArray{T}) where {T<:Number} = is_valid(sum(x))
 
@@ -64,6 +81,10 @@ Note that this will return 1 for scalars.
 # Interface.jl integration #####################################################
 ################################################################################
 
+function _check_invalid_value(x::T) where {T}
+    value = invalid_value(T)
+    return value isa T && !is_valid(value)
+end
 function _check_is_valid(x)
     return is_valid(x) isa Bool
 end
@@ -137,7 +158,9 @@ vi_components = (
         unpack_scalar_constants = "unpacks scalar constants from an array" => _check_unpack_scalar_constants,
         count_scalar_constants = "counts how many scalar constants the value has" => _check_count_scalar_constants,
     ),
-    optional = (;)
+    optional = (
+        invalid_value = "constructs an invalid value of the same type" => _check_invalid_value,
+    )
 )
 vi_description = (
     "Defines the interface for types operated on by `DynamicExpressions`. " *
@@ -148,5 +171,7 @@ vi_description = (
 
 @interface(ValueInterface, Any, vi_components, vi_description)
 @implements(ValueInterface, Number, [Arguments()])
+@implements(ValueInterface{(:invalid_value,)}, AbstractFloat, [Arguments()])
+@implements(ValueInterface{(:invalid_value,)}, Complex{<:AbstractFloat}, [Arguments()])
 
 end

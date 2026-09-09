@@ -5,7 +5,7 @@ import ..OperatorEnumModule: AbstractOperatorEnum, OperatorEnum, GenericOperator
 import ..NodeModule: AbstractExpressionNode
 import ..EvaluateModule: eval_tree_array
 import ..EvaluateDerivativeModule: eval_grad_tree_array
-import ..UtilsModule: set_nan!
+import ..UtilsModule: set_invalid!
 
 # Evaluation:
 """
@@ -23,12 +23,12 @@ and triplets of operations for lower memory usage.
 
 # Returns
 - `output::AbstractVector{T}`: the result, which is a 1D array.
-    Any NaN, Inf, or other failure during the evaluation will result in the entire
-    output array being set to NaN.
+    A failed evaluation fills the output with `invalid_value(T)`. Floating-point
+    types return NaN; custom types need the optional `invalid_value` method.
 """
 function (tree::AbstractExpressionNode)(X, operators::OperatorEnum; kws...)
     out, did_finish = eval_tree_array(tree, X, operators; kws...)
-    !did_finish && set_nan!(out)
+    !did_finish && set_invalid!(out)
     return out
 end
 """
@@ -57,7 +57,7 @@ function _grad_evaluator(
     tree::AbstractExpressionNode, X, operators::OperatorEnum; variable=Val(true), kws...
 )
     _, grad, did_complete = eval_grad_tree_array(tree, X, operators; variable, kws...)
-    !did_complete && set_nan!(grad)
+    !did_complete && set_invalid!(grad)
     return grad
 end
 function _grad_evaluator(
