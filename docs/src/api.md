@@ -229,11 +229,7 @@ tested using Interfaces.jl. You can see the interfaces with:
 DynamicExpressions.ExpressionInterface
 DynamicExpressions.NodeInterface
 DynamicExpressions.ValueInterface
-DynamicExpressions.invalid_value
 ```
-
-Optionally define `invalid_value(::Type{T})` to construct a value of type `T`
-for which `is_valid` returns `false`.
 
 You can declare a new type as implementing these with, e.g.,
 
