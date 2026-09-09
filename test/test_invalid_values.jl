@@ -1,18 +1,17 @@
-using DynamicExpressions: DynamicExpressions as DE
-using Interfaces: Interfaces
+@testitem "Invalid intermediates without scalar constructors" begin
+    using DynamicExpressions: DynamicExpressions as DE
 
-struct TextValue
-    text::String
-end
-DE.is_valid(x::TextValue) = !isempty(x.text)
-DE.invalid_value(::Type{TextValue}) = TextValue("")
-inner(x::TextValue) = TextValue(x.text == "bad" ? "" : "ok")
-function inner2(x::TextValue, y::TextValue)
-    return TextValue(x.text == "bad" || y.text == "bad" ? "" : "ok")
-end
-outer(x::TextValue) = TextValue("outer")
+    struct TextValue
+        text::String
+    end
+    DE.is_valid(x::TextValue) = !isempty(x.text)
+    DE.invalid_value(::Type{TextValue}) = TextValue("")
+    inner(x::TextValue) = TextValue(x.text == "bad" ? "" : "ok")
+    function inner2(x::TextValue, y::TextValue)
+        return TextValue(x.text == "bad" || y.text == "bad" ? "" : "ok")
+    end
+    outer(x::TextValue) = TextValue("outer")
 
-@testset "Invalid intermediates without scalar constructors" begin
     ops = DE.OperatorEnum(;
         unary_operators=(outer, inner),
         binary_operators=(inner2,),
@@ -48,15 +47,24 @@ outer(x::TextValue) = TextValue("outer")
     end
 end
 
-struct Force
-    x::Float64
-    y::Float64
-    z::Float64
-end
-DE.is_valid(f::Force) = all(isfinite, (f.x, f.y, f.z))
-DE.invalid_value(::Type{Force}) = Force(NaN, NaN, NaN)
+@testitem "Optional invalid values" begin
+    using DynamicExpressions: DynamicExpressions as DE
+    using Interfaces: Interfaces
 
-@testset "Optional invalid values" begin
+    struct TextValue
+        text::String
+    end
+    DE.is_valid(x::TextValue) = !isempty(x.text)
+    DE.invalid_value(::Type{TextValue}) = TextValue("")
+
+    struct Force
+        x::Float64
+        y::Float64
+        z::Float64
+    end
+    DE.is_valid(f::Force) = all(isfinite, (f.x, f.y, f.z))
+    DE.invalid_value(::Type{Force}) = Force(NaN, NaN, NaN)
+
     for T in (Float16, Float32, Float64, ComplexF32, ComplexF64, Force, TextValue)
         value = @inferred DE.invalid_value(T)
         @test value isa T
@@ -77,7 +85,9 @@ DE.invalid_value(::Type{Force}) = Force(NaN, NaN, NaN)
     @test all(x -> x isa Force && !DE.is_valid(x), output)
 end
 
-@testset "Numeric fused invalid propagation" begin
+@testitem "Numeric fused invalid propagation" begin
+    using DynamicExpressions: DynamicExpressions as DE
+
     kernel = DE.EvaluateModule._fused_binary3
     @test isnan(kernel(+, +, NaN, 1.0, 2.0, Val(:left), Val(true)))
     @test isnan(kernel(+, +, 1.0, 2.0, NaN, Val(:left), Val(true)))

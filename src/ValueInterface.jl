@@ -8,9 +8,7 @@ is_valid(x::T) where {T<:Number} = isfinite(x) && !isnan(x)
 """
     invalid_value(::Type{T})
 
-Construct a value of type `T` for which `is_valid` returns `false`.
-Optional in [`ValueInterface`](@ref); floating-point and complex floating-point
-types return NaN.
+Return an invalid value of type `T`. Optional in [`ValueInterface`](@ref).
 """
 function invalid_value end
 invalid_value(::Type{T}) where {T<:AbstractFloat} = T(NaN)
