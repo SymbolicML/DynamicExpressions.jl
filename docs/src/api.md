@@ -232,18 +232,8 @@ DynamicExpressions.ValueInterface
 DynamicExpressions.invalid_value
 ```
 
-Custom value types can define `DynamicExpressions.invalid_value(::Type{T})` to
-construct a `T` rejected by `DynamicExpressions.is_valid`. This optional method
-fills failed convenience evaluations, including buffers that have not yet been
-initialized. It receives no value or runtime shape. Types without an invalid
-member can use `eval_tree_array` and inspect its completion flag instead.
-
-Fused evaluation propagates an existing invalid intermediate unchanged. The
-output of `eval_tree_array` is unspecified when its completion flag is false.
-With `early_exit=false`, unary fused kernels still skip an outer operator when
-its intermediate is invalid; unfused evaluation calls that operator. This
-existing difference remains, so use `use_fused=false` when an outer operator
-must recover invalid intermediates.
+Optionally define `invalid_value(::Type{T})` to construct a value of type `T`
+for which `is_valid` returns `false`.
 
 You can declare a new type as implementing these with, e.g.,
 
