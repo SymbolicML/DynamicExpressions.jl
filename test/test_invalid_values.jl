@@ -85,12 +85,37 @@ end
     @test all(x -> x isa Force && !DE.is_valid(x), output)
 end
 
-@testitem "Numeric fused invalid propagation" begin
+@testitem "Numeric invalid intermediates without scalar constructors" begin
     using DynamicExpressions: DynamicExpressions as DE
 
-    kernel = DE.EvaluateModule._fused_binary3
-    @test isnan(kernel(+, +, NaN, 1.0, 2.0, Val(:left), Val(true)))
-    @test isnan(kernel(+, +, 1.0, 2.0, NaN, Val(:left), Val(true)))
-    @test isnan(kernel(+, +, NaN, 1.0, 2.0, Val(:right), Val(true)))
-    @test isnan(kernel(+, +, 1.0, 2.0, NaN, Val(:right), Val(true)))
+    struct NumericValue <: Number
+        data::Tuple{Float64}
+    end
+    Base.zero(::Type{NumericValue}) = NumericValue((0.0,))
+    DE.is_valid(x::NumericValue) = isfinite(only(x.data))
+    DE.is_valid_array(x::AbstractArray{NumericValue}) = all(DE.is_valid, x)
+    inner(x::NumericValue, y::NumericValue) = NumericValue((x.data == y.data ? NaN : 1.0,))
+    outer(x::NumericValue, y::NumericValue) = NumericValue((1.0,))
+
+    ops = DE.OperatorEnum(; binary_operators=(outer, inner), define_helper_functions=false)
+    leaf = DE.Node{NumericValue}(; feature=1)
+    c = DE.Node{NumericValue}(; val=NumericValue((2.0,)))
+    branch = DE.Node{NumericValue}(; op=2, l=leaf, r=c)
+    for tree in (
+        DE.Node{NumericValue}(; op=1, l=branch, r=c),
+        DE.Node{NumericValue}(; op=1, l=c, r=branch),
+    )
+        for fused in (false, true)
+            ctx = DE.EvalContext(; use_fused=fused)
+            _, complete = DE.eval_tree_array(
+                tree, fill(NumericValue((2.0,)), 1, 1), ops; eval_context=ctx
+            )
+            @test !complete
+            output, complete = DE.eval_tree_array(
+                tree, fill(NumericValue((3.0,)), 1, 1), ops; eval_context=ctx
+            )
+            @test complete
+            @test only(output).data == (1.0,)
+        end
+    end
 end
