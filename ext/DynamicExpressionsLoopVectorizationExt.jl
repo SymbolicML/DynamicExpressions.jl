@@ -152,13 +152,7 @@ function deg2_branch0_eval(
             x2 = ifelse(constant2, value2, cX[feature2, j])
             x3 = ifelse(constant3, value3, cX[feature3, j])
             branch_x = branch_op(x1, x2)
-            cumulator[j] = if !isfinite(branch_x)
-                branch_x
-            elseif !isfinite(x3)
-                x3
-            else
-                op(branch_x, x3)
-            end
+            cumulator[j] = isfinite(branch_x) & isfinite(x3) ? op(branch_x, x3) : T(Inf)
         end  # COV_EXCL_LINE
     elseif side === :right && eval_context.early_exit isa Val{true}
         @inbounds @simd for j in axes(cX, 2)
@@ -166,13 +160,7 @@ function deg2_branch0_eval(
             x2 = ifelse(constant2, value2, cX[feature2, j])
             x3 = ifelse(constant3, value3, cX[feature3, j])
             branch_x = branch_op(x2, x3)
-            cumulator[j] = if !isfinite(x1)
-                x1
-            elseif !isfinite(branch_x)
-                branch_x
-            else
-                op(x1, branch_x)
-            end
+            cumulator[j] = isfinite(x1) & isfinite(branch_x) ? op(x1, branch_x) : T(Inf)
         end  # COV_EXCL_LINE
     elseif side === :left
         @turbo for j in axes(cX, 2)
