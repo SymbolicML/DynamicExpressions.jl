@@ -9,14 +9,8 @@ is_valid(x::T) where {T<:Number} = isfinite(x) && !isnan(x)
     invalid_value(::Type{T})
 
 Construct a value of type `T` for which `is_valid` returns `false`.
-This optional part of [`ValueInterface`](@ref) is used by convenience evaluation
-to fill failed outputs. Floating-point and complex floating-point types return NaN.
-Custom types representing invalid states may implement this method. Types with
-no invalid member, such as integers, need not implement it; use `eval_tree_array`
-and its completion flag when failed outputs cannot be represented.
-
-The constructor receives only the type, so it cannot preserve runtime-dependent
-shapes. Every value returned must have type `T` and be invalid.
+Optional in [`ValueInterface`](@ref); floating-point and complex floating-point
+types return NaN.
 """
 function invalid_value end
 invalid_value(::Type{T}) where {T<:AbstractFloat} = T(NaN)
