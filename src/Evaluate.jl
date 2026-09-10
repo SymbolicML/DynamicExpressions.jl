@@ -140,10 +140,11 @@ This holds evaluation policy and call-scoped mutable state.
 - `early_exit::Val{E}=Val(true)`: If `Val{true}`, any element of any step becoming
     `NaN` or `Inf` will terminate the computation. For `eval_tree_array`, this will
     result in the second return value, the completion flag, being `false`. For 
-    calling an expression using `tree(X)`, this will result in `NaN`s filling
-    the entire buffer. This early exit is performed to avoid wasting compute cycles.
-    Setting `Val{false}` will continue the computation as usual and thus result in
-    `NaN`s only in the elements that actually have `NaN`s.
+    calling an expression using `tree(X)`, this fills the entire buffer with
+    `invalid_value(T)`, which defaults to NaN for floating-point types.
+    Setting `Val{false}` disables early termination. Unary fused kernels still
+    propagate invalid intermediates without calling the outer operator; use
+    `use_fused=false` if that operator should recover invalid values.
 - `buffer::Union{ArrayBuffer,Nothing}`: If not `nothing`, use this buffer for evaluation.
     This should be an instance of `ArrayBuffer` which has an `array` field and an
     `index` field used to iterate which buffer slot to use. The buffer creator must
@@ -719,7 +720,7 @@ function deg1_l2_ll0_lr0_eval(
         @inbounds @simd for j in axes(cX, 2)
             x_l =
                 op_l(val_ll, feature_at(cX, input_lr_index, feature_lr, j, index_style))::T
-            x = is_valid(x_l) ? op(x_l)::T : T(Inf)
+            x = is_valid(x_l) ? op(x_l)::T : x_l
             cumulator[j] = x
             input_lr_index += feature_stride
         end  # COV_EXCL_LINE
@@ -734,7 +735,7 @@ function deg1_l2_ll0_lr0_eval(
         @inbounds @simd for j in axes(cX, 2)
             x_l =
                 op_l(feature_at(cX, input_ll_index, feature_ll, j, index_style), val_lr)::T
-            x = is_valid(x_l) ? op(x_l)::T : T(Inf)
+            x = is_valid(x_l) ? op(x_l)::T : x_l
             cumulator[j] = x
             input_ll_index += feature_stride
         end  # COV_EXCL_LINE
@@ -751,7 +752,7 @@ function deg1_l2_ll0_lr0_eval(
                 feature_at(cX, input_ll_index, feature_ll, j, index_style),
                 feature_at(cX, input_lr_index, feature_lr, j, index_style),
             )::T
-            x = is_valid(x_l) ? op(x_l)::T : T(Inf)
+            x = is_valid(x_l) ? op(x_l)::T : x_l
             cumulator[j] = x
             input_ll_index += feature_stride
             input_lr_index += feature_stride
@@ -784,7 +785,7 @@ function deg1_l1_ll0_eval(
         cumulator = get_array(eval_context.buffer, cX, axes(cX, 2))
         @inbounds @simd for j in axes(cX, 2)
             x_l = op_l(feature_at(cX, input_ll_index, feature_ll, j, index_style))::T
-            x = is_valid(x_l) ? op(x_l)::T : T(Inf)
+            x = is_valid(x_l) ? op(x_l)::T : x_l
             cumulator[j] = x
             input_ll_index += feature_stride
         end  # COV_EXCL_LINE
@@ -797,7 +798,7 @@ end
 ) where {T<:Number,F,F2,early_exit}
     branch_x = branch_op(x1, x2)::T
     return if early_exit && (!is_valid(branch_x) || !is_valid(x3))
-        T(Inf)
+        is_valid(branch_x) ? x3 : branch_x
     else
         op(branch_x, x3)::T
     end
@@ -808,7 +809,7 @@ end
 ) where {T<:Number,F,F2,early_exit}
     branch_x = branch_op(x2, x3)::T
     return if early_exit && (!is_valid(x1) || !is_valid(branch_x))
-        T(Inf)
+        is_valid(x1) ? branch_x : x1
     else
         op(x1, branch_x)::T
     end

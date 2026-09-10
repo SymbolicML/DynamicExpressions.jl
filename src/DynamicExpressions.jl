@@ -3,8 +3,8 @@ module DynamicExpressions
 using DispatchDoctor: @stable, @unstable
 
 @stable default_mode = "disable" begin
-    include("Utils.jl")
     include("ValueInterface.jl")
+    include("Utils.jl")
     include("ExtensionInterface.jl")
     include("OperatorEnum.jl")
     include("Node.jl")
@@ -31,6 +31,7 @@ macro ignore(args...) end
 import .UtilsModule: Nullable
 import .ValueInterfaceModule:
     is_valid,
+    invalid_value,
     is_valid_array,
     get_number_type,
     pack_scalar_constants!,
