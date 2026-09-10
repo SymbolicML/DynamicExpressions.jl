@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.11.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.10.1...v2.11.0) (2026-09-10)
+
+
+### Features
+
+* support optional invalid value construction ([#210](https://github.com/SymbolicML/DynamicExpressions.jl/issues/210)) ([328057c](https://github.com/SymbolicML/DynamicExpressions.jl/commit/328057c7bde07291b2c592d6dc96bd4403fc82ea))
+
 ## [2.10.1](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.10.0...v2.10.1) (2026-08-24)
 
 
