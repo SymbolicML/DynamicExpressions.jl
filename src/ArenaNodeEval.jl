@@ -3,6 +3,7 @@ module ArenaNodeEvalModule
 using ..UtilsModule: ResultOk
 import ..NodeModule: AbstractExpressionNode
 using ..ValueInterfaceModule: is_valid
+using ..NodeUtilsModule: is_constant
 import ..OperatorEnumModule: OperatorEnum
 import ..EvaluateModule: _eval_tree_array, EvalContext, ArrayBuffer, get_nops, next_index!
 import ..ArenaNodeModule:
@@ -16,11 +17,11 @@ import ..ArenaNodeModule:
 # EvalContext.buffer. The first reserved row is the output; used features and
 # recyclable intermediates occupy the remaining rows. The buffer index advances
 # past the entire reservation so earlier results remain valid until reset.
-# Without a sufficient buffer the generic evaluator is used. Other fallbacks:
-# non-compact arena, non-isbits T (the branchless kernels issue dead loads from
-# unwritten slots), depth or feature count over 64, turbo, or
-# use_fused=Val(false) (callers may overload deg1_eval etc., which this path
-# bypasses).
+# Without a sufficient buffer or for constant trees the generic evaluator is
+# used. Other fallbacks: non-compact arena, non-isbits T (the branchless
+# kernels issue dead loads from unwritten slots), depth or feature count over
+# 64, turbo, or use_fused=Val(false) (callers may overload deg1_eval etc.,
+# which this path bypasses).
 function _eval_tree_array(
     tree::ArenaNode{T,D},
     cX::AbstractMatrix{T},
@@ -34,7 +35,8 @@ function _eval_tree_array(
         size(buffer.array, 2) == size(cX, 2) &&
         is_compact_root(tree) &&
         eval_context.turbo isa Val{false} &&
-        eval_context.use_fused isa Val{true}
+        eval_context.use_fused isa Val{true} &&
+        !is_constant(tree)
         ok_plan, num_slots, max_stack, feature_mask = _plan_scratch(get_arena(tree))
         # +1 for the output slot; reserve the whole range so earlier results
         # remain valid until the caller explicitly resets the buffer.
@@ -341,7 +343,9 @@ end
         regs = PlanRegisters(stack_top - ($A - 1), num_free, next_slot)
         all_args_scalar = Base.Cartesian.@nall($A, k -> kinds[k] == _K_SCALAR)
         if _op_result_kind(all_args_scalar) == _K_SCALAR
-            return _fold_constant_args!(state, regs, op_idx, scalar_args, operators)
+            return _fold_constant_args!(
+                state, regs, op_idx, scalar_args, early_exit, operators
+            )
         end
         return _run_op_kernel!(
             state, regs, op_idx, kinds, idxs, scalar_args, is_root, early_exit, operators
@@ -350,19 +354,19 @@ end
 end
 
 # Constant-fold an all-scalar operator at the (already popped) stack top.
-# Like `dispatch_constant_tree`, operand values and the fold result are
-# validated unconditionally; folded args are valid by induction, so the arg
-# check only screens constant leaves.
+# With early exit enabled, validate operands and the folded result to match
+# the generic evaluator; otherwise retain the operator's invalid result.
 function _fold_constant_args!(
     state::PlanState{T},
     regs::PlanRegisters,
     op_idx::UInt8,
     scalar_args::NTuple{A,T},
+    early_exit::Bool,
     operators::OperatorEnum,
 ) where {A,T}
-    all(is_valid, scalar_args) || return (regs, false)
+    early_exit && !all(is_valid, scalar_args) && return (regs, false)
     value = _scalar_degn(op_idx, scalar_args, operators)
-    is_valid(value) || return (regs, false)
+    early_exit && !is_valid(value) && return (regs, false)
     @inbounds state.descriptors[regs.stack_top] = _pack_descriptor(_K_SCALAR)
     @inbounds state.scalar_vals[regs.stack_top] = value
     return (regs, true)

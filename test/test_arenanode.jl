@@ -715,10 +715,12 @@ end
         @test ok2 && o_plan.buffer.index[] > 0  # plan path reserves its rows
         @test y1 ≈ y2
         first = copy(y2)
-        y3, ok3 = eval_tree_array(t, X, operators; eval_context=o_plan)
-        @test ok3
+        X2 = 2 .* X
+        expected3, expected_ok3 = eval_tree_array(t, X2, operators)
+        y3, ok3 = eval_tree_array(t, X2, operators; eval_context=o_plan)
+        @test ok3 == expected_ok3
         @test y2 == first
-        @test y3 ≈ first
+        @test y3 ≈ expected3
     end
 
     @testset "cross-representation ==" begin
