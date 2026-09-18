@@ -10,9 +10,7 @@
     ext = Base.get_extension(DynamicExpressions, :DynamicExpressionsCUDAExt)
     const FakeCuArray = ext.FakeCuArray
 
-    operators = OperatorEnum(;
-        binary_operators=[+, -, *, /], unary_operators=[safe_sin, safe_cos]
-    )
+    operators = OperatorEnum(1 => (safe_sin, safe_cos), 2 => (+, -, *, /))
 
     for T in (Float32, Float64, ComplexF64)
         for seed in 0:10
@@ -43,9 +41,7 @@ end
     safe_sin(x) = isfinite(x) ? sin(x) : convert(eltype(x), NaN)
     safe_cos(x) = isfinite(x) ? cos(x) : convert(eltype(x), NaN)
 
-    operators = OperatorEnum(;
-        binary_operators=[+, -, *, /], unary_operators=[safe_sin, safe_cos]
-    )
+    operators = OperatorEnum(1 => (safe_sin, safe_cos), 2 => (+, -, *, /))
 
     ext = Base.get_extension(DynamicExpressions, :DynamicExpressionsCUDAExt)
     const FakeCuArray = ext.FakeCuArray
@@ -100,7 +96,7 @@ end
 
     # No random trees here, we define a fixed tree
     x1, x2, x3 = (i -> Node(Float64; feature=i)).(1:3)
-    operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[sin, cos])
+    operators = OperatorEnum(1 => (sin, cos), 2 => (+, -, *, /))
 
     Random.seed!(0)
     tree = sin(x1 * 3.1 - x3 * 0.9 + 0.2) * x2 - x3 * x3 * 1.5
@@ -119,7 +115,7 @@ end
     const FakeCuArray = ext.FakeCuArray
 
     x1, x2, x3 = (i -> Node(Float64; feature=i)).(1:3)
-    operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[sin, cos])
+    operators = OperatorEnum(1 => (sin, cos), 2 => (+, -, *, /))
 
     Random.seed!(0)
     tree = sin(x1 * 3.1 - x3 * 0.9 + 0.2) * x2 - x3 * x3 * 1.5
@@ -155,7 +151,7 @@ end
     const FakeCuArray = ext.FakeCuArray
 
     x1, x2, x3 = (i -> Node(Float64; feature=i)).(1:3)
-    operators = OperatorEnum(; binary_operators=[+, -, *, /], unary_operators=[sin, cos])
+    operators = OperatorEnum(1 => (sin, cos), 2 => (+, -, *, /))
 
     Random.seed!(0)
     tree = sin(x1 * 3.1 - x3 * 0.9 + 0.2) * x2 - x3 * x3 * 1.5

@@ -3,7 +3,7 @@ module DynamicExpressionsCUDAExt
 # TODO: Switch to KernelAbstractions.jl (once they hit v1.0)
 using CUDA: @cuda, CuArray, blockDim, blockIdx, threadIdx
 using DynamicExpressions: OperatorEnum, AbstractExpressionNode
-using DynamicExpressions.EvaluateModule: get_nbin, get_nuna
+using DynamicExpressions.EvaluateModule: get_nops
 using DynamicExpressions.AsArrayModule:
     as_array,
     IDX_DEGREE,
@@ -81,9 +81,6 @@ end
         copyto!(gpu_buffer, buffer)
     end
 
-    # Removed @view definitions of gdegree, gfeature, etc.
-    # We'll index directly into gbuffer using the constants above.
-
     num_threads = 256
     num_blocks = nextpow(2, ceil(Int, num_elem * num_nodes / num_threads))
 
@@ -92,7 +89,6 @@ end
         num_threads, num_blocks, num_launches, gworkspace,
         # Thread info:
         num_elem, num_nodes,
-        # We'll pass gbuffer directly to the kernel now:
         operators, gcX, gbuffer, val_idx,
     )
     #! format: on
@@ -112,8 +108,8 @@ end
     val_idx::Integer
 ) where {T}
     #! format: on
-    nuna = get_nuna(typeof(operators))
-    nbin = get_nbin(typeof(operators))
+    nuna = get_nops(typeof(operators), Val(1))
+    nbin = get_nops(typeof(operators), Val(2))
     (nuna > 10 || nbin > 10) &&
         error("Too many operators. Kernels are only compiled up to 10.")
     gpu_kernel! = create_gpu_kernel(operators, Val(nuna), Val(nbin))
@@ -163,13 +159,11 @@ for nuna in 0:10, nbin in 0:10
             node = (i - 1) % num_nodes + 1
             elem = (i - node) ÷ num_nodes + 1
 
-
             @inbounds begin
             if gbuffer[IDX_EXECUTION_ORDER, node] != launch
                 return nothing
             end
 
-            # Use constants to index gbuffer:
             cur_degree = gbuffer[IDX_DEGREE, node]
             cur_idx = gbuffer[IDX_SELF, node]
 

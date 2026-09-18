@@ -2,11 +2,11 @@ module AsArrayModule
 
 using Compat: Fix
 
-using ..NodeModule: AbstractExpressionNode, tree_mapreduce, count_nodes
-using ..EvaluateModule: ArrayBuffer, get_array, get_filled_array
+using ..NodeModule: AbstractExpressionNode, tree_mapreduce
+using ..NodeUtilsModule: count_nodes
 
 function as_array(
-    ::Type{I}, trees::N; buffer::Union{ArrayBuffer,Nothing}=nothing
+    ::Type{I}, trees::N; buffer::Union{AbstractArray{I},Nothing}=nothing
 ) where {T,N<:AbstractExpressionNode{T},I}
     return as_array(I, (trees,); buffer=buffer)
 end
@@ -65,10 +65,9 @@ function as_array(
 
     val = Array{T}(undef, num_nodes)
 
-    # If no buffer is provided, create a new ArrayBuffer from scratch
+    # If no buffer is provided, create a new one from scratch
     buffer = @something(buffer, Array{I}(undef, 8, num_nodes))
 
-    # Obtain arrays from the buffer. Each call to get_array consumes one "slot".
     #! format: off
     degree =          @view buffer[IDX_DEGREE, :]
     feature =         @view buffer[IDX_FEATURE, :]
@@ -157,6 +156,7 @@ end
 function link_parent_and_children!(
     tree_buffers::TreeBuffer{T,I}, parent, children::Vararg{Any,C}
 ) where {T,I,C}
+    C > 2 && error("`as_array` only supports nodes with a degree of at most 2.")
     tree_buffers.idx_l[parent.id] = children[1].id
     if C == 2
         tree_buffers.idx_r[parent.id] = children[2].id
