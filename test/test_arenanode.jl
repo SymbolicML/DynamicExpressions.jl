@@ -493,129 +493,9 @@ end
     end
 end
 
-@testitem "ArenaNode buffered plan eval" setup = [ArenaTreeGen] begin
-    using DynamicExpressions
-    using DynamicExpressions: Node, EvalContext, ArrayBuffer
-    using Random
-
-    using DynamicExpressions: ArenaNode, Arena
-    using DynamicExpressions.ArenaNodeModule:
-        ArenaEntry, _replace, is_compact_root, push_constant!, push_feature!
-
-    operators = OperatorEnum(; binary_operators=[+, *, /, -], unary_operators=[cos, exp])
-    rng = MersenneTwister(11)
-
-    for T in (Float32, Float64)
-        X = randn(rng, T, 5, 37)
-        buf_a = zeros(T, 40, 37)
-        buf_n = zeros(T, 40, 37)
-        for trial in 1:60, early_exit in (true, false)
-            tree = ArenaTreeGen.random_tree(rng, rand(rng, 1:30); T, nfeat=5, const_p=0.4)
-            atree = convert(ArenaNode{T}, tree)
-            opts_a = EvalContext(; early_exit, buffer=ArrayBuffer(buf_a, Ref(0)))
-            opts_n = EvalContext(; early_exit, buffer=ArrayBuffer(buf_n, Ref(0)))
-            # Unbuffered ground truth; results of buffered evals are views, so
-            # copy before they can alias each other.
-            rt = try
-                (
-                    eval_tree_array(
-                        tree, X, operators; eval_context=EvalContext(; early_exit)
-                    ),
-                    false,
-                )
-            catch
-                (nothing, true)
-            end
-            ra = try
-                (eval_tree_array(atree, X, operators; eval_context=opts_a), false)
-            catch
-                (nothing, true)
-            end
-            @test rt[2] == ra[2]
-            (rt[2] || ra[2]) && continue
-            (yref, okref) = rt[1]
-            (ya, oka) = ra[1]
-            @test okref == oka
-            if okref
-                @test yref ≈ ya || (any(!isfinite, yref) && any(!isfinite, ya))
-            end
-            # buffered Node evaluation agrees too
-            (yn, okn) = eval_tree_array(tree, X, operators; eval_context=opts_n)
-            @test okn == okref
-        end
-
-        # Stacks deeper than 64 take the generic path (with the same buffer):
-        deep = Node{T}(; val=T(0.5))
-        for _ in 1:70
-            deep = Node{T}(; op=1, l=Node{T}(; feature=1), r=deep)
-        end
-        adeep = convert(ArenaNode{T}, deep)
-        big = zeros(T, 80, 37)
-        o = EvalContext(; buffer=ArrayBuffer(big, Ref(0)))
-        y1, ok1 = eval_tree_array(copy(deep), X, operators)
-        y2, ok2 = eval_tree_array(adeep, X, operators; eval_context=o)
-        @test ok1 == ok2
-        ok1 && @test y1 ≈ y2
-    end
-end
-
-@testitem "ArenaNode buffered eval, degree 3" setup = [ArenaTreeGen] begin
-    using DynamicExpressions
-    using DynamicExpressions: Node, EvalContext, ArrayBuffer
-    using Random
-
-    using DynamicExpressions: ArenaNode, Arena
-    using DynamicExpressions.ArenaNodeModule:
-        ArenaEntry, _replace, is_compact_root, push_constant!, push_feature!
-
-    my3(x, y, z) = x * y + z
-    operators = OperatorEnum(1 => (cos, exp), 2 => (+, *, -, /), 3 => (fma, my3))
-    rng = MersenneTwister(5)
-    T = Float64
-
-    X = randn(rng, T, 5, 29)
-    buf = zeros(T, 48, 29)
-    for trial in 1:40, early_exit in (true, false)
-        tree = ArenaTreeGen.random_tree(
-            rng,
-            rand(rng, 1:25);
-            D=3,
-            nfeat=5,
-            nops=(2, 4, 2),
-            arity_cdf=(0.25, 0.6, 1.0),
-            const_p=0.4,
-        )
-        atree = convert(ArenaNode{T,3}, tree)
-        o = EvalContext(; early_exit, buffer=ArrayBuffer(buf, Ref(0)))
-        rt = try
-            (
-                eval_tree_array(
-                    copy(tree), X, operators; eval_context=EvalContext(; early_exit)
-                ),
-                false,
-            )
-        catch
-            (nothing, true)
-        end
-        ra = try
-            (eval_tree_array(atree, X, operators; eval_context=o), false)
-        catch
-            (nothing, true)
-        end
-        @test rt[2] == ra[2]
-        (rt[2] || ra[2]) && continue
-        (yref, okref) = rt[1]
-        (ya, oka) = ra[1]
-        @test okref == oka
-        if okref
-            @test yref ≈ ya || (any(!isfinite, yref) && any(!isfinite, ya))
-        end
-    end
-end
-
 @testitem "ArenaNode review regressions" begin
     using DynamicExpressions
-    using DynamicExpressions: Node, EvalContext, ArrayBuffer
+    using DynamicExpressions: Node
     using DynamicExpressions.NodePreallocationModule: allocate_container, copy_into!
 
     using DynamicExpressions: ArenaNode, Arena
@@ -625,8 +505,6 @@ end
     operators = OperatorEnum(1 => (cos, exp), 2 => (+, *, -, /))
     T = Float64
     X = T[1.0 2.0 3.0; 0.5 1.5 2.5]
-    nrows = size(X, 2)
-    buf() = ArrayBuffer(zeros(T, 16, nrows), Ref(0))
     to_arena(t) = convert(ArenaNode{T,2}, t)
     x1 = Node{T}(; feature=1)
     x2 = Node{T}(; feature=2)
@@ -638,7 +516,7 @@ end
         n2 = ArenaNode(a, i2)
         @test !is_compact_root(n2)
         @test count_nodes(n2) == 1
-        y, ok = eval_tree_array(n2, X, operators; eval_context=EvalContext(; buffer=buf()))
+        y, ok = eval_tree_array(n2, X, operators)
         @test ok && y ≈ X[2, :]
     end
 
@@ -662,67 +540,6 @@ end
         @test_throws UndefRefError any(_ -> false, half)
     end
 
-    function check_parity(tree, ops, Xm; early_exit)
-        atree = convert(ArenaNode{T,2}, tree)
-        yn, okn = eval_tree_array(
-            copy(tree), Xm, ops; eval_context=EvalContext(; early_exit)
-        )
-        o = EvalContext(; early_exit, buffer=ArrayBuffer(zeros(T, 16, size(Xm, 2)), Ref(0)))
-        ya, oka = eval_tree_array(atree, Xm, ops; eval_context=o)
-        @test okn == oka
-        if okn
-            @test yn ≈ ya || (any(!isfinite, yn) && any(!isfinite, ya))
-        end
-    end
-
-    @testset "ok-flag parity with the generic evaluator" begin
-        nanleaf = Node{T}(; val=NaN)
-        infdiv = Node{T}(; op=4, l=Node{T}(; val=1.0), r=Node{T}(; val=0.0))
-        for early_exit in (true, false)
-            check_parity(nanleaf, operators, X; early_exit)
-            check_parity(Node{T}(; op=1, l=x1, r=nanleaf), operators, X; early_exit)
-            check_parity(Node{T}(; op=1, l=x1, r=infdiv), operators, X; early_exit)
-            check_parity(
-                Node{T}(; op=1, l=x1, r=Node{T}(; val=Inf)), operators, X; early_exit
-            )
-            grow = Node{T}(;
-                op=2,
-                l=Node{T}(; op=2, l=x1, r=Node{T}(; val=1e300)),
-                r=Node{T}(; val=1e300),
-            )
-            check_parity(Node{T}(; op=1, l=grow, r=x2), operators, X; early_exit)  # Inf intermediate
-            check_parity(grow, operators, X; early_exit)  # Inf at the root
-        end
-
-        nanclean(x) = ifelse(isnan(x), zero(x), x)
-        ops2 = OperatorEnum(1 => (nanclean,), 2 => (+, *))
-        Xnan = copy(X)
-        Xnan[1, 2] = NaN
-        for early_exit in (true, false)
-            check_parity(copy(x1), ops2, Xnan; early_exit)  # bare feature root, NaN input
-            check_parity(Node{T}(; op=1, l=x1), ops2, Xnan; early_exit)  # NaN input absorbed
-            check_parity(Node{T}(; op=1, l=Node{T}(; val=NaN)), ops2, X; early_exit)  # NaN leaf folded away
-        end
-    end
-
-    @testset "use_fused=false takes the generic path" begin
-        t = to_arena(Node{T}(; op=1, l=x1, r=Node{T}(; op=2, l=x2, r=Node{T}(; val=3.0))))
-        o_nofuse = EvalContext(; buffer=buf(), use_fused=Val(false))
-        y1, ok1 = eval_tree_array(t, X, operators; eval_context=o_nofuse)
-        @test ok1 && o_nofuse.buffer.index[] > 0  # generic buffer protocol engaged
-        o_plan = EvalContext(; buffer=buf())
-        y2, ok2 = eval_tree_array(t, X, operators; eval_context=o_plan)
-        @test ok2 && o_plan.buffer.index[] > 0  # plan path reserves its rows
-        @test y1 ≈ y2
-        first = copy(y2)
-        X2 = 2 .* X
-        expected3, expected_ok3 = eval_tree_array(t, X2, operators)
-        y3, ok3 = eval_tree_array(t, X2, operators; eval_context=o_plan)
-        @test ok3 == expected_ok3
-        @test y2 == first
-        @test y3 ≈ expected3
-    end
-
     @testset "cross-representation ==" begin
         tn = Node{T}(; op=1, l=x1, r=Node{T}(; op=2, l=x2, r=Node{T}(; val=0.5)))
         ta = to_arena(tn)
@@ -738,19 +555,6 @@ end
         t3 = copy_into!(c, t2)
         @test string_tree(t3, operators) == string_tree(t, operators)
     end
-
-    @testset "non-isbits eltype takes the generic path safely" begin
-        tb = Node{BigFloat,2}(;
-            op=1, l=Node{BigFloat,2}(; feature=1), r=Node{BigFloat,2}(; val=big"1.5")
-        )
-        ab = convert(ArenaNode{BigFloat,2}, tb)
-        Xb = BigFloat.(X)
-        bufb = ArrayBuffer(Matrix{BigFloat}(undef, 16, nrows), Ref(0))
-        yb, okb = eval_tree_array(
-            ab, Xb, operators; eval_context=EvalContext(; buffer=bufb)
-        )
-        @test okb && yb ≈ Xb[1, :] .+ big"1.5"
-    end
 end
 
 @testitem "ArenaNode supposition invariants" begin
@@ -758,7 +562,7 @@ end
     using Supposition
     using Supposition: @check, Data
     using DynamicExpressions
-    using DynamicExpressions: Node, EvalContext, ArrayBuffer, get_tree
+    using DynamicExpressions: Node, get_tree
 
     using DynamicExpressions: ArenaNode
 
@@ -791,20 +595,12 @@ end
     @test something(roundtrip.result) isa Supposition.Pass
 
     function evals_match(tree, atree, X)
-        # Unbuffered ArenaNode eval takes the same generic path as Node, so
-        # both the values and the `ok` flag must match exactly.
+        # ArenaNode eval takes the same generic path as Node, so both the
+        # values and the `ok` flag must match exactly.
         yn, okn = eval_tree_array(copy(tree), X, OPERATORS)
         ya, oka = eval_tree_array(atree, X, OPERATORS)
         okn == oka || return false
         okn && !(yn ≈ ya) && return false
-        # The buffered plan path's `ok` is best-effort and may differ from the
-        # generic evaluator (which fuses some shapes without materializing the
-        # intermediate this path validates; the `is_valid(sum(...))` check can
-        # also overflow on finite-but-huge values). Values must agree whenever
-        # both sides report ok.
-        buffer = ArrayBuffer(zeros(T, 64, size(X, 2)), Ref(0))
-        yb, okb = eval_tree_array(atree, X, OPERATORS; eval_context=EvalContext(; buffer))
-        okb && okn && !(yb ≈ yn) && return false
         return true
     end
 
