@@ -387,6 +387,11 @@ function _append_subtree!(
     return root_idx
 end
 
+# Copies and preallocated containers leave room for one more operator node with
+# its leaves (`D + 1` entries), so the usual in-place edit applied after a copy
+# (a mutation, or the subtree a crossover splices in) does not reallocate.
+_edit_headroom(n::Integer, ::Val{D}) where {D} = n + D + 1
+
 # Compact arenas copy as one flat array copy (child indices stay valid
 # verbatim); otherwise the subtree is appended entry-by-entry into a fresh
 # arena, which also re-compacts. Overloads `copy_node` (not `Base.copy`)
@@ -394,21 +399,25 @@ end
 function copy_node(tree::ArenaNode{T,D}; break_sharing::Val{BS}=Val(false)) where {T,D,BS}
     arena = get_arena(tree)
     if is_compact_root(tree)
-        return ArenaNode{T,D}(Arena{T,D}(copy(arena.nodes), true), get_index(tree))
+        n = length(arena.nodes)
+        dest = Arena{T,D}(; capacity=_edit_headroom(n, Val(D)))
+        resize!(dest.nodes, n)
+        copyto!(dest.nodes, arena.nodes)
+        return ArenaNode{T,D}(dest, get_index(tree))
     end
     n = _subtree_count(arena.nodes, get_index(tree))
-    dest = Arena{T,D}(; capacity=n)
+    dest = Arena{T,D}(; capacity=_edit_headroom(n, Val(D)))
     idx = _append_subtree!(dest, arena.nodes, get_index(tree), n)
     return ArenaNode{T,D}(dest, idx)
 end
 
-# Preallocated arena for `copy_into!`, enabling zero-allocation copies. Leaves
-# room for one more operator node with its leaves, so the usual in-place edit
-# applied after the copy does not reallocate the arena.
+# Preallocated arena for `copy_into!`, enabling zero-allocation copies.
 function allocate_container(
     prototype::ArenaNode{T,D}, num_nodes::Union{Nothing,Integer}=nothing
 ) where {T,D}
-    return Arena{T,D}(; capacity=@something(num_nodes, length(prototype)) + D + 1)
+    return Arena{T,D}(;
+        capacity=_edit_headroom(@something(num_nodes, length(prototype)), Val(D))
+    )
 end
 
 # Steady-state copy for population search: reuse `dest`'s storage, with no
