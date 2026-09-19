@@ -148,46 +148,48 @@ for nuna in 0:10, nbin in 0:10
         tree = (i - elem) ÷ num_elem + 1
 
         @inbounds begin
-        # `as_array` assigns indices in preorder with sharing broken, so every
-        # child sits at a higher index than its parent and each tree fills the
-        # contiguous block [tree_starts[tree], tree_starts[tree + 1]). Walking
-        # the block downward therefore evaluates children before parents.
-        for node in (tree_starts[tree + 1] - one(Int32)):-1:tree_starts[tree]
-        cur_degree = gbuffer[IDX_DEGREE, node]
+            # `as_array` assigns indices in preorder with sharing broken, so every
+            # child sits at a higher index than its parent and each tree fills the
+            # contiguous block [tree_starts[tree], tree_starts[tree + 1]). Walking
+            # the block downward therefore evaluates children before parents.
+            for node in (tree_starts[tree + 1] - one(Int32)):-1:tree_starts[tree]
+                cur_degree = gbuffer[IDX_DEGREE, node]
 
-        if cur_degree == 0
-            if gbuffer[IDX_CONSTANT, node] == 1
-                cur_val = buffer[val_idx, node]
-                buffer[elem, node] = cur_val
-            else
-                cur_feature = gbuffer[IDX_FEATURE, node]
-                buffer[elem, node] = cX[cur_feature, elem]
-            end
-        else
-            if cur_degree == 1 && $nuna > 0
-                cur_op = gbuffer[IDX_OP, node]
-                l_idx = gbuffer[IDX_L, node]
-                Base.Cartesian.@nif(
-                    $nuna,
-                    i -> i == cur_op,
-                    i -> let op = operators.unaops[i]
-                        buffer[elem, node] = op(buffer[elem, l_idx])
+                if cur_degree == 0
+                    if gbuffer[IDX_CONSTANT, node] == 1
+                        cur_val = buffer[val_idx, node]
+                        buffer[elem, node] = cur_val
+                    else
+                        cur_feature = gbuffer[IDX_FEATURE, node]
+                        buffer[elem, node] = cX[cur_feature, elem]
                     end
-                )
-            elseif $nbin > 0
-                cur_op = gbuffer[IDX_OP, node]
-                l_idx = gbuffer[IDX_L, node]
-                r_idx = gbuffer[IDX_R, node]
-                Base.Cartesian.@nif(
-                    $nbin,
-                    i -> i == cur_op,
-                    i -> let op = operators.binops[i]
-                        buffer[elem, node] = op(buffer[elem, l_idx], buffer[elem, r_idx])
+                else
+                    if cur_degree == 1 && $nuna > 0
+                        cur_op = gbuffer[IDX_OP, node]
+                        l_idx = gbuffer[IDX_L, node]
+                        Base.Cartesian.@nif(
+                            $nuna,
+                            i -> i == cur_op,
+                            i -> let op = operators.unaops[i]
+                                buffer[elem, node] = op(buffer[elem, l_idx])
+                            end
+                        )
+                    elseif $nbin > 0
+                        cur_op = gbuffer[IDX_OP, node]
+                        l_idx = gbuffer[IDX_L, node]
+                        r_idx = gbuffer[IDX_R, node]
+                        Base.Cartesian.@nif(
+                            $nbin,
+                            i -> i == cur_op,
+                            i -> let op = operators.binops[i]
+                                buffer[elem, node] = op(
+                                    buffer[elem, l_idx], buffer[elem, r_idx]
+                                )
+                            end
+                        )
                     end
-                )
+                end
             end
-        end
-        end
         end
         return nothing
     end
