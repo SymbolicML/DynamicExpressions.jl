@@ -17,21 +17,20 @@ import ..ArenaNodeModule:
 # EvalContext.buffer. The first reserved row is the output; used features and
 # recyclable intermediates occupy the remaining rows. The buffer index advances
 # past the entire reservation so earlier results remain valid until reset.
-# Without a sufficient buffer or for constant trees the generic evaluator is
-# used. Other fallbacks: non-compact arena, non-isbits T (the branchless
-# kernels issue dead loads from unwritten slots), depth or feature count over
-# 64, turbo, or use_fused=Val(false) (callers may overload deg1_eval etc.,
-# which this path bypasses).
+# The fast path exists only for contexts carrying a matrix buffer of the same
+# element type; other contexts and matrix types use the generic evaluator, as do
+# constant trees. Other fallbacks: non-compact arena, non-isbits T (the
+# branchless kernels issue dead loads from unwritten slots), depth or feature
+# count over 64, turbo, or use_fused=Val(false) (callers may overload deg1_eval
+# etc., which this path bypasses).
 function _eval_tree_array(
     tree::ArenaNode{T,D},
-    cX::AbstractMatrix{T},
+    cX::Matrix{T},
     operators::OperatorEnum,
-    eval_context::EvalContext,
-)::ResultOk where {T<:Number,D}
+    eval_context::EvalContext{TURBO,BUMPER,EARLY,<:ArrayBuffer{Matrix{T}},FUSED},
+)::ResultOk where {T<:Number,D,TURBO,BUMPER,EARLY,FUSED}
     buffer = eval_context.buffer
-    if buffer isa ArrayBuffer{Matrix{T}} &&
-        isbitstype(T) &&
-        cX isa Matrix{T} &&
+    if isbitstype(T) &&
         size(buffer.array, 2) == size(cX, 2) &&
         is_compact_root(tree) &&
         eval_context.turbo isa Val{false} &&
