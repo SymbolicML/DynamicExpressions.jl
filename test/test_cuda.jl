@@ -124,9 +124,10 @@ end
     y1, _ = eval_tree_array(tree, X, operators)
 
     # Extract arrays
-    (; val, roots, buffer, num_nodes, num_launches) = as_array(Int32, tree)
+    (; val, roots, buffer, num_nodes) = as_array(Int32, tree)
     gpu_buffer = FakeCuArray(buffer)
     gpu_workspace = FakeCuArray(zeros(Float64, size(X, 2) + 1, num_nodes))
+    gpu_tree_starts = FakeCuArray(Int32[roots..., num_nodes + 1])
     copyto!((@view gpu_workspace[end, :]), val)
 
     y3, _ = eval_tree_array(
@@ -135,9 +136,9 @@ end
         operators;
         gpu_workspace,
         gpu_buffer,
+        gpu_tree_starts,
         roots,
         num_nodes,
-        num_launches,
         update_buffers=Val(false),
     )
     @test y1 ≈ y3
@@ -159,9 +160,10 @@ end
 
     y1, _ = eval_tree_array(tree, X, operators)
 
-    (; val, roots, buffer, num_nodes, num_launches) = as_array(Int32, tree)
+    (; val, roots, buffer, num_nodes) = as_array(Int32, tree)
     gpu_buffer = FakeCuArray(buffer)
     gpu_workspace = FakeCuArray(zeros(Float64, size(X, 2) + 1, num_nodes))
+    gpu_tree_starts = FakeCuArray(Int32[roots..., num_nodes + 1])
     gpu_workspace[end, :] .= val
 
     # Change a constant (0.9 to 0.8)
@@ -176,9 +178,9 @@ end
         operators;
         gpu_workspace,
         gpu_buffer,
+        gpu_tree_starts,
         roots,
         num_nodes,
-        num_launches,
         update_buffers=Val(false),
     )
     @test y1_prime ≈ y3_prime
