@@ -27,7 +27,7 @@ touch one contiguous stream of memory.
 
 Indices are `Int32` and are 1-based. A child index of `0` indicates an empty slot.
 """
-struct ArenaEntry{T<:Number,D}
+struct ArenaEntry{T,D}
     val::T
     children::NTuple{D,Int32}
     feature::UInt16
@@ -68,7 +68,7 @@ and new entry and automatically clears `compact` whenever the structural fields
 paths. Do not write `arena.nodes` directly outside this file's bulk-copy
 internals.
 """
-struct Arena{T<:Number,D} <: AbstractVector{ArenaEntry{T,D}}
+struct Arena{T,D} <: AbstractVector{ArenaEntry{T,D}}
     nodes::Vector{ArenaEntry{T,D}}
     compact::Base.RefValue{Bool}
 
@@ -124,7 +124,7 @@ Core fields are accessed and mutated via `getproperty`/`setproperty!`.
     own arena, so later mutations through it do not affect the new parent.
     Same-arena attachments keep reference semantics.
 """
-struct ArenaNode{T<:Number,D} <: AbstractExpressionNode{T,D}
+struct ArenaNode{T,D} <: AbstractExpressionNode{T,D}
     arena::Arena{T,D}
     idx::Int32
 
@@ -536,9 +536,7 @@ end
 
 function count_nodes(tree::ArenaNode; break_sharing::Val{BS}=Val(false)) where {BS}
     is_compact_root(tree) && return length(get_arena(tree).nodes)
-    counter = Base.RefValue(0)
-    _foreach_node((_, _) -> (counter[] += 1; false), tree)
-    return counter[]
+    return _entry_mapreduce(Returns(1), Returns(1), +, get_arena(tree), get_index(tree))
 end
 
 function count_constant_nodes(tree::ArenaNode; break_sharing::Val{BS}=Val(false)) where {BS}
