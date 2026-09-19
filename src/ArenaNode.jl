@@ -69,9 +69,9 @@ paths. Do not write `arena.nodes` directly outside this file's bulk-copy
 internals.
 
 `Arena` manages its own storage growth: `capacity` is the exact length of the
-underlying buffer, and `_reserve!` at least doubles it on growth. Base's own
-growth policy pads small vectors by 3-4x, which for a tree's 24-byte entries
-costs more than the tree itself on every splice.
+underlying buffer, and `_reserve!` grows it geometrically. Base's own growth
+policy pads small vectors by 3-4x, which for a tree's 24-byte entries costs
+more than the tree itself on every splice.
 """
 mutable struct Arena{T,D} <: AbstractVector{ArenaEntry{T,D}}
     nodes::Vector{ArenaEntry{T,D}}
@@ -89,9 +89,14 @@ end
 # `Vector{E}(undef, n)` is the one Base constructor with an exact buffer size.
 _new_nodes(::Type{E}, capacity::Integer) where {E} = resize!(Vector{E}(undef, capacity), 0)
 
+# Single-entry pushes grow geometrically (amortized O(1)); whole-subtree
+# appends grow to the exact size, since a splice into an exact-capacity copy
+# (the crossover pattern) is a one-shot event and headroom there is wasted.
 function _reserve!(arena::Arena{T,D}, needed::Int) where {T,D}
     needed <= arena.capacity && return arena
-    capacity = max(needed, 2 * arena.capacity)
+    return _grow!(arena, max(needed, arena.capacity + arena.capacity ÷ 2))
+end
+function _grow!(arena::Arena{T,D}, capacity::Int) where {T,D}
     nodes = _new_nodes(ArenaEntry{T,D}, capacity)
     resize!(nodes, length(arena.nodes))
     copyto!(nodes, arena.nodes)
@@ -366,7 +371,7 @@ function _subtree_count(src::Vector{ArenaEntry{T,D}}, idx::Int32) where {T,D}
 end
 
 # `src` may be `dest`'s own entries: reads are below the original length and
-# writes at or above `cursor`, so the regions never overlap (and `_reserve!`
+# writes at or above `cursor`, so the regions never overlap (and `_grow!`
 # leaves the old buffer intact for reading if it reallocates).
 function _append_subtree!(
     dest::Arena{T,D},
@@ -375,7 +380,7 @@ function _append_subtree!(
     n::Int=_subtree_count(src, idx),
 ) where {T,D}
     cursor = length(dest.nodes)
-    _reserve!(dest, cursor + n)
+    cursor + n > dest.capacity && _grow!(dest, cursor + n)
     nodes = dest.nodes
     resize!(nodes, cursor + n)
     root_idx, _ = _write_subtree!(nodes, src, idx, cursor)
@@ -397,13 +402,13 @@ function copy_node(tree::ArenaNode{T,D}; break_sharing::Val{BS}=Val(false)) wher
     return ArenaNode{T,D}(dest, idx)
 end
 
-# Preallocated arena for `copy_into!`, enabling zero-allocation copies. Sized
-# with doubling headroom so in-place mutations that add nodes after the copy
-# do not reallocate the arena.
+# Preallocated arena for `copy_into!`, enabling zero-allocation copies. Leaves
+# room for one more operator node with its leaves, so the usual in-place edit
+# applied after the copy does not reallocate the arena.
 function allocate_container(
     prototype::ArenaNode{T,D}, num_nodes::Union{Nothing,Integer}=nothing
 ) where {T,D}
-    return Arena{T,D}(; capacity=2 * @something(num_nodes, length(prototype)))
+    return Arena{T,D}(; capacity=@something(num_nodes, length(prototype)) + D + 1)
 end
 
 # Steady-state copy for population search: reuse `dest`'s storage, with no
