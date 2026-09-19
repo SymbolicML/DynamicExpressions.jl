@@ -165,6 +165,22 @@ end
     @test get_child(rewritten, 1).arena === rewritten.arena
     @test string_tree(rewritten, operators) == "sin(x1 * 2.0)"
 
+    # Keyword construction lives in the first arena child's arena: that child
+    # attaches by reference, the rest are copied in.
+    home_child = convert(ArenaNode{Float64}, x1 * 3.2)
+    other_child = convert(ArenaNode{Float64}, sin(x1))
+    built = ArenaNode{Float64,2}(; op=1, children=(home_child, other_child))
+    @test built.arena === home_child.arena
+    @test get_child(built, 2).arena === built.arena
+    @test string_tree(built, operators) == "(x1 * 3.2) + sin(x1)"
+    home_child.r.val = 4.0
+    @test string_tree(built, operators) == "(x1 * 4.0) + sin(x1)"
+    set_child!(other_child, convert(ArenaNode{Float64}, x1 * 2.0), 1)  # copied child is detached
+    @test string_tree(built, operators) == "(x1 * 4.0) + sin(x1)"
+    from_nodes = ArenaNode{Float64,2}(; op=2, children=(x1, Node{Float64}(; val=2.0)))
+    @test from_nodes isa ArenaNode{Float64,2}
+    @test string_tree(from_nodes, operators) == "x1 * 2.0"
+
     bad_children = (
         DynamicExpressions.Nullable(true, Node{Float64}(; val=0.0)),
         Node{Float32}(; val=1.0f0),

@@ -13,7 +13,11 @@ import ..NodeModule:
     count_nodes,
     copy_node,
     tree_mapreduce,
-    inner_is_equal
+    inner_is_equal,
+    node_factory,
+    default_allocator,
+    defines_eltype,
+    max_degree
 import ..NodeUtilsModule: count_constant_nodes, get_scalar_constants, set_scalar_constants!
 import ..NodePreallocationModule: allocate_container, copy_into!
 import ..ValueInterfaceModule: get_number_type, is_valid, is_valid_array
@@ -142,10 +146,12 @@ Core fields are accessed and mutated via `getproperty`/`setproperty!`.
 
 !!! warning
     Unlike `Node`, attaching a child from a *different* arena
-    (`set_child!`/`set_children!`, including keyword construction) copies the
-    subtree into the parent's arena: the original handle stays attached to its
-    own arena, so later mutations through it do not affect the new parent.
-    Same-arena attachments keep reference semantics.
+    (`set_child!`/`set_children!`) copies the subtree into the parent's arena:
+    the original handle stays attached to its own arena, so later mutations
+    through it do not affect the new parent. Same-arena attachments keep
+    reference semantics. Keyword construction (`ArenaNode(; op, children)`)
+    places the new node in the arena of its first `ArenaNode` child, so that
+    child attaches by reference and the others are copied.
 """
 struct ArenaNode{T,D} <: AbstractExpressionNode{T,D}
     arena::Arena{T,D}
@@ -336,6 +342,36 @@ function set_children!(
     entry = @inbounds arena[node.idx]
     @inbounds arena[node.idx] = _replace(entry; children=idxs)
     return nothing
+end
+
+# An operator node built from children (`ArenaNode(; op, children)`) lives in
+# the arena of its first `ArenaNode` child, so that child attaches by reference
+# (as with `Node`) and only the remaining children are copied in. A custom
+# allocator keeps the generic path.
+@inline function node_factory(
+    ::Type{N},
+    ::Type,
+    ::Nothing,
+    ::Nothing,
+    op::Integer,
+    children::Union{Tuple,AbstractVector},
+    ::typeof(default_allocator),
+) where {N<:ArenaNode}
+    T = defines_eltype(N) ? eltype(N) : promote_type(map(eltype, children)...)
+    D = max_degree(N)
+    D2 = length(children)
+    @assert D2 <= D
+    arena = _home_arena(ArenaNode{T,D}, children)
+    idx = _push_node!(arena; degree=UInt8(D2), op=UInt8(op))
+    node = ArenaNode{T,D}(arena, idx)
+    set_children!(node, children)
+    return node
+end
+function _home_arena(::Type{ArenaNode{T,D}}, children) where {T,D}
+    for child in children
+        child isa ArenaNode{T,D} && return get_arena(child)
+    end
+    return Arena{T,D}(; capacity=D + 1)
 end
 
 # Append `idx`'s subtree (children first, root last) to `dest`, returning the
