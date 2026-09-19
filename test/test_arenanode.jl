@@ -298,7 +298,7 @@ end
     @testset "structural mutation invalidates fast paths" begin
         mutated = convert(ArenaNode{Float64}, tree)
         set_child!(mutated, convert(ArenaNode{Float64}, cos(x2)), 2)
-        @test !mutated.arena.compact[]
+        @test !mutated.arena.compact
         expected = copy(tree)
         set_child!(expected, cos(x2), 2)
         @test convert(Node, mutated) == expected
@@ -313,7 +313,7 @@ end
         node.degree = 0
         node.constant = true
         node.val = 1.0
-        @test !leafed.arena.compact[]
+        @test !leafed.arena.compact
         expected2 = copy(tree)
         expected2.r = Node{Float64}(; val=1.0)
         @test convert(Node, leafed) == expected2
@@ -418,16 +418,16 @@ end
     bi = findfirst(e -> e.degree == 0x02, collect(a))
     e = a[bi]
     a[bi] = _replace(e; degree=0x00)
-    @test !a.compact[]
+    @test !a.compact
 
     b = convert(ArenaNode{Float64}, tree).arena
     scrambled = reverse(collect(b))
     copyto!(b, scrambled)
-    @test !b.compact[]
+    @test !b.compact
 
     c = convert(ArenaNode{Float64}, tree).arena
     copyto!(c, collect(c))
-    @test c.compact[]
+    @test c.compact
 end
 
 @testitem "ArenaNode fast paths match Node" setup = [ArenaTreeGen] begin

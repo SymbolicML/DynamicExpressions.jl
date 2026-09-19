@@ -67,23 +67,43 @@ and new entry and automatically clears `compact` whenever the structural fields
 `constant`) preserve the flag, which keeps constant optimization on the fast
 paths. Do not write `arena.nodes` directly outside this file's bulk-copy
 internals.
+
+`Arena` manages its own storage growth: `capacity` is the exact length of the
+underlying buffer, and `_reserve!` at least doubles it on growth. Base's own
+growth policy pads small vectors by 3-4x, which for a tree's 24-byte entries
+costs more than the tree itself on every splice.
 """
-struct Arena{T,D} <: AbstractVector{ArenaEntry{T,D}}
+mutable struct Arena{T,D} <: AbstractVector{ArenaEntry{T,D}}
     nodes::Vector{ArenaEntry{T,D}}
-    compact::Base.RefValue{Bool}
+    compact::Bool
+    capacity::Int
 
     function Arena{T,D}(; capacity::Integer=0) where {T,D}
-        return new{T,D}(sizehint!(ArenaEntry{T,D}[], capacity), Ref(true))
+        return new{T,D}(_new_nodes(ArenaEntry{T,D}, capacity), true, capacity)
     end
     function Arena{T,D}(nodes::Vector{ArenaEntry{T,D}}, compact::Bool) where {T,D}
-        return new{T,D}(nodes, Ref(compact))
+        return new{T,D}(nodes, compact, length(nodes))
     end
 end
 
+# `Vector{E}(undef, n)` is the one Base constructor with an exact buffer size.
+_new_nodes(::Type{E}, capacity::Integer) where {E} = resize!(Vector{E}(undef, capacity), 0)
+
+function _reserve!(arena::Arena{T,D}, needed::Int) where {T,D}
+    needed <= arena.capacity && return arena
+    capacity = max(needed, 2 * arena.capacity)
+    nodes = _new_nodes(ArenaEntry{T,D}, capacity)
+    resize!(nodes, length(arena.nodes))
+    copyto!(nodes, arena.nodes)
+    arena.nodes = nodes
+    arena.capacity = capacity
+    return arena
+end
+
 # Mark/clear the one-postfix-tree invariant (root last, no orphans):
-mark_compact!(arena::Arena) = (arena.compact[] = true; arena)
-invalidate_compact!(arena::Arena) = (arena.compact[] = false; arena)
-is_compact(arena::Arena) = arena.compact[]
+mark_compact!(arena::Arena) = (arena.compact = true; arena)
+invalidate_compact!(arena::Arena) = (arena.compact = false; arena)
+is_compact(arena::Arena) = arena.compact
 
 Base.size(arena::Arena) = size(arena.nodes)
 Base.IndexStyle(::Type{<:Arena}) = IndexLinear()
@@ -100,6 +120,7 @@ Base.@propagate_inbounds function Base.setindex!(
     return arena
 end
 function Base.push!(arena::Arena{T,D}, entry::ArenaEntry{T,D}) where {T,D}
+    _reserve!(arena, length(arena.nodes) + 1)
     nodes = arena.nodes
     # A single leaf in a fresh arena is a valid tree; any further append breaks
     # the one-postfix-tree invariant until a builder re-establishes it.
@@ -107,10 +128,7 @@ function Base.push!(arena::Arena{T,D}, entry::ArenaEntry{T,D}) where {T,D}
     push!(nodes, entry)
     return arena
 end
-function Base.sizehint!(arena::Arena, capacity::Integer)
-    sizehint!(arena.nodes, capacity)
-    return arena
-end
+Base.sizehint!(arena::Arena, capacity::Integer) = _reserve!(arena, Int(capacity))
 
 """A lightweight facade for a node stored in an [`Arena`](@ref).
 
@@ -179,7 +197,7 @@ end
 
 # Default node: a zero constant leaf in its own fresh arena.
 function ArenaNode{T,D}() where {T,D}
-    arena = Arena{T,D}()
+    arena = Arena{T,D}(; capacity=1)
     idx = push_constant!(arena, zero(T))
     return ArenaNode{T,D}(arena, idx)
 end
@@ -317,9 +335,8 @@ end
 
 # Append `idx`'s subtree (children first, root last) to `dest`, returning the
 # root's new index. Works directly on entries -- no facade traversal -- so
-# copying out of a non-compact arena stays an array operation. `dest` is
-# grown to `length(dest) + count(subtree)`; the caller may oversize it first
-# to skip per-entry growth (see `_append_subtree!`'s wrapper below).
+# copying out of a non-compact arena stays an array operation. `dest` must
+# already have room for the subtree at `cursor + 1` onward.
 function _write_subtree!(
     dest::Vector{ArenaEntry{T,D}}, src::Vector{ArenaEntry{T,D}}, idx::Int32, cursor::Int
 ) where {T,D}
@@ -338,16 +355,30 @@ function _write_subtree!(
     return Int32(cursor), cursor
 end
 
-# `src` and `dest` may be the same vector: reads are below the original
-# length, writes at or above `cursor`, and the subtree size never exceeds
-# the source length, so the regions cannot overlap incorrectly.
+function _subtree_count(src::Vector{ArenaEntry{T,D}}, idx::Int32) where {T,D}
+    iszero(idx) && throw(UndefRefError()) # unset child slot, like Node
+    entry = @inbounds src[idx]
+    n = 1
+    @inbounds for j in 1:(entry.degree)
+        n += _subtree_count(src, entry.children[j])
+    end
+    return n
+end
+
+# `src` may be `dest`'s own entries: reads are below the original length and
+# writes at or above `cursor`, so the regions never overlap (and `_reserve!`
+# leaves the old buffer intact for reading if it reallocates).
 function _append_subtree!(
-    dest::Vector{ArenaEntry{T,D}}, src::Vector{ArenaEntry{T,D}}, idx::Int32
+    dest::Arena{T,D},
+    src::Vector{ArenaEntry{T,D}},
+    idx::Int32,
+    n::Int=_subtree_count(src, idx),
 ) where {T,D}
-    cursor = length(dest)
-    resize!(dest, cursor + length(src))  # upper bound; trimmed below
-    root_idx, cursor = _write_subtree!(dest, src, idx, cursor)
-    resize!(dest, cursor)
+    cursor = length(dest.nodes)
+    _reserve!(dest, cursor + n)
+    nodes = dest.nodes
+    resize!(nodes, cursor + n)
+    root_idx, _ = _write_subtree!(nodes, src, idx, cursor)
     return root_idx
 end
 
@@ -360,16 +391,19 @@ function copy_node(tree::ArenaNode{T,D}; break_sharing::Val{BS}=Val(false)) wher
     if is_compact_root(tree)
         return ArenaNode{T,D}(Arena{T,D}(copy(arena.nodes), true), get_index(tree))
     end
-    nodes = sizehint!(ArenaEntry{T,D}[], length(arena.nodes))
-    idx = _append_subtree!(nodes, arena.nodes, get_index(tree))
-    return ArenaNode{T,D}(Arena{T,D}(nodes, true), idx)
+    n = _subtree_count(arena.nodes, get_index(tree))
+    dest = Arena{T,D}(; capacity=n)
+    idx = _append_subtree!(dest, arena.nodes, get_index(tree), n)
+    return ArenaNode{T,D}(dest, idx)
 end
 
-# Preallocated arena for `copy_into!`, enabling zero-allocation copies.
+# Preallocated arena for `copy_into!`, enabling zero-allocation copies. Sized
+# with doubling headroom so in-place mutations that add nodes after the copy
+# do not reallocate the arena.
 function allocate_container(
     prototype::ArenaNode{T,D}, num_nodes::Union{Nothing,Integer}=nothing
 ) where {T,D}
-    return Arena{T,D}(; capacity=@something(num_nodes, length(prototype)))
+    return Arena{T,D}(; capacity=2 * @something(num_nodes, length(prototype)))
 end
 
 # Steady-state copy for population search: reuse `dest`'s storage, with no
@@ -391,6 +425,7 @@ function copy_into!(
     end
     if is_compact_root(src)
         nodes = src.arena.nodes
+        _reserve!(dest, length(nodes))
         resize!(dest.nodes, length(nodes))
         copyto!(dest.nodes, nodes)
         mark_compact!(dest)
@@ -398,7 +433,7 @@ function copy_into!(
         return ArenaNode{T,D}(dest, src.idx)
     end
     empty!(dest.nodes)
-    idx = _append_subtree!(dest.nodes, get_arena(src).nodes, get_index(src))
+    idx = _append_subtree!(dest, get_arena(src).nodes, get_index(src))
     mark_compact!(dest)
     set_ref!(length(dest.nodes))
     return ArenaNode{T,D}(dest, idx)
@@ -406,7 +441,7 @@ end
 
 function _copy_to_arena!(arena::Arena{T,D}, tree::ArenaNode{T,D}) where {T,D}
     invalidate_compact!(arena)
-    return _append_subtree!(arena.nodes, get_arena(tree).nodes, get_index(tree))
+    return _append_subtree!(arena, get_arena(tree).nodes, get_index(tree))
 end
 function _copy_to_arena!(
     arena::Arena{T,D}, tree::AbstractExpressionNode{T2,D}
