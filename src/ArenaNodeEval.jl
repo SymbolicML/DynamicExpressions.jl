@@ -543,9 +543,7 @@ function _arena_eval(
         end
     end
 
-    _write_root_to_output!(
-        pool, descriptors, scalar_vals, nrows, output_slot, base_slot
-    )
+    _write_root_to_output!(pool, descriptors, scalar_vals, nrows, output_slot, base_slot)
     return ResultOk(output, true)
 end
 
