@@ -43,7 +43,7 @@ if "jet" in test_names
             # JET >= 0.11
             JET.test_package(
                 DynamicExpressions;
-                target_defined_modules=true,
+                target_modules=(DynamicExpressions,),
                 ignored_modules=(JET.AnyFrameModule(ignored_mod),),
             )
         else
@@ -86,6 +86,7 @@ if "main" in test_names
     push!(testitem_suffixes, joinpath("test", "test_invalid_values.jl"))
     push!(testitem_suffixes, joinpath("test", "test_buffered_evaluation.jl"))
     push!(testitem_suffixes, joinpath("test", "test_optim.jl"))
+    push!(testitem_suffixes, joinpath("test", "test_arenanode.jl"))
 end
 if "optim" in test_names
     push!(testitem_suffixes, joinpath("test", "test_optim.jl"))
