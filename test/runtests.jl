@@ -40,10 +40,10 @@ if "jet" in test_names
         if isdefined(JET, :match_report) &&
             isdefined(JET, :ReportMatcher) &&
             isdefined(JET, :AnyFrameModule)
-            # JET >= 0.11
+            # JET >= 0.12
             JET.test_package(
                 DynamicExpressions;
-                target_defined_modules=true,
+                target_modules=(DynamicExpressions,),
                 ignored_modules=(JET.AnyFrameModule(ignored_mod),),
             )
         else
