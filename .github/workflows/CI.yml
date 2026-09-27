@@ -72,7 +72,7 @@ jobs:
         os:
           - "ubuntu-latest"
         julia-version:
-          - "1"
+          - "1.12"
         test_name:
           # - "enzyme"  # flaky; seems to infinitely compile and fail the CI
           - "jet"
