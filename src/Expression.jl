@@ -344,7 +344,7 @@ end
 
 Convert an expression to a string representation.
 
-This method unpacks the operators and variable names from the expression and calls [`string_tree`](@ref StringsModule.string_tree) for `AbstractExpressionNode`.
+This method unpacks the operators and variable names from the expression and calls [`string_tree`](@ref DynamicExpressions.StringsModule.string_tree) for `AbstractExpressionNode`.
 
 # Arguments
 
@@ -418,7 +418,7 @@ end
 
 Evaluate an expression over a given input data matrix.
 
-This method unpacks the operators from the expression and calls [`eval_tree_array`](@ref EvaluateModule.eval_tree_array) for `AbstractExpressionNode`.
+This method unpacks the operators from the expression and calls [`eval_tree_array`](@ref DynamicExpressions.EvaluateModule.eval_tree_array) for `AbstractExpressionNode`.
 
 # Arguments
 
@@ -456,7 +456,7 @@ end
 
 Compute the forward-mode derivative of an expression.
 
-This method unpacks the operators from the expression and calls [`eval_grad_tree_array`](@ref EvaluateDerivativeModule.eval_grad_tree_array) for `AbstractExpressionNode`.
+This method unpacks the operators from the expression and calls [`eval_grad_tree_array`](@ref DynamicExpressions.EvaluateDerivativeModule.eval_grad_tree_array) for `AbstractExpressionNode`.
 
 # Arguments
 
