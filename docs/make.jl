@@ -57,8 +57,7 @@ makedocs(;
     repo=Documenter.Remotes.GitHub("astroautomata", "DynamicExpressions.jl"),
     clean=true,
     format=Documenter.HTML(;
-        canonical="https://julia.pysr.ai/dynamicexpressions/stable",
-        edit_link="master",
+        canonical="https://julia.pysr.ai/dynamicexpressions/stable", edit_link="master"
     ),
     pages=[
         "Home" => "index.md",
@@ -105,5 +104,9 @@ end
 if "--deploy" in ARGS
     ENV["DOCUMENTER_KEY"] = ENV["DOCUMENTER_KEY_JULIA_PYSR"]
     ENV["GITHUB_REPOSITORY"] = "ai-damtp-cam-ac-uk/symbolicregression"
-    deploydocs(; repo="github.com/ai-damtp-cam-ac-uk/symbolicregression.git", dirname="dynamicexpressions", devbranch="master")
+    deploydocs(;
+        repo="github.com/ai-damtp-cam-ac-uk/symbolicregression.git",
+        dirname="dynamicexpressions",
+        devbranch="master",
+    )
 end
