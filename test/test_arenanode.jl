@@ -195,6 +195,42 @@ end
     @test atree_fold.val == 5.0
 end
 
+@testitem "ArenaNode combine_operators matches Node" setup = [ArenaTreeGen] begin
+    using Test
+    using DynamicExpressions
+    using DynamicExpressions: ArenaNode
+    using DynamicExpressions.SimplifyModule: combine_operators
+    using Random: MersenneTwister
+
+    operators = OperatorEnum(1 => (sin, cos), 2 => (+, -, *, /))
+    x1 = Node{Float64}(; feature=1)
+    c(v) = Node{Float64}(; val=v)
+    # One case per rewrite rule; each folds its two constants into one.
+    rule_cases = [
+        (x1 + c(1.0)) + c(2.0),
+        (c(3.0) * x1) * c(2.0),
+        (c(1.0) - x1) - c(2.0),
+        (x1 - c(1.0)) - c(2.0),
+        c(1.0) - (c(2.0) - x1),
+        c(1.0) - (x1 - c(2.0)),
+    ]
+    for tree in rule_cases
+        combined = combine_operators(convert(ArenaNode{Float64}, tree), operators)
+        @test count_nodes(combined) == 3
+    end
+
+    rng = MersenneTwister(0)
+    random_trees = [random_tree(rng, n) for n in 3:20 for _ in 1:10]
+    for tree in [rule_cases; random_trees]
+        expected = combine_operators(simplify_tree!(copy(tree), operators), operators)
+        actual = combine_operators(
+            simplify_tree!(convert(ArenaNode{Float64}, tree), operators), operators
+        )
+        @test actual isa ArenaNode{Float64,2}
+        @test string_tree(actual, operators) == string_tree(expected, operators)
+    end
+end
+
 @testitem "Expression with ArenaNode" begin
     using Test
     using DynamicExpressions
