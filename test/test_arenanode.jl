@@ -39,6 +39,17 @@
         end
         return tree
     end
+
+    """True unless `arena` is flagged compact without holding exactly one tree in
+    the canonical postfix layout (root last) that the flat fast paths assume."""
+    function compact_flag_is_honest(arena::DynamicExpressions.Arena{T,D}) where {T,D}
+        DynamicExpressions.ArenaNodeModule.is_compact(arena) || return true
+        n = length(arena)
+        n == 0 && return true
+        relaid = DynamicExpressions.Arena{T,D}(; capacity=n)
+        DynamicExpressions.ArenaNodeModule._append_subtree!(relaid, arena.nodes, Int32(n))
+        return relaid.nodes == arena.nodes
+    end
 end
 
 @testitem "ArenaNode interface and evaluation" begin
@@ -538,8 +549,10 @@ end
                 DynamicExpressions.NodeUtilsModule.is_constant(expected)
             @test count(t -> t.degree == 2, root) == count(t -> t.degree == 2, expected)
             @test first(get_scalar_constants(root)) == first(get_scalar_constants(expected))
+            @test ArenaTreeGen.compact_flag_is_honest(root.arena)
             c = copy(root)
             @test is_compact_root(c)
+            @test ArenaTreeGen.compact_flag_is_honest(c.arena)
             @test convert(Node, c) == expected
         end
     end
@@ -609,7 +622,7 @@ end
     end
 end
 
-@testitem "ArenaNode supposition invariants" begin
+@testitem "ArenaNode supposition invariants" setup = [ArenaTreeGen] begin
     using Test
     using Supposition
     using Supposition: @check, Data
@@ -716,7 +729,8 @@ end
             apply_mutation!(tree, mut)
             apply_mutation!(atree, mut)
         end
-        return string_tree(atree, OPERATORS) == string_tree(tree, OPERATORS) &&
+        return ArenaTreeGen.compact_flag_is_honest(atree.arena) &&
+               string_tree(atree, OPERATORS) == string_tree(tree, OPERATORS) &&
                count_nodes(atree) == count_nodes(tree) &&
                convert(Node, atree) == tree &&
                evals_match(tree, atree, X)
@@ -736,6 +750,7 @@ end
         end
         compacted = copy(atree)
         return DynamicExpressions.ArenaNodeModule.is_compact_root(compacted) &&
+               ArenaTreeGen.compact_flag_is_honest(compacted.arena) &&
                compacted == atree &&
                hash(compacted) == hash(atree) &&
                evals_match(tree, compacted, X)

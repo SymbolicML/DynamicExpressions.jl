@@ -149,9 +149,11 @@ Core fields are accessed and mutated via `getproperty`/`setproperty!`.
     (`set_child!`/`set_children!`) copies the subtree into the parent's arena:
     the original handle stays attached to its own arena, so later mutations
     through it do not affect the new parent. Same-arena attachments keep
-    reference semantics. Keyword construction (`ArenaNode(; op, children)`)
-    places the new node in the arena of its first `ArenaNode` child, so that
-    child attaches by reference and the others are copied.
+    reference semantics. Keyword construction (`ArenaNode(; op, children)`, and
+    so operator overloads like `a + b`) places the new node in the arena of its
+    first `ArenaNode` child, so that child attaches by reference and the others
+    are copied. That arena grows with every node built on top of it, and building
+    from one `ArenaNode` on several threads at once is a data race.
 """
 struct ArenaNode{T,D} <: AbstractExpressionNode{T,D}
     arena::Arena{T,D}
