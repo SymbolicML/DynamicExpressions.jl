@@ -24,7 +24,7 @@ jobs:
       - name: Build and deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For authentication with GitHub Actions token
-          DOCUMENTER_KEY_CAM: ${{ secrets.DAMTP_DEPLOY_KEY }}
+          DOCUMENTER_KEY_JULIA_PYSR: ${{ secrets.DOCUMENTER_KEY_JULIA_PYSR }}
         run: |
             cd docs
-            julia --project=. make.jl
+            julia --project=. make.jl --deploy

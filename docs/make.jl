@@ -54,9 +54,10 @@ end
 makedocs(;
     sitename="DynamicExpressions.jl",
     authors="Miles Cranmer",
+    repo=Documenter.Remotes.GitHub("astroautomata", "DynamicExpressions.jl"),
     clean=true,
     format=Documenter.HTML(;
-        canonical="https://ai.damtp.cam.ac.uk/dynamicexpressions/stable"
+        canonical="https://julia.pysr.ai/dynamicexpressions/stable", edit_link="master"
     ),
     pages=[
         "Home" => "index.md",
@@ -100,9 +101,12 @@ open(redirect_file, "w") do f
     write(f, redirect_page)
 end
 
-deploydocs(; repo="github.com/SymbolicML/DynamicExpressions.jl.git")
-
-# Mirror to DAMTP:
-ENV["DOCUMENTER_KEY"] = ENV["DOCUMENTER_KEY_CAM"]
-ENV["GITHUB_REPOSITORY"] = "ai-damtp-cam-ac-uk/dynamicexpressions.git"
-deploydocs(; repo="github.com/ai-damtp-cam-ac-uk/dynamicexpressions.git")
+if "--deploy" in ARGS
+    ENV["DOCUMENTER_KEY"] = ENV["DOCUMENTER_KEY_JULIA_PYSR"]
+    ENV["GITHUB_REPOSITORY"] = "ai-damtp-cam-ac-uk/symbolicregression"
+    deploydocs(;
+        repo="github.com/ai-damtp-cam-ac-uk/symbolicregression.git",
+        dirname="dynamicexpressions",
+        devbranch="master",
+    )
+end
