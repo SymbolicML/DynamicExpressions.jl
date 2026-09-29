@@ -15,6 +15,8 @@ Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [weakdeps]
+Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
+Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
@@ -24,6 +26,7 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [extensions]
 DynamicExpressionsBumperExt = "Bumper"
+DynamicExpressionsDistributedExt = ["Distributed", "Serialization"]
 DynamicExpressionsLoopVectorizationExt = "LoopVectorization"
 DynamicExpressionsOptimExt = ["Optim", "NLSolversBase"]
 DynamicExpressionsSymbolicUtilsExt = "SymbolicUtils"
@@ -33,6 +36,7 @@ DynamicExpressionsZygoteExt = "Zygote"
 Bumper = "0.6"
 ChainRulesCore = "1.25.1"
 Compat = "4.16"
+Distributed = "1"
 DispatchDoctor = "0.4"
 Interfaces = "0.3"
 LoopVectorization = "0.12.174"
@@ -41,6 +45,7 @@ Optim = "1.13.3, 2"
 NLSolversBase = "7.10, 8"
 PrecompileTools = "1.2.1"
 Reexport = "1.2.2"
+Serialization = "1"
 SymbolicUtils = "4.35"
 Zygote = "0.7"
 julia = "1.10"
