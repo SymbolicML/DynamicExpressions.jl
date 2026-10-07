@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.12.0](https://github.com/astroautomata/DynamicExpressions.jl/compare/v2.11.0...v2.12.0) (2026-09-29)
+
+
+### Performance Improvements
+
+* pack Nodes for Distributed transfers ([#217](https://github.com/astroautomata/DynamicExpressions.jl/issues/217)) ([5487386](https://github.com/astroautomata/DynamicExpressions.jl/commit/5487386872f886522c3c184a95b4df4aa4f08392))
+
 ## [2.11.0](https://github.com/SymbolicML/DynamicExpressions.jl/compare/v2.10.1...v2.11.0) (2026-09-10)
 
 

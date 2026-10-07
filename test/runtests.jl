@@ -13,7 +13,7 @@ using TestItemRunner
 
 test_names = split(get(ENV, "SR_TEST", "main"), ",")
 
-allowed = ["enzyme", "jet", "main", "narity", "optim"]
+allowed = ["distributed", "enzyme", "jet", "main", "narity", "optim"]
 unknown_tests = filter(Base.Fix2(∉, allowed), test_names)
 
 if !isempty(unknown_tests)
@@ -80,6 +80,7 @@ end
 testitem_suffixes = String[]
 
 if "main" in test_names
+    push!(testitem_suffixes, joinpath("test", "test_distributed_serialization.jl"))
     push!(testitem_suffixes, joinpath("test", "unittest.jl"))
     push!(testitem_suffixes, joinpath("test", "test_parse.jl"))
     push!(testitem_suffixes, joinpath("test", "test_evaluation.jl"))
@@ -87,6 +88,9 @@ if "main" in test_names
     push!(testitem_suffixes, joinpath("test", "test_buffered_evaluation.jl"))
     push!(testitem_suffixes, joinpath("test", "test_optim.jl"))
     push!(testitem_suffixes, joinpath("test", "test_arenanode.jl"))
+end
+if "distributed" in test_names
+    push!(testitem_suffixes, joinpath("test", "test_distributed_serialization.jl"))
 end
 if "optim" in test_names
     push!(testitem_suffixes, joinpath("test", "test_optim.jl"))
