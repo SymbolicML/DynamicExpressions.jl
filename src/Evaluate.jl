@@ -131,12 +131,12 @@ mutable struct UnaryFeatureCache{T}
     X::Any
     operators::Any
     entries::Matrix{Union{Nothing,Missing,Vector{T}}}
-end
 
-function UnaryFeatureCache(::Type{T}) where {T}
-    return UnaryFeatureCache{T}(
-        nothing, nothing, Matrix{Union{Nothing,Missing,Vector{T}}}(undef, 0, 0)
-    )
+    function UnaryFeatureCache(::Type{T}) where {T}
+        return new{T}(
+            nothing, nothing, Matrix{Union{Nothing,Missing,Vector{T}}}(undef, 0, 0)
+        )
+    end
 end
 
 Base.copy(::UnaryFeatureCache{T}) where {T} = UnaryFeatureCache(T)
