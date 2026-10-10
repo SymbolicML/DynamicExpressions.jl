@@ -5,6 +5,7 @@ using Compat: Fix
 import ..NodeModule:
     AbstractExpressionNode, constructorof, Node, copy_node, set_node!, set_child!, get_child
 import ..NodeUtilsModule: tree_mapreduce, is_node_constant
+import ..ArenaNodeModule: ArenaNode
 import ..OperatorEnumModule: AbstractOperatorEnum
 import ..ValueInterfaceModule: is_valid
 
@@ -20,9 +21,11 @@ is_subtraction(_) = false
 # COV_EXCL_STOP
 
 combine_operators(tree::AbstractExpressionNode, ::AbstractOperatorEnum) = tree
-# This is only defined for `Node` as it is not possible for, e.g.,
+# This is only defined for `Node` and `ArenaNode`, as it is not possible for, e.g.,
 # `GraphNode`, and n-arity nodes.
-function combine_operators(tree::Node{T,2}, operators::AbstractOperatorEnum) where {T}
+function combine_operators(
+    tree::Union{Node{T,2},ArenaNode{T,2}}, operators::AbstractOperatorEnum
+) where {T}
     # NOTE: (const (+*-) const) already accounted for. Call simplify_tree! before.
     # ((const + var) + const) => (const + var)
     # ((const * var) * const) => (const * var)

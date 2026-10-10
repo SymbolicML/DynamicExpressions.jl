@@ -210,7 +210,7 @@ end
 
 Return the `i`-th child of a node (1-indexed).
 """
-@inline function get_child(n::AbstractNode{D}, i::Int) where {D}
+@inline function get_child(n::AbstractNode{D}, i::Integer) where {D}
     return unsafe_get_children(n)[i][]
 end
 

@@ -32,6 +32,7 @@ using ..NodeModule:
     set_node!,
     filter_map,
     filter_map!
+using ..ArenaNodeModule: ArenaNode
 using ..NodeUtilsModule:
     NodeIndex,
     is_node_constant,
@@ -448,6 +449,11 @@ ni_description = (
 @implements(
     NodeInterface{all_ni_methods_except(())},
     ParametricNode,
+    [Arguments()]
+)
+@implements(
+    NodeInterface{all_ni_methods_except(())},
+    ArenaNode,
     [Arguments()]
 )
 
