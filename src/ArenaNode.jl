@@ -85,9 +85,6 @@ mutable struct Arena{T,D} <: AbstractVector{ArenaEntry{T,D}}
     function Arena{T,D}(; capacity::Integer=0) where {T,D}
         return new{T,D}(_new_nodes(ArenaEntry{T,D}, capacity), true, capacity)
     end
-    function Arena{T,D}(nodes::Vector{ArenaEntry{T,D}}, compact::Bool) where {T,D}
-        return new{T,D}(nodes, compact, length(nodes))
-    end
 end
 
 # `Vector{E}(undef, n)` is the one Base constructor with an exact buffer size.
@@ -137,7 +134,6 @@ function Base.push!(arena::Arena{T,D}, entry::ArenaEntry{T,D}) where {T,D}
     push!(nodes, entry)
     return arena
 end
-Base.sizehint!(arena::Arena, capacity::Integer) = _reserve!(arena, Int(capacity))
 
 """A lightweight facade for a node stored in an [`Arena`](@ref).
 
