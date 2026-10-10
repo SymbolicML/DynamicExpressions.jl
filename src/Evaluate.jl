@@ -652,7 +652,9 @@ end
         return ResultOk(output, true)
     end
 
-    result = _eval_tree_array(child, cX, operators, eval_context)
+    # Calling `_eval_tree_array` here would put this function in its recursive
+    # inference cycle, which can widen the inferred result to `Any`.
+    result = deg0_eval(child, cX, eval_context)
     !result.ok && return result
     @return_on_nonfinite_array(eval_context, result.x)
     output = deg1_eval(result.x, op, eval_context)
