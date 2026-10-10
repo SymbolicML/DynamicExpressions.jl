@@ -130,12 +130,10 @@ end
 mutable struct UnaryFeatureCache{T}
     X::Any
     operators::Any
-    entries::Matrix{Union{Nothing,Missing,Vector{T}}}
+    entries::Matrix{Union{Nothing,Vector{T}}}
 
     function UnaryFeatureCache(::Type{T}) where {T}
-        return new{T}(
-            nothing, nothing, Matrix{Union{Nothing,Missing,Vector{T}}}(undef, 0, 0)
-        )
+        return new{T}(nothing, nothing, Matrix{Union{Nothing,Vector{T}}}(undef, 0, 0))
     end
 end
 
@@ -638,19 +636,16 @@ end
         cache.X = cX
         cache.operators = operators
         max_entries = (16 * 1024^2) ÷ sizeof(T) ÷ max(nrows, 1)
-        if nrows == 0 || nunary <= max_entries ÷ max(nfeatures, 1)
-            cache.entries = fill!(
-                Matrix{Union{Nothing,Missing,Vector{T}}}(undef, nunary, nfeatures), nothing
-            )
+        cache.entries = if nunary * nfeatures <= max_entries
+            fill!(Matrix{Union{Nothing,Vector{T}}}(undef, nunary, nfeatures), nothing)
         else
-            cache.entries = Matrix{Union{Nothing,Missing,Vector{T}}}(undef, 0, 0)
+            Matrix{Union{Nothing,Vector{T}}}(undef, 0, 0)
         end
     end
     isempty(cache.entries) && return nothing
 
     child = get_child(tree, 1)
     cached = cache.entries[op_idx, child.feature]
-    cached === missing && return nothing
     if cached !== nothing
         output = get_array(eval_context.buffer, cX, axes(cX, 2))
         copyto!(output, cached)
@@ -658,19 +653,11 @@ end
     end
 
     result = _eval_tree_array(child, cX, operators, eval_context)
-    if !result.ok
-        cache.entries[op_idx, child.feature] = missing
-        return result
-    end
-    if eval_context.early_exit isa Val{true} && !is_valid_array(result.x)
-        cache.entries[op_idx, child.feature] = missing
-        return ResultOk(result.x, false)
-    end
+    !result.ok && return result
+    @return_on_nonfinite_array(eval_context, result.x)
     output = deg1_eval(result.x, op, eval_context)
     if output.ok && (eval_context.early_exit isa Val{false} || is_valid_array(output.x))
         cache.entries[op_idx, child.feature] = copy(output.x)
-    else
-        cache.entries[op_idx, child.feature] = missing
     end
     return output
 end
