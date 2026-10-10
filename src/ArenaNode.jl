@@ -583,8 +583,9 @@ end
             return Base.Cartesian.@nif(
                 $D,
                 i -> degree == i,  # COV_EXCL_LINE
-                i -> Base.Cartesian.@nany(
-                    i, j -> _foreach_node(visit, arena, children[j], Val(false))
+                i -> Base.Cartesian.@nany(  # COV_EXCL_LINE
+                    i,
+                    j -> _foreach_node(visit, arena, children[j], Val(false))  # COV_EXCL_LINE
                 ),
             )
         end
@@ -674,13 +675,17 @@ end
         return Base.Cartesian.@nif(
             $D,
             i -> degree == i,  # COV_EXCL_LINE
-            i -> @inline(
+            i -> @inline(  # COV_EXCL_LINE
                 op(
                     branch,
                     Base.Cartesian.@ntuple(
                         i,
-                        j -> _entry_mapreduce(
-                            f_leaf, f_branch, op, arena, entry.children[j]
+                        j -> _entry_mapreduce(  # COV_EXCL_LINE
+                            f_leaf,
+                            f_branch,
+                            op,
+                            arena,
+                            entry.children[j],
                         )
                     )...,
                 )

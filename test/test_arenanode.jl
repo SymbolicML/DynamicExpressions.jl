@@ -622,6 +622,106 @@ end
     end
 end
 
+@testitem "ArenaNode Node-like properties, promotion, and subtree copies" begin
+    using DynamicExpressions
+    using DynamicExpressions: Node
+    using DynamicExpressions.NodePreallocationModule: allocate_container, copy_into!
+
+    using DynamicExpressions: ArenaNode
+    using DynamicExpressions.ArenaNodeModule: is_compact_root
+
+    T = Float64
+    to_arena(t) = convert(ArenaNode{T,2}, t)
+    x1 = Node{T}(; feature=1)
+    x2 = Node{T}(; feature=2)
+    # (x1 + cos(x2)) * 0.5
+    tree = Node{T}(;
+        op=2, l=Node{T}(; op=1, l=x1, r=Node{T}(; op=1, l=x2)), r=Node{T}(; val=0.5)
+    )
+
+    @testset "children property matches Node" begin
+        atree = to_arena(tree)
+        @test map(c -> convert(Node, c[]), atree.children) == map(c -> c[], tree.children)
+    end
+
+    @testset "unknown property throws like Node" begin
+        error_type(n) =
+            try
+                n.not_a_field
+                nothing
+            catch e
+                typeof(e)
+            end
+        @test error_type(to_arena(tree)) !== nothing
+        @test error_type(to_arena(tree)) == error_type(tree)
+    end
+
+    @testset "l/r assignment matches set_child!" begin
+        via_property = to_arena(tree)
+        via_set_child = to_arena(tree)
+        expected = copy(tree)
+
+        via_property.l = to_arena(x2)
+        set_child!(via_set_child, to_arena(x2), 1)
+        expected.l = x2
+        via_property.r = to_arena(Node{T}(; op=1, l=x1))
+        set_child!(via_set_child, to_arena(Node{T}(; op=1, l=x1)), 2)
+        expected.r = Node{T}(; op=1, l=x1)
+
+        @test via_property == via_set_child
+        @test convert(Node, via_property) == expected
+    end
+
+    @testset "ArenaNode eltypes promote" begin
+        @test promote_type(ArenaNode{Float32,2}, ArenaNode{Float64,2}) ==
+            ArenaNode{Float64,2}
+        a32 = convert(ArenaNode{Float32,2}, tree)
+        a64 = to_arena(tree)
+        @test a32 == a64
+        @test a64 == a32
+        @test convert(ArenaNode{Float32,2}, Node{T}(; op=1, l=x1, r=x2)) != a64
+    end
+
+    @testset "== on compact trees with different node degrees" begin
+        # Same node count, but the second entry is a degree-1 node in one
+        # tree and a leaf in the other.
+        unary = to_arena(Node{T}(; op=1, l=Node{T}(; op=1, l=x1)))
+        binary = to_arena(Node{T}(; op=1, l=x1, r=x2))
+        @test is_compact_root(unary) && is_compact_root(binary)
+        @test length(unary) == length(binary)
+        @test unary != binary
+        @test convert(Node, unary) != convert(Node, binary)
+    end
+
+    @testset "copy_into! of a non-root subtree" begin
+        # Into a different arena:
+        atree = to_arena(tree)
+        sub = atree.l
+        @test !is_compact_root(sub)
+        dest = allocate_container(atree)
+        ref = Ref(-1)
+        out = copy_into!(dest, sub; ref)
+        @test out.arena === dest
+        @test is_compact_root(out)
+        @test out == copy(sub)
+        @test convert(Node, out) == tree.l
+        @test ref[] == length(tree.l)
+        @test convert(Node, atree) == tree
+
+        # Into the arena it already lives in, which becomes the subtree:
+        atree = to_arena(tree)
+        sub = atree.l
+        expected = copy(sub)
+        ref = Ref(-1)
+        out = copy_into!(atree.arena, sub; ref)
+        @test out.arena === atree.arena
+        @test is_compact_root(out)
+        @test out == expected
+        @test convert(Node, out) == tree.l
+        @test ref[] == length(tree.l)
+    end
+end
+
 @testitem "ArenaNode supposition invariants" setup = [ArenaTreeGen] begin
     using Test
     using Supposition
