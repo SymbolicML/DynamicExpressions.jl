@@ -622,15 +622,16 @@ end
         )
     end
 end
-function cached_deg1_eval(
+# Returns `nothing` when the caller should evaluate without the cache.
+@unstable function cached_deg1_eval(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
     op_idx::Integer,
     operators::OperatorEnum,
-    op,
+    op::F,
     eval_context::EvalContext,
     cache::UnaryFeatureCache{T},
-) where {T}
+) where {T,F}
     nunary = get_nops(typeof(operators), Val(1))
     nfeatures, nrows = size(cX)
     if cache.X !== cX || cache.operators !== operators
