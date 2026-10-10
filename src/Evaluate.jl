@@ -628,8 +628,14 @@ end
     operators::OperatorEnum,
     op::F,
     eval_context::EvalContext,
-    cache::UnaryFeatureCache{T},
 ) where {T,F}
+    cache = eval_context.unary_cache
+    cache isa UnaryFeatureCache{T} || return nothing
+    (eval_context.turbo isa Val{false} && eval_context.bumper isa Val{false}) ||
+        return nothing
+    child = get_child(tree, 1)
+    (child.degree == 0 && !child.constant) || return nothing
+
     nunary = get_nops(typeof(operators), Val(1))
     nfeatures, nrows = size(cX)
     if cache.X !== cX || cache.operators !== operators
@@ -644,7 +650,6 @@ end
     end
     isempty(cache.entries) && return nothing
 
-    child = get_child(tree, 1)
     cached = cache.entries[op_idx, child.feature]
     if cached !== nothing
         output = get_array(eval_context.buffer, cX, axes(cX, 2))
@@ -675,19 +680,12 @@ end
     long_compilation_time = nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     if long_compilation_time
         return quote
-            if eval_context.unary_cache isa UnaryFeatureCache{eltype(cX)} &&
-                eval_context.turbo isa Val{false} &&
-                eval_context.bumper isa Val{false} &&
+            # The operator's type is unknown here, so only make the dynamic call for features.
+            if eval_context.unary_cache isa UnaryFeatureCache &&
                 get_child(tree, 1).degree == 0 &&
                 !get_child(tree, 1).constant
                 cached = cached_deg1_eval(
-                    tree,
-                    cX,
-                    op_idx,
-                    operators,
-                    operators.unaops[op_idx],
-                    eval_context,
-                    eval_context.unary_cache,
+                    tree, cX, op_idx, operators, operators.unaops[op_idx], eval_context
                 )
                 cached === nothing || return cached
             end
@@ -724,20 +722,8 @@ end
                     )
                 else
                     # op(x), for any x.
-                    if eval_context.unary_cache isa UnaryFeatureCache{eltype(cX)} &&
-                        eval_context.turbo isa Val{false} &&
-                        eval_context.bumper isa Val{false} &&
-                        get_child(tree, 1).degree == 0 &&
-                        !get_child(tree, 1).constant
-                        cached = cached_deg1_eval(
-                            tree,
-                            cX,
-                            op_idx,
-                            operators,
-                            op,
-                            eval_context,
-                            eval_context.unary_cache,
-                        )
+                    if eval_context.unary_cache isa UnaryFeatureCache
+                        cached = cached_deg1_eval(tree, cX, op_idx, operators, op, eval_context)
                         cached === nothing || return cached
                     end
                     result = _eval_tree_array(
