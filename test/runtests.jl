@@ -86,6 +86,7 @@ if "main" in test_names
     push!(testitem_suffixes, joinpath("test", "test_evaluation.jl"))
     push!(testitem_suffixes, joinpath("test", "test_invalid_values.jl"))
     push!(testitem_suffixes, joinpath("test", "test_buffered_evaluation.jl"))
+    push!(testitem_suffixes, joinpath("test", "test_unary_feature_cache.jl"))
     push!(testitem_suffixes, joinpath("test", "test_optim.jl"))
 end
 if "distributed" in test_names

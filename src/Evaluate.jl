@@ -127,6 +127,18 @@ end
 @inline feature_at(X, input_index, feature, j, ::IndexLinear) = @inbounds X[input_index]
 @inline feature_at(X, input_index, feature, j, _) = @inbounds X[feature, j]
 
+mutable struct UnaryFeatureCache{T}
+    X::Any
+    operators::Any
+    entries::Matrix{Union{Nothing,Vector{T}}}
+
+    function UnaryFeatureCache(::Type{T}) where {T}
+        return new{T}(nothing, nothing, Matrix{Union{Nothing,Vector{T}}}(undef, 0, 0))
+    end
+end
+
+Base.copy(::UnaryFeatureCache{T}) where {T} = UnaryFeatureCache(T)
+
 """
     EvalContext
 
@@ -153,13 +165,22 @@ This holds evaluation policy and call-scoped mutable state.
     evaluation. Setting this to `Val{false}` will skip the fused kernels, meaning that
     you would only need to overload `deg0_eval`, `deg1_eval` and `deg2_eval` for custom
     evaluation.
+- `unary_cache::Union{UnaryFeatureCache,Nothing}=nothing`: Optionally reuse unary
+    operators applied directly to features within one input matrix.
+    The input matrix must not be mutated in place between evaluations with the same context.
 """
-struct EvalContext{T,B,E,BUF<:Union{ArrayBuffer,Nothing},U}
+struct EvalContext{
+    T,B,E,BUF<:Union{ArrayBuffer,Nothing},U,C<:Union{UnaryFeatureCache,Nothing}
+}
     turbo::Val{T}
     bumper::Val{B}
     early_exit::Val{E}
     buffer::BUF
     use_fused::Val{U}
+    unary_cache::C
+end
+function EvalContext(turbo::Val, bumper::Val, early_exit::Val, buffer, use_fused::Val)
+    return EvalContext(turbo, bumper, early_exit, buffer, use_fused, nothing)
 end
 
 @unstable function EvalContext(;
@@ -168,6 +189,7 @@ end
     early_exit::Union{Bool,Val}=Val(true),
     buffer::Union{ArrayBuffer,Nothing}=nothing,
     use_fused::Union{Bool,Val}=Val(true),
+    unary_cache::Union{UnaryFeatureCache,Nothing}=nothing,
 )
     v_turbo = _to_bool_val(turbo)
     v_bumper = _to_bool_val(bumper)
@@ -178,7 +200,7 @@ end
         @assert buffer === nothing
     end
 
-    return EvalContext(v_turbo, v_bumper, v_early_exit, buffer, v_use_fused)
+    return EvalContext(v_turbo, v_bumper, v_early_exit, buffer, v_use_fused, unary_cache)
 end
 
 Base.@deprecate_binding EvalOptions EvalContext
@@ -197,6 +219,7 @@ function Base.copy(eval_context::EvalContext)
         early_exit=eval_context.early_exit,
         buffer=_copy(eval_context.buffer),
         use_fused=eval_context.use_fused,
+        unary_cache=_copy(eval_context.unary_cache),
     )
 end
 
@@ -597,6 +620,55 @@ end
         )
     end
 end
+# Returns `nothing` when the caller should evaluate without the cache.
+@unstable function cached_deg1_eval(
+    tree::AbstractExpressionNode{T},
+    cX::AbstractMatrix{T},
+    op_idx::Integer,
+    operators::OperatorEnum,
+    op::F,
+    eval_context::EvalContext,
+) where {T,F}
+    cache = eval_context.unary_cache
+    cache isa UnaryFeatureCache{T} || return nothing
+    (eval_context.turbo isa Val{false} && eval_context.bumper isa Val{false}) ||
+        return nothing
+    child = get_child(tree, 1)
+    (child.degree == 0 && !child.constant) || return nothing
+
+    nunary = get_nops(typeof(operators), Val(1))
+    nfeatures, nrows = size(cX)
+    if cache.X !== cX || cache.operators !== operators
+        cache.X = cX
+        cache.operators = operators
+        max_entries = (16 * 1024^2) ÷ sizeof(T) ÷ max(nrows, 1)
+        cache.entries = if nunary * nfeatures <= max_entries
+            fill!(Matrix{Union{Nothing,Vector{T}}}(undef, nunary, nfeatures), nothing)
+        else
+            Matrix{Union{Nothing,Vector{T}}}(undef, 0, 0)
+        end
+    end
+    isempty(cache.entries) && return nothing
+
+    cached = cache.entries[op_idx, child.feature]
+    if cached !== nothing
+        output = get_array(eval_context.buffer, cX, axes(cX, 2))
+        copyto!(output, cached)
+        return ResultOk(output, true)
+    end
+
+    # Calling `_eval_tree_array` here would put this function in its recursive
+    # inference cycle, which can widen the inferred result to `Any`.
+    result = deg0_eval(child, cX, eval_context)
+    !result.ok && return result
+    @return_on_nonfinite_array(eval_context, result.x)
+    output = deg1_eval(result.x, op, eval_context)
+    if output.ok && (eval_context.early_exit isa Val{false} || is_valid_array(output.x))
+        cache.entries[op_idx, child.feature] = copy(output.x)
+    end
+    return output
+end
+
 @generated function dispatch_deg1_eval(
     tree::AbstractExpressionNode{T},
     cX::AbstractMatrix{T},
@@ -608,6 +680,15 @@ end
     long_compilation_time = nuna > OPERATOR_LIMIT_BEFORE_SLOWDOWN
     if long_compilation_time
         return quote
+            # The operator's type is unknown here, so only make the dynamic call for features.
+            if eval_context.unary_cache isa UnaryFeatureCache &&
+                get_child(tree, 1).degree == 0 &&
+                !get_child(tree, 1).constant
+                cached = cached_deg1_eval(
+                    tree, cX, op_idx, operators, operators.unaops[op_idx], eval_context
+                )
+                cached === nothing || return cached
+            end
             result = _eval_tree_array(get_child(tree, 1), cX, operators, eval_context)
             !result.ok && return result
             @return_on_nonfinite_array(eval_context, result.x)
@@ -641,7 +722,13 @@ end
                     )
                 else
                     # op(x), for any x.
-                    result = _eval_tree_array(get_child(tree, 1), cX, operators, eval_context)
+                    if eval_context.unary_cache isa UnaryFeatureCache
+                        cached = cached_deg1_eval(tree, cX, op_idx, operators, op, eval_context)
+                        cached === nothing || return cached
+                    end
+                    result = _eval_tree_array(
+                        get_child(tree, 1), cX, operators, eval_context
+                    )
                     !result.ok && return result
                     @return_on_nonfinite_array(eval_context, result.x)
                     deg1_eval(result.x, op, eval_context)
